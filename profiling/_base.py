@@ -8,7 +8,6 @@ from typing import Any, Generic, TypeVar
 
 import polars as pl
 
-from ..models._data_structure import DataStructure
 from .config import DatasetStats, ProfileConfig
 
 R = TypeVar("R")
@@ -20,8 +19,7 @@ class Profiling(ABC, Generic[R]):
     Generic structural profiler (legacy base — kept for existing profilers).
     """
 
-    def __init__(self, data_structure: DataStructure, config: ProfileConfig | None = None):
-        self.data_structure = data_structure
+    def __init__(self, config: ProfileConfig | None = None):
         self.config = config or ProfileConfig()
 
     @abstractmethod

@@ -97,56 +97,6 @@ class ColumnMissingnessProfile:
         return "\n".join(lines)
 
 
-# ---------------------------------------------------------------------------
-# Row-wise distribution
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class RowMissingnessDistribution:
-    """
-    Summary of per-row missing-value counts across the scoped columns.
-
-    Attributes
-    ----------
-    pct_zero_missing : float
-        Fraction of rows with 0 missing values.
-    pct_one_to_two : float
-        Fraction of rows with 1–2 missing values.
-    pct_three_to_five : float
-        Fraction of rows with 3–5 missing values.
-    pct_over_five : float
-        Fraction of rows with > 5 missing values.
-    pct_over_half_missing : float
-        Fraction of rows where > 50% of the scoped columns are missing.
-        These rows are candidates for unconditional dropping before imputation.
-    drop_candidate_row_count : int
-        Absolute count corresponding to pct_over_half_missing.
-    """
-
-    pct_zero_missing: float = 0.0
-    pct_one_to_two: float = 0.0
-    pct_three_to_five: float = 0.0
-    pct_over_five: float = 0.0
-    pct_over_half_missing: float = 0.0
-    drop_candidate_row_count: int = 0
-
-    def __str__(self) -> str:  # pragma: no cover
-        return (
-            "  Row-wise missingness distribution:\n"
-            f"    0 missing          : {self.pct_zero_missing:.2%}\n"
-            f"    1–2 missing        : {self.pct_one_to_two:.2%}\n"
-            f"    3–5 missing        : {self.pct_three_to_five:.2%}\n"
-            f"    >5  missing        : {self.pct_over_five:.2%}\n"
-            f"    >50% cols missing  : {self.pct_over_half_missing:.2%}"
-            f"  ({self.drop_candidate_row_count:,} rows)"
-        )
-
-
-# ---------------------------------------------------------------------------
-# Top-level result
-# ---------------------------------------------------------------------------
-
 
 @dataclass
 class MissingnessProfileResult:
@@ -173,9 +123,6 @@ class MissingnessProfileResult:
     analysed_columns: list[str] = field(default_factory=list)
     fully_null_columns: list[str] = field(default_factory=list)
     correlation_matrix: dict[str, dict[str, float]] = field(default_factory=dict)
-    row_distribution: RowMissingnessDistribution = field(
-        default_factory=RowMissingnessDistribution
-    )
 
     def __str__(self) -> str:  # pragma: no cover
         lines = ["=== Missingness Profile ==="]
@@ -186,5 +133,5 @@ class MissingnessProfileResult:
                 f"\n  Fully-null columns (must drop): "
                 f"{', '.join(self.fully_null_columns)}"
             )
-        lines.append(str(self.row_distribution))
+
         return "\n".join(lines)

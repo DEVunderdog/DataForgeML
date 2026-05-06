@@ -22,18 +22,15 @@ from typing import Any
 
 import polars as pl
 
-from ..models._data_structure import DataStructure
-from ._base import Profiling
+from ._base import Profiling, ModalityProfiler
 from .config import (
     MemoryBreakdown,
     ProfileConfig,
-    TabularProfileResult,
-    ColumnMissingness,
+    DatasetStats,
 )
-from ._type_detector import TypeDetector
 
 
-class TabularProfiler(Profiling[TabularProfileResult]):
+class TabularProfiler(ModalityProfiler, Profiling[DatasetStats]):
     """
     Structural profiler for Polars DataFrames.
 
@@ -51,13 +48,13 @@ class TabularProfiler(Profiling[TabularProfileResult]):
     """
 
     def __init__(self, config: ProfileConfig | None = None):
-        super().__init__(DataStructure.Tabular, config)
+        super().__init__(config)
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
-    def profile(self, data: Any) -> TabularProfileResult:
+    def profile(self, data: Any) -> DatasetStats:
         if not isinstance(data, pl.DataFrame):
             raise TypeError(
                 f"TabularProfiler expects a Polars DataFrame, got {type(data).__name__}."
@@ -68,8 +65,8 @@ class TabularProfiler(Profiling[TabularProfileResult]):
     # Internals
     # ------------------------------------------------------------------
 
-    def _run(self, df: pl.DataFrame) -> TabularProfileResult:
-        result = TabularProfileResult()
+    def _run(self, df: pl.DataFrame) -> DatasetStats:
+        result = DatasetStats()
 
         # 1. Shape — always computed on the full frame
         result.row_count = df.height
@@ -79,36 +76,23 @@ class TabularProfiler(Profiling[TabularProfileResult]):
         self._analyse_memory(df, result)
 
         # Decide processing mode AFTER memory analysis
-        use_chunks = result.memory_exceeded_threshold and result.row_count > 0
-
-        # 3. Resolve column scopes
-        all_cols: list[str] = df.columns
-
-        analysed_cols = self._resolve_columns(all_cols, self.config.columns)
-        dup_cols = self._resolve_columns(
-            all_cols, self.config.resolve_duplicate_columns()
-        )
-
-        missingness_cols = analysed_cols
-
-        result.analysed_columns = analysed_cols
-        result.duplicate_scope_columns = dup_cols
-        result.sparsity_scope_columns = missingness_cols
+        use_chunks = (result.memory_breakdown is not None) and result.row_count > 0
         result.was_chunked = use_chunks
 
         if result.row_count == 0:
-            # Still run type detection on empty frame if requested
-            self._run_type_detection(df, all_cols, result)
             return result
 
-        # 4. Duplicates & 5. Sparsity
+        # 3. Resolve column scopes
+        all_cols: list[str] = df.columns
+        analysed_cols = [c for c in all_cols if c not in self.config.exclude_columns]
+
+        dup_cols = analysed_cols
+        missingness_cols = analysed_cols
+
         if use_chunks:
             self._chunked_metrics(df, dup_cols, missingness_cols, result)
         else:
             self._full_metrics(df, dup_cols, missingness_cols, result)
-
-        # 6. Type detection (selective — only when type_detection_columns set)
-        self._run_type_detection(df, all_cols, result)
 
         return result
 
@@ -145,7 +129,7 @@ class TabularProfiler(Profiling[TabularProfileResult]):
     # Memory analysis
     # ------------------------------------------------------------------
 
-    def _analyse_memory(self, df: pl.DataFrame, result: TabularProfileResult) -> None:
+    def _analyse_memory(self, df: pl.DataFrame, result: DatasetStats) -> None:
         """
         Populate memory fields on *result*.
 
@@ -156,11 +140,10 @@ class TabularProfiler(Profiling[TabularProfileResult]):
         }
         total_bytes = sum(col_bytes.values())
 
-        result.total_memory_bytes = total_bytes
+        result.memory_bytes = total_bytes
         threshold_bytes = self.config.memory_threshold_mb * 1024 * 1024
-        result.memory_exceeded_threshold = total_bytes > threshold_bytes
 
-        if result.memory_exceeded_threshold:
+        if total_bytes > threshold_bytes:
             result.memory_breakdown = MemoryBreakdown(column_bytes=col_bytes)
 
     # ------------------------------------------------------------------
@@ -172,11 +155,11 @@ class TabularProfiler(Profiling[TabularProfileResult]):
         df: pl.DataFrame,
         dup_cols: list[str],
         missing_cols: list[str],
-        result: TabularProfileResult,
+        result: DatasetStats,
     ) -> None:
-        result.duplicate_row_count = self._count_duplicates(df, dup_cols)
+        result.duplicate_count = self._count_duplicates(df, dup_cols)
         result.duplicate_ratio = (
-            result.duplicate_row_count / result.row_count if result.row_count else 0.0
+            result.duplicate_count / result.row_count if result.row_count else 0.0
         )
 
         if missing_cols:
@@ -184,19 +167,14 @@ class TabularProfiler(Profiling[TabularProfileResult]):
             row = df.select(exprs).row(0)
 
             total_eff_cells = 0
-            for i, col_name in enumerate(missing_cols):
-                std_nulls = row[i*2]
-                eff_nulls = row[i*2 + 1]
+            for i, _ in enumerate(missing_cols):
+                eff_nulls = row[i * 2 + 1]
                 total_eff_cells += eff_nulls
-                
-                result.missingness[col_name] = ColumnMissingness(
-                    standard_nulls=std_nulls,
-                    effective_nulls=eff_nulls,
-                    effective_null_ratio=eff_nulls / result.row_count
-                )
-                
+
             total_cells = result.row_count * len(missing_cols)
-            result.overall_effective_sparsity = total_eff_cells / total_cells if total_cells else 0.0
+            result.overall_sparsity = (
+                total_eff_cells / total_cells if total_cells else 0.0
+            )
 
     # ------------------------------------------------------------------
     # Chunked metrics
@@ -207,7 +185,7 @@ class TabularProfiler(Profiling[TabularProfileResult]):
         df: pl.DataFrame,
         dup_cols: list[str],
         sparsity_cols: list[str],
-        result: TabularProfileResult,
+        result: DatasetStats,
     ) -> None:
         """
         Stream through the DataFrame in row-chunks to keep peak memory low.
@@ -229,25 +207,25 @@ class TabularProfiler(Profiling[TabularProfileResult]):
             end = min(start + chunk_size, result.row_count)
             chunk: pl.DataFrame = df.slice(start, end - start)
 
+            if dup_cols:
             # --- duplicates ---
-            sub = chunk.select(dup_cols) if dup_cols else chunk
-            for row_tuple in sub.iter_rows():
-                h = hash(row_tuple)
-                if h in seen_hashes:
-                    dup_count += 1
-                else:
-                    seen_hashes.add(h)
+                sub = chunk.select(dup_cols) if dup_cols else chunk
+                for row_tuple in sub.iter_rows():
+                    h = hash(row_tuple)
+                    if h in seen_hashes:
+                        dup_count += 1
+                    else:
+                        seen_hashes.add(h)
 
+            if sparsity_cols:
             # --- sparsity ---
-            sparsity_chunk = chunk.select(sparsity_cols) if sparsity_cols else chunk
-            missing_cells += int(
-                sparsity_chunk.select(pl.all().is_null().sum()).row(0)[0]
-                if sparsity_chunk.width == 1
-                else sum(sparsity_chunk.select(pl.all().is_null().sum()).row(0))
-            )
-            total_cells += sparsity_chunk.height * sparsity_chunk.width
+                exprs = self._build_missingness_exprs(chunk, sparsity_cols)
+                row = chunk.select(exprs).row(0)
+                for j in range(len(sparsity_cols)):
+                    missing_cells += row[j * 2 + 1]
+                total_cells += chunk.height * len(sparsity_cols)
 
-        result.duplicate_row_count = dup_count
+        result.duplicate_count = dup_count
         result.duplicate_ratio = (
             dup_count / result.row_count if result.row_count else 0.0
         )
@@ -256,25 +234,6 @@ class TabularProfiler(Profiling[TabularProfileResult]):
     # ------------------------------------------------------------------
     # Type detection
     # ------------------------------------------------------------------
-
-    def _run_type_detection(
-        self,
-        df: pl.DataFrame,
-        all_cols: list[str],
-        result: TabularProfileResult,
-    ) -> None:
-        """Run TypeDetector on the opted-in columns only."""
-        if self.config.type_detection_columns is None:
-            return  # opt-in not set — skip entirely
-
-        detection_cols = self._resolve_columns(
-            all_cols, self.config.type_detection_columns
-        )
-        if not detection_cols:
-            return
-
-        detector = TypeDetector(detection_cols)
-        result.column_type_info = detector.detect(df)
 
     # ------------------------------------------------------------------
     # Stateless helpers
@@ -293,12 +252,3 @@ class TabularProfiler(Profiling[TabularProfileResult]):
         # number of unique rows.
         n_unique = sub.unique().height
         return df.height - n_unique
-
-    @staticmethod
-    def _compute_sparsity(df: pl.DataFrame, cols: list[str]) -> float:
-        sub = df.select(cols) if cols else df
-        total = sub.height * sub.width
-        if total == 0:
-            return 0.0
-        missing = sum(sub.select(pl.all().is_null().sum()).row(0))
-        return missing / total

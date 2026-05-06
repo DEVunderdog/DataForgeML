@@ -12,6 +12,10 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Optional, Union
 
+from ._missingness_config import (
+    ColumnMissingnessProfile,
+)
+
 # ---------------------------------------------------------------------------
 # Core enums
 # ---------------------------------------------------------------------------
@@ -57,14 +61,6 @@ class TypeFlag(StrEnum):
 # ---------------------------------------------------------------------------
 # Stats dataclasses
 # ---------------------------------------------------------------------------
-
-
-@dataclass
-class MissingnessStats:
-    null_count: int = 0
-    effective_null_count: int = 0
-    effective_null_ratio: float = 0.0
-    severity: Optional[str] = None  # "minor" | "moderate" | "high" | "severe"
 
 
 @dataclass
@@ -165,8 +161,37 @@ class ColumnProfile:
     original_dtype: str = ""
     inferred_dtype: str = ""
     is_target: bool = False
-    missingness: MissingnessStats = field(default_factory=MissingnessStats)
+    missingness: Optional[ColumnMissingnessProfile] = field(
+        default_factory=ColumnMissingnessProfile
+    )
     stats: Optional[AnyStats] = None
+
+
+@dataclass
+class RowMissingnessDistribution:
+    """
+    Dataset-level summary of per-row missing-value counts.
+    Computed by StructuralProfiler over the full active column set.
+    """
+
+    pct_zero_missing: float = 0.0
+    pct_one_to_two: float = 0.0
+    pct_three_to_five: float = 0.0
+    pct_over_five: float = 0.0
+    pct_over_half_missing: float = 0.0
+    drop_candidate_row_count: int = 0
+
+
+@dataclass
+class MemoryBreakdown:
+    column_bytes: dict[str, int] = field(default_factory=dict)
+
+    @property
+    def sorted_by_usage(self) -> list[tuple[str, int]]:
+        return sorted(self.column_bytes.items(), key=lambda x: x[1], reverse=True)
+
+    def top_consumers(self, n: int = 10) -> list[tuple[str, int]]:
+        return self.sorted_by_usage[:n]
 
 
 @dataclass
@@ -175,11 +200,16 @@ class DatasetStats:
     row_count: int = 0
     column_count: int = 0
     memory_bytes: int = 0
+    memory_breakdown: Optional[MemoryBreakdown] = None
     duplicate_count: int = 0
     duplicate_ratio: float = 0.0
     overall_sparsity: float = 0.0
+    was_chunked: bool = False
     missingness_matrix: Optional[dict[str, dict[str, float]]] = None
     correlation: Optional[dict[str, dict[str, float]]] = None
+    row_distribution: RowMissingnessDistribution = field(
+        default_factory=RowMissingnessDistribution
+    )
 
 
 @dataclass
@@ -265,19 +295,6 @@ class ProfileConfig:
 # ---------------------------------------------------------------------------
 # Legacy result types — used by old profilers pending redesign
 # ---------------------------------------------------------------------------
-
-
-@dataclass
-class MemoryBreakdown:
-    column_bytes: dict[str, int] = field(default_factory=dict)
-
-    @property
-    def sorted_by_usage(self) -> list[tuple[str, int]]:
-        return sorted(self.column_bytes.items(), key=lambda x: x[1], reverse=True)
-
-    def top_consumers(self, n: int = 10) -> list[tuple[str, int]]:
-        return self.sorted_by_usage[:n]
-
 
 @dataclass
 class ColumnMissingness:
