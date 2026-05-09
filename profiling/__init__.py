@@ -5,7 +5,6 @@ from .config import (
     Modality,
     TypeFlag,
     NumericKind,
-    MissingnessStats,
     NumericStats,
     CategoricalStats,
     DatetimeStats,
@@ -15,7 +14,7 @@ from .config import (
     DatasetStats,
     StructuralProfileResult,
 )
-from ._base import ColumnTypeProfiler, ModalityProfiler
+from ._base import ModalityProfiler
 
 __all__ = [
     "StructuralProfiler",
@@ -24,7 +23,6 @@ __all__ = [
     "Modality",
     "TypeFlag",
     "NumericKind",
-    "MissingnessStats",
     "NumericStats",
     "CategoricalStats",
     "DatetimeStats",
@@ -33,6 +31,5 @@ __all__ = [
     "ColumnProfile",
     "DatasetStats",
     "StructuralProfileResult",
-    "ColumnTypeProfiler",
     "ModalityProfiler",
 ]
