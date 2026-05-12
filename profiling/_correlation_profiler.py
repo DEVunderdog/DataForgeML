@@ -37,7 +37,7 @@ from __future__ import annotations
 import copy
 import itertools
 import warnings
-from typing import Any, Optional
+from typing import Optional
 
 import polars as pl
 
@@ -57,6 +57,7 @@ from ..models._data_types import _NUMERIC_DTYPES, _INT_DTYPES
 _NEAR_REDUNDANT_THRESHOLD: float = 0.95
 _TOP_N_FEATURE_TARGET: int = 10
 _MI_N_NEIGHBORS: int = 3
+_MI_MIN_ROWS: int = 10  # min complete-case rows for a meaningful k-NN MI estimate
 
 
 # ---------------------------------------------------------------------------
@@ -116,7 +117,6 @@ class CorrelationProfiler(Profiling[CorrelationProfileResult]):
         self,
         numeric_columns: list[str],
         categorical_columns: Optional[list[str]] = None,
-        target_column: Optional[str] = None,
         config: Optional[ProfileConfig] = None,
         near_redundant_threshold: float = _NEAR_REDUNDANT_THRESHOLD,
         top_n_feature_target: int = _TOP_N_FEATURE_TARGET,
@@ -135,7 +135,6 @@ class CorrelationProfiler(Profiling[CorrelationProfileResult]):
         self,
         df: pl.DataFrame,
         numeric_cols: list[str],
-        categorical_cols: list[str],
     ) -> CorrelationProfileResult:
         """
         Compute pairwise feature-feature correlation matrices.
@@ -432,64 +431,94 @@ class CorrelationProfiler(Profiling[CorrelationProfileResult]):
             )
             return []
 
-        import numpy as np
-
-        all_feature_cols = numeric_feature_cols + categorical_feature_cols
-        if not all_feature_cols:
+        if not numeric_feature_cols and not categorical_feature_cols:
             return []
 
-        X_cols: list[Any] = []
-        discrete_mask: list[bool] = []
+        fn = (
+            mutual_info_regression
+            if target_type == TargetType.Numeric
+            else mutual_info_classif
+        )
+
+        # Build the target array once; track its null positions separately so
+        # each feature can use its own complete-case mask (rows null in either
+        # the feature or the target are excluded for that feature only).
+        if target_type == TargetType.Numeric:
+            target_series = df[target_col].cast(pl.Float64)
+            y_full = target_series.to_numpy()
+            target_null = (target_series.is_null() | target_series.is_nan()).to_numpy()
+        else:
+            target_encoded = (
+                df[target_col]
+                .cast(pl.Utf8, strict=False)
+                .cast(pl.Categorical)
+                .to_physical()
+                .cast(pl.Int64)
+            )
+            y_full = target_encoded.to_numpy()
+            target_null = df[target_col].is_null().to_numpy()
+
+        entries: list[MutualInformationEntry] = []
 
         for col in numeric_feature_cols:
             series = df[col].cast(pl.Float64)
-            median = series.drop_nulls().median() or 0.0
-            X_cols.append(series.fill_null(median).fill_nan(median).to_numpy())
-            discrete_mask.append(df[col].dtype in _INT_DTYPES)
+            feat_null = (series.is_null() | series.is_nan()).to_numpy()
+            valid = ~(feat_null | target_null)
+            n_valid = int(valid.sum())
+            if n_valid < _MI_MIN_ROWS:
+                continue
+            x = series.to_numpy()[valid].reshape(-1, 1)
+            y = y_full[valid]
+            try:
+                score = float(
+                    fn(
+                        x,
+                        y,
+                        discrete_features=[df[col].dtype in _INT_DTYPES],
+                        n_neighbors=_MI_N_NEIGHBORS,
+                        random_state=42,
+                    )[0]
+                )
+            except Exception as exc:
+                warnings.warn(f"MI failed for '{col}': {exc}", stacklevel=3)
+                continue
+            entries.append(MutualInformationEntry(feature=col, mi_score=score))
 
         for col in categorical_feature_cols:
-            str_series = df[col].cast(pl.Utf8, strict=False)
-            encoded = str_series.cast(pl.Categorical).to_physical()
-            X_cols.append(encoded.fill_null(0).cast(pl.Int64).to_numpy())
-            discrete_mask.append(True)
-
-        X = np.column_stack(X_cols).astype(float)
-
-        if target_type == TargetType.Numeric:
-            target_series = df[target_col].cast(pl.Float64)
-            median = target_series.drop_nulls().median() or 0.0
-            y = target_series.fill_null(median).fill_nan(median).to_numpy()
-        else:
-            target_str = df[target_col].cast(pl.Utf8, strict=False)
-            y = (
-                target_str.cast(pl.Categorical)
+            feat_encoded = (
+                df[col]
+                .cast(pl.Utf8, strict=False)
+                .cast(pl.Categorical)
                 .to_physical()
-                .fill_null(0)
                 .cast(pl.Int64)
-                .to_numpy()
             )
+            feat_null = df[col].is_null().to_numpy()
+            valid = ~(feat_null | target_null)
+            n_valid = int(valid.sum())
+            if n_valid < _MI_MIN_ROWS:
+                warnings.warn(
+                    f"Skipping MI for '{col}': only {n_valid} complete rows "
+                    f"(need {_MI_MIN_ROWS}).",
+                    stacklevel=3,
+                )
+                continue
+            x = feat_encoded.to_numpy()[valid].reshape(-1, 1).astype(float)
+            y = y_full[valid]
+            try:
+                score = float(
+                    fn(
+                        x,
+                        y,
+                        discrete_features=[True],
+                        n_neighbors=_MI_N_NEIGHBORS,
+                        random_state=42,
+                    )[0]
+                )
+            except Exception as exc:
+                warnings.warn(f"MI failed for '{col}': {exc}", stacklevel=3)
+                continue
+            entries.append(MutualInformationEntry(feature=col, mi_score=score))
 
-        try:
-            fn = (
-                mutual_info_regression
-                if target_type == TargetType.Numeric
-                else mutual_info_classif
-            )
-            mi_scores = fn(
-                X,
-                y,
-                discrete_features=discrete_mask,
-                n_neighbors=_MI_N_NEIGHBORS,
-                random_state=42,
-            )
-        except Exception as exc:
-            warnings.warn(f"MI computation failed: {exc}", stacklevel=3)
-            return []
-
-        entries = [
-            MutualInformationEntry(feature=col, mi_score=float(score))
-            for col, score in zip(all_feature_cols, mi_scores)
-        ]
         entries.sort(key=lambda e: e.mi_score, reverse=True)
         for rank, entry in enumerate(entries, start=1):
             entry.rank = rank

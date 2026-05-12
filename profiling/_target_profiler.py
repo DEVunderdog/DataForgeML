@@ -28,7 +28,7 @@ from ._type_detector import TypeDetector, TypeFlag, NumericKind
 from ._missingness_profiler import MissingnessProfiler
 from ._categorical import CategoricalProfiler
 from ._numeric_profiler import NumericProfiler
-from ._numeric_config import SkewSeverity
+from .config import SkewSeverity
 
 
 class TargetProfiler(Profiling[TargetProfileResult]):

@@ -7,3 +7,4 @@ postman
 logs
 *.py[cod]
 *$py.class
+.claude

@@ -145,7 +145,7 @@ class NumericProfiler(Profiling[NumericProfileResult]):
 
         for col_name in available:
             series = df[col_name]
-            profile = self._profile_column(series, col_name, n_rows)
+            profile = self._profile_column(series, n_rows)
             result.columns[col_name] = profile
 
         return result
@@ -200,64 +200,22 @@ class NumericProfiler(Profiling[NumericProfileResult]):
             ]
         else:
             # --- 20-Bin Histogram Distribution (Continuous) ---
-            col_min = profile.min
-            col_max = profile.max
+            import numpy as np
 
-            if col_min is not None and col_max is not None and col_max > col_min:
-                span = col_max - col_min
-
-                # Robust math-based binning to avoid Polars API version mismatches
-                bin_expr = (
-                    ((pl.col(col_name) - col_min) / span * 20).floor().cast(pl.Int64)
+            counts, bin_edges = np.histogram(clean_f64.to_numpy(), bins=20)
+            profile.histogram = [
+                HistogramBin(
+                    lower_bound=float(bin_edges[i]),
+                    upper_bound=float(bin_edges[i + 1]),
+                    count=int(counts[i]),
+                    percentage=int(counts[i]) / n_rows if n_rows > 0 else 0.0,
                 )
-                bin_expr = (
-                    pl.when(bin_expr >= 20).then(19).otherwise(bin_expr)
-                )  # Clamp max bound inclusive
-
-                df_binned = pl.DataFrame({col_name: clean_f64}).select(bin_idx=bin_expr)
-                bin_counts = df_binned.group_by("bin_idx").len()
-
-                # Extract into dictionary for fast lookup
-                counts_dict = {r[0]: r[1] for r in bin_counts.iter_rows()}
-
-                hist_bins = []
-
-                for i in range(20):
-                    # Calculate bounds for the current bin
-                    lower_bound = col_min + (i / 20.0) * span
-                    upper_bound = col_min + ((i + 1) / 20.0) * span
-
-                    # Fetch count from dictionary, defaulting to 0
-                    b_count = counts_dict.get(i, 0)
-                    b_pct = b_count / n_rows if n_rows > 0 else 0.0
-
-                    hist_bins.append(
-                        HistogramBin(
-                            lower_bound=lower_bound,
-                            upper_bound=upper_bound,
-                            count=b_count,
-                            percentage=b_pct,
-                        )
-                    )
-
-                profile.histogram = hist_bins
-            elif col_min == col_max and col_min is not None:
-                # Edge case: Column is completely uniform but was classified as continuous
-                # (e.g. all 1.5). Just create a single bin.
-                non_null_len = clean_f64.len()
-                profile.histogram = [
-                    HistogramBin(
-                        lower_bound=col_min,
-                        upper_bound=col_max,
-                        count=non_null_len,
-                        percentage=non_null_len / n_rows if n_rows > 0 else 0.0,
-                    )
-                ]
+                for i in range(len(counts))
+            ]
 
     def _profile_column(
         self,
         series: pl.Series,
-        col_name: str,
         n_rows: int,
     ) -> NumericStats:
         profile = NumericStats()
@@ -274,7 +232,7 @@ class NumericProfiler(Profiling[NumericProfileResult]):
         self._compute_percentiles(clean, profile)
         self._compute_spread(clean, profile)
         self._compute_shape(clean, profile)
-        self._check_scale_anomaly(clean, profile)
+        self._check_scale_anomaly(profile)
 
         return profile
 
@@ -329,56 +287,35 @@ class NumericProfiler(Profiling[NumericProfileResult]):
         clean: pl.Series,
         profile: NumericStats,
     ) -> None:
-        n = clean.len()
-        if n < 3:
-            # Skewness / kurtosis require at least 3 observations
+        from scipy.stats import skew, kurtosis as scipy_kurtosis
+
+        if clean.len() < 3:
             return
 
-        mean = profile.mean
-        std = profile.std
-
-        if std is None or std == 0.0:
-            # Constant column — skewness and kurtosis are undefined
+        if profile.std is None or profile.std == 0.0:
             profile.skewness = 0.0
             profile.kurtosis = 0.0
             profile.skewness_severity = SkewSeverity.Normal
             profile.kurtosis_tag = KurtosisTag.Mesokurtic
             return
 
-        # Standardised deviations
-        z = (clean - mean) / std
+        arr = clean.to_numpy()
+        profile.skewness = float(skew(arr, bias=False))
+        profile.kurtosis = float(scipy_kurtosis(arr, bias=False))
 
-        # --- Skewness: Fisher's adjusted (bias-corrected) ---
-        # G1 = [n / ((n-1)(n-2))] * Σ z³
-        skew_raw = float((z**3).sum())
-        skewness = (n / ((n - 1) * (n - 2))) * skew_raw
-
-        # --- Excess kurtosis: bias-corrected ---
-        # G2 = [n(n+1) / ((n-1)(n-2)(n-3))] * Σ z⁴
-        #      - 3(n-1)² / ((n-2)(n-3))
-        kurt_raw = float((z**4).sum())
-        kurtosis = (n * (n + 1)) / ((n - 1) * (n - 2) * (n - 3)) * kurt_raw - 3 * (
-            n - 1
-        ) ** 2 / ((n - 2) * (n - 3))
-
-        profile.skewness = skewness
-        profile.kurtosis = kurtosis
-
-        # Skew severity label
-        abs_skew = abs(skewness)
+        abs_skew = abs(profile.skewness)
         if abs_skew <= _SKEW_NORMAL:
-            profile.skew_severity = SkewSeverity.Normal
+            profile.skewness_severity = SkewSeverity.Normal
         elif abs_skew <= _SKEW_MODERATE:
-            profile.skew_severity = SkewSeverity.Moderate
+            profile.skewness_severity = SkewSeverity.Moderate
         elif abs_skew <= _SKEW_HIGH:
-            profile.skew_severity = SkewSeverity.High
+            profile.skewness_severity = SkewSeverity.High
         else:
-            profile.skew_severity = SkewSeverity.Severe
+            profile.skewness_severity = SkewSeverity.Severe
 
-        # Kurtosis tag
-        if kurtosis < _KURT_PLATY_UPPER:
+        if profile.kurtosis < _KURT_PLATY_UPPER:
             profile.kurtosis_tag = KurtosisTag.Platykurtic
-        elif kurtosis > _KURT_LEPTO_LOWER:
+        elif profile.kurtosis > _KURT_LEPTO_LOWER:
             profile.kurtosis_tag = KurtosisTag.Leptokurtic
         else:
             profile.kurtosis_tag = KurtosisTag.Mesokurtic
@@ -430,7 +367,6 @@ class NumericProfiler(Profiling[NumericProfileResult]):
 
     @staticmethod
     def _check_scale_anomaly(
-        clean: pl.Series,
         profile: NumericStats,
     ) -> None:
         """
