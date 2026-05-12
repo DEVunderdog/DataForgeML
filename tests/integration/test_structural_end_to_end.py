@@ -59,6 +59,71 @@ def test_text_handoff(text_df):
     assert 0.0 <= cp.stats.empty_ratio <= 1.0
 
 
+def test_correlation_consistency(mixed_df):
+    config = ProfileConfig(compute_correlation=True)
+    result = StructuralProfiler(config).profile(mixed_df)
+
+    fc = result.dataset.feature_correlation
+    assert fc is not None
+
+    # age and income are correlated by construction — forward invariant must not be vacuous
+    assert len(fc.near_redundant_pairs) >= 1, (
+        "expected at least one near-redundant pair (age/income are strongly correlated)"
+    )
+
+    # Forward invariant: every near_redundant pair must have both columns co-located
+    # in the same NearRedundancyGroup
+    for pair in fc.pairwise:
+        if not pair.near_redundant:
+            continue
+        assert any(
+            pair.col_a in group.columns and pair.col_b in group.columns
+            for group in fc.near_redundancy_groups
+        ), (
+            f"near_redundant pair ({pair.col_a}, {pair.col_b}) "
+            f"not co-located in any NearRedundancyGroup"
+        )
+
+    # Backward invariant: every column in a redundancy group must have at least
+    # one near_redundant=True pair in pairwise
+    for group in fc.near_redundancy_groups:
+        for col in group.columns:
+            assert any(
+                (p.col_a == col or p.col_b == col) and p.near_redundant
+                for p in fc.pairwise
+            ), (
+                f"column '{col}' is in a NearRedundancyGroup but has no "
+                f"near_redundant=True pair in pairwise"
+            )
+
+    # Matrix symmetry — Pearson
+    for col_a, row in fc.pearson_matrix.items():
+        for col_b, val in row.items():
+            mirror = fc.pearson_matrix.get(col_b, {}).get(col_a)
+            assert mirror is not None and abs(val - mirror) < 1e-10, (
+                f"Pearson matrix asymmetry: [{col_a}][{col_b}]={val} "
+                f"vs [{col_b}][{col_a}]={mirror}"
+            )
+
+    # Matrix symmetry — Spearman
+    for col_a, row in fc.spearman_matrix.items():
+        for col_b, val in row.items():
+            mirror = fc.spearman_matrix.get(col_b, {}).get(col_a)
+            assert mirror is not None and abs(val - mirror) < 1e-10, (
+                f"Spearman matrix asymmetry: [{col_a}][{col_b}]={val} "
+                f"vs [{col_b}][{col_a}]={mirror}"
+            )
+
+    # Suggested drop is a strict subset of its group's columns
+    for group in fc.near_redundancy_groups:
+        group_cols = set(group.columns)
+        drop_cols = set(group.suggested_drop)
+        assert drop_cols < group_cols, (
+            f"suggested_drop {drop_cols} is not a strict subset of "
+            f"group columns {group_cols}"
+        )
+
+
 def test_column_handoffs(mixed_df):
     result = StructuralProfiler(ProfileConfig()).profile(mixed_df)
 

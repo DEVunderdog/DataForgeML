@@ -108,12 +108,13 @@ class TypeDetector:
 
             # Work only on numeric-ish columns for the remaining checks
             if working.dtype in _NUMERIC_DTYPES:
-                # 4: Encoded category (integer low cardinality)
+                # 4 & 5: Encoded category and identifier checks — integers only.
+                # Continuous floats have high cardinality by nature and are never
+                # identifiers; restricting these checks prevents false Identifier
+                # classification of genuine numeric features.
                 if working.dtype in _INT_DTYPES:
                     self._check_encoded_category(working, info, n_rows)
-
-                # 5: Identifier column
-                self._check_identifier(working, info, n_rows)
+                    self._check_identifier(working, info, n_rows)
 
                 # 6: Sequential index (integers only)
                 if working.dtype in _INT_DTYPES or working.dtype in (
