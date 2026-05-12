@@ -39,11 +39,10 @@ Attach ``dt_result`` to ``StructuralProfileResult`` as
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
 
 import polars as pl
 
-from ._base import Profiling
+from ._base import ColumnBatchProfiler
 from .config import (
     ProfileConfig,
     SemanticType,
@@ -87,7 +86,7 @@ def _is_datetime_dtype(dtype: pl.DataType) -> bool:
     return isinstance(dtype, (pl.Date, pl.Datetime))
 
 
-class DatetimeProfiler(Profiling[DatetimeProfileResult]):
+class DatetimeProfiler(ColumnBatchProfiler[DatetimeProfileResult]):
     """
     Datetime distribution profiler for Polars DataFrames.
 
@@ -111,14 +110,9 @@ class DatetimeProfiler(Profiling[DatetimeProfileResult]):
 
     def profile(
         self,
-        data: Any,
+        data: pl.DataFrame,
         columns: list[str],
     ) -> DatetimeProfileResult:
-        if not isinstance(data, pl.DataFrame):
-            raise TypeError(
-                f"DatetimeProfiler expects a Polars DataFrame, "
-                f"got {type(data).__name__}."
-            )
         return self._run(data, columns)
 
     # ------------------------------------------------------------------

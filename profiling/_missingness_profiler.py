@@ -20,11 +20,10 @@ Absence of an override is not a signal; it means "trust the dtype".
 
 from __future__ import annotations
 
-from typing import Any
 
 import polars as pl
 
-from ._base import Profiling
+from ._base import DatasetLevelProfiler
 from .config import ProfileConfig, SemanticType
 from ._missingness_config import (
     ColumnMissingnessProfile,
@@ -75,7 +74,7 @@ def _inf_eligible(dtype: pl.DataType) -> bool:
     return dtype in (pl.Float32, pl.Float64)
 
 
-class MissingnessProfiler(Profiling[MissingnessProfileResult]):
+class MissingnessProfiler(DatasetLevelProfiler[MissingnessProfileResult]):
     """
     Missingness profiler for Polars DataFrames.
 
@@ -97,15 +96,9 @@ class MissingnessProfiler(Profiling[MissingnessProfileResult]):
 
     def profile(
         self,
-        data: Any,
+        data: pl.DataFrame,
         columns: list[str] | None = None,
     ) -> MissingnessProfileResult:
-        if not isinstance(data, pl.DataFrame):
-            raise TypeError(
-                f"MissingnessProfiler expects a Polars DataFrame, "
-                f"got {type(data).__name__}."
-            )
-
         return self._run(data, columns)
 
     # ------------------------------------------------------------------

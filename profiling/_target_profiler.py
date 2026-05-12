@@ -14,8 +14,7 @@ from typing import Any
 
 import polars as pl
 
-from ..models._data_structure import DataStructure
-from ._base import Profiling
+from ._base import DatasetLevelProfiler
 from .config import ProfileConfig
 from ._target_config import (
     TargetFlag,
@@ -28,24 +27,19 @@ from ._type_detector import TypeDetector, TypeFlag, NumericKind
 from ._missingness_profiler import MissingnessProfiler
 from ._categorical import CategoricalProfiler
 from ._numeric_profiler import NumericProfiler
-from .config import SkewSeverity
+from ._numeric_config import SkewSeverity
 
 
-class TargetProfiler(Profiling[TargetProfileResult]):
+class TargetProfiler(DatasetLevelProfiler[TargetProfileResult]):
     """
     Analyzes the target variable to set up downstream ML behavior.
     """
 
     def __init__(self, target_column: str, config: ProfileConfig | None = None) -> None:
-        super().__init__(DataStructure.Tabular, config)
+        super().__init__(config)
         self.target_column = target_column
 
-    def profile(self, data: Any) -> TargetProfileResult:
-        if not isinstance(data, pl.DataFrame):
-            raise TypeError(
-                f"TargetProfiler expects a Polars DataFrame, got {type(data).__name__}."
-            )
-
+    def profile(self, data: pl.DataFrame, **kwargs) -> TargetProfileResult:
         if self.target_column not in data.columns:
             raise ValueError(
                 f"Target column '{self.target_column}' not found in the DataFrame."

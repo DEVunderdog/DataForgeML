@@ -18,11 +18,10 @@ estimated memory exceeds config.memory_threshold_mb.
 from __future__ import annotations
 
 import math
-from typing import Any
 
 import polars as pl
 
-from ._base import Profiling, ModalityProfiler
+from ._base import ModalityProfiler
 from .config import (
     MemoryBreakdown,
     ProfileConfig,
@@ -30,7 +29,7 @@ from .config import (
 )
 
 
-class TabularProfiler(ModalityProfiler, Profiling[DatasetStats]):
+class TabularProfiler(ModalityProfiler):
     """
     Structural profiler for Polars DataFrames.
 
@@ -54,11 +53,7 @@ class TabularProfiler(ModalityProfiler, Profiling[DatasetStats]):
     # Public API
     # ------------------------------------------------------------------
 
-    def profile(self, data: Any) -> DatasetStats:
-        if not isinstance(data, pl.DataFrame):
-            raise TypeError(
-                f"TabularProfiler expects a Polars DataFrame, got {type(data).__name__}."
-            )
+    def profile(self, data: pl.DataFrame, **kwargs) -> DatasetStats:
         return self._run(data)
 
     # ------------------------------------------------------------------

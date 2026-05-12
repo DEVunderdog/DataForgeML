@@ -31,11 +31,10 @@ Attach ``num_result`` to ``TabularProfileResult`` as
 
 from __future__ import annotations
 
-from typing import Any
 
 import polars as pl
 
-from ._base import Profiling
+from ._base import ColumnBatchProfiler
 from .config import (
     ProfileConfig,
     SemanticType,
@@ -78,7 +77,7 @@ _NEAR_CONSTANT_THRESHOLD = 0.90
 _DISCRETE_MAX_UNIQUE = 20
 
 
-class NumericProfiler(Profiling[NumericProfileResult]):
+class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
     """
     Numeric distribution profiler for Polars DataFrames.
 
@@ -103,14 +102,9 @@ class NumericProfiler(Profiling[NumericProfileResult]):
 
     def profile(
         self,
-        data: Any,
+        data: pl.DataFrame,
         columns: list[str],
     ) -> NumericProfileResult:
-        if not isinstance(data, pl.DataFrame):
-            raise TypeError(
-                f"NumericProfiler expects a Polars DataFrame, "
-                f"got {type(data).__name__}."
-            )
         return self._run(data, columns)
 
     # ------------------------------------------------------------------

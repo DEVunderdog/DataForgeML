@@ -34,10 +34,9 @@ however suits your downstream pipeline.
 from __future__ import annotations
 
 import math
-from typing import Any
 
 import polars as pl
-from ._base import Profiling
+from ._base import ColumnBatchProfiler
 from ._categorical_config import (
     CategoricalProfileResult,
     CategoricalStats,
@@ -63,7 +62,7 @@ _MIXED_TYPE_Z_SCORE: float = 1.96
 _NEAR_CONSTANT_THRESHOLD: float = 0.90
 
 
-class CategoricalProfiler(Profiling[CategoricalProfileResult]):
+class CategoricalProfiler(ColumnBatchProfiler[CategoricalProfileResult]):
     """
     Categorical profiler for Polars DataFrames.
 
@@ -96,14 +95,9 @@ class CategoricalProfiler(Profiling[CategoricalProfileResult]):
 
     def profile(
         self,
-        data: Any,
+        data: pl.DataFrame,
         columns: list[str],
     ) -> CategoricalProfileResult:
-        if not isinstance(data, pl.DataFrame):
-            raise TypeError(
-                f"CategoricalProfiler expects a Polars DataFrame, "
-                f"got {type(data).__name__}."
-            )
         return self._run(data, columns)
 
     # ------------------------------------------------------------------

@@ -19,11 +19,9 @@ the upstream MissingnessProfiler pass and lives in ColumnProfile.missingness.
 
 from __future__ import annotations
 
-from typing import Any
-
 import polars as pl
 
-from ._base import Profiling
+from ._base import ColumnBatchProfiler
 from .config import (
     ProfileConfig,
     BooleanStats,
@@ -40,7 +38,7 @@ _TRUE_STRINGS: frozenset[str] = frozenset({"true", "yes", "1", "t", "y"})
 _FALSE_STRINGS: frozenset[str] = frozenset({"false", "no", "0", "f", "n"})
 
 
-class BooleanProfiler(Profiling[BooleanProfileResult]):
+class BooleanProfiler(ColumnBatchProfiler[BooleanProfileResult]):
     """
     Boolean column profiler for Polars DataFrames.
 
@@ -66,14 +64,9 @@ class BooleanProfiler(Profiling[BooleanProfileResult]):
 
     def profile(
         self,
-        data: Any,
+        data: pl.DataFrame,
         columns: list[str],
     ) -> BooleanProfileResult:
-        if not isinstance(data, pl.DataFrame):
-            raise TypeError(
-                f"BooleanProfiler expects a Polars DataFrame, "
-                f"got {type(data).__name__}."
-            )
         return self._run(data, columns)
 
     # ------------------------------------------------------------------

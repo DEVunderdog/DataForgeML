@@ -41,7 +41,7 @@ from typing import Optional
 
 import polars as pl
 
-from ._base import Profiling
+from ._base import DatasetLevelProfiler
 from .config import ProfileConfig
 from ._correlation_config import (
     CategoricalTargetCorrelation,
@@ -96,7 +96,7 @@ class _UnionFind:
 # ---------------------------------------------------------------------------
 
 
-class CorrelationProfiler(Profiling[CorrelationProfileResult]):
+class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
     """
     Correlation and information-structure profiler.
 
@@ -126,6 +126,13 @@ class CorrelationProfiler(Profiling[CorrelationProfileResult]):
         self._categorical_columns = categorical_columns or []
         self._threshold = near_redundant_threshold
         self._top_n = top_n_feature_target
+
+    # ------------------------------------------------------------------
+    # Concrete implementation of the abstract base method
+    # ------------------------------------------------------------------
+
+    def profile(self, data: pl.DataFrame) -> CorrelationProfileResult:  # type: ignore[override]
+        return self.profile_features(data, self._numeric_columns)
 
     # ------------------------------------------------------------------
     # Primary API  (called by StructuralProfiler)

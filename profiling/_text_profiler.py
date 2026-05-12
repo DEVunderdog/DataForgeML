@@ -50,11 +50,10 @@ Drop ``TextProfiler`` into the profiler loop in ``structural.py`` alongside
 """
 
 from __future__ import annotations
-from typing import Any
 
 import polars as pl
 
-from ._base import Profiling
+from ._base import ColumnBatchProfiler
 from .config import (
     ProfileConfig,
     TextStats,
@@ -66,7 +65,7 @@ from ._text_config import TextProfileResult
 _TOKEN_PATTERN: str = r"\S+"
 
 
-class TextProfiler(Profiling[TextProfileResult]):
+class TextProfiler(ColumnBatchProfiler[TextProfileResult]):
     """
     Free-text column profiler for Polars DataFrames.
 
@@ -92,14 +91,9 @@ class TextProfiler(Profiling[TextProfileResult]):
 
     def profile(
         self,
-        data: Any,
+        data: pl.DataFrame,
         columns: list[str],
     ) -> TextProfileResult:
-        if not isinstance(data, pl.DataFrame):
-            raise TypeError(
-                f"TextProfiler expects a Polars DataFrame, "
-                f"got {type(data).__name__}."
-            )
         return self._run(data, columns)
 
     # ------------------------------------------------------------------

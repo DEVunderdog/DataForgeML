@@ -87,9 +87,7 @@ class ColumnProfile:
     type_flags: list[TypeFlag] = field(default_factory=list)
     original_dtype: str = ""
     inferred_dtype: str = ""
-    missingness: Optional[ColumnMissingnessProfile] = field(
-        default_factory=ColumnMissingnessProfile
-    )
+    missingness: Optional[ColumnMissingnessProfile] = None
     is_target: bool = False
     stats: Optional[AnyStats] = None
 

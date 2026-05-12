@@ -23,7 +23,7 @@ from typing import Any
 
 import polars as pl
 
-from ._base import ModalityProfiler, Profiling
+from ._base import ModalityProfiler, ColumnBatchProfiler
 from ._tabular import TabularProfiler
 from ._categorical import CategoricalProfiler
 from ._datetime_profiler import DatetimeProfiler
@@ -52,7 +52,7 @@ _ROW_DROP_THRESHOLD = 0.50
 # SemanticType safely handles all columns of that type in one run.
 # Add Boolean / Text profilers here when implemented.
 # ---------------------------------------------------------------------------
-_COLUMN_PROFILER_REGISTRY: dict[SemanticType, type[Profiling]] = {  # type: ignore[type-arg]
+_COLUMN_PROFILER_REGISTRY: dict[SemanticType, type[ColumnBatchProfiler]] = {  # type: ignore[type-arg]
     SemanticType.Numeric: NumericProfiler,
     SemanticType.Categorical: CategoricalProfiler,
     SemanticType.Datetime: DatetimeProfiler,
@@ -133,32 +133,30 @@ class StructuralProfiler:
                 result.columns[col_name].semantic_type = override_type
 
         # ── 6. Per-column profiling routed by SemanticType ───────────────
-        # One profiler instance per SemanticType (profiler_cache).
-        # Multiple columns of the same type share the same instance — safe
-        # because every profiler is stateless between profile(series, df) calls.
-        profiler_cache: dict[SemanticType, Profiling] = {}  # type: ignore[type-arg]
-
+        # Batch all columns of the same SemanticType together and call each
+        # profiler once with (df, column_list) — matching the profiler API.
+        type_to_cols: dict[SemanticType, list[str]] = {}
         for col_name in active_cols:
             cp = result.columns.get(col_name)
-            if cp is None:
+            if cp is None or cp.semantic_type is None:
                 continue
-
             if cp.semantic_type == SemanticType.Identifier:
-                # Spec: skip profiling for identifiers; stats stays None.
                 continue
+            sem_type = cp.semantic_type
+            type_to_cols.setdefault(sem_type, []).append(col_name)
 
-            profiler_cls = _COLUMN_PROFILER_REGISTRY.get(cp.semantic_type)  # type: ignore[arg-type]
+        for sem_type, cols in type_to_cols.items():
+            profiler_cls = _COLUMN_PROFILER_REGISTRY.get(sem_type)  # type: ignore[arg-type]
             if profiler_cls is None:
-                # No profiler registered yet — stats stays None.
                 continue
-
-            if cp.semantic_type not in profiler_cache:
-                profiler_cache[cp.semantic_type] = profiler_cls(config=self.config)  # type: ignore[index]
-
+            profiler = profiler_cls(config=self.config)
             try:
-                cp.stats = profiler_cache[cp.semantic_type].profile(data[col_name], data)  # type: ignore[index]
+                batch = profiler.profile(data, columns=cols)
+                for col_name in batch.analysed_columns:
+                    if col_name in result.columns:
+                        result.columns[col_name].stats = batch.columns.get(col_name)
             except Exception:
-                cp.stats = None
+                pass
 
         # ── 7. Target columns ────────────────────────────────────────────
         # TargetProfiler produces target-specific analysis stored in
@@ -201,7 +199,7 @@ class StructuralProfiler:
 
             # 8a. Feature-feature matrices — computed ONCE, target-independent.
             feature_corr = corr_profiler.profile_features(
-                data, numeric_cols, categorical_cols
+                data, numeric_cols
             )
             result.dataset.feature_correlation = feature_corr
 

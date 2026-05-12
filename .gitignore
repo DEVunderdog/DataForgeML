@@ -9,3 +9,5 @@ logs
 *$py.class
 .claude
 FeatureForge.egg-info
+.pytest_cache
+__pycache__
