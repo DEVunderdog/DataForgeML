@@ -129,9 +129,7 @@ class TargetProfiler(DatasetLevelProfiler[TargetProfileResult]):
         self, series: pl.Series, n_rows: int, result: TargetProfileResult
     ) -> None:
         """Generates categorical metrics and checks for class imbalance."""
-        cat_profiler = CategoricalProfiler(
-            columns=[self.target_column], config=self.config
-        )
+        cat_profiler = CategoricalProfiler(config=self.config)
 
         # Internally compute cardinality, top values, and imbalance metrics
         cat_profile = cat_profiler._profile_column(series, self.target_column, n_rows)
@@ -148,11 +146,11 @@ class TargetProfiler(DatasetLevelProfiler[TargetProfileResult]):
         self, series: pl.Series, n_rows: int, result: TargetProfileResult
     ) -> None:
         """Generates numeric metrics and checks for target skewness."""
-        num_profiler = NumericProfiler(columns=[self.target_column], config=self.config)
+        num_profiler = NumericProfiler(config=self.config)
 
-        num_profile = num_profiler._profile_column(series, self.target_column, n_rows)
+        num_profile = num_profiler._profile_column(series, n_rows)
         result.numeric_profile = num_profile
 
         # Flag Skewness (Highly skewed targets often require Log/Yeo-Johnson transforms)
-        if num_profile.skew_severity in (SkewSeverity.High, SkewSeverity.Severe):
+        if num_profile.skewness_severity in (SkewSeverity.High, SkewSeverity.Severe):
             result.flags.append(TargetFlag.HighlySkewed)
