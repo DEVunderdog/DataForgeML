@@ -5,6 +5,7 @@ from .profiling.config import (
     Modality,
     StructuralProfileResult,
 )
+from .splitting import DataSplitter, SplitResult, FoldResult
 
 __all__ = [
     "StructuralProfiler",
@@ -12,4 +13,7 @@ __all__ = [
     "ProfileConfig",
     "SemanticType",
     "Modality",
+    "DataSplitter",
+    "SplitResult",
+    "FoldResult",
 ]
