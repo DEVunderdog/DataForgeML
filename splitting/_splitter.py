@@ -1,10 +1,11 @@
 """
-DataSplitter: constructor and random_split implementation.
+DataSplitter: constructor, random_split, and time_split implementation.
 """
 
 from __future__ import annotations
 
-from typing import Optional
+import math
+from typing import Any, Optional
 
 import polars as pl
 from sklearn.model_selection import ShuffleSplit, StratifiedShuffleSplit
@@ -84,6 +85,59 @@ class DataSplitter:
         train_df = self._df[train_idx]
         test_df = self._df[test_idx]
         total = len(self._df)
+
+        return SplitResult(
+            train=train_df,
+            test=test_df,
+            train_size=len(train_df),
+            test_size=len(test_df),
+            train_ratio=len(train_df) / total,
+            test_ratio=len(test_df) / total,
+        )
+
+    def time_split(
+        self,
+        time_column: str,
+        test_size: Optional[float] = None,
+        cutoff: Optional[Any] = None,
+    ) -> SplitResult:
+        """
+        Return a chronological train/test split with no temporal leakage.
+
+        The DataFrame is sorted ascending by ``time_column`` before splitting.
+        ``cutoff`` takes priority over ``test_size`` when both are supplied.
+
+        Parameters
+        ----------
+        time_column : str
+            Column to sort by. Must exist in the DataFrame.
+        test_size : float, optional
+            Fraction of rows (from the end of the sorted series) to use as
+            the test set.  ``floor(len(df) * test_size)`` rows are taken.
+        cutoff : scalar, optional
+            Threshold value.  Rows where ``time_column >= cutoff`` go to
+            test; all earlier rows go to train.
+
+        Returns
+        -------
+        SplitResult
+        """
+        if time_column not in self._df.columns:
+            raise ValueError(f"time_column '{time_column}' not found in df")
+        if test_size is None and cutoff is None:
+            raise ValueError("Either test_size or cutoff must be provided")
+
+        sorted_df = self._df.sort(time_column)
+        total = len(sorted_df)
+
+        if cutoff is not None:
+            train_df = sorted_df.filter(pl.col(time_column) < cutoff)
+            test_df = sorted_df.filter(pl.col(time_column) >= cutoff)
+        else:
+            n_test = math.floor(total * test_size)
+            n_train = total - n_test
+            train_df = sorted_df[:n_train]
+            test_df = sorted_df[n_train:]
 
         return SplitResult(
             train=train_df,

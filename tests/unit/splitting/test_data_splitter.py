@@ -180,3 +180,117 @@ def test_no_profiling_import():
     profiling_modules = [k for k in sys.modules if k.startswith("profiling")]
     # DataSplitter module itself must not have caused profiling to be imported
     assert "profiling" not in mod.__dict__
+
+
+# ---------------------------------------------------------------------------
+# time_split — fixtures
+# ---------------------------------------------------------------------------
+
+from datetime import date, timedelta
+
+_BASE = date(2024, 1, 1)
+_TIME_N = 50
+
+
+@pytest.fixture(scope="module")
+def time_df() -> pl.DataFrame:
+    dates = [_BASE + timedelta(days=i) for i in range(_TIME_N)]
+    return pl.DataFrame(
+        {
+            "date": pl.Series(dates, dtype=pl.Date),
+            "value": pl.Series(list(range(_TIME_N)), dtype=pl.Float64),
+        }
+    )
+
+
+@pytest.fixture(scope="module")
+def time_splitter(time_df) -> DataSplitter:
+    return DataSplitter(time_df)
+
+
+# ---------------------------------------------------------------------------
+# time_split — error cases
+# ---------------------------------------------------------------------------
+
+
+def test_time_split_raises_for_missing_column(time_splitter):
+    with pytest.raises(ValueError, match="not found"):
+        time_splitter.time_split("nonexistent")
+
+
+def test_time_split_raises_when_neither_arg_provided(time_splitter):
+    with pytest.raises(ValueError, match="Either"):
+        time_splitter.time_split("date")
+
+
+# ---------------------------------------------------------------------------
+# time_split — fraction mode
+# ---------------------------------------------------------------------------
+
+
+def test_fraction_mode_sizes_sum_to_total(time_df, time_splitter):
+    result = time_splitter.time_split("date", test_size=0.2)
+    assert result.train_size + result.test_size == len(time_df)
+
+
+def test_fraction_mode_test_size_is_floor(time_df, time_splitter):
+    import math
+    result = time_splitter.time_split("date", test_size=0.2)
+    assert result.test_size == math.floor(len(time_df) * 0.2)
+
+
+def test_fraction_mode_no_temporal_leakage(time_splitter):
+    result = time_splitter.time_split("date", test_size=0.2)
+    max_train = result.train["date"].max()
+    min_test = result.test["date"].min()
+    assert max_train < min_test
+
+
+def test_fraction_mode_metadata_accurate(time_df, time_splitter):
+    result = time_splitter.time_split("date", test_size=0.2)
+    total = len(time_df)
+    assert result.train_ratio == pytest.approx(result.train_size / total)
+    assert result.test_ratio == pytest.approx(result.test_size / total)
+
+
+# ---------------------------------------------------------------------------
+# time_split — cutoff mode
+# ---------------------------------------------------------------------------
+
+
+def test_cutoff_mode_rows_before_cutoff_are_train(time_df, time_splitter):
+    cutoff = _BASE + timedelta(days=40)
+    result = time_splitter.time_split("date", cutoff=cutoff)
+    assert result.train["date"].max() < cutoff
+
+
+def test_cutoff_mode_rows_on_or_after_cutoff_are_test(time_df, time_splitter):
+    cutoff = _BASE + timedelta(days=40)
+    result = time_splitter.time_split("date", cutoff=cutoff)
+    assert result.test["date"].min() == cutoff
+
+
+def test_cutoff_mode_sizes_sum_to_total(time_df, time_splitter):
+    cutoff = _BASE + timedelta(days=40)
+    result = time_splitter.time_split("date", cutoff=cutoff)
+    assert result.train_size + result.test_size == len(time_df)
+
+
+def test_cutoff_mode_no_temporal_leakage(time_splitter):
+    cutoff = _BASE + timedelta(days=25)
+    result = time_splitter.time_split("date", cutoff=cutoff)
+    assert result.train["date"].max() < result.test["date"].min()
+
+
+# ---------------------------------------------------------------------------
+# time_split — cutoff takes priority over test_size
+# ---------------------------------------------------------------------------
+
+
+def test_cutoff_takes_priority_over_test_size(time_df, time_splitter):
+    cutoff = _BASE + timedelta(days=40)
+    # test_size=0.5 would give 25 test rows; cutoff=day40 gives 10 test rows
+    result_both = time_splitter.time_split("date", test_size=0.5, cutoff=cutoff)
+    result_cutoff_only = time_splitter.time_split("date", cutoff=cutoff)
+    assert result_both.test.equals(result_cutoff_only.test)
+    assert result_both.train.equals(result_cutoff_only.train)
