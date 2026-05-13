@@ -1,5 +1,40 @@
+
 import polars as pl
 import pytest
+
+
+@pytest.fixture(scope="session")
+def override_df():
+    n = 60
+    return pl.DataFrame(
+        {
+            "score": pl.Series([float(i) for i in range(n)], dtype=pl.Float64),
+            "category": pl.Series(["A", "B", "C"] * (n // 3), dtype=pl.Utf8),
+        }
+    )
+
+
+@pytest.fixture(scope="session")
+def target_df(rng):
+    n = 100
+    features = rng.normal(0, 1, size=n).tolist()
+    labels = ["pos", "neg"] * (n // 2)
+    return pl.DataFrame(
+        {
+            "feature": pl.Series(features, dtype=pl.Float64),
+            "label": pl.Series(labels, dtype=pl.Utf8),
+        }
+    )
+
+
+@pytest.fixture(scope="session")
+def empty_df():
+    return pl.DataFrame(
+        {
+            "x": pl.Series([], dtype=pl.Float64),
+            "y": pl.Series([], dtype=pl.Utf8),
+        }
+    )
 
 
 @pytest.fixture(scope="session")

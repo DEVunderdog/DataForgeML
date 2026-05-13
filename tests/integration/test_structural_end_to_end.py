@@ -10,6 +10,7 @@ from ...profiling._categorical_config import CategoricalStats
 from ...profiling._datetime_config import DatetimeStats
 from ...profiling._boolean_config import BooleanStats
 from ...profiling._text_config import TextStats
+from ...profiling._target_config import TargetProfileResult
 
 
 def test_happy_path(mixed_df):
@@ -146,3 +147,73 @@ def test_column_handoffs(mixed_df):
             f"column '{name}' has semantic_type={cp.semantic_type} "
             f"but stats type is {type(cp.stats).__name__}, expected {expected_type.__name__}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Override: numeric column forced to Categorical via column_overrides
+# ---------------------------------------------------------------------------
+
+
+def test_column_override_changes_stats_type(override_df):
+    config = ProfileConfig(column_overrides={"score": SemanticType.Categorical})
+    result = StructuralProfiler(config).profile(override_df)
+    cp = result.columns["score"]
+    assert isinstance(cp.stats, CategoricalStats)
+
+
+# ---------------------------------------------------------------------------
+# Target profiling integration
+# ---------------------------------------------------------------------------
+
+
+def test_target_profiling_integration(target_df):
+    config = ProfileConfig(target_columns=["label"])
+    result = StructuralProfiler(config).profile(target_df)
+    assert "label" in result.targets
+    assert isinstance(result.targets["label"], TargetProfileResult)
+
+
+# ---------------------------------------------------------------------------
+# Empty DataFrame does not crash
+# ---------------------------------------------------------------------------
+
+
+def test_empty_dataframe_does_not_crash(empty_df):
+    result = StructuralProfiler(ProfileConfig()).profile(empty_df)
+    assert isinstance(result, StructuralProfileResult)
+
+
+# ---------------------------------------------------------------------------
+# Numeric handoff: float column produces NumericStats on ColumnProfile
+# ---------------------------------------------------------------------------
+
+
+def test_numeric_handoff(mixed_df):
+    result = StructuralProfiler(ProfileConfig()).profile(mixed_df)
+    cp = result.columns["income"]
+    assert cp.stats is not None
+    assert isinstance(cp.stats, NumericStats)
+
+
+# ---------------------------------------------------------------------------
+# Datetime handoff: date column produces DatetimeStats on ColumnProfile
+# ---------------------------------------------------------------------------
+
+
+def test_datetime_handoff(mixed_df):
+    result = StructuralProfiler(ProfileConfig()).profile(mixed_df)
+    cp = result.columns["joined"]
+    assert cp.stats is not None
+    assert isinstance(cp.stats, DatetimeStats)
+
+
+# ---------------------------------------------------------------------------
+# Missingness surfaced at column level for columns with nulls
+# ---------------------------------------------------------------------------
+
+
+def test_missingness_surfaced(mixed_df):
+    result = StructuralProfiler(ProfileConfig()).profile(mixed_df)
+    cp = result.columns["salary"]  # salary has ~10 % nulls by construction
+    assert cp.missingness is not None
+    assert cp.missingness.standard_null_count > 0
