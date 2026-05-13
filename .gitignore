@@ -8,6 +8,9 @@ logs
 *.py[cod]
 *$py.class
 .claude
+feature_forge.egg-info
 FeatureForge.egg-info
+dist
+build
 .pytest_cache
 __pycache__
