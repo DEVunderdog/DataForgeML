@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "feature-forge"
+name = "dataforge-ml"
 version = "0.1.0"
 description = "A automated feature engineering and designing pipeline library"
 readme = "README.md"

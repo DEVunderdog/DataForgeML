@@ -5,7 +5,7 @@ Automated feature engineering and data profiling pipeline library for tabular da
 ## Installation
 
 ```bash
-pip install feature-forge
+pip install dataforge-ml
 ```
 
 ## License
