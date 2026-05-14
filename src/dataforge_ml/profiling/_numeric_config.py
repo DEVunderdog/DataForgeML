@@ -28,6 +28,12 @@ class PercentileSnapshot:
             return self.p75 - self.p25
         return None
 
+    def to_dict(self) -> dict:
+        return {
+            "p1": self.p1, "p5": self.p5, "p25": self.p25, "p50": self.p50,
+            "p75": self.p75, "p95": self.p95, "p99": self.p99,
+        }
+
 
 class SkewSeverity(StrEnum):
     Normal = "normal"
@@ -53,6 +59,9 @@ class NumericTopValueEntry:
     count: int
     percentage: float
 
+    def to_dict(self) -> dict:
+        return {"value": self.value, "count": self.count, "percentage": self.percentage}
+
 
 @dataclass
 class HistogramBin:
@@ -60,6 +69,12 @@ class HistogramBin:
     upper_bound: float
     count: int
     percentage: float
+
+    def to_dict(self) -> dict:
+        return {
+            "lower_bound": self.lower_bound, "upper_bound": self.upper_bound,
+            "count": self.count, "percentage": self.percentage,
+        }
 
 
 @dataclass
@@ -88,6 +103,27 @@ class NumericStats:
 
     def has_flag(self, flag: NumericFlag) -> bool:
         return flag in self.flags
+
+    def to_dict(self) -> dict:
+        return {
+            "mean": self.mean,
+            "median": self.median,
+            "mean_median_ratio": self.mean_median_ratio,
+            "mode": self.mode,
+            "mode_frequency": self.mode_frequency,
+            "top_values": [v.to_dict() for v in self.top_values],
+            "histogram": [b.to_dict() for b in self.histogram],
+            "std": self.std,
+            "variance": self.variance,
+            "min": self.min,
+            "max": self.max,
+            "percentiles": self.percentiles.to_dict(),
+            "skewness": self.skewness,
+            "kurtosis": self.kurtosis,
+            "skewness_severity": str(self.skewness_severity) if self.skewness_severity else None,
+            "kurtosis_tag": str(self.kurtosis_tag) if self.kurtosis_tag else None,
+            "flags": [str(f) for f in self.flags],
+        }
 
 
 ColumnNumericProfile = NumericStats

@@ -21,6 +21,19 @@ class TextStats:
     empty_ratio: float = 0.0
     whitespace_ratio: float = 0.0
 
+    def to_dict(self) -> dict:
+        return {
+            "avg_token_count": self.avg_token_count,
+            "median_token_count": self.median_token_count,
+            "vocabulary_size": self.vocabulary_size,
+            "char_length_min": self.char_length_min,
+            "char_length_max": self.char_length_max,
+            "char_length_mean": self.char_length_mean,
+            "char_length_median": self.char_length_median,
+            "empty_ratio": self.empty_ratio,
+            "whitespace_ratio": self.whitespace_ratio,
+        }
+
 
 @dataclass
 class TextProfileResult:

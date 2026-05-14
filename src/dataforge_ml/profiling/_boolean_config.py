@@ -18,6 +18,15 @@ class BooleanStats:
     false_ratio: float = 0.0
     mode: Optional[bool] = None
 
+    def to_dict(self) -> dict:
+        return {
+            "true_count": self.true_count,
+            "false_count": self.false_count,
+            "true_ratio": self.true_ratio,
+            "false_ratio": self.false_ratio,
+            "mode": self.mode,
+        }
+
 
 @dataclass
 class BooleanProfileResult:

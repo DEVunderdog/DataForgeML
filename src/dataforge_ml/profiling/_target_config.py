@@ -47,6 +47,17 @@ class TargetProfileResult:
     def has_flag(self, flag: TargetFlag) -> bool:
         return flag in self.flags
 
+    def to_dict(self) -> dict:
+        return {
+            "column": self.column,
+            "problem_type": str(self.problem_type),
+            "missing_count": self.missing_count,
+            "missing_ratio": self.missing_ratio,
+            "numeric_profile": self.numeric_profile.to_dict() if self.numeric_profile else None,
+            "categorical_profile": self.categorical_profile.to_dict() if self.categorical_profile else None,
+            "flags": [str(f) for f in self.flags],
+        }
+
     def __str__(self) -> str:
         lines = [
             "=== Target Variable Profile ===",

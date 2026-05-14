@@ -81,6 +81,19 @@ class ColumnMissingnessProfile:
     def has_flag(self, flag: MissingnessFlag) -> bool:
         return flag in self.flags
 
+    def to_dict(self) -> dict:
+        return {
+            "column": self.column,
+            "total_rows": self.total_rows,
+            "standard_null_count": self.standard_null_count,
+            "effective_null_count": self.effective_null_count,
+            "standard_null_ratio": self.standard_null_ratio,
+            "effective_null_ratio": self.effective_null_ratio,
+            "severity": str(self.severity) if self.severity else None,
+            "flags": [str(f) for f in self.flags],
+            "correlated_with": list(self.correlated_with),
+        }
+
     def __str__(self) -> str:  # pragma: no cover
         lines = [
             f"  Column : {self.column}",

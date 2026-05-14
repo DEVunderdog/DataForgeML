@@ -58,6 +58,18 @@ class TemporalSignals:
             features.append("is_month_end")
         return features
 
+    def to_dict(self) -> dict:
+        return {
+            "has_year": self.has_year,
+            "has_month": self.has_month,
+            "has_day": self.has_day,
+            "has_day_of_week": self.has_day_of_week,
+            "has_hour": self.has_hour,
+            "has_is_weekend": self.has_is_weekend,
+            "has_is_month_end": self.has_is_month_end,
+            "extractable_features": self.extractable_features(),
+        }
+
 
 @dataclass
 class DatetimeStats:
@@ -73,6 +85,19 @@ class DatetimeStats:
 
     def has_flag(self, flag: DatetimeFlag) -> bool:
         return flag in self.flags
+
+    def to_dict(self) -> dict:
+        return {
+            "min_date": self.min_date,
+            "max_date": self.max_date,
+            "date_range_days": self.date_range_days,
+            "future_date_count": self.future_date_count,
+            "inferred_granularity": str(self.inferred_granularity) if self.inferred_granularity else None,
+            "median_gap_seconds": self.median_gap_seconds,
+            "gap_cv": self.gap_cv,
+            "signals": self.signals.to_dict(),
+            "flags": [str(f) for f in self.flags],
+        }
 
 
 @dataclass

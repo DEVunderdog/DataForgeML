@@ -66,6 +66,13 @@ class CorrelationPair:
     spearman_r: Optional[float] = None
     near_redundant: bool = False
 
+    def to_dict(self) -> dict:
+        return {
+            "col_a": self.col_a, "col_b": self.col_b,
+            "pearson_r": self.pearson_r, "spearman_r": self.spearman_r,
+            "near_redundant": self.near_redundant,
+        }
+
 
 # ---------------------------------------------------------------------------
 # Feature–target entries
@@ -83,6 +90,9 @@ class NumericTargetCorrelation:
     """
     feature:   str
     pearson_r: Optional[float] = None
+
+    def to_dict(self) -> dict:
+        return {"feature": self.feature, "pearson_r": self.pearson_r}
 
 
 @dataclass
@@ -108,6 +118,12 @@ class CategoricalTargetCorrelation:
     p_value:     Optional[float] = None
     eta_squared: Optional[float] = None
 
+    def to_dict(self) -> dict:
+        return {
+            "feature": self.feature, "f_statistic": self.f_statistic,
+            "p_value": self.p_value, "eta_squared": self.eta_squared,
+        }
+
 
 # ---------------------------------------------------------------------------
 # Mutual information
@@ -131,6 +147,9 @@ class MutualInformationEntry:
     mi_score: float = 0.0
     rank:     int   = 0
 
+    def to_dict(self) -> dict:
+        return {"feature": self.feature, "mi_score": self.mi_score, "rank": self.rank}
+
 
 # ---------------------------------------------------------------------------
 # Near-redundancy summary
@@ -147,6 +166,9 @@ class NearRedundancyGroup:
     """
     columns:       list[str] = field(default_factory=list)
     suggested_drop: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {"columns": list(self.columns), "suggested_drop": list(self.suggested_drop)}
 
 
 # ---------------------------------------------------------------------------
@@ -223,3 +245,18 @@ class CorrelationProfileResult:
 
     def get_spearman(self, col_a: str, col_b: str) -> Optional[float]:
         return self.spearman_matrix.get(col_a, {}).get(col_b)
+
+    def to_dict(self) -> dict:
+        return {
+            "analysed_numeric_columns": list(self.analysed_numeric_columns),
+            "pearson_matrix": {k: dict(v) for k, v in self.pearson_matrix.items()},
+            "spearman_matrix": {k: dict(v) for k, v in self.spearman_matrix.items()},
+            "pairwise": [p.to_dict() for p in self.pairwise],
+            "near_redundant_pairs": [p.to_dict() for p in self.near_redundant_pairs],
+            "near_redundancy_groups": [g.to_dict() for g in self.near_redundancy_groups],
+            "target_column": self.target_column,
+            "target_type": str(self.target_type) if self.target_type else None,
+            "feature_target_numeric": [f.to_dict() for f in self.feature_target_numeric],
+            "feature_target_categorical": [f.to_dict() for f in self.feature_target_categorical],
+            "mutual_information": [m.to_dict() for m in self.mutual_information],
+        }

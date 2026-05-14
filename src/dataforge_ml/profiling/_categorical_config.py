@@ -27,6 +27,9 @@ class TopValueEntry:
     count: int
     percentage: float
 
+    def to_dict(self) -> dict:
+        return {"value": self.value, "count": self.count, "percentage": self.percentage}
+
 
 @dataclass
 class RareCategoryStats:
@@ -35,12 +38,27 @@ class RareCategoryStats:
     total_rare_rows: int = 0
     rare_row_percentage: float = 0.0
 
+    def to_dict(self) -> dict:
+        return {
+            "threshold_pct": self.threshold_pct,
+            "rare_category_count": self.rare_category_count,
+            "total_rare_rows": self.total_rare_rows,
+            "rare_row_percentage": self.rare_row_percentage,
+        }
+
 
 @dataclass
 class ImbalanceMetrics:
     class_ratio: float = 0.0
     shannon_entropy: float = 0.0
     gini_impurity: float = 0.0
+
+    def to_dict(self) -> dict:
+        return {
+            "class_ratio": self.class_ratio,
+            "shannon_entropy": self.shannon_entropy,
+            "gini_impurity": self.gini_impurity,
+        }
 
 
 @dataclass
@@ -54,6 +72,17 @@ class CategoricalStats:
     )
     imbalance: ImbalanceMetrics = field(default_factory=ImbalanceMetrics)
     flags: list[CategoricalFlag] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {
+            "cardinality": self.cardinality,
+            "unique_ratio": self.unique_ratio,
+            "mode_frequency": self.mode_frequency,
+            "top_values": [v.to_dict() for v in self.top_values],
+            "rare_categories": self.rare_categories.to_dict(),
+            "imbalance": self.imbalance.to_dict(),
+            "flags": [str(f) for f in self.flags],
+        }
 
 
 CategoricalColumnProfile = CategoricalStats

@@ -91,6 +91,18 @@ class ColumnProfile:
     is_target: bool = False
     stats: Optional[AnyStats] = None
 
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "semantic_type": str(self.semantic_type) if self.semantic_type else None,
+            "type_flags": [str(f) for f in self.type_flags],
+            "original_dtype": self.original_dtype,
+            "inferred_dtype": self.inferred_dtype,
+            "missingness": self.missingness.to_dict() if self.missingness else None,
+            "is_target": self.is_target,
+            "stats": self.stats.to_dict() if self.stats else None,
+        }
+
 
 @dataclass
 class RowMissingnessDistribution:
@@ -106,6 +118,16 @@ class RowMissingnessDistribution:
     pct_over_half_missing: float = 0.0
     drop_candidate_row_count: int = 0
 
+    def to_dict(self) -> dict:
+        return {
+            "pct_zero_missing": self.pct_zero_missing,
+            "pct_one_to_two": self.pct_one_to_two,
+            "pct_three_to_five": self.pct_three_to_five,
+            "pct_over_five": self.pct_over_five,
+            "pct_over_half_missing": self.pct_over_half_missing,
+            "drop_candidate_row_count": self.drop_candidate_row_count,
+        }
+
 
 @dataclass
 class MemoryBreakdown:
@@ -117,6 +139,9 @@ class MemoryBreakdown:
 
     def top_consumers(self, n: int = 10) -> list[tuple[str, int]]:
         return self.sorted_by_usage[:n]
+
+    def to_dict(self) -> dict:
+        return {"column_bytes": dict(self.column_bytes)}
 
 
 @dataclass
@@ -141,12 +166,39 @@ class DatasetStats:
         default_factory=dict,
     )
 
+    def to_dict(self) -> dict:
+        return {
+            "modality": str(self.modality),
+            "row_count": self.row_count,
+            "column_count": self.column_count,
+            "memory_bytes": self.memory_bytes,
+            "memory_breakdown": self.memory_breakdown.to_dict() if self.memory_breakdown else None,
+            "duplicate_count": self.duplicate_count,
+            "duplicate_ratio": self.duplicate_ratio,
+            "overall_sparsity": self.overall_sparsity,
+            "was_chunked": self.was_chunked,
+            "missingness_matrix": self.missingness_matrix,
+            "row_distribution": self.row_distribution.to_dict(),
+            "feature_correlation": self.feature_correlation.to_dict() if self.feature_correlation else None,
+            "target_correlations": {k: v.to_dict() for k, v in self.target_correlations.items()},
+        }
+
 
 @dataclass
 class StructuralProfileResult:
     columns: dict[str, ColumnProfile] = field(default_factory=dict)
     dataset: DatasetStats = field(default_factory=DatasetStats)
     targets: dict[str, TargetProfileResult] = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        return {
+            "columns": {k: v.to_dict() for k, v in self.columns.items()},
+            "dataset": self.dataset.to_dict(),
+            "targets": {k: v.to_dict() for k, v in self.targets.items()},
+        }
+
+    def to_json(self, indent: int = 2) -> str:
+        return json.dumps(self.to_dict(), indent=indent, default=str)
 
 
 # ---------------------------------------------------------------------------
