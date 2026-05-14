@@ -209,3 +209,21 @@ def test_continuous_float_produces_histogram():
     stats = NumericProfiler().profile(df, ["v"]).columns["v"]
     assert len(stats.histogram) > 0
     assert len(stats.top_values) == 0
+
+
+def test_histogram_bin_count_adapts_to_data():
+    # bins='auto' adapts to data size and spread rather than being fixed at 20.
+    # Small dataset → fewer bins (Sturges gives ~6 for n=50).
+    # Large dataset → more bins than the small one.
+    import numpy as np
+    rng = np.random.default_rng(42)
+
+    small = list(rng.normal(0, 1, size=50))
+    df_small = pl.DataFrame({"v": pl.Series(small, dtype=pl.Float64)})
+    stats_small = NumericProfiler().profile(df_small, ["v"]).columns["v"]
+    assert len(stats_small.histogram) < 20
+
+    large = list(rng.normal(0, 1, size=500))
+    df_large = pl.DataFrame({"v": pl.Series(large, dtype=pl.Float64)})
+    stats_large = NumericProfiler().profile(df_large, ["v"]).columns["v"]
+    assert len(stats_large.histogram) > len(stats_small.histogram)

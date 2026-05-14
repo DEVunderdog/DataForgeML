@@ -50,7 +50,6 @@ from ._numeric_config import (
     NumericTopValueEntry,
     HistogramBin,
 )
-from ..models._data_types import _NUMERIC_DTYPES
 
 # ---------------------------------------------------------------------------
 # Thresholds (documented so callers can see what drives labels / flags)
@@ -196,7 +195,7 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
             # --- 20-Bin Histogram Distribution (Continuous) ---
             import numpy as np
 
-            counts, bin_edges = np.histogram(clean_f64.to_numpy(), bins=20)
+            counts, bin_edges = np.histogram(clean_f64.to_numpy(), bins="auto")
             profile.histogram = [
                 HistogramBin(
                     lower_bound=float(bin_edges[i]),
