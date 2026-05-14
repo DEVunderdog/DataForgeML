@@ -49,7 +49,6 @@ from .config import (
     ProfileConfig,
     SemanticType,
 )
-from ..models._data_types import _CAT_DTYPES
 
 # ---------------------------------------------------------------------------
 # Module-level thresholds (documented so callers can see what drives flags)
@@ -115,7 +114,7 @@ class CategoricalProfiler(ColumnBatchProfiler[CategoricalProfileResult]):
         if override is not None:
             return False
 
-        return series.dtype in _CAT_DTYPES
+        return True
 
     def _run(
         self,

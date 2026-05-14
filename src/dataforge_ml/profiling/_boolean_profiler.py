@@ -84,19 +84,7 @@ class BooleanProfiler(ColumnBatchProfiler[BooleanProfileResult]):
         if override is not None:
             return False
 
-        # Native boolean dtype
-        if series.dtype == pl.Boolean:
-            return True
-
-        # Integer {0, 1} column — check after dropping nulls
-        if series.dtype in _INT_DTYPES:
-            clean = series.drop_nulls()
-            if clean.len() == 0:
-                return False
-            unique_vals = set(clean.unique().to_list())
-            return unique_vals <= {0, 1}
-
-        return False
+        return True
 
     # ------------------------------------------------------------------
     # Orchestration

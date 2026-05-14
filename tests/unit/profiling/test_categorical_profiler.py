@@ -24,8 +24,16 @@ def test_result_type(normal_mixed_df):
 
 def test_analysed_columns_only_eligible(normal_mixed_df):
     result = CategoricalProfiler().profile(normal_mixed_df, ["category", "score"])
-    assert "score" not in result.analysed_columns
     assert "category" in result.analysed_columns
+
+
+def test_integer_encoded_category_is_profiled():
+    # Int32 columns detected as EncodedCategory are routed here by StructuralProfiler.
+    # The profiler casts to Utf8 internally so any dtype is valid.
+    df = pl.DataFrame({"label": pl.Series([0, 1, 2, 0, 1, 2] * 10, dtype=pl.Int32)})
+    result = CategoricalProfiler().profile(df, ["label"])
+    assert "label" in result.analysed_columns
+    assert result.columns["label"].cardinality == 3
 
 
 def test_analysed_columns_matches_columns_dict(normal_mixed_df):

@@ -19,7 +19,17 @@ def test_result_type_and_analysed_columns():
     result = BooleanProfiler().profile(df, ["flag", "score"])
     assert isinstance(result, BooleanProfileResult)
     assert "flag" in result.analysed_columns
-    assert "score" not in result.analysed_columns
+
+
+def test_utf8_boolean_strings_are_profiled():
+    # TypeDetector flags Utf8 columns containing "true"/"false" as SemanticType.Boolean.
+    # BooleanProfiler must handle them — _to_bool_series maps known strings.
+    df = pl.DataFrame({"active": pl.Series(["true", "false", "true", "false", "true"], dtype=pl.Utf8)})
+    result = BooleanProfiler().profile(df, ["active"])
+    assert "active" in result.analysed_columns
+    stats = result.columns["active"]
+    assert stats.true_count == 3
+    assert stats.false_count == 2
 
 
 # ---------------------------------------------------------------------------

@@ -23,8 +23,7 @@ def test_result_type(normal_mixed_df):
 
 
 def test_analysed_columns_only_eligible(normal_mixed_df):
-    result = NumericProfiler().profile(normal_mixed_df, ["score", "salary", "category"])
-    assert "category" not in result.analysed_columns
+    result = NumericProfiler().profile(normal_mixed_df, ["score", "salary"])
     assert "score" in result.analysed_columns
     assert "salary" in result.analysed_columns
 

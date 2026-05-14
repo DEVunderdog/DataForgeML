@@ -119,7 +119,7 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
         if override is not None:
             return False
 
-        return series.dtype in _NUMERIC_DTYPES
+        return True
 
     def _run(
         self,
@@ -214,7 +214,7 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
     ) -> NumericStats:
         profile = NumericStats()
 
-        f64 = series.cast(pl.Float64)
+        f64 = series.cast(pl.Float64, strict=False)
         clean = f64.drop_nulls()
 
         if clean.len() == 0:
