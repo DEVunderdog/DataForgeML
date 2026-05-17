@@ -7,40 +7,40 @@ numeric/categorical column lists that are already resolved upstream).
 
 Design notes
 ------------
-- Pearson matrix   : linear relationships between numeric columns.
-- Spearman matrix  : monotonic (rank-based) relationships; robust to
-                     outliers and non-linearity.
-- Near-redundancy  : any pair with |r| > 0.95 flagged — identical signal,
-                     one should be dropped before modelling.
-- Feature–target   : Pearson for numeric target, ANOVA F / eta² for
-                     categorical target.  Top-10 reported.
-- Mutual information: MI for all features vs target (classif or regression).
-                     Captures non-linear dependencies correlation misses.
+- Pearson / Spearman : linear / monotonic relationships between numeric columns.
+- Cramér's V         : association between categorical column pairs [0, 1].
+- Eta-squared        : numeric-categorical association via ANOVA [0, 1].
+- Near-redundancy    : Pearson/Spearman |r| > 0.95, Cramér's V > 0.80,
+                       or eta² > 0.50 flagged — near-identical signal.
+- Feature–target     : Pearson (numeric target), ANOVA/eta² (categorical target).
+- Mutual information : MI for all features vs target (classif or regression).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Optional
 
-
 # ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------
 
+
 class CorrelationMethod(StrEnum):
-    Pearson  = "pearson"
+    Pearson = "pearson"
     Spearman = "spearman"
 
 
 class TargetType(StrEnum):
-    Numeric      = "numeric"      # numeric target  → Pearson + MI regression
-    Categorical  = "categorical"  # categorical target → ANOVA/eta² + MI classif
+    Numeric = "numeric"  # numeric target  → Pearson + MI regression
+    Categorical = "categorical"  # categorical target → ANOVA/eta² + MI classif
 
 
 # ---------------------------------------------------------------------------
 # Pairwise correlation result
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class CorrelationPair:
@@ -62,14 +62,74 @@ class CorrelationPair:
 
     col_a: str
     col_b: str
-    pearson_r:  Optional[float] = None
+    pearson_r: Optional[float] = None
     spearman_r: Optional[float] = None
     near_redundant: bool = False
 
     def to_dict(self) -> dict:
         return {
-            "col_a": self.col_a, "col_b": self.col_b,
-            "pearson_r": self.pearson_r, "spearman_r": self.spearman_r,
+            "col_a": self.col_a,
+            "col_b": self.col_b,
+            "pearson_r": self.pearson_r,
+            "spearman_r": self.spearman_r,
+            "near_redundant": self.near_redundant,
+        }
+
+
+@dataclass
+class CramerVPair:
+    """
+    Cramér's V association between two categorical columns.
+
+    Attributes
+    ----------
+    col_a, col_b : str
+    cramer_v : float | None
+        Cramér's V in [0, 1]. None when computation fails or sample too small.
+    near_redundant : bool
+        True when cramer_v exceeds the near-redundancy threshold (default 0.80).
+    """
+
+    col_a: str = ""
+    col_b: str = ""
+    cramer_v: Optional[float] = None
+    near_redundant: bool = False
+
+    def to_dict(self) -> dict:
+        return {
+            "col_a": self.col_a,
+            "col_b": self.col_b,
+            "cramer_v": self.cramer_v,
+            "near_redundant": self.near_redundant,
+        }
+
+
+@dataclass
+class EtaSquaredPair:
+    """
+    Eta-squared (η²) association between a numeric and a categorical column.
+
+    Attributes
+    ----------
+    numeric_col : str
+    categorical_col : str
+    eta_squared : float | None
+        Effect size in [0, 1]. None when computation fails.
+        Rule of thumb: 0.01 small, 0.06 medium, 0.14 large.
+    near_redundant : bool
+        True when eta_squared exceeds the near-redundancy threshold (default 0.50).
+    """
+
+    numeric_col: str = ""
+    categorical_col: str = ""
+    eta_squared: Optional[float] = None
+    near_redundant: bool = False
+
+    def to_dict(self) -> dict:
+        return {
+            "numeric_col": self.numeric_col,
+            "categorical_col": self.categorical_col,
+            "eta_squared": self.eta_squared,
             "near_redundant": self.near_redundant,
         }
 
@@ -77,6 +137,7 @@ class CorrelationPair:
 # ---------------------------------------------------------------------------
 # Feature–target entries
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class NumericTargetCorrelation:
@@ -88,7 +149,8 @@ class NumericTargetCorrelation:
     feature : str
     pearson_r : float | None
     """
-    feature:   str
+
+    feature: str
     pearson_r: Optional[float] = None
 
     def to_dict(self) -> dict:
@@ -113,21 +175,25 @@ class CategoricalTargetCorrelation:
         Effect size: SS_between / SS_total.  Ranges [0, 1].
         Rule of thumb: 0.01 small, 0.06 medium, 0.14 large.
     """
-    feature:     str
+
+    feature: str
     f_statistic: Optional[float] = None
-    p_value:     Optional[float] = None
+    p_value: Optional[float] = None
     eta_squared: Optional[float] = None
 
     def to_dict(self) -> dict:
         return {
-            "feature": self.feature, "f_statistic": self.f_statistic,
-            "p_value": self.p_value, "eta_squared": self.eta_squared,
+            "feature": self.feature,
+            "f_statistic": self.f_statistic,
+            "p_value": self.p_value,
+            "eta_squared": self.eta_squared,
         }
 
 
 # ---------------------------------------------------------------------------
 # Mutual information
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class MutualInformationEntry:
@@ -143,9 +209,10 @@ class MutualInformationEntry:
     rank : int
         1 = highest MI (most informative).
     """
-    feature:  str
+
+    feature: str
     mi_score: float = 0.0
-    rank:     int   = 0
+    rank: int = 0
 
     def to_dict(self) -> dict:
         return {"feature": self.feature, "mi_score": self.mi_score, "rank": self.rank}
@@ -154,6 +221,7 @@ class MutualInformationEntry:
 # ---------------------------------------------------------------------------
 # Near-redundancy summary
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class NearRedundancyGroup:
@@ -164,16 +232,21 @@ class NearRedundancyGroup:
     The suggested_drop list contains every column except the first
     alphabetically — a simple, deterministic heuristic.
     """
-    columns:       list[str] = field(default_factory=list)
+
+    columns: list[str] = field(default_factory=list)
     suggested_drop: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
-        return {"columns": list(self.columns), "suggested_drop": list(self.suggested_drop)}
+        return {
+            "columns": list(self.columns),
+            "suggested_drop": list(self.suggested_drop),
+        }
 
 
 # ---------------------------------------------------------------------------
 # Top-level result
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class CorrelationProfileResult:
@@ -211,23 +284,34 @@ class CorrelationProfileResult:
 
     # Column scope
     analysed_numeric_columns: list[str] = field(default_factory=list)
+    analysed_categorical_columns: list[str] = field(default_factory=list)
 
     # Pairwise matrices
-    pearson_matrix:  dict[str, dict[str, float]] = field(default_factory=dict)
+    pearson_matrix: dict[str, dict[str, float]] = field(default_factory=dict)
     spearman_matrix: dict[str, dict[str, float]] = field(default_factory=dict)
 
-    # Pairwise summaries
-    pairwise:             list[CorrelationPair] = field(default_factory=list)
+    # Pairwise summaries — numeric ↔ numeric
+    pairwise: list[CorrelationPair] = field(default_factory=list)
     near_redundant_pairs: list[CorrelationPair] = field(default_factory=list)
     near_redundancy_groups: list[NearRedundancyGroup] = field(default_factory=list)
 
+    # Pairwise summaries — categorical ↔ categorical (Cramér's V)
+    cramer_v_pairs: list[CramerVPair] = field(default_factory=list)
+    near_redundant_cramer_v_pairs: list[CramerVPair] = field(default_factory=list)
+
+    # Pairwise summaries — numeric ↔ categorical (eta-squared)
+    eta_squared_pairs: list[EtaSquaredPair] = field(default_factory=list)
+    near_redundant_eta_squared_pairs: list[EtaSquaredPair] = field(default_factory=list)
+
     # Target info
-    target_column: Optional[str]       = None
-    target_type:   Optional[TargetType] = None
+    target_column: Optional[str] = None
+    target_type: Optional[TargetType] = None
 
     # Feature–target correlations (top-10 each)
-    feature_target_numeric:      list[NumericTargetCorrelation]      = field(default_factory=list)
-    feature_target_categorical:  list[CategoricalTargetCorrelation]  = field(default_factory=list)
+    feature_target_numeric: list[NumericTargetCorrelation] = field(default_factory=list)
+    feature_target_categorical: list[CategoricalTargetCorrelation] = field(
+        default_factory=list
+    )
 
     # Mutual information (all features, ranked)
     mutual_information: list[MutualInformationEntry] = field(default_factory=list)
@@ -249,14 +333,29 @@ class CorrelationProfileResult:
     def to_dict(self) -> dict:
         return {
             "analysed_numeric_columns": list(self.analysed_numeric_columns),
+            "analysed_categorical_columns": list(self.analysed_categorical_columns),
             "pearson_matrix": {k: dict(v) for k, v in self.pearson_matrix.items()},
             "spearman_matrix": {k: dict(v) for k, v in self.spearman_matrix.items()},
             "pairwise": [p.to_dict() for p in self.pairwise],
             "near_redundant_pairs": [p.to_dict() for p in self.near_redundant_pairs],
-            "near_redundancy_groups": [g.to_dict() for g in self.near_redundancy_groups],
+            "near_redundancy_groups": [
+                g.to_dict() for g in self.near_redundancy_groups
+            ],
+            "cramer_v_pairs": [p.to_dict() for p in self.cramer_v_pairs],
+            "near_redundant_cramer_v_pairs": [
+                p.to_dict() for p in self.near_redundant_cramer_v_pairs
+            ],
+            "eta_squared_pairs": [p.to_dict() for p in self.eta_squared_pairs],
+            "near_redundant_eta_squared_pairs": [
+                p.to_dict() for p in self.near_redundant_eta_squared_pairs
+            ],
             "target_column": self.target_column,
             "target_type": str(self.target_type) if self.target_type else None,
-            "feature_target_numeric": [f.to_dict() for f in self.feature_target_numeric],
-            "feature_target_categorical": [f.to_dict() for f in self.feature_target_categorical],
+            "feature_target_numeric": [
+                f.to_dict() for f in self.feature_target_numeric
+            ],
+            "feature_target_categorical": [
+                f.to_dict() for f in self.feature_target_categorical
+            ],
             "mutual_information": [m.to_dict() for m in self.mutual_information],
         }

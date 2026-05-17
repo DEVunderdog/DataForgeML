@@ -47,6 +47,8 @@ from ._correlation_config import (
     CategoricalTargetCorrelation,
     CorrelationPair,
     CorrelationProfileResult,
+    CramerVPair,
+    EtaSquaredPair,
     MutualInformationEntry,
     NearRedundancyGroup,
     NumericTargetCorrelation,
@@ -55,6 +57,8 @@ from ._correlation_config import (
 from ..models._data_types import _NUMERIC_DTYPES, _INT_DTYPES
 
 _NEAR_REDUNDANT_THRESHOLD: float = 0.95
+_NEAR_REDUNDANT_CRAMER_V_THRESHOLD: float = 0.80
+_NEAR_REDUNDANT_ETA_SQUARED_THRESHOLD: float = 0.50
 _TOP_N_FEATURE_TARGET: int = 10
 _MI_N_NEIGHBORS: int = 3
 _MI_MIN_ROWS: int = 10  # min complete-case rows for a meaningful k-NN MI estimate
@@ -142,13 +146,14 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
         self,
         df: pl.DataFrame,
         numeric_cols: list[str],
+        categorical_cols: Optional[list[str]] = None,
     ) -> CorrelationProfileResult:
         """
         Compute pairwise feature-feature correlation matrices.
 
-        Pearson + Spearman matrices and near-redundancy groups are filled.
-        All target-specific fields are left at their defaults (empty lists /
-        None).  Call profile_target() separately for each target column.
+        Pearson + Spearman for numeric pairs, Cramér's V for categorical pairs,
+        eta-squared for numeric-categorical pairs.  All target-specific fields
+        are left at their defaults.  Call profile_target() for target analysis.
         """
         result = CorrelationProfileResult()
 
@@ -158,6 +163,9 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
             if c in df.columns and df[c].dtype in _NUMERIC_DTYPES
         ]
         result.analysed_numeric_columns = resolved_numeric
+
+        resolved_categorical = [c for c in (categorical_cols or []) if c in df.columns]
+        result.analysed_categorical_columns = resolved_categorical
 
         if len(resolved_numeric) >= 2:
             pearson_mat, spearman_mat = self._compute_matrices(df, resolved_numeric)
@@ -170,6 +178,22 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
             result.near_redundancy_groups = self._build_redundancy_groups(
                 result.near_redundant_pairs
             )
+
+        if len(resolved_categorical) >= 2:
+            result.cramer_v_pairs = self._compute_cramer_v_pairs(
+                df, resolved_categorical, _NEAR_REDUNDANT_CRAMER_V_THRESHOLD
+            )
+            result.near_redundant_cramer_v_pairs = [
+                p for p in result.cramer_v_pairs if p.near_redundant
+            ]
+
+        if resolved_numeric and resolved_categorical:
+            result.eta_squared_pairs = self._compute_eta_squared_pairs(
+                df, resolved_numeric, resolved_categorical, _NEAR_REDUNDANT_ETA_SQUARED_THRESHOLD
+            )
+            result.near_redundant_eta_squared_pairs = [
+                p for p in result.eta_squared_pairs if p.near_redundant
+            ]
 
         return result
 
@@ -315,6 +339,147 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
             NearRedundancyGroup(columns=members, suggested_drop=members[1:])
             for members in uf.groups()
         ]
+
+    # ------------------------------------------------------------------
+    # Step 3b: Cramér's V — categorical ↔ categorical
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _compute_cramer_v_pairs(
+        df: pl.DataFrame,
+        cat_cols: list[str],
+        threshold: float,
+    ) -> list[CramerVPair]:
+        try:
+            from scipy.stats import chi2_contingency
+        except ImportError:
+            warnings.warn(
+                "scipy is required for Cramér's V. Install: pip install scipy",
+                stacklevel=3,
+            )
+            return []
+
+        import numpy as np
+
+        pairs: list[CramerVPair] = []
+        for col_a, col_b in itertools.combinations(cat_cols, 2):
+            pair_df = (
+                df.select([
+                    pl.col(col_a).cast(pl.Utf8, strict=False),
+                    pl.col(col_b).cast(pl.Utf8, strict=False),
+                ])
+                .drop_nulls()
+            )
+            n = pair_df.height
+            if n < 5:
+                pairs.append(CramerVPair(col_a=col_a, col_b=col_b))
+                continue
+
+            counts = pair_df.group_by([col_a, col_b]).agg(pl.len().alias("count"))
+            a_unique = sorted(counts[col_a].unique().to_list())
+            b_unique = sorted(counts[col_b].unique().to_list())
+            if len(a_unique) < 2 or len(b_unique) < 2:
+                pairs.append(CramerVPair(col_a=col_a, col_b=col_b))
+                continue
+
+            a_idx = {v: i for i, v in enumerate(a_unique)}
+            b_idx = {v: i for i, v in enumerate(b_unique)}
+            ct = np.zeros((len(a_unique), len(b_unique)), dtype=int)
+            for a_val, b_val, cnt in zip(
+                counts[col_a].to_list(),
+                counts[col_b].to_list(),
+                counts["count"].to_list(),
+            ):
+                ct[a_idx[a_val], b_idx[b_val]] = cnt
+
+            try:
+                chi2, _, _, _ = chi2_contingency(ct)
+                r, c = ct.shape
+                phi2 = chi2 / n
+                # Bergsma & Wicher (2013) bias correction
+                phi2_corr = max(0.0, phi2 - (r - 1) * (c - 1) / (n - 1))
+                r_corr = r - (r - 1) ** 2 / (n - 1)
+                c_corr = c - (c - 1) ** 2 / (n - 1)
+                v = float(np.sqrt(phi2_corr / min(r_corr - 1, c_corr - 1)))
+                v = max(0.0, min(1.0, v))
+            except Exception as exc:
+                warnings.warn(
+                    f"Cramér's V failed for ({col_a}, {col_b}): {exc}", stacklevel=3
+                )
+                pairs.append(CramerVPair(col_a=col_a, col_b=col_b))
+                continue
+
+            pairs.append(CramerVPair(
+                col_a=col_a, col_b=col_b,
+                cramer_v=v,
+                near_redundant=v > threshold,
+            ))
+
+        return pairs
+
+    # ------------------------------------------------------------------
+    # Step 3c: Eta-squared — numeric ↔ categorical
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _compute_eta_squared_pairs(
+        df: pl.DataFrame,
+        numeric_cols: list[str],
+        cat_cols: list[str],
+        threshold: float,
+    ) -> list[EtaSquaredPair]:
+        try:
+            from scipy.stats import f_oneway
+        except ImportError:
+            warnings.warn(
+                "scipy is required for eta-squared. Install: pip install scipy",
+                stacklevel=3,
+            )
+            return []
+
+        pairs: list[EtaSquaredPair] = []
+        for num_col in numeric_cols:
+            feat = df[num_col].cast(pl.Float64)
+            valid_feat = feat.drop_nulls()
+            if valid_feat.len() == 0:
+                continue
+            grand_mean = float(valid_feat.mean())  # type: ignore[arg-type]
+            ss_total = float(((valid_feat - grand_mean) ** 2).sum() or 0.0)
+
+            for cat_col in cat_cols:
+                target = df[cat_col]
+                categories = target.drop_nulls().unique().to_list()
+                groups = [
+                    feat.filter(target == cat).drop_nulls().to_numpy()
+                    for cat in categories
+                ]
+                non_empty = [g for g in groups if len(g) > 0]
+                if len(non_empty) < 2:
+                    pairs.append(EtaSquaredPair(numeric_col=num_col, categorical_col=cat_col))
+                    continue
+                try:
+                    f_oneway(*non_empty)
+                    ss_between = sum(
+                        len(g) * (float(g.mean()) - grand_mean) ** 2
+                        for g in non_empty
+                    )
+                    eta_sq = ss_between / ss_total if ss_total > 0 else 0.0
+                    eta_sq = max(0.0, min(1.0, eta_sq))
+                except Exception as exc:
+                    warnings.warn(
+                        f"Eta-squared failed for ({num_col}, {cat_col}): {exc}",
+                        stacklevel=3,
+                    )
+                    pairs.append(EtaSquaredPair(numeric_col=num_col, categorical_col=cat_col))
+                    continue
+
+                pairs.append(EtaSquaredPair(
+                    numeric_col=num_col, categorical_col=cat_col,
+                    eta_squared=eta_sq,
+                    near_redundant=eta_sq > threshold,
+                ))
+
+        return pairs
 
     # ------------------------------------------------------------------
     # Step 5a: Feature–target Pearson (unchanged)

@@ -199,7 +199,7 @@ class StructuralProfiler:
 
             # 8a. Feature-feature matrices — computed ONCE, target-independent.
             feature_corr = corr_profiler.profile_features(
-                data, numeric_cols
+                data, numeric_cols, categorical_cols
             )
             result.dataset.feature_correlation = feature_corr
 

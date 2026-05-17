@@ -122,3 +122,83 @@ def test_identical_columns_produce_near_redundant_pair():
     )
     assert isinstance(target_result, CorrelationProfileResult)
     assert target_result.target_column == "y"
+
+
+# ---------------------------------------------------------------------------
+# Cramér's V — categorical ↔ categorical
+# ---------------------------------------------------------------------------
+
+
+def test_perfectly_correlated_categoricals_near_redundant():
+    # Perfect 1:1 mapping between two categoricals → Cramér's V == 1.0
+    n = 60
+    col_a = ["A", "B", "C"] * (n // 3)
+    col_b = ["X", "Y", "Z"] * (n // 3)  # perfect correspondence
+    df = pl.DataFrame({
+        "cat1": pl.Series(col_a, dtype=pl.Utf8),
+        "cat2": pl.Series(col_b, dtype=pl.Utf8),
+    })
+    profiler = CorrelationProfiler(numeric_columns=[], categorical_columns=["cat1", "cat2"])
+    result = profiler.profile_features(df, [], categorical_cols=["cat1", "cat2"])
+
+    assert len(result.cramer_v_pairs) == 1
+    pair = result.cramer_v_pairs[0]
+    assert pair.cramer_v is not None
+    assert pair.cramer_v > 0.8
+    assert pair.near_redundant is True
+    assert len(result.near_redundant_cramer_v_pairs) == 1
+
+
+def test_independent_categoricals_not_near_redundant():
+    import random
+    rng = random.Random(42)
+    n = 100
+    col_a = [rng.choice(["A", "B", "C"]) for _ in range(n)]
+    col_b = [rng.choice(["X", "Y", "Z"]) for _ in range(n)]
+    df = pl.DataFrame({
+        "cat1": pl.Series(col_a, dtype=pl.Utf8),
+        "cat2": pl.Series(col_b, dtype=pl.Utf8),
+    })
+    profiler = CorrelationProfiler(numeric_columns=[], categorical_columns=["cat1", "cat2"])
+    result = profiler.profile_features(df, [], categorical_cols=["cat1", "cat2"])
+
+    assert len(result.cramer_v_pairs) == 1
+    assert result.cramer_v_pairs[0].near_redundant is False
+
+
+# ---------------------------------------------------------------------------
+# Eta-squared — numeric ↔ categorical
+# ---------------------------------------------------------------------------
+
+
+def test_numeric_perfectly_separates_groups_near_redundant():
+    # Numeric values are perfectly separated by the categorical groups.
+    df = pl.DataFrame({
+        "group": pl.Series(["A"] * 30 + ["B"] * 30, dtype=pl.Utf8),
+        "value": pl.Series([1.0] * 30 + [100.0] * 30, dtype=pl.Float64),
+    })
+    profiler = CorrelationProfiler(
+        numeric_columns=["value"], categorical_columns=["group"]
+    )
+    result = profiler.profile_features(df, ["value"], categorical_cols=["group"])
+
+    assert len(result.eta_squared_pairs) == 1
+    pair = result.eta_squared_pairs[0]
+    assert pair.eta_squared is not None
+    assert pair.eta_squared > 0.5
+    assert pair.near_redundant is True
+    assert len(result.near_redundant_eta_squared_pairs) == 1
+
+
+def test_existing_numeric_pearson_behaviour_unchanged():
+    df = _make_df_with_duplicate()
+    feature_cols = ["x", "x_copy", "y"]
+    profiler = CorrelationProfiler(numeric_columns=feature_cols)
+    result = profiler.profile_features(df, feature_cols)
+
+    assert any(
+        {p.col_a, p.col_b} == {"x", "x_copy"}
+        for p in result.near_redundant_pairs
+    )
+    assert result.cramer_v_pairs == []
+    assert result.eta_squared_pairs == []
