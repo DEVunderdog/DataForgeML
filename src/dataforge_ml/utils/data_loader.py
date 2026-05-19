@@ -82,8 +82,6 @@ _EXT_LOADERS: dict[str, callable] = {
 
 
 class DataLoader:
-    def __init__(self, fmt: str | None = None) -> None:
-        self._fmt_override = fmt.lower() if fmt else None
 
     def load(
         self,
@@ -92,7 +90,7 @@ class DataLoader:
     ) -> pl.DataFrame:
         raw, ext_from_path = _read_raw(source)
 
-        resolved_fmt = (fmt or self._fmt_override or ext_from_path or "").lower()
+        resolved_fmt = (ext_from_path or "").lower()
 
         if resolved_fmt not in _EXT_LOADERS:
             label = resolved_fmt if resolved_fmt else "<unknown>"

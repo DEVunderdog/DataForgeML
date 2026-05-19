@@ -208,7 +208,9 @@ class MissingnessProfiler(DatasetLevelProfiler[MissingnessProfileResult]):
 
         r = profile.effective_null_ratio
 
-        if r < _SEVERITY_MINOR and r != 0:
+        if r == 0.0:
+            profile.severity = None
+        elif r < _SEVERITY_MINOR:
             profile.severity = MissingSeverity.Minor
         elif r < _SEVERITY_MODERATE:
             profile.severity = MissingSeverity.Moderate

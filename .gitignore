@@ -15,3 +15,5 @@ build
 .pytest_cache
 __pycache__
 dataforge_ml.egg-info
+CONTEXT.md
+docs/adr/

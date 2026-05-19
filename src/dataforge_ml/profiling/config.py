@@ -71,6 +71,7 @@ class TypeFlag(StrEnum):
     SequentialIndex = "sequential_index"
     FloatSequentialIndex = "float_sequential_index"
     FreeTextCandidate = "free_text_candidate"
+    UserOverride = "user_override"
 
 
 # ---------------------------------------------------------------------------
