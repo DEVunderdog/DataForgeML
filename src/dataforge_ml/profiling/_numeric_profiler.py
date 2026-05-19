@@ -254,16 +254,17 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
                 for i in range(top_rows)
             ]
         else:
-            # --- 20-Bin Histogram Distribution (Continuous) ---
+            # --- Histogram Distribution (Continuous) ---
             import numpy as np
 
             counts, bin_edges = np.histogram(clean_f64.to_numpy(), bins="auto")
+            n_clean = clean_f64.len()
             profile.histogram = [
                 HistogramBin(
                     lower_bound=float(bin_edges[i]),
                     upper_bound=float(bin_edges[i + 1]),
                     count=int(counts[i]),
-                    percentage=int(counts[i]) / n_rows if n_rows > 0 else 0.0,
+                    percentage=int(counts[i]) / n_clean if n_clean > 0 else 0.0,
                 )
                 for i in range(len(counts))
             ]
