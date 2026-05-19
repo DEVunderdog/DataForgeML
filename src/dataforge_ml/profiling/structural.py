@@ -40,6 +40,7 @@ from .config import (
     StructuralProfileResult,
     RowMissingnessDistribution,
     SemanticType,
+    TypeFlag,
     Modality,
 )
 
@@ -130,7 +131,10 @@ class StructuralProfiler:
         # Overrides for excluded / non-existent columns are silently ignored.
         for col_name, override_type in self.config.column_overrides.items():
             if col_name in result.columns:
-                result.columns[col_name].semantic_type = override_type
+                cp = result.columns[col_name]
+                cp.semantic_type = override_type
+                if TypeFlag.UserOverride not in cp.type_flags:
+                    cp.type_flags.append(TypeFlag.UserOverride)
 
         # ── 6. Per-column profiling routed by SemanticType ───────────────
         # Batch all columns of the same SemanticType together and call each
