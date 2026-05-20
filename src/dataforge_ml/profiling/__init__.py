@@ -1,6 +1,8 @@
 from .structural import StructuralProfiler
 from .config import (
     ProfileConfig,
+    PipelineConfig,
+    PipelinePhase,
     SemanticType,
     Modality,
     TypeFlag,
@@ -19,6 +21,8 @@ from ._base import ModalityProfiler
 __all__ = [
     "StructuralProfiler",
     "ProfileConfig",
+    "PipelineConfig",
+    "PipelinePhase",
     "SemanticType",
     "Modality",
     "TypeFlag",
