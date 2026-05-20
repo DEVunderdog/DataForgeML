@@ -100,7 +100,6 @@ def test_sentinel_detection_unconditional_for_string_columns():
 
 
 def test_float_nan_counted_as_effective_null():
-    import math
     df = pl.DataFrame({"x": pl.Series([1.0, float("nan"), 3.0], dtype=pl.Float64)})
     profile = MissingnessProfiler().profile(df, ["x"]).columns["x"]
     assert profile.effective_null_count == 1

@@ -116,3 +116,28 @@ def test_pipeline_config_exclude_columns_act_as_hard_exclusions(sample_df):
     assert "id" not in result.columns
     remaining = set(result.columns.keys())
     assert remaining == {"age", "income", "country"}
+
+
+# ---------------------------------------------------------------------------
+# DatasetStats.column_count reflects the raw DataFrame, not the active column set
+# ---------------------------------------------------------------------------
+
+
+def test_dataset_column_count_reflects_raw_dataframe_with_hard_exclusion(sample_df):
+    cfg = PipelineConfig(exclude_columns=["id"])
+    result = StructuralProfiler(cfg).profile(sample_df)
+
+    assert result.dataset.column_count == sample_df.width
+
+
+def test_dataset_column_count_reflects_raw_dataframe_with_soft_exclusion(sample_df):
+    cfg = PipelineConfig(phase_exclusions={PipelinePhase.Profiling: ["age"]})
+    result = StructuralProfiler(cfg).profile(sample_df)
+
+    assert result.dataset.column_count == sample_df.width
+
+
+def test_dataset_column_count_reflects_raw_dataframe_no_exclusions(sample_df):
+    result = StructuralProfiler(PipelineConfig()).profile(sample_df)
+
+    assert result.dataset.column_count == sample_df.width
