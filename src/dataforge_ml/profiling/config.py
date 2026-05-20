@@ -294,7 +294,7 @@ class ProfileConfig:
     def from_dict(cls, data: dict) -> ProfileConfig:
         return cls(
             modality=Modality(data.get("modality", Modality.Tabular)),
-            target_column=data.get("target_column"),
+            target_columns=list(data.get("target_columns", [])),
             column_overrides={
                 k: SemanticType(v) for k, v in data.get("column_overrides", {}).items()
             },
@@ -367,6 +367,42 @@ class PipelineConfig:
                     f"Valid values: {valid}"
                 )
         self.column_overrides[column] = semantic_type
+
+    def to_dict(self) -> dict:
+        return {
+            "exclude_columns": list(self.exclude_columns),
+            "phase_exclusions": {
+                str(phase): list(cols)
+                for phase, cols in self.phase_exclusions.items()
+            },
+            "column_overrides": {
+                col: str(sem_type)
+                for col, sem_type in self.column_overrides.items()
+            },
+            "profiling": self.profiling.to_dict(),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "PipelineConfig":
+        return cls(
+            exclude_columns=list(data.get("exclude_columns", [])),
+            phase_exclusions={
+                PipelinePhase(phase_str): list(cols)
+                for phase_str, cols in data.get("phase_exclusions", {}).items()
+            },
+            column_overrides={
+                col: SemanticType(sem_str)
+                for col, sem_str in data.get("column_overrides", {}).items()
+            },
+            profiling=ProfileConfig.from_dict(data.get("profiling", {})),
+        )
+
+    def to_json(self, indent: int = 2) -> str:
+        return json.dumps(self.to_dict(), indent=indent)
+
+    @classmethod
+    def from_json(cls, json_str: str) -> "PipelineConfig":
+        return cls.from_dict(json.loads(json_str))
 
 
 @dataclass
