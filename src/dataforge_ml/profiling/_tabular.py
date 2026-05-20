@@ -3,16 +3,18 @@ TabularProfiler  –  Phase 1: Structural Profiling for tabular datasets.
 
 All DataFrame operations use Polars (no pandas dependency).
 
+A pipeline-agnostic data-catalog tool: receives the full raw DataFrame and
+computes dataset-level stats over every column — no exclusion logic, no
+config dependency.
+
 Computes:
-  • row / column count                (always full dataset)
+  • row / column count                (full dataset)
   • memory usage + per-column breakdown when threshold exceeded
-  • duplicate row count & ratio       (scoped to config.duplicate_columns)
-  • overall sparsity                  (scoped to config.sparsity_columns)
-  • data-type detection               (scoped to config.type_detection_columns;
-                                       skipped entirely when None)
+  • duplicate row count & ratio       (all columns)
+  • overall sparsity                  (all columns)
 
 Chunked processing is activated automatically when the DataFrame's
-estimated memory exceeds config.memory_threshold_mb.
+estimated memory exceeds _MEMORY_THRESHOLD_MB.
 """
 
 from __future__ import annotations
@@ -24,31 +26,31 @@ import polars as pl
 from ._base import ModalityProfiler
 from .config import (
     MemoryBreakdown,
-    ProfileConfig,
     DatasetStats,
 )
+
+# ---------------------------------------------------------------------------
+# Module-level constants (previously sourced from ProfileConfig)
+# ---------------------------------------------------------------------------
+
+_MEMORY_THRESHOLD_MB: float = 500.0
+_CHUNK_SIZE: int = 100_000
 
 
 class TabularProfiler(ModalityProfiler):
     """
     Structural profiler for Polars DataFrames.
 
+    Pipeline-agnostic: accepts no constructor arguments and applies no column
+    filtering. Computes dataset-level stats (row count, column count, memory,
+    duplicate ratio, overall sparsity) over the complete DataFrame it receives.
+
     Usage
     -----
-    >>> cfg = ProfileConfig(
-    ...     duplicate_columns=["user_id", "event_time"],
-    ...     sparsity_columns=["age", "income", "postcode"],
-    ...     type_detection_columns=["age", "income", "postcode", "created_at"],
-    ...     memory_threshold_mb=200,
-    ... )
-    >>> profiler = TabularProfiler(config=cfg)
+    >>> profiler = TabularProfiler()
     >>> result = profiler.profile(df)
     >>> print(result)
     """
-
-    def __init__(self, config: ProfileConfig | None = None):
-        super().__init__()
-        self.config: ProfileConfig = config or ProfileConfig()
 
     # ------------------------------------------------------------------
     # Public API
@@ -78,17 +80,13 @@ class TabularProfiler(ModalityProfiler):
         if result.row_count == 0:
             return result
 
-        # 3. Resolve column scopes
+        # 3. Operate on all columns — no exclusion logic
         all_cols: list[str] = df.columns
-        analysed_cols = [c for c in all_cols if c not in self.config.exclude_columns]
-
-        dup_cols = analysed_cols
-        missingness_cols = analysed_cols
 
         if use_chunks:
-            self._chunked_metrics(df, dup_cols, missingness_cols, result)
+            self._chunked_metrics(df, all_cols, all_cols, result)
         else:
-            self._full_metrics(df, dup_cols, missingness_cols, result)
+            self._full_metrics(df, all_cols, all_cols, result)
 
         return result
 
@@ -137,7 +135,7 @@ class TabularProfiler(ModalityProfiler):
         total_bytes = sum(col_bytes.values())
 
         result.memory_bytes = total_bytes
-        threshold_bytes = self.config.memory_threshold_mb * 1024 * 1024
+        threshold_bytes = _MEMORY_THRESHOLD_MB * 1024 * 1024
 
         if total_bytes > threshold_bytes:
             result.memory_breakdown = MemoryBreakdown(column_bytes=col_bytes)
@@ -190,7 +188,7 @@ class TabularProfiler(ModalityProfiler):
         seen hashes — semantics match keep='first'.
         Sparsity is accumulated as (missing_cells, total_cells).
         """
-        chunk_size = self.config.chunk_size
+        chunk_size = _CHUNK_SIZE
         n_chunks = math.ceil(result.row_count / chunk_size)
 
         seen_hashes: set[int] = set()

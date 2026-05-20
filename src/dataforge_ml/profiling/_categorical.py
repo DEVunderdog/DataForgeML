@@ -106,6 +106,7 @@ class CategoricalProfiler(ColumnBatchProfiler[CategoricalProfileResult]):
     def _profile_column(
         self,
         series: pl.Series,
+        col_name: str,
         n_rows: int,
     ) -> CategoricalStats:
         profile = CategoricalStats()

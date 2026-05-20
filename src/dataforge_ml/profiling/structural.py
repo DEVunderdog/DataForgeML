@@ -71,7 +71,7 @@ class StructuralProfiler:
         self.config.profiling.column_overrides = self.config.column_overrides
 
         if self.config.profiling.modality == Modality.Tabular:
-            self.modality_profiler: ModalityProfiler = TabularProfiler(self.config.profiling)
+            self.modality_profiler: ModalityProfiler = TabularProfiler()
         else:
             raise NotImplementedError(
                 f"modality {self.config.profiling.modality} not supported yet"
