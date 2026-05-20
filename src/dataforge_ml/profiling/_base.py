@@ -26,7 +26,7 @@ import polars as pl
 from abc import abstractmethod, ABC
 from typing import Generic, TypeVar
 
-from .config import DatasetStats, ProfileConfig
+from .config import DatasetStats, PipelineConfig, ProfileConfig
 
 R = TypeVar("R")
 
@@ -39,7 +39,7 @@ class Profiling(ABC, Generic[R]):
     use one of the three concrete tier bases below.
     """
 
-    def __init__(self, config: ProfileConfig | None = None):
+    def __init__(self, config: PipelineConfig | None = None):
         self.config = config or ProfileConfig()
 
     @abstractmethod

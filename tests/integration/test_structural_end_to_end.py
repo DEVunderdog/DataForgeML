@@ -1,6 +1,8 @@
 import pytest
 from dataforge_ml.profiling.structural import StructuralProfiler
 from dataforge_ml.profiling.config import (
+    PipelineConfig,
+    PipelinePhase,
     ProfileConfig,
     StructuralProfileResult,
     SemanticType,
@@ -14,7 +16,7 @@ from dataforge_ml.profiling._target_config import TargetProfileResult
 
 
 def test_happy_path(mixed_df):
-    config = ProfileConfig(compute_correlation=True)
+    config = PipelineConfig(profiling=ProfileConfig(compute_correlation=True))
     result = StructuralProfiler(config).profile(mixed_df)
 
     assert isinstance(result, StructuralProfileResult)
@@ -30,14 +32,14 @@ def test_happy_path(mixed_df):
 
 
 def test_no_correlation(mixed_df):
-    config = ProfileConfig(compute_correlation=False)
+    config = PipelineConfig(profiling=ProfileConfig(compute_correlation=False))
     result = StructuralProfiler(config).profile(mixed_df)
 
     assert result.dataset.feature_correlation is None
 
 
 def test_boolean_handoff(mixed_df):
-    result = StructuralProfiler(ProfileConfig()).profile(mixed_df)
+    result = StructuralProfiler(PipelineConfig()).profile(mixed_df)
 
     cp = result.columns["is_active"]
     assert cp.semantic_type == SemanticType.Boolean
@@ -47,7 +49,7 @@ def test_boolean_handoff(mixed_df):
 
 
 def test_text_handoff(text_df):
-    result = StructuralProfiler(ProfileConfig()).profile(text_df)
+    result = StructuralProfiler(PipelineConfig()).profile(text_df)
 
     cp = result.columns["review"]
     assert cp.semantic_type == SemanticType.Text
@@ -61,7 +63,7 @@ def test_text_handoff(text_df):
 
 
 def test_correlation_consistency(mixed_df):
-    config = ProfileConfig(compute_correlation=True)
+    config = PipelineConfig(profiling=ProfileConfig(compute_correlation=True))
     result = StructuralProfiler(config).profile(mixed_df)
 
     fc = result.dataset.feature_correlation
@@ -126,7 +128,7 @@ def test_correlation_consistency(mixed_df):
 
 
 def test_column_handoffs(mixed_df):
-    result = StructuralProfiler(ProfileConfig()).profile(mixed_df)
+    result = StructuralProfiler(PipelineConfig()).profile(mixed_df)
 
     stats_type_for = {
         SemanticType.Numeric: NumericStats,
@@ -155,7 +157,7 @@ def test_column_handoffs(mixed_df):
 
 
 def test_column_override_changes_stats_type(override_df):
-    config = ProfileConfig(column_overrides={"score": SemanticType.Categorical})
+    config = PipelineConfig(column_overrides={"score": SemanticType.Categorical})
     result = StructuralProfiler(config).profile(override_df)
     cp = result.columns["score"]
     assert isinstance(cp.stats, CategoricalStats)
@@ -167,7 +169,7 @@ def test_column_override_changes_stats_type(override_df):
 
 
 def test_target_profiling_integration(target_df):
-    config = ProfileConfig(target_columns=["label"])
+    config = PipelineConfig(profiling=ProfileConfig(target_columns=["label"]))
     result = StructuralProfiler(config).profile(target_df)
     assert "label" in result.targets
     assert isinstance(result.targets["label"], TargetProfileResult)
@@ -179,7 +181,7 @@ def test_target_profiling_integration(target_df):
 
 
 def test_empty_dataframe_does_not_crash(empty_df):
-    result = StructuralProfiler(ProfileConfig()).profile(empty_df)
+    result = StructuralProfiler(PipelineConfig()).profile(empty_df)
     assert isinstance(result, StructuralProfileResult)
 
 
@@ -189,7 +191,7 @@ def test_empty_dataframe_does_not_crash(empty_df):
 
 
 def test_numeric_handoff(mixed_df):
-    result = StructuralProfiler(ProfileConfig()).profile(mixed_df)
+    result = StructuralProfiler(PipelineConfig()).profile(mixed_df)
     cp = result.columns["income"]
     assert cp.stats is not None
     assert isinstance(cp.stats, NumericStats)
@@ -201,7 +203,7 @@ def test_numeric_handoff(mixed_df):
 
 
 def test_datetime_handoff(mixed_df):
-    result = StructuralProfiler(ProfileConfig()).profile(mixed_df)
+    result = StructuralProfiler(PipelineConfig()).profile(mixed_df)
     cp = result.columns["joined"]
     assert cp.stats is not None
     assert isinstance(cp.stats, DatetimeStats)
@@ -213,7 +215,7 @@ def test_datetime_handoff(mixed_df):
 
 
 def test_missingness_surfaced(mixed_df):
-    result = StructuralProfiler(ProfileConfig()).profile(mixed_df)
+    result = StructuralProfiler(PipelineConfig()).profile(mixed_df)
     cp = result.columns["salary"]  # salary has ~10 % nulls by construction
     assert cp.missingness is not None
     assert cp.missingness.standard_null_count > 0

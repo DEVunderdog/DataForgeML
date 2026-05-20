@@ -35,7 +35,8 @@ from ._target_profiler import TargetProfiler
 from ._correlation_profiler import CorrelationProfiler
 from ._type_detector import TypeDetector
 from .config import (
-    ProfileConfig,
+    PipelineConfig,
+    PipelinePhase,
     ColumnProfile,
     StructuralProfileResult,
     RowMissingnessDistribution,
@@ -64,14 +65,16 @@ _COLUMN_PROFILER_REGISTRY: dict[SemanticType, type[ColumnBatchProfiler]] = {  # 
 
 class StructuralProfiler:
 
-    def __init__(self, config: ProfileConfig | None = None) -> None:
-        self.config = config or ProfileConfig()
+    def __init__(self, config: PipelineConfig | None = None) -> None:
+        self.config: PipelineConfig = config or PipelineConfig()
+        # Keep sub-profilers aligned with the master column_overrides.
+        self.config.profiling.column_overrides = self.config.column_overrides
 
-        if self.config.modality == Modality.Tabular:
-            self.modality_profiler: ModalityProfiler = TabularProfiler(self.config)
+        if self.config.profiling.modality == Modality.Tabular:
+            self.modality_profiler: ModalityProfiler = TabularProfiler(self.config.profiling)
         else:
             raise NotImplementedError(
-                f"modality {self.config.modality} not supported yet"
+                f"modality {self.config.profiling.modality} not supported yet"
             )
 
     # ------------------------------------------------------------------
@@ -87,7 +90,17 @@ class StructuralProfiler:
 
         result = StructuralProfileResult()
 
-        active_cols = [c for c in data.columns if c not in self.config.exclude_columns]
+        active_cols = self.config.resolve_active_columns(
+            PipelinePhase.Profiling, list(data.columns)
+        )
+
+        # Columns soft-excluded for Profiling: skipped but retained in the result.
+        hard_set = set(self.config.exclude_columns)
+        soft_retained = [
+            c for c in data.columns
+            if c in set(self.config.phase_exclusions.get(PipelinePhase.Profiling, []))
+            and c not in hard_set
+        ]
 
         # ── 1. Modality profiler ─────────────────────────────────────────
         # Replaces default DatasetStats with the real one (row_count, memory,
@@ -97,7 +110,7 @@ class StructuralProfiler:
         # ── 2. Missingness pre-pass ──────────────────────────────────────
         # setdefault creates ColumnProfile entries; subsequent steps mutate
         # the same objects via the same setdefault pattern.
-        missingness_result = MissingnessProfiler(config=self.config).profile(
+        missingness_result = MissingnessProfiler(config=self.config.profiling).profile(
             data, columns=active_cols
         )
         for col_name in missingness_result.analysed_columns:
@@ -112,7 +125,7 @@ class StructuralProfiler:
             df=data,
             cols=active_cols,
             n_rows=data.height,
-            overrides=self.config.column_overrides,
+            overrides=self.config.column_overrides,  # master overrides from PipelineConfig
         )
 
         # ── 4. Type detection ────────────────────────────────────────────
@@ -153,7 +166,7 @@ class StructuralProfiler:
             profiler_cls = _COLUMN_PROFILER_REGISTRY.get(sem_type)  # type: ignore[arg-type]
             if profiler_cls is None:
                 continue
-            profiler = profiler_cls(config=self.config)
+            profiler = profiler_cls(config=self.config.profiling)
             try:
                 batch = profiler.profile(data, columns=cols)
                 for col_name in batch.analysed_columns:
@@ -165,13 +178,13 @@ class StructuralProfiler:
         # ── 7. Target columns ────────────────────────────────────────────
         # TargetProfiler produces target-specific analysis stored in
         # result.targets.  cp.stats is NOT overwritten — step 6 already set it.
-        if self.config.target_columns:
-            for target in self.config.target_columns:
+        if self.config.profiling.target_columns:
+            for target in self.config.profiling.target_columns:
                 if target not in data.columns:
                     continue
                 target_result = TargetProfiler(
                     target_column=target,
-                    config=self.config,
+                    config=self.config.profiling,
                 ).profile(data)
                 result.targets[target] = target_result
 
@@ -180,7 +193,7 @@ class StructuralProfiler:
                 cp.is_target = True
 
         # ── 8. Correlation ───────────────────────────────────────────────
-        if self.config.compute_correlation:
+        if self.config.profiling.compute_correlation:
             # Resolve column lists by detected SemanticType (post-override).
             numeric_cols = [
                 c
@@ -198,7 +211,7 @@ class StructuralProfiler:
             corr_profiler = CorrelationProfiler(
                 numeric_columns=numeric_cols,
                 categorical_columns=categorical_cols,
-                config=self.config,
+                config=self.config.profiling,
             )
 
             # 8a. Feature-feature matrices — computed ONCE, target-independent.
@@ -209,7 +222,7 @@ class StructuralProfiler:
 
             # 8b. Per-target analysis — matrices are NOT recomputed; each call
             #     shallow-copies feature_corr and appends target-specific fields.
-            for target in self.config.target_columns:
+            for target in self.config.profiling.target_columns:
                 if target not in data.columns:
                     continue
                 result.dataset.target_correlations[target] = (
@@ -217,6 +230,12 @@ class StructuralProfiler:
                         data, feature_corr, numeric_cols, categorical_cols, target
                     )
                 )
+
+        # ── Soft-excluded placeholders ───────────────────────────────────────
+        # Columns soft-excluded for Profiling are not profiled but must still
+        # appear in the result so downstream phases can reference them.
+        for col in soft_retained:
+            result.columns.setdefault(col, ColumnProfile(name=col))
 
         return result
 
