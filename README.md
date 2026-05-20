@@ -1,6 +1,6 @@
-# FeatureForge
+# DataForgeML
 
-Automated feature engineering and data profiling pipeline library for tabular datasets.
+Automated feature engineering and data profiling pipeline library for datasets.
 
 ## Installation
 
