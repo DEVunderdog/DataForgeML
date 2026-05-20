@@ -3,19 +3,10 @@ MissingnessProfiler  –  Phase 1 extension: Missingness Profiling.
 
 Eligibility model
 -----------------
-Effective-null detection is based on **dtype first**, with SemanticType
-overrides acting only as suppressors, not as enablers:
+Effective-null detection is purely dtype-driven — no SemanticType overrides:
 
-sentinel-string detection  →  runs when dtype is Utf8/String
-                                suppressed if override is Numeric / Datetime / Boolean
-                                (those types cannot have meaningful sentinel strings)
-
-Inf / NaN expansion        →  runs when dtype is Float32/Float64
-                                never suppressed (Inf in a float column is always
-                                effectively missing regardless of semantic label)
-
-column_overrides is SPARSE — most columns will have no entry.
-Absence of an override is not a signal; it means "trust the dtype".
+sentinel-string detection  →  runs for every String/Utf8 column unconditionally
+Inf / NaN expansion        →  runs for every Float32/Float64 column unconditionally
 """
 
 from __future__ import annotations
@@ -24,13 +15,13 @@ from __future__ import annotations
 import polars as pl
 
 from ._base import DatasetLevelProfiler
-from .config import ProfileConfig, SemanticType
 from ._missingness_config import (
     ColumnMissingnessProfile,
     MissingnessFlag,
     MissingnessProfileResult,
     MissingSeverity,
 )
+from ._null_detection import _SENTINEL_STRINGS, _inf_eligible, _sentinel_eligible
 
 # ---------------------------------------------------------------------------
 # Thresholds
@@ -43,52 +34,12 @@ _SEVERITY_HIGH = 0.20
 _MAR_CORRELATION_THRESHOLD = 0.60
 _COL_DROP_THRESHOLD = 0.50
 
-_SENTINEL_STRINGS = frozenset({"NA", "NAN", "NULL", "NONE", "?"})
-
-# Overrides that suppress sentinel-string detection on a String column.
-# If a column is String but the user says "this is Numeric", treating
-# "NA" as a sentinel is correct — but if they say Categorical or Text,
-# sentinel detection still makes sense and should run.
-_SENTINEL_SUPPRESSING_SEMANTICS = frozenset(
-    {
-        SemanticType.Numeric,
-        SemanticType.Datetime,
-        SemanticType.Boolean,
-        SemanticType.Identifier,
-    }
-)
-
-
-def _sentinel_eligible(dtype: pl.DataType, override: SemanticType | None) -> bool:
-    """True when sentinel-string detection should run for this column."""
-    if dtype not in (pl.Utf8, pl.String):
-        return False
-    # Override present and it's a non-text semantic → suppress
-    if override is not None and override in _SENTINEL_SUPPRESSING_SEMANTICS:
-        return False
-    return True
-
-
-def _inf_eligible(dtype: pl.DataType) -> bool:
-    """True when Inf/NaN expansion should run. Always dtype-driven, never suppressed."""
-    return dtype in (pl.Float32, pl.Float64)
-
 
 class MissingnessProfiler(DatasetLevelProfiler[MissingnessProfileResult]):
-    """
-    Missingness profiler for Polars DataFrames.
+    """Missingness profiler for Polars DataFrames."""
 
-    Column scoping
-    --------------
-    Resolution priority (high → low):
-      1. Explicit ``columns`` argument to ``profile()``.
-      2. ``config.exclude_columns`` — always removed.
-      3. All remaining DataFrame columns.
-    """
-
-    def __init__(self, config: ProfileConfig | None = None) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        self._config: ProfileConfig = config or ProfileConfig()
 
     # ------------------------------------------------------------------
     # Public API
@@ -117,16 +68,13 @@ class MissingnessProfiler(DatasetLevelProfiler[MissingnessProfileResult]):
         if n_rows == 0 or not cols:
             return result
 
-        overrides = self._config.column_overrides  # sparse — most keys absent
         indicator_cols: list[pl.Series] = []
 
         for col_name in cols:
-            override = overrides.get(col_name)  # None for most columns
             col_profile, indicator = self._profile_column(
                 series=df[col_name],
                 col_name=col_name,
                 n_rows=n_rows,
-                override=override,
             )
             result.columns[col_name] = col_profile
             indicator_cols.append(indicator)
@@ -173,21 +121,12 @@ class MissingnessProfiler(DatasetLevelProfiler[MissingnessProfileResult]):
         series: pl.Series,
         col_name: str,
         n_rows: int,
-        override: SemanticType | None = None,  # sparse — None is the common case
     ) -> tuple[ColumnMissingnessProfile, pl.Series]:
-        """
-        Compute standard + effective null counts for one column.
-
-        Eligibility is dtype-first:
-        - sentinel strings  → String dtype, unless override suppresses it
-        - Inf/NaN           → Float dtype, always (never suppressed)
-        - everything else   → standard Polars null only
-        """
         profile = ColumnMissingnessProfile(column=col_name, total_rows=n_rows)
         dtype = series.dtype
         std_null = series.is_null()
 
-        if _sentinel_eligible(dtype, override):
+        if _sentinel_eligible(dtype):
             eff_null = (
                 std_null
                 | (series.str.strip_chars() == "")

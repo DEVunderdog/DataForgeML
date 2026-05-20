@@ -110,7 +110,7 @@ class StructuralProfiler:
         # ── 2. Missingness pre-pass ──────────────────────────────────────
         # setdefault creates ColumnProfile entries; subsequent steps mutate
         # the same objects via the same setdefault pattern.
-        missingness_result = MissingnessProfiler(config=self.config.profiling).profile(
+        missingness_result = MissingnessProfiler().profile(
             data, columns=active_cols
         )
         for col_name in missingness_result.analysed_columns:
@@ -125,7 +125,6 @@ class StructuralProfiler:
             df=data,
             cols=active_cols,
             n_rows=data.height,
-            overrides=self.config.column_overrides,  # master overrides from PipelineConfig
         )
 
         # ── 4. Type detection ────────────────────────────────────────────
@@ -248,9 +247,8 @@ class StructuralProfiler:
         df: pl.DataFrame,
         cols: list[str],
         n_rows: int,
-        overrides: dict[str, SemanticType],
     ) -> RowMissingnessDistribution:
-        from ._missingness_profiler import (
+        from ._null_detection import (
             _sentinel_eligible,
             _inf_eligible,
             _SENTINEL_STRINGS,
@@ -265,10 +263,9 @@ class StructuralProfiler:
 
         for col_name in cols:
             dtype = df[col_name].dtype
-            override = overrides.get(col_name)
             null_e = pl.col(col_name).is_null()
 
-            if _sentinel_eligible(dtype, override):
+            if _sentinel_eligible(dtype):
                 eff = (
                     null_e
                     | (pl.col(col_name).str.strip_chars() == "")
