@@ -43,10 +43,6 @@ from datetime import datetime, timezone
 import polars as pl
 
 from ._base import ColumnBatchProfiler
-from .config import (
-    ProfileConfig,
-    SemanticType,
-)
 from ._datetime_config import (
     DatetimeProfileResult,
     DatetimeStats,
@@ -90,19 +86,10 @@ class DatetimeProfiler(ColumnBatchProfiler[DatetimeProfileResult]):
     """
     Datetime distribution profiler for Polars DataFrames.
 
-    Parameters
-    ----------
-    columns : list[str]
-        Columns to profile.  Non-datetime columns are skipped with a warning.
-    config : ProfileConfig | None
-        Shared profiling configuration.
+    Profiles every column passed to profile(df, columns) — no config,
+    no internal eligibility gate. String columns are coerced to Datetime;
+    columns that cannot be coerced are silently skipped.
     """
-
-    def __init__(
-        self,
-        config: ProfileConfig | None = None,
-    ) -> None:
-        super().__init__(config)
 
     # ------------------------------------------------------------------
     # Public API
@@ -119,35 +106,21 @@ class DatetimeProfiler(ColumnBatchProfiler[DatetimeProfileResult]):
     # Orchestration
     # ------------------------------------------------------------------
 
-    def _eligible(self, series: pl.Series) -> bool:
-        override = self.config.column_overrides.get(series.name)
-
-        if override == SemanticType.Datetime:
-            return True
-        if override is not None:
-            return False
-
-        return _is_datetime_dtype(series.dtype) or series.dtype in (pl.Utf8, pl.String)
-
     def _coerce_to_datetime(self, series: pl.Series) -> pl.Series | None:
         if series.dtype in (pl.Utf8, pl.String):
             coerced = series.str.to_datetime(strict=False)
             return coerced if coerced.drop_nulls().len() > 0 else None
-        return series
+        if _is_datetime_dtype(series.dtype):
+            return series
+        return None
 
     def _run(self, df: pl.DataFrame, columns: list[str]) -> DatetimeProfileResult:
         result = DatetimeProfileResult()
         now = datetime.now(tz=timezone.utc)
 
-        candidates = [
-            c
-            for c in self._resolve_columns(df.columns, columns)
-            if self._eligible(df[c])
-        ]
-
         available = []
         coerced_cache = {}
-        for col_name in candidates:
+        for col_name in self._resolve_columns(df.columns, columns):
             series = self._coerce_to_datetime(df[col_name])
             if series is not None:
                 available.append(col_name)

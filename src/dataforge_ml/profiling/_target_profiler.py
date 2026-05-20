@@ -36,7 +36,7 @@ class TargetProfiler(DatasetLevelProfiler[TargetProfileResult]):
     """
 
     def __init__(self, target_column: str, config: ProfileConfig | None = None) -> None:
-        super().__init__(config)
+        super().__init__()
         self.target_column = target_column
 
     def profile(self, data: pl.DataFrame, **kwargs) -> TargetProfileResult:
@@ -129,7 +129,7 @@ class TargetProfiler(DatasetLevelProfiler[TargetProfileResult]):
         self, series: pl.Series, n_rows: int, result: TargetProfileResult
     ) -> None:
         """Generates categorical metrics and checks for class imbalance."""
-        cat_profiler = CategoricalProfiler(config=self.config)
+        cat_profiler = CategoricalProfiler()
 
         # Internally compute cardinality, top values, and imbalance metrics
         cat_profile = cat_profiler._profile_column(series, self.target_column, n_rows)
@@ -146,7 +146,7 @@ class TargetProfiler(DatasetLevelProfiler[TargetProfileResult]):
         self, series: pl.Series, n_rows: int, result: TargetProfileResult
     ) -> None:
         """Generates numeric metrics and checks for target skewness."""
-        num_profiler = NumericProfiler(config=self.config)
+        num_profiler = NumericProfiler()
 
         col_name = series.name
         num_result = num_profiler.profile(series.to_frame(), [col_name])

@@ -54,11 +54,7 @@ from __future__ import annotations
 import polars as pl
 
 from ._base import ColumnBatchProfiler
-from .config import (
-    ProfileConfig,
-    TextStats,
-    SemanticType,
-)
+from .config import TextStats
 from ._text_config import TextProfileResult
 
 # Regex that counts non-whitespace token runs — used with str.count_matches.
@@ -69,21 +65,9 @@ class TextProfiler(ColumnBatchProfiler[TextProfileResult]):
     """
     Free-text column profiler for Polars DataFrames.
 
-    A column is eligible when:
-      - It has a ``SemanticType.Text`` override in
-        ``ProfileConfig.column_overrides``, OR
-      - Its Polars dtype is ``pl.Utf8`` / ``pl.String`` and no override is set.
-
-    Non-eligible columns are silently skipped.
-
-    Parameters
-    ----------
-    config : ProfileConfig | None
-        Shared profiling configuration.
+    Profiles every column passed to profile(df, columns) — no config,
+    no internal eligibility gate.
     """
-
-    def __init__(self, config: ProfileConfig | None = None) -> None:
-        super().__init__(config)
 
     # ------------------------------------------------------------------
     # Public API
@@ -97,24 +81,6 @@ class TextProfiler(ColumnBatchProfiler[TextProfileResult]):
         return self._run(data, columns)
 
     # ------------------------------------------------------------------
-    # Eligibility
-    # ------------------------------------------------------------------
-
-    def _eligible(self, series: pl.Series) -> bool:
-        override = self.config.column_overrides.get(series.name)
-
-        if override == SemanticType.Text:
-            return True
-
-        # Any other explicit override takes precedence
-        if override is not None:
-            return False
-
-        # Native string dtype (pl.Utf8 is the canonical name; pl.String is
-        # an alias in newer Polars — check both for cross-version safety)
-        return series.dtype in (pl.Utf8, pl.String)
-
-    # ------------------------------------------------------------------
     # Orchestration
     # ------------------------------------------------------------------
 
@@ -125,11 +91,7 @@ class TextProfiler(ColumnBatchProfiler[TextProfileResult]):
     ) -> TextProfileResult:
         result = TextProfileResult()
 
-        available = [
-            c
-            for c in self._resolve_columns(df.columns, columns)
-            if self._eligible(df[c])
-        ]
+        available = self._resolve_columns(df.columns, columns)
         result.analysed_columns = available
 
         for col_name in available:

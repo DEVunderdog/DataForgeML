@@ -22,11 +22,7 @@ from __future__ import annotations
 import polars as pl
 
 from ._base import ColumnBatchProfiler
-from .config import (
-    ProfileConfig,
-    BooleanStats,
-    SemanticType,
-)
+from .config import BooleanStats
 from ._boolean_config import BooleanProfileResult
 from ..models._data_types import _INT_DTYPES
 
@@ -42,21 +38,9 @@ class BooleanProfiler(ColumnBatchProfiler[BooleanProfileResult]):
     """
     Boolean column profiler for Polars DataFrames.
 
-    A column is eligible when:
-      - Its Polars dtype is pl.Boolean, OR
-      - Its dtype is an integer with values exclusively in {0, 1}, OR
-      - It has a SemanticType.Boolean override in ProfileConfig.column_overrides
-
-    Non-eligible columns in the provided list are silently skipped.
-
-    Parameters
-    ----------
-    config : ProfileConfig | None
-        Shared profiling configuration.
+    Profiles every column passed to profile(df, columns) — no config,
+    no internal eligibility gate.
     """
-
-    def __init__(self, config: ProfileConfig | None = None) -> None:
-        super().__init__(config)
 
     # ------------------------------------------------------------------
     # Public API
@@ -70,23 +54,6 @@ class BooleanProfiler(ColumnBatchProfiler[BooleanProfileResult]):
         return self._run(data, columns)
 
     # ------------------------------------------------------------------
-    # Eligibility
-    # ------------------------------------------------------------------
-
-    def _eligible(self, series: pl.Series) -> bool:
-        override = self.config.column_overrides.get(series.name)
-
-        # Explicit override — trust it
-        if override == SemanticType.Boolean:
-            return True
-
-        # Another override takes precedence over auto-detection
-        if override is not None:
-            return False
-
-        return True
-
-    # ------------------------------------------------------------------
     # Orchestration
     # ------------------------------------------------------------------
 
@@ -97,11 +64,7 @@ class BooleanProfiler(ColumnBatchProfiler[BooleanProfileResult]):
     ) -> BooleanProfileResult:
         result = BooleanProfileResult()
 
-        available = [
-            c
-            for c in self._resolve_columns(df.columns, columns)
-            if self._eligible(df[c])
-        ]
+        available = self._resolve_columns(df.columns, columns)
         result.analysed_columns = available
 
         for col_name in available:

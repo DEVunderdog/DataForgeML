@@ -125,7 +125,7 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
         near_redundant_threshold: float = _NEAR_REDUNDANT_THRESHOLD,
         top_n_feature_target: int = _TOP_N_FEATURE_TARGET,
     ) -> None:
-        super().__init__(config)
+        super().__init__()
         self._numeric_columns = numeric_columns
         self._categorical_columns = categorical_columns or []
         self._threshold = near_redundant_threshold

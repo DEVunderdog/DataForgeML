@@ -166,7 +166,7 @@ class StructuralProfiler:
             profiler_cls = _COLUMN_PROFILER_REGISTRY.get(sem_type)  # type: ignore[arg-type]
             if profiler_cls is None:
                 continue
-            profiler = profiler_cls(config=self.config.profiling)
+            profiler = profiler_cls()
             try:
                 batch = profiler.profile(data, columns=cols)
                 for col_name in batch.analysed_columns:

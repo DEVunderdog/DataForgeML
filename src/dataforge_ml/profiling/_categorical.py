@@ -45,10 +45,6 @@ from ._categorical_config import (
     RareCategoryStats,
     ImbalanceMetrics,
 )
-from .config import (
-    ProfileConfig,
-    SemanticType,
-)
 
 # ---------------------------------------------------------------------------
 # Module-level thresholds (documented so callers can see what drives flags)
@@ -65,28 +61,9 @@ class CategoricalProfiler(ColumnBatchProfiler[CategoricalProfileResult]):
     """
     Categorical profiler for Polars DataFrames.
 
-    Parameters
-    ----------
-    columns : list[str]
-        Columns to profile. The profiler intersects this list with
-        the DataFrame's actual columns at runtime.
-    config : ProfileConfig | None
-        Shared profiling configuration (used for chunk_size, etc.).
-
-    Usage
-    -----
-    >>> profiler = CategoricalProfiler(
-    ...     columns=["status", "country", "product_type"],
-    ... )
-    >>> result = profiler.profile(df)
-    >>> print(result)
+    Profiles every column passed to profile(df, columns) — no config,
+    no internal eligibility gate.
     """
-
-    def __init__(
-        self,
-        config: ProfileConfig | None = None,
-    ) -> None:
-        super().__init__(config)
 
     # ------------------------------------------------------------------
     # Public API
@@ -103,19 +80,6 @@ class CategoricalProfiler(ColumnBatchProfiler[CategoricalProfileResult]):
     # Orchestration
     # ------------------------------------------------------------------
 
-    def _eligible(
-        self,
-        series: pl.Series,
-    ) -> bool:
-        override = self.config.column_overrides.get(series.name)
-        if override == SemanticType.Categorical:
-            return True
-
-        if override is not None:
-            return False
-
-        return True
-
     def _run(
         self,
         df: pl.DataFrame,
@@ -123,12 +87,7 @@ class CategoricalProfiler(ColumnBatchProfiler[CategoricalProfileResult]):
     ) -> CategoricalProfileResult:
         result = CategoricalProfileResult()
 
-        # Resolve columns against actual schema
-        available = [
-            c
-            for c in self._resolve_columns(df.columns, columns)
-            if self._eligible(df[c])
-        ]
+        available = self._resolve_columns(df.columns, columns)
         result.analysed_columns = available
 
         n_rows = df.height
@@ -147,7 +106,6 @@ class CategoricalProfiler(ColumnBatchProfiler[CategoricalProfileResult]):
     def _profile_column(
         self,
         series: pl.Series,
-        col_name: str,
         n_rows: int,
     ) -> CategoricalStats:
         profile = CategoricalStats()

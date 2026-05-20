@@ -87,7 +87,7 @@ class MissingnessProfiler(DatasetLevelProfiler[MissingnessProfileResult]):
     """
 
     def __init__(self, config: ProfileConfig | None = None) -> None:
-        super().__init__(config)
+        super().__init__()
         self._config: ProfileConfig = config or ProfileConfig()
 
     # ------------------------------------------------------------------

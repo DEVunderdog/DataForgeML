@@ -3,9 +3,9 @@ Abstract base classes for all structural profilers.
 
 Hierarchy
 ---------
-Profiling[R]                    — root: stores config, provides _resolve_columns
-├── ColumnBatchProfiler[R]      — registry tier: __init__(config=None) only;
-│   │                             profile(df, columns) processes a typed column batch
+Profiling[R]                    — root: thin ABC, provides _resolve_columns
+├── ColumnBatchProfiler[R]      — registry tier: profile(df, columns) processes a
+│   │                             typed column batch; no config, no eligibility gates
 │   ├── NumericProfiler
 │   ├── CategoricalProfiler
 │   ├── DatetimeProfiler
@@ -26,21 +26,18 @@ import polars as pl
 from abc import abstractmethod, ABC
 from typing import Generic, TypeVar
 
-from .config import DatasetStats, PipelineConfig, ProfileConfig
+from .config import DatasetStats
 
 R = TypeVar("R")
 
 
 class Profiling(ABC, Generic[R]):
     """
-    Root base for all profilers.
+    Root base for all profilers. Thin ABC — no config state.
 
-    Stores config and provides _resolve_columns. Not instantiated directly —
-    use one of the three concrete tier bases below.
+    Sub-processors are pure batch processors: given a DataFrame and a column
+    list, return a result. No routing, no scoping, no config.
     """
-
-    def __init__(self, config: PipelineConfig | None = None):
-        self.config = config or ProfileConfig()
 
     @abstractmethod
     def profile(self, data: pl.DataFrame, **kwargs) -> R: ...
@@ -62,11 +59,11 @@ class ColumnBatchProfiler(Profiling[R]):
 
     Contract
     --------
-    - __init__ must accept ONLY config (no extra required params). This allows
-      StructuralProfiler to instantiate any registered profiler uniformly via
-          profiler_cls(config=self.config)
+    - __init__ takes no arguments (instantiated as profiler_cls()).
     - profile(df, columns) receives the full DataFrame and the list of same-type
-      column names to process. Returns a result with:
+      column names to process. Profiles every column in the list without any
+      internal eligibility gate or config consultation.
+    - Returns a result with:
           .columns: dict[str, <Stats>]        — per-column stats
           .analysed_columns: list[str]        — columns actually profiled
     """

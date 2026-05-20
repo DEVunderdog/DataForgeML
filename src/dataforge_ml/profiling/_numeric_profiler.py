@@ -35,10 +35,6 @@ from __future__ import annotations
 import polars as pl
 
 from ._base import ColumnBatchProfiler
-from .config import (
-    ProfileConfig,
-    SemanticType,
-)
 from ._correlation_profiler import _INT_DTYPES
 from ._numeric_config import (
     NumericProfileResult,
@@ -80,20 +76,9 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
     """
     Numeric distribution profiler for Polars DataFrames.
 
-    Parameters
-    ----------
-    columns : list[str]
-        Columns to profile.  Non-numeric or absent columns are skipped
-        with a warning; they do not raise.
-    config : ProfileConfig | None
-        Shared profiling configuration.
+    Profiles every column passed to profile(df, columns) — no config,
+    no internal eligibility gate.
     """
-
-    def __init__(
-        self,
-        config: ProfileConfig | None = None,
-    ) -> None:
-        super().__init__(config)
 
     # ------------------------------------------------------------------
     # Public API
@@ -110,16 +95,6 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
     # Orchestration
     # ------------------------------------------------------------------
 
-    def _eligible(self, series: pl.Series) -> bool:
-        override = self.config.column_overrides.get(series.name)
-        if override == SemanticType.Numeric:
-            return True
-
-        if override is not None:
-            return False
-
-        return True
-
     def _run(
         self,
         df: pl.DataFrame,
@@ -128,11 +103,7 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
         result = NumericProfileResult()
         n_rows = df.height
 
-        available = [
-            c
-            for c in self._resolve_columns(df.columns, columns)
-            if self._eligible(df[c])
-        ]
+        available = self._resolve_columns(df.columns, columns)
         result.analysed_columns = available
 
         if not available:

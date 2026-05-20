@@ -47,7 +47,8 @@ class TabularProfiler(ModalityProfiler):
     """
 
     def __init__(self, config: ProfileConfig | None = None):
-        super().__init__(config)
+        super().__init__()
+        self.config: ProfileConfig = config or ProfileConfig()
 
     # ------------------------------------------------------------------
     # Public API
