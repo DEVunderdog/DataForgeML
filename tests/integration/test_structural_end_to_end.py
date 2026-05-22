@@ -1,12 +1,7 @@
 import pytest
 from dataforge_ml.profiling.structural import StructuralProfiler
-from dataforge_ml.profiling.config import (
-    PipelineConfig,
-    PipelinePhase,
-    ProfileConfig,
-    StructuralProfileResult,
-    SemanticType,
-)
+from dataforge_ml.config import PipelineConfig, PipelinePhase, SemanticType
+from dataforge_ml.profiling.config import ProfileConfig, StructuralProfileResult
 from dataforge_ml.profiling._numeric_config import NumericStats
 from dataforge_ml.profiling._categorical_config import CategoricalStats
 from dataforge_ml.profiling._datetime_config import DatetimeStats

@@ -34,15 +34,12 @@ from ._missingness_profiler import MissingnessProfiler
 from ._target_profiler import TargetProfiler
 from ._correlation_profiler import CorrelationProfiler
 from ._type_detector import TypeDetector
+from ..config import PipelineConfig, PipelinePhase, SemanticType, Modality
 from .config import (
-    PipelineConfig,
-    PipelinePhase,
     ColumnProfile,
     StructuralProfileResult,
     RowMissingnessDistribution,
-    SemanticType,
     TypeFlag,
-    Modality,
 )
 
 _ROW_DROP_THRESHOLD = 0.50
