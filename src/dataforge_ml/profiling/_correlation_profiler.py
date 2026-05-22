@@ -42,7 +42,7 @@ from typing import Optional
 import polars as pl
 
 from ._base import DatasetLevelProfiler
-from .config import ProfileConfig
+from ._config import ProfileConfig
 from ._correlation_config import (
     CategoricalTargetCorrelation,
     CorrelationPair,

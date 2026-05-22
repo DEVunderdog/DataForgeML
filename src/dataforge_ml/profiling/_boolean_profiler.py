@@ -22,7 +22,7 @@ from __future__ import annotations
 import polars as pl
 
 from ._base import ColumnBatchProfiler
-from .config import BooleanStats
+from ._config import BooleanStats
 from ._boolean_config import BooleanProfileResult
 from ..models._data_types import _INT_DTYPES
 

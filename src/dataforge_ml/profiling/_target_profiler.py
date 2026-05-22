@@ -15,7 +15,7 @@ from typing import Any
 import polars as pl
 
 from ._base import DatasetLevelProfiler
-from .config import ProfileConfig
+from ._config import ProfileConfig
 from ._target_config import (
     TargetFlag,
     TargetProblemType,

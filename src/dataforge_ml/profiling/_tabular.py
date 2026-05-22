@@ -24,7 +24,7 @@ import math
 import polars as pl
 
 from ._base import ModalityProfiler
-from .config import (
+from ._config import (
     MemoryBreakdown,
     DatasetStats,
 )

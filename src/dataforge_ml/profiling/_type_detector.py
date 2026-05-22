@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 
-from .config import ColumnTypeInfo, NumericKind, TypeFlag, SemanticType
+from ._config import ColumnTypeInfo, NumericKind, TypeFlag, SemanticType
 from ..models._data_types import _INT_DTYPES, _NUMERIC_DTYPES
 
 if TYPE_CHECKING:

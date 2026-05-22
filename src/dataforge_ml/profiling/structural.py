@@ -35,7 +35,7 @@ from ._target_profiler import TargetProfiler
 from ._correlation_profiler import CorrelationProfiler
 from ._type_detector import TypeDetector
 from ..config import PipelineConfig, PipelinePhase, SemanticType, Modality
-from .config import (
+from ._config import (
     ColumnProfile,
     StructuralProfileResult,
     RowMissingnessDistribution,

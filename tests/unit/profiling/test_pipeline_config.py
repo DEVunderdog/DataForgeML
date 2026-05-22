@@ -7,7 +7,7 @@ All tests are pure — no DataFrames, no StructuralProfiler.
 import pytest
 
 from dataforge_ml.config import PipelineConfig, PipelinePhase, SemanticType
-from dataforge_ml.profiling.config import ProfileConfig
+from dataforge_ml.profiling._config import ProfileConfig
 
 _ALL_PHASES = list(PipelinePhase)
 

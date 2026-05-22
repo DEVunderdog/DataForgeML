@@ -54,7 +54,7 @@ from __future__ import annotations
 import polars as pl
 
 from ._base import ColumnBatchProfiler
-from .config import TextStats
+from ._config import TextStats
 from ._text_config import TextProfileResult
 
 # Regex that counts non-whitespace token runs — used with str.count_matches.

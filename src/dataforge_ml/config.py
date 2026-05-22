@@ -6,7 +6,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
-    from dataforge_ml.profiling.config import ProfileConfig
+    from dataforge_ml.profiling._config import ProfileConfig
 
 
 class SemanticType(StrEnum):
@@ -32,7 +32,7 @@ class PipelinePhase(StrEnum):
 
 
 def _default_profile_config() -> ProfileConfig:
-    from dataforge_ml.profiling.config import ProfileConfig
+    from dataforge_ml.profiling._config import ProfileConfig
     return ProfileConfig()
 
 
@@ -111,7 +111,7 @@ class PipelineConfig:
 
     @classmethod
     def from_dict(cls, data: dict) -> PipelineConfig:
-        from dataforge_ml.profiling.config import ProfileConfig
+        from dataforge_ml.profiling._config import ProfileConfig
         return cls(
             exclude_columns=list(data.get("exclude_columns", [])),
             phase_exclusions={

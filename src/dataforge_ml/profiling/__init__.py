@@ -1,6 +1,6 @@
 from .structural import StructuralProfiler
 from ..config import PipelineConfig, PipelinePhase, SemanticType, Modality
-from .config import (
+from ._config import (
     ProfileConfig,
     TypeFlag,
     NumericKind,

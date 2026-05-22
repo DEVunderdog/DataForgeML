@@ -13,7 +13,7 @@ import polars as pl
 import pytest
 
 from dataforge_ml.profiling._tabular import TabularProfiler
-from dataforge_ml.profiling.config import DatasetStats
+from dataforge_ml.profiling._config import DatasetStats
 
 
 # ---------------------------------------------------------------------------

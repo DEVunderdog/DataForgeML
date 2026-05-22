@@ -26,7 +26,7 @@ import polars as pl
 from abc import abstractmethod, ABC
 from typing import Generic, TypeVar
 
-from .config import DatasetStats
+from ._config import DatasetStats
 
 R = TypeVar("R")
 
