@@ -227,10 +227,6 @@ class ProfileConfig:
         Data modality. Currently only Tabular is implemented.
     target_column : Optional[str]
         Name of the label/target column, if any.
-    column_overrides : dict[str, SemanticType]
-        Explicit semantic type assignments that override auto-detection.
-    exclude_columns : list[str]
-        Columns to skip entirely during profiling.
     compute_correlation : bool
         Whether to compute the feature-feature correlation matrix.
     correlation_target_column : Optional[str]
@@ -243,47 +239,16 @@ class ProfileConfig:
 
     modality: Modality = Modality.Tabular
     target_columns: list[str] = field(default_factory=list)
-    column_overrides: dict[str, SemanticType] = field(default_factory=dict)
-    exclude_columns: list[str] = field(default_factory=list)
     compute_correlation: bool = False
     correlation_target_column: Optional[str] = None
     memory_threshold_mb: float = 500.0
     chunk_size: int = 100_000
 
-    def set_column_type(self, column: str, semantic_type: Union[str, "SemanticType"]) -> None:
-        """
-        Explicitly set the semantic type for a column, overriding auto-detection.
-
-        The override is the sole source of truth for that column's type — the
-        type detector's verdict is ignored during profiling.  Calling this method
-        multiple times on the same column is valid; the last call wins.
-
-        Parameters
-        ----------
-        column : str
-            Name of the column to override.
-        semantic_type : str | SemanticType
-            Target semantic type.  Accepts a plain string (e.g. ``"numeric"``,
-            ``"categorical"``) or a ``SemanticType`` enum value.  Invalid strings
-            raise ``ValueError``.
-        """
-        if isinstance(semantic_type, str):
-            try:
-                semantic_type = SemanticType(semantic_type)
-            except ValueError:
-                valid = [e.value for e in SemanticType]
-                raise ValueError(
-                    f"Unknown semantic type {semantic_type!r}. "
-                    f"Valid values: {valid}"
-                )
-        self.column_overrides[column] = semantic_type
 
     def to_dict(self) -> dict:
         return {
             "modality": str(self.modality),
             "target_columns": list(self.target_columns),
-            "column_overrides": {k: str(v) for k, v in self.column_overrides.items()},
-            "exclude_columns": list(self.exclude_columns),
             "compute_correlation": self.compute_correlation,
             "correlation_target_column": self.correlation_target_column,
             "memory_threshold_mb": self.memory_threshold_mb,
@@ -295,10 +260,6 @@ class ProfileConfig:
         return cls(
             modality=Modality(data.get("modality", Modality.Tabular)),
             target_columns=list(data.get("target_columns", [])),
-            column_overrides={
-                k: SemanticType(v) for k, v in data.get("column_overrides", {}).items()
-            },
-            exclude_columns=list(data.get("exclude_columns", [])),
             compute_correlation=bool(data.get("compute_correlation", False)),
             correlation_target_column=data.get("correlation_target_column"),
             memory_threshold_mb=float(data.get("memory_threshold_mb", 500.0)),

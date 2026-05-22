@@ -67,8 +67,6 @@ class StructuralProfiler:
 
     def __init__(self, config: PipelineConfig | None = None) -> None:
         self.config: PipelineConfig = config or PipelineConfig()
-        # Keep sub-profilers aligned with the master column_overrides.
-        self.config.profiling.column_overrides = self.config.column_overrides
 
         if self.config.profiling.modality == Modality.Tabular:
             self.modality_profiler: ModalityProfiler = TabularProfiler()
