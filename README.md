@@ -1,5 +1,7 @@
 # DataForgeML
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/DEVunderdog/DataForgeML)
+
 Automated data profiling and splitting pipeline for ML datasets.
 
 DataForgeML inspects your dataset, detects each column's semantic type (numeric, categorical, boolean, text, datetime, or identifier), computes per-column statistics and missingness, and produces a structured result ready for downstream feature engineering — no manual schema wrangling required.
