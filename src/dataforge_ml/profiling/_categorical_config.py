@@ -17,7 +17,6 @@ from enum import StrEnum
 
 class CategoricalFlag(StrEnum):
     MixedType = "mixed_type"
-    FreeText = "free_text"
     NearConstant = "near_constant"
 
 

@@ -1,4 +1,4 @@
-from .structural import StructuralProfiler
+from .orchestrator import StructuralProfiler
 from ..config import PipelineConfig, PipelinePhase, SemanticType, Modality
 from ._config import (
     ProfileConfig,

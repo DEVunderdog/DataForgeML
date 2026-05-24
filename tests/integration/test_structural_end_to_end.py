@@ -1,5 +1,5 @@
 import pytest
-from dataforge_ml.profiling.structural import StructuralProfiler
+from dataforge_ml.profiling.orchestrator import StructuralProfiler
 from dataforge_ml.config import PipelineConfig, PipelinePhase, SemanticType
 from dataforge_ml.profiling._config import ProfileConfig, StructuralProfileResult
 from dataforge_ml.profiling._numeric_config import NumericStats

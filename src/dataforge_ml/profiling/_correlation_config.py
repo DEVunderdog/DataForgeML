@@ -11,7 +11,7 @@ Design notes
 - Cramér's V         : association between categorical column pairs [0, 1].
 - Eta-squared        : numeric-categorical association via ANOVA [0, 1].
 - Near-redundancy    : Pearson/Spearman |r| > 0.95, Cramér's V > 0.80,
-                       or eta² > 0.50 flagged — near-identical signal.
+                    or eta² > 0.50 flagged — near-identical signal.
 - Feature–target     : Pearson (numeric target), ANOVA/eta² (categorical target).
 - Mutual information : MI for all features vs target (classif or regression).
 """
