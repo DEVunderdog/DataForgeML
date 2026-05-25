@@ -129,6 +129,7 @@ class StructuralProfiler:
         for col_name, info in type_info.items():
             cp = result.columns.setdefault(col_name, ColumnProfile(name=col_name))
             cp.semantic_type = info.semantic_type
+            cp.numeric_kind = info.numeric_kind
             cp.type_flags = list(info.flags)
             cp.original_dtype = info.original_dtype
             cp.inferred_dtype = info.inferred_dtype

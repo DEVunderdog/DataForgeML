@@ -65,6 +65,7 @@ AnyStats = Union[NumericStats, CategoricalStats, DatetimeStats, BooleanStats, Te
 class ColumnProfile:
     name: str = ""
     semantic_type: Optional[SemanticType] = None
+    numeric_kind: Optional[NumericKind] = None
     type_flags: list[TypeFlag] = field(default_factory=list)
     original_dtype: str = ""
     inferred_dtype: str = ""
@@ -76,6 +77,7 @@ class ColumnProfile:
         return {
             "name": self.name,
             "semantic_type": str(self.semantic_type) if self.semantic_type else None,
+            "numeric_kind": str(self.numeric_kind) if self.numeric_kind else None,
             "type_flags": [str(f) for f in self.type_flags],
             "original_dtype": self.original_dtype,
             "inferred_dtype": self.inferred_dtype,

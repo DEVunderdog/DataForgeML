@@ -214,3 +214,44 @@ def test_missingness_surfaced(mixed_df):
     cp = result.columns["salary"]  # salary has ~10 % nulls by construction
     assert cp.missingness is not None
     assert cp.missingness.standard_null_count > 0
+
+
+# ---------------------------------------------------------------------------
+# Issue #75: NumericKind propagated from ColumnTypeInfo to ColumnProfile
+# ---------------------------------------------------------------------------
+
+
+def test_numeric_kind_set_for_numeric_columns(mixed_df):
+    from dataforge_ml.profiling._config import NumericKind
+
+    result = StructuralProfiler(PipelineConfig()).profile(mixed_df)
+
+    for name, cp in result.columns.items():
+        if cp.semantic_type == SemanticType.Numeric:
+            assert cp.numeric_kind in (NumericKind.Discrete, NumericKind.Continuous), (
+                f"column '{name}' is Numeric but numeric_kind={cp.numeric_kind!r}"
+            )
+        else:
+            assert cp.numeric_kind is None, (
+                f"column '{name}' has semantic_type={cp.semantic_type} "
+                f"but numeric_kind={cp.numeric_kind!r} (expected None)"
+            )
+
+
+def test_numeric_kind_in_to_dict(mixed_df):
+    from dataforge_ml.profiling._config import NumericKind
+
+    result = StructuralProfiler(PipelineConfig()).profile(mixed_df)
+
+    for name, cp in result.columns.items():
+        d = cp.to_dict()
+        assert "numeric_kind" in d, f"column '{name}' to_dict() missing 'numeric_kind' key"
+        if cp.semantic_type == SemanticType.Numeric:
+            assert d["numeric_kind"] in (
+                NumericKind.Continuous.value,
+                NumericKind.Discrete.value,
+            ), f"column '{name}' to_dict()['numeric_kind']={d['numeric_kind']!r}"
+        else:
+            assert d["numeric_kind"] is None, (
+                f"non-numeric column '{name}' to_dict()['numeric_kind']={d['numeric_kind']!r}"
+            )
