@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     from dataforge_ml.profiling._config import ProfileConfig
+    from dataforge_ml.imputation._config import ImputationConfig
 
 
 class SemanticType(StrEnum):
@@ -36,6 +37,11 @@ def _default_profile_config() -> ProfileConfig:
     return ProfileConfig()
 
 
+def _default_imputation_config() -> ImputationConfig:
+    from dataforge_ml.imputation._config import ImputationConfig
+    return ImputationConfig()
+
+
 @dataclass
 class PipelineConfig:
     """
@@ -58,6 +64,7 @@ class PipelineConfig:
     phase_exclusions: dict[PipelinePhase, list[str]] = field(default_factory=dict)
     column_overrides: dict[str, SemanticType] = field(default_factory=dict)
     profiling: ProfileConfig = field(default_factory=_default_profile_config)
+    imputation: ImputationConfig = field(default_factory=_default_imputation_config)
 
     def resolve_active_columns(
         self, phase: PipelinePhase, available_columns: list[str]
@@ -107,11 +114,13 @@ class PipelineConfig:
                 for col, sem_type in self.column_overrides.items()
             },
             "profiling": self.profiling.to_dict(),
+            "imputation": self.imputation.to_dict(),
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> PipelineConfig:
         from dataforge_ml.profiling._config import ProfileConfig
+        from dataforge_ml.imputation._config import ImputationConfig
         return cls(
             exclude_columns=list(data.get("exclude_columns", [])),
             phase_exclusions={
@@ -123,6 +132,7 @@ class PipelineConfig:
                 for col, sem_str in data.get("column_overrides", {}).items()
             },
             profiling=ProfileConfig.from_dict(data.get("profiling", {})),
+            imputation=ImputationConfig.from_dict(data.get("imputation", {})),
         )
 
     def to_json(self, indent: int = 2) -> str:
