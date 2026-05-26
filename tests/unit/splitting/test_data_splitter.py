@@ -583,3 +583,63 @@ def test_signal_cap_at_50():
     profile = StructuralProfiler(PipelineConfig()).profile(df)
     mat = build_label_matrix(df, profile, target=None)
     assert mat.shape[1] <= _MAX_SIGNALS
+
+
+# ---------------------------------------------------------------------------
+# build_label_matrix — signal 1: effective null mask
+# ---------------------------------------------------------------------------
+
+
+def test_signal_1_float_inf_rows_are_marked():
+    """Inf values in a Float64 column produce 1 in the missingness signal."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+
+    data = [1.0, 2.0, float("inf"), 4.0, float("nan"), 6.0]
+    df = pl.DataFrame({"val": pl.Series(data, dtype=pl.Float64)})
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+
+    mat = build_label_matrix(df, profile, target=None)
+
+    assert mat.shape[1] >= 1
+    signal = mat[:, 0]
+    assert signal[2] == 1, "Inf row should be marked as effective null"
+    assert signal[4] == 1, "NaN row should be marked as effective null"
+    assert signal[0] == 0, "Non-null row should not be marked"
+    assert signal[1] == 0, "Non-null row should not be marked"
+
+
+def test_signal_1_utf8_sentinel_rows_are_marked():
+    """Sentinel strings in a Utf8 column produce 1 in the missingness signal."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+
+    data = ["apple", "NA", "banana", "NULL", "", "cherry"]
+    df = pl.DataFrame({"txt": pl.Series(data, dtype=pl.Utf8)})
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+
+    mat = build_label_matrix(df, profile, target=None)
+
+    assert mat.shape[1] >= 1
+    signal = mat[:, 0]
+    assert signal[1] == 1, '"NA" sentinel should be marked as effective null'
+    assert signal[3] == 1, '"NULL" sentinel should be marked as effective null'
+    assert signal[4] == 1, 'empty string should be marked as effective null'
+    assert signal[0] == 0, "Normal value should not be marked"
+    assert signal[2] == 0, "Normal value should not be marked"
+
+
+def test_signal_1_integer_column_uses_standard_null_only():
+    """Integer columns use only standard null detection (no Inf/sentinel expansion)."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+
+    data = [1, None, 3, None, 5]
+    df = pl.DataFrame({"num": pl.Series(data, dtype=pl.Int64)})
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+
+    mat = build_label_matrix(df, profile, target=None)
+
+    assert mat.shape[1] >= 1
+    signal = mat[:, 0]
+    assert signal[1] == 1, "Standard null should be marked"
+    assert signal[3] == 1, "Standard null should be marked"
+    assert signal[0] == 0
+    assert signal[2] == 0

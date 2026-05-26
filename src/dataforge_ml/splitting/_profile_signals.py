@@ -17,6 +17,7 @@ from ..profiling._config import StructuralProfileResult
 from ..profiling._boolean_config import BooleanStats
 from ..profiling._categorical_config import CategoricalStats
 from ..profiling._numeric_config import NumericStats, SkewSeverity
+from ..profiling._null_detection import _SENTINEL_STRINGS, _inf_eligible, _sentinel_eligible
 
 _MAX_SIGNALS = 50
 _RARE_THRESHOLD = 0.05
@@ -45,7 +46,20 @@ def build_label_matrix(
             continue
         if col not in df.columns:
             continue
-        s = df[col].is_null().cast(pl.Int8).to_numpy()
+        series = df[col]
+        dtype = series.dtype
+        std_null = series.is_null()
+        if _sentinel_eligible(dtype):
+            eff_null = (
+                std_null
+                | (series.str.strip_chars() == "")
+                | series.str.to_uppercase().is_in(list(_SENTINEL_STRINGS))
+            )
+        elif _inf_eligible(dtype):
+            eff_null = std_null | series.is_nan() | series.is_infinite()
+        else:
+            eff_null = std_null
+        s = eff_null.cast(pl.Int8).to_numpy()
         signals.append(s)
 
     # --- 2. Joint MAR missingness (correlated pairs, each pair once) ---
