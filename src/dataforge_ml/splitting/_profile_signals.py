@@ -21,6 +21,7 @@ from ..profiling._null_detection import _SENTINEL_STRINGS, _inf_eligible, _senti
 
 _MAX_SIGNALS = 50
 _RARE_THRESHOLD = 0.05
+_BUCKET_LABELS = ["q1", "q2", "q3", "q4", "q5"]
 
 
 def build_label_matrix(
@@ -119,9 +120,7 @@ def build_label_matrix(
             continue
         if col not in df.columns:
             continue
-        n_rows = len(df)
-        vc = df[col].value_counts(sort=False)
-        rare_vals = vc.filter(pl.col("count") / n_rows < _RARE_THRESHOLD)[col].to_list()
+        rare_vals = cp.stats.rare_categories.rare_label_values
         if not rare_vals:
             continue
         s = df[col].is_in(rare_vals).cast(pl.Int8).to_numpy()
@@ -145,11 +144,18 @@ def build_label_matrix(
         s = (df[col] == minority_val).fill_null(False).cast(pl.Int8).to_numpy()
         signals.append(s)
 
-    # --- 7. Target signal (one label per class) ---
+    # --- 7. Target signal ---
     if target and target in df.columns:
-        for cls in df[target].unique().to_list():
-            s = (df[target] == cls).fill_null(False).cast(pl.Int8).to_numpy()
-            signals.append(s)
+        target_cp = profile.columns.get(target)
+        if target_cp is not None and target_cp.semantic_type == SemanticType.Numeric:
+            buckets = df[target].qcut(5, labels=_BUCKET_LABELS, allow_duplicates=True)
+            for label in _BUCKET_LABELS:
+                s = (buckets == label).fill_null(False).cast(pl.Int8).to_numpy()
+                signals.append(s)
+        else:
+            for cls in df[target].unique().to_list():
+                s = (df[target] == cls).fill_null(False).cast(pl.Int8).to_numpy()
+                signals.append(s)
 
     if not signals:
         return np.empty((n, 0), dtype=np.int8)
