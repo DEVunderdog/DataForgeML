@@ -1,16 +1,20 @@
 """
-DataSplitter: constructor, random_split, time_split, and kfold implementation.
+DataSplitter: constructor, random_split, time_split, kfold, and
+profile_stratified_split / profile_stratified_kfold implementations.
 """
 
 from __future__ import annotations
 
 import math
-from typing import Any, List, Optional
+from typing import TYPE_CHECKING, Any, List, Optional
 
 import polars as pl
 from sklearn.model_selection import KFold, ShuffleSplit, StratifiedKFold, StratifiedShuffleSplit
 
 from ._config import FoldResult, SplitResult
+
+if TYPE_CHECKING:
+    from ..profiling._config import StructuralProfileResult
 
 _UNSET = object()
 
@@ -187,6 +191,114 @@ class DataSplitter:
 
         folds: List[FoldResult] = []
         for fold_index, (train_idx, val_idx) in enumerate(splits):
+            train_df = self._df[train_idx]
+            val_df = self._df[val_idx]
+            folds.append(
+                FoldResult(
+                    train=train_df,
+                    val=val_df,
+                    fold_index=fold_index,
+                    train_size=len(train_df),
+                    val_size=len(val_df),
+                )
+            )
+
+        return folds
+
+    def profile_stratified_split(
+        self,
+        profile: StructuralProfileResult,
+        test_size: float,
+    ) -> SplitResult:
+        """
+        Return a train/test split stratified across all at-risk signals derived
+        from the Phase 1 profile (missingness, extremes, rare categories, target).
+
+        Falls back to an unstratified random split when the profile yields no
+        usable signals.
+
+        Parameters
+        ----------
+        profile : StructuralProfileResult
+            Output of StructuralProfiler.profile() run on the same DataFrame.
+        test_size : float
+            Fraction of rows to reserve for the test set (0 < test_size < 1).
+
+        Returns
+        -------
+        SplitResult
+        """
+        from ._profile_signals import build_label_matrix
+        from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
+
+        label_matrix = build_label_matrix(self._df, profile, self._target)
+
+        if label_matrix.shape[1] == 0:
+            return self.random_split(test_size, stratify=False)
+
+        splitter = MultilabelStratifiedShuffleSplit(
+            n_splits=1,
+            test_size=test_size,
+            random_state=self._random_seed,
+        )
+        import numpy as np
+        X_dummy = np.zeros((len(self._df), 1))
+        train_idx, test_idx = next(splitter.split(X_dummy, label_matrix))
+
+        train_df = self._df[train_idx]
+        test_df = self._df[test_idx]
+        total = len(self._df)
+
+        return SplitResult(
+            train=train_df,
+            test=test_df,
+            train_size=len(train_df),
+            test_size=len(test_df),
+            train_ratio=len(train_df) / total,
+            test_ratio=len(test_df) / total,
+        )
+
+    def profile_stratified_kfold(
+        self,
+        profile: StructuralProfileResult,
+        k: int,
+    ) -> List[FoldResult]:
+        """
+        Return k cross-validation folds stratified across all at-risk signals
+        derived from the Phase 1 profile.
+
+        Falls back to unstratified KFold when the profile yields no usable signals.
+
+        Parameters
+        ----------
+        profile : StructuralProfileResult
+            Output of StructuralProfiler.profile() run on the same DataFrame.
+        k : int
+            Number of folds.
+
+        Returns
+        -------
+        list[FoldResult]
+            Exactly k folds with zero-based fold_index.
+        """
+        from ._profile_signals import build_label_matrix
+        from iterstrat.ml_stratifiers import MultilabelStratifiedKFold
+
+        label_matrix = build_label_matrix(self._df, profile, self._target)
+
+        if label_matrix.shape[1] == 0:
+            return self.kfold(k, stratify=False)
+
+        import numpy as np
+        X_dummy = np.zeros((len(self._df), 1))
+        folder = MultilabelStratifiedKFold(
+            n_splits=k,
+            shuffle=True,
+            random_state=self._random_seed,
+        )
+
+        folds: List[FoldResult] = []
+        for fold_index, (train_idx, val_idx) in enumerate(folder.split(X_dummy, label_matrix)):
             train_df = self._df[train_idx]
             val_df = self._df[val_idx]
             folds.append(

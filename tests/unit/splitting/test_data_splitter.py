@@ -415,3 +415,171 @@ def test_kfold_stratify_defaults_false_when_no_target(kfold_df, kfold_splitter_n
 def test_kfold_stratify_true_without_target_raises(kfold_splitter_no_target):
     with pytest.raises(ValueError, match="target"):
         kfold_splitter_no_target.kfold(_K, stratify=True)
+
+
+# ---------------------------------------------------------------------------
+# profile_stratified_split and profile_stratified_kfold — fixtures
+# ---------------------------------------------------------------------------
+
+from dataforge_ml.profiling.orchestrator import StructuralProfiler
+from dataforge_ml.config import PipelineConfig
+
+_PS_N = 300
+_PS_NULL_EVERY = 10  # ~10 % missingness
+
+
+@pytest.fixture(scope="module")
+def ps_df() -> pl.DataFrame:
+    return pl.DataFrame(
+        {
+            "with_nulls": pl.Series(
+                [None if i % _PS_NULL_EVERY == 0 else float(i) for i in range(_PS_N)],
+                dtype=pl.Float64,
+            ),
+            "feature": pl.Series([float(i) for i in range(_PS_N)], dtype=pl.Float64),
+            "label": pl.Series(["A" if i % 3 == 0 else "B" for i in range(_PS_N)], dtype=pl.Utf8),
+        }
+    )
+
+
+@pytest.fixture(scope="module")
+def ps_profile(ps_df):
+    return StructuralProfiler(PipelineConfig()).profile(ps_df)
+
+
+@pytest.fixture(scope="module")
+def ps_splitter(ps_df) -> DataSplitter:
+    return DataSplitter(ps_df, target="label", random_seed=42)
+
+
+# ---------------------------------------------------------------------------
+# profile_stratified_split — basic structure
+# ---------------------------------------------------------------------------
+
+
+def test_profile_split_returns_split_result(ps_df, ps_profile, ps_splitter):
+    result = ps_splitter.profile_stratified_split(ps_profile, test_size=0.2)
+    assert isinstance(result, SplitResult)
+
+
+def test_profile_split_sizes_sum_to_total(ps_df, ps_profile, ps_splitter):
+    result = ps_splitter.profile_stratified_split(ps_profile, test_size=0.2)
+    assert result.train_size + result.test_size == len(ps_df)
+
+
+def test_profile_split_dataframe_row_counts_match(ps_profile, ps_splitter):
+    result = ps_splitter.profile_stratified_split(ps_profile, test_size=0.2)
+    assert len(result.train) == result.train_size
+    assert len(result.test) == result.test_size
+
+
+# ---------------------------------------------------------------------------
+# profile_stratified_split — acceptance criteria
+# ---------------------------------------------------------------------------
+
+
+def test_profile_split_missingness_in_training(ps_profile, ps_splitter):
+    """Every column with missingness has at least one null in the training split."""
+    result = ps_splitter.profile_stratified_split(ps_profile, test_size=0.2)
+    for col, cp in ps_profile.columns.items():
+        if cp.missingness and cp.missingness.effective_null_count > 0:
+            if col in result.train.columns:
+                assert result.train[col].null_count() > 0, (
+                    f"column '{col}' has missingness in the profile but zero nulls "
+                    f"in the training split"
+                )
+
+
+def test_profile_split_preserves_target_proportions(ps_df, ps_profile, ps_splitter):
+    """Target class proportions are approximately preserved in both partitions."""
+    result = ps_splitter.profile_stratified_split(ps_profile, test_size=0.2)
+    original_a_ratio = (ps_df["label"] == "A").sum() / len(ps_df)
+    train_a_ratio = (result.train["label"] == "A").sum() / result.train_size
+    test_a_ratio = (result.test["label"] == "A").sum() / result.test_size
+    assert abs(train_a_ratio - original_a_ratio) < 0.1
+    assert abs(test_a_ratio - original_a_ratio) < 0.1
+
+
+# ---------------------------------------------------------------------------
+# profile_stratified_split — fallback
+# ---------------------------------------------------------------------------
+
+
+def test_profile_split_falls_back_when_no_signals():
+    """A profile with no missingness and no at-risk signals falls back to random split."""
+    df = pl.DataFrame(
+        {
+            "x": pl.Series([float(i) for i in range(100)], dtype=pl.Float64),
+            "y": pl.Series([float(i) for i in range(100)], dtype=pl.Float64),
+        }
+    )
+    # Profile with no target, no missingness → no signals → graceful fallback
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    splitter = DataSplitter(df, random_seed=0)
+    result = splitter.profile_stratified_split(profile, test_size=0.2)
+    assert result.train_size + result.test_size == len(df)
+
+
+# ---------------------------------------------------------------------------
+# profile_stratified_kfold — basic structure
+# ---------------------------------------------------------------------------
+
+
+_PS_K = 5
+
+
+def test_profile_kfold_returns_k_folds(ps_profile, ps_splitter):
+    folds = ps_splitter.profile_stratified_kfold(ps_profile, k=_PS_K)
+    assert len(folds) == _PS_K
+
+
+def test_profile_kfold_returns_fold_result_instances(ps_profile, ps_splitter):
+    folds = ps_splitter.profile_stratified_kfold(ps_profile, k=_PS_K)
+    assert all(isinstance(f, FoldResult) for f in folds)
+
+
+def test_profile_kfold_fold_indices_zero_to_k_minus_one(ps_profile, ps_splitter):
+    folds = ps_splitter.profile_stratified_kfold(ps_profile, k=_PS_K)
+    assert [f.fold_index for f in folds] == list(range(_PS_K))
+
+
+def test_profile_kfold_sizes_sum_to_total(ps_df, ps_profile, ps_splitter):
+    folds = ps_splitter.profile_stratified_kfold(ps_profile, k=_PS_K)
+    for fold in folds:
+        assert fold.train_size + fold.val_size == len(ps_df)
+
+
+# ---------------------------------------------------------------------------
+# profile_stratified_kfold — acceptance criteria
+# ---------------------------------------------------------------------------
+
+
+def test_profile_kfold_missingness_in_training(ps_profile, ps_splitter):
+    """Each fold's training partition has at least one null for missing columns."""
+    folds = ps_splitter.profile_stratified_kfold(ps_profile, k=_PS_K)
+    for fold in folds:
+        for col, cp in ps_profile.columns.items():
+            if cp.missingness and cp.missingness.effective_null_count > 0:
+                if col in fold.train.columns:
+                    assert fold.train[col].null_count() > 0, (
+                        f"fold {fold.fold_index}: column '{col}' has no nulls in training"
+                    )
+
+
+# ---------------------------------------------------------------------------
+# build_label_matrix — signal cap
+# ---------------------------------------------------------------------------
+
+
+def test_signal_cap_at_50():
+    """When more than 50 signals exist, only the 50 rarest are used."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix, _MAX_SIGNALS
+
+    # Build a DataFrame with many columns that each have missingness
+    n = 200
+    cols = {f"c{i}": pl.Series([None if j == i else float(j) for j in range(n)], dtype=pl.Float64)
+            for i in range(60)}
+    df = pl.DataFrame(cols)
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    mat = build_label_matrix(df, profile, target=None)
+    assert mat.shape[1] <= _MAX_SIGNALS

@@ -36,6 +36,8 @@ class RareCategoryStats:
     rare_category_count: int = 0
     total_rare_rows: int = 0
     rare_row_percentage: float = 0.0
+    rare_label_values: list = field(default_factory=list)
+    rare_label_threshold_pct: float = 0.05
 
     def to_dict(self) -> dict:
         return {
@@ -43,6 +45,8 @@ class RareCategoryStats:
             "rare_category_count": self.rare_category_count,
             "total_rare_rows": self.total_rare_rows,
             "rare_row_percentage": self.rare_row_percentage,
+            "rare_label_values": self.rare_label_values,
+            "rare_label_threshold_pct": self.rare_label_threshold_pct,
         }
 
 

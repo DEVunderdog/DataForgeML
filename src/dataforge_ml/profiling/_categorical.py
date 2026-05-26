@@ -50,7 +50,8 @@ from ._categorical_config import (
 # Module-level thresholds (documented so callers can see what drives flags)
 # ---------------------------------------------------------------------------
 
-_RARE_THRESHOLD_PCT: float = 0.01  # <1 % of rows → rare
+_RARE_THRESHOLD_PCT: float = 0.01  # <1 % of rows → rare (diagnostic)
+_STRATIFICATION_RARE_THRESHOLD_PCT: float = 0.05  # <5 % of rows → rare (stratification)
 _MIXED_TYPE_MIN_MINOR_PCT: float = 0.05
 _MIXED_TYPE_Z_SCORE: float = 1.96
 
@@ -203,6 +204,14 @@ class CategoricalProfiler(ColumnBatchProfiler[CategoricalProfileResult]):
         profile.rare_categories.rare_row_percentage = (
             profile.rare_categories.total_rare_rows / n_rows if n_rows > 0 else 0.0
         )
+
+        # --- Stratification rare-label list (5% threshold) ---
+        strat_rare_mask = (vc["count"].cast(pl.Float64) / n_rows) < _STRATIFICATION_RARE_THRESHOLD_PCT
+        strat_rare_rows = vc.filter(strat_rare_mask)
+        profile.rare_categories.rare_label_values = (
+            strat_rare_rows[value_col].to_list() if strat_rare_rows.height > 0 else []
+        )
+        profile.rare_categories.rare_label_threshold_pct = _STRATIFICATION_RARE_THRESHOLD_PCT
 
         # --- Imbalance metrics ---
         # Class Ratio -> raw distribution

@@ -188,3 +188,50 @@ def test_mixed_type_flag_absent_for_pure_strings():
     df = pl.DataFrame({"cat": pl.Series(data, dtype=pl.Utf8)})
     stats = CategoricalProfiler().profile(df, ["cat"]).columns["cat"]
     assert CategoricalFlag.MixedType not in stats.flags
+
+
+# ---------------------------------------------------------------------------
+# rare_label_values — stratification rare-label list (5% threshold)
+# ---------------------------------------------------------------------------
+
+
+def test_rare_label_values_contains_rare_value():
+    # 100 rows: "rare" appears 2 times (2% < 5%) → must be in rare_label_values
+    data = ["dominant"] * 98 + ["rare"] * 2
+    df = pl.DataFrame({"cat": pl.Series(data, dtype=pl.Utf8)})
+    stats = CategoricalProfiler().profile(df, ["cat"]).columns["cat"]
+    assert "rare" in stats.rare_categories.rare_label_values
+
+
+def test_rare_label_values_excludes_dominant_value():
+    # "dominant" appears 98% of the time → must NOT be in rare_label_values
+    data = ["dominant"] * 98 + ["rare"] * 2
+    df = pl.DataFrame({"cat": pl.Series(data, dtype=pl.Utf8)})
+    stats = CategoricalProfiler().profile(df, ["cat"]).columns["cat"]
+    assert "dominant" not in stats.rare_categories.rare_label_values
+
+
+def test_rare_label_values_empty_when_nothing_rare():
+    # All three values each appear 33+ times in 100 rows (≥ 5%) → empty list
+    data = ["A"] * 34 + ["B"] * 33 + ["C"] * 33
+    df = pl.DataFrame({"cat": pl.Series(data, dtype=pl.Utf8)})
+    stats = CategoricalProfiler().profile(df, ["cat"]).columns["cat"]
+    assert stats.rare_categories.rare_label_values == []
+
+
+def test_rare_label_threshold_pct_is_five_percent():
+    data = ["A"] * 50 + ["B"] * 50
+    df = pl.DataFrame({"cat": pl.Series(data, dtype=pl.Utf8)})
+    stats = CategoricalProfiler().profile(df, ["cat"]).columns["cat"]
+    assert stats.rare_categories.rare_label_threshold_pct == 0.05
+
+
+def test_rare_categories_to_dict_includes_new_fields():
+    data = ["dominant"] * 98 + ["rare"] * 2
+    df = pl.DataFrame({"cat": pl.Series(data, dtype=pl.Utf8)})
+    stats = CategoricalProfiler().profile(df, ["cat"]).columns["cat"]
+    d = stats.rare_categories.to_dict()
+    assert "rare_label_values" in d
+    assert "rare_label_threshold_pct" in d
+    assert "rare" in d["rare_label_values"]
+    assert d["rare_label_threshold_pct"] == 0.05
