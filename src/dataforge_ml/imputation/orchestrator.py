@@ -16,6 +16,7 @@ from ..config import PipelineConfig, SemanticType
 from ._config import ImputationResult
 from ._fitted_imputer import FittedImputer
 from ._numeric_imputer import NumericImputer, _NumericFitBundle
+from ..utils._null_normalization import _resolve_effective_nulls
 
 if TYPE_CHECKING:
     from ..profiling._config import StructuralProfileResult
@@ -74,6 +75,7 @@ class ImputationOrchestrator:
         FittedImputer
             Stateless imputer that can transform any DataFrame.
         """
+        train_df = _resolve_effective_nulls(train_df)
         _check_split_imbalance(train_df, profile)
 
         imp_cfg = self._config.imputation
@@ -144,11 +146,7 @@ def _check_split_imbalance(
             continue
         if col not in train_df.columns:
             continue
-        series = train_df[col]
-        has_missing = series.null_count() > 0
-        if not has_missing and series.dtype in (pl.Float32, pl.Float64):
-            has_missing = series.is_nan().any()
-        if not has_missing:
+        if train_df[col].null_count() == 0:
             imbalanced.append(col)
 
     if imbalanced:

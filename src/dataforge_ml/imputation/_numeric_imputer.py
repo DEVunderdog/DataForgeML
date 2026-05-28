@@ -351,11 +351,7 @@ def _df_to_numpy(df: pl.DataFrame, cols: list[str]) -> np.ndarray:
 
 
 def _clean(series: pl.Series) -> pl.Series:
-    """Drop nulls and NaN (for float dtypes) before computing statistics."""
-    series = series.drop_nulls()
-    if series.dtype in (pl.Float32, pl.Float64):
-        series = series.filter(~series.is_nan())
-    return series
+    return series.drop_nulls()
 
 
 def _compute_mean(df: pl.DataFrame, col: str) -> float:

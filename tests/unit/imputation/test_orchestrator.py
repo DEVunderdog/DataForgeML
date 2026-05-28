@@ -192,6 +192,42 @@ def test_no_split_imbalance_warning_when_train_has_nulls():
     assert len(split_warnings) == 0
 
 
+def test_no_split_imbalance_warning_when_training_has_inf():
+    """Inf is an effective null; after normalisation null_count > 0, so no imbalance fires."""
+    profile = _make_profile({"a": _numeric_cp_with_nulls("a", null_count=5, total=100)})
+    train = pl.DataFrame({"a": pl.Series([1.0, float("inf"), 3.0], dtype=pl.Float64)})
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        ImputationOrchestrator().fit(train, profile)
+
+    split_warnings = [w for w in caught if issubclass(w.category, SplitImbalanceWarning)]
+    assert len(split_warnings) == 0
+
+
+def test_no_split_imbalance_warning_when_training_has_string_sentinel():
+    """String sentinels are effective nulls; after normalisation they are detected as missing."""
+    s_cp = ColumnProfile(
+        name="s",
+        semantic_type=SemanticType.Text,
+        missingness=ColumnMissingnessProfile(
+            column="s", total_rows=100,
+            effective_null_count=5,
+            effective_null_ratio=0.05,
+            severity=MissingSeverity.Minor,
+        ),
+    )
+    profile = _make_profile({"s": s_cp})
+    train = pl.DataFrame({"s": pl.Series(["NA", "hello", "world"], dtype=pl.String)})
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        ImputationOrchestrator().fit(train, profile)
+
+    split_warnings = [w for w in caught if issubclass(w.category, SplitImbalanceWarning)]
+    assert len(split_warnings) == 0
+
+
 def test_no_split_imbalance_warning_when_profile_reports_no_missingness():
     profile = _make_profile({"a": _clean_numeric_cp("a")})
     train = pl.DataFrame({"a": pl.Series([1.0, 2.0, 3.0], dtype=pl.Float64)})
