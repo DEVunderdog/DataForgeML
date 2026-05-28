@@ -1,0 +1,385 @@
+"""
+Unit tests for NumericImputer strategy routing.
+
+Tests exercise the external contract: given a profile with specific signals,
+assert the correct ImputationStrategy and fill_value type in the returned record.
+All tests construct minimal StructuralProfileResult stubs — no real profiler run.
+"""
+
+import polars as pl
+import pytest
+
+from dataforge_ml.config import SemanticType
+from dataforge_ml.imputation._config import ImputationStrategy, NumericImputationConfig
+from dataforge_ml.imputation._numeric_imputer import NumericImputer
+from dataforge_ml.profiling._config import (
+    ColumnProfile,
+    NumericKind,
+    StructuralProfileResult,
+)
+from dataforge_ml.profiling._missingness_config import (
+    ColumnMissingnessProfile,
+    MissingnessFlag,
+    MissingSeverity,
+)
+from dataforge_ml.profiling._numeric_config import NumericStats, SkewSeverity
+
+
+# ---------------------------------------------------------------------------
+# Helpers — build minimal stubs
+# ---------------------------------------------------------------------------
+
+
+def _make_profile(col: str, cp: ColumnProfile) -> StructuralProfileResult:
+    result = StructuralProfileResult()
+    result.columns[col] = cp
+    return result
+
+
+def _numeric_cp(
+    *,
+    null_count: int = 0,
+    total_rows: int = 100,
+    severity: MissingSeverity | None = None,
+    flags: list[MissingnessFlag] | None = None,
+    correlated_with: list[str] | None = None,
+    numeric_kind: NumericKind = NumericKind.Continuous,
+    skewness_severity: SkewSeverity | None = None,
+) -> ColumnProfile:
+    missingness = None
+    if null_count > 0 or flags:
+        missingness = ColumnMissingnessProfile(
+            column="col",
+            total_rows=total_rows,
+            effective_null_count=null_count,
+            effective_null_ratio=null_count / total_rows,
+            severity=severity,
+            flags=flags or [],
+            correlated_with=correlated_with or [],
+        )
+    stats = NumericStats(skewness_severity=skewness_severity)
+    return ColumnProfile(
+        name="col",
+        semantic_type=SemanticType.Numeric,
+        numeric_kind=numeric_kind,
+        missingness=missingness,
+        stats=stats,
+    )
+
+
+_COL = "col"
+_DEFAULT_CONFIG = NumericImputationConfig()
+_NO_MNAR: set[str] = set()
+
+
+def _fit_one(df: pl.DataFrame, cp: ColumnProfile, mnar: set[str] | None = None):
+    profile = _make_profile(_COL, cp)
+    bundle = NumericImputer().fit(
+        train_df=df,
+        columns=[_COL],
+        profile=profile,
+        config=_DEFAULT_CONFIG,
+        mnar_columns=mnar or _NO_MNAR,
+    )
+    assert len(bundle.records) == 1
+    return bundle.records[0]
+
+
+# ---------------------------------------------------------------------------
+# Strategy: Dropped
+# ---------------------------------------------------------------------------
+
+
+def test_drop_candidate_produces_dropped_strategy():
+    df = pl.DataFrame({_COL: pl.Series([None] * 60 + [1.0] * 40, dtype=pl.Float64)})
+    cp = _numeric_cp(
+        null_count=60,
+        total_rows=100,
+        severity=MissingSeverity.Severe,
+        flags=[MissingnessFlag.DropCandidate],
+    )
+    rec = _fit_one(df, cp)
+    assert rec.strategy == ImputationStrategy.Dropped
+    assert rec.fill_value is None
+    assert rec.indicator_added is False
+
+
+def test_drop_candidate_signal_describes_missingness():
+    df = pl.DataFrame({_COL: pl.Series([None] * 60 + [1.0] * 40, dtype=pl.Float64)})
+    cp = _numeric_cp(
+        null_count=60, total_rows=100, flags=[MissingnessFlag.DropCandidate]
+    )
+    rec = _fit_one(df, cp)
+    assert any("drop_candidate" in s for s in rec.signals)
+
+
+# ---------------------------------------------------------------------------
+# Strategy: Constant (MNAR)
+# ---------------------------------------------------------------------------
+
+
+def test_mnar_declared_column_gets_constant_strategy():
+    df = pl.DataFrame({_COL: pl.Series([1.0, None, 3.0, None], dtype=pl.Float64)})
+    cp = _numeric_cp(null_count=2, total_rows=4, severity=MissingSeverity.Moderate)
+    rec = _fit_one(df, cp, mnar={_COL})
+    assert rec.strategy == ImputationStrategy.Constant
+    assert rec.fill_value == float(_DEFAULT_CONFIG.mnar_constant_fill)
+    assert rec.indicator_added is True
+
+
+def test_mnar_constant_fill_uses_config_value():
+    df = pl.DataFrame({_COL: pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
+    cp = _numeric_cp(null_count=1, total_rows=3, severity=MissingSeverity.Minor)
+    config = NumericImputationConfig(mnar_constant_fill=-999)
+    profile = _make_profile(_COL, cp)
+    bundle = NumericImputer().fit(
+        train_df=df, columns=[_COL], profile=profile,
+        config=config, mnar_columns={_COL},
+    )
+    assert bundle.records[0].fill_value == -999.0
+
+
+def test_mnar_takes_priority_over_mar_flag():
+    """MNAR declared by user overrides any MARSuspect flag."""
+    df = pl.DataFrame({_COL: pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
+    cp = _numeric_cp(
+        null_count=1, total_rows=3, severity=MissingSeverity.Minor,
+        flags=[MissingnessFlag.MARSuspect], correlated_with=["other_col"],
+    )
+    rec = _fit_one(df, cp, mnar={_COL})
+    assert rec.strategy == ImputationStrategy.Constant
+
+
+# ---------------------------------------------------------------------------
+# Strategy: Passthrough
+# ---------------------------------------------------------------------------
+
+
+def test_no_missingness_produces_passthrough():
+    df = pl.DataFrame({_COL: pl.Series([1.0, 2.0, 3.0], dtype=pl.Float64)})
+    cp = _numeric_cp(null_count=0)
+    rec = _fit_one(df, cp)
+    assert rec.strategy == ImputationStrategy.Passthrough
+    assert rec.fill_value is None
+    assert rec.indicator_added is False
+
+
+def test_passthrough_signal_is_informative():
+    df = pl.DataFrame({_COL: pl.Series([1.0, 2.0], dtype=pl.Float64)})
+    cp = _numeric_cp(null_count=0)
+    rec = _fit_one(df, cp)
+    assert len(rec.signals) >= 1
+
+
+# ---------------------------------------------------------------------------
+# Strategy: Median (MAR-Suspect fallback)
+# ---------------------------------------------------------------------------
+
+
+def test_mar_suspect_minor_severity_falls_back_to_median():
+    # Minor MAR with no multi-MAR → Median (no correlations path applies at Minor)
+    values = [1.0, 2.0, None, 4.0, 5.0]
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Float64)})
+    cp = _numeric_cp(
+        null_count=1, total_rows=5, severity=MissingSeverity.Minor,
+        flags=[MissingnessFlag.MARSuspect], correlated_with=["x"],
+    )
+    rec = _fit_one(df, cp)
+    assert rec.strategy == ImputationStrategy.Median
+    assert rec.fill_value == pytest.approx(3.0)
+
+
+def test_mar_suspect_signal_mentions_mar():
+    values = [1.0, 2.0, None, 4.0]
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Float64)})
+    cp = _numeric_cp(
+        null_count=1, total_rows=4, severity=MissingSeverity.Minor,
+        flags=[MissingnessFlag.MARSuspect], correlated_with=["y"],
+    )
+    rec = _fit_one(df, cp)
+    assert any("mar_suspect" in s.lower() for s in rec.signals)
+
+
+# ---------------------------------------------------------------------------
+# Strategy: Mode (Discrete)
+# ---------------------------------------------------------------------------
+
+
+def test_discrete_column_gets_mode_strategy():
+    values = [1, 2, 1, 1, None, 3, 1]
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
+    cp = _numeric_cp(
+        null_count=1, total_rows=7, severity=MissingSeverity.Minor,
+        numeric_kind=NumericKind.Discrete,
+    )
+    rec = _fit_one(df, cp)
+    assert rec.strategy == ImputationStrategy.Mode
+    assert rec.fill_value == pytest.approx(1.0)
+
+
+def test_discrete_mode_computed_on_training_data():
+    """Mode is the most frequent value in train_df, ignoring nulls."""
+    values = [5, 5, 5, 1, 1, None]
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
+    cp = _numeric_cp(
+        null_count=1, total_rows=6, severity=MissingSeverity.Minor,
+        numeric_kind=NumericKind.Discrete,
+    )
+    rec = _fit_one(df, cp)
+    assert rec.fill_value == pytest.approx(5.0)
+
+
+# ---------------------------------------------------------------------------
+# Strategy: Mean (MCAR minor + normal skew)
+# ---------------------------------------------------------------------------
+
+
+def test_mcar_minor_normal_skew_gets_mean():
+    values = [1.0, 2.0, 3.0, 4.0, None]
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Float64)})
+    cp = _numeric_cp(
+        null_count=1, total_rows=5, severity=MissingSeverity.Minor,
+        skewness_severity=SkewSeverity.Normal,
+    )
+    rec = _fit_one(df, cp)
+    assert rec.strategy == ImputationStrategy.Mean
+    assert rec.fill_value == pytest.approx(2.5)
+
+
+def test_mean_computed_excluding_nulls():
+    values = [10.0, 20.0, None]
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Float64)})
+    cp = _numeric_cp(
+        null_count=1, total_rows=3, severity=MissingSeverity.Minor,
+        skewness_severity=SkewSeverity.Normal,
+    )
+    rec = _fit_one(df, cp)
+    assert rec.fill_value == pytest.approx(15.0)
+
+
+def test_mcar_minor_no_skew_info_gets_mean():
+    """When skewness_severity is None, treat as normal skew → Mean."""
+    values = [1.0, 2.0, 3.0, None]
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Float64)})
+    cp = _numeric_cp(
+        null_count=1, total_rows=4, severity=MissingSeverity.Minor,
+        skewness_severity=None,
+    )
+    # stats has no skewness_severity set
+    cp.stats = NumericStats(skewness_severity=None)
+    rec = _fit_one(df, cp)
+    assert rec.strategy == ImputationStrategy.Mean
+
+
+# ---------------------------------------------------------------------------
+# Strategy: Median (MCAR with skew >= Moderate or Moderate severity)
+# ---------------------------------------------------------------------------
+
+
+def test_mcar_minor_moderate_skew_gets_median():
+    values = [1.0, 2.0, 3.0, 4.0, None]
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Float64)})
+    cp = _numeric_cp(
+        null_count=1, total_rows=5, severity=MissingSeverity.Minor,
+        skewness_severity=SkewSeverity.Moderate,
+    )
+    rec = _fit_one(df, cp)
+    assert rec.strategy == ImputationStrategy.Median
+
+
+def test_mcar_moderate_severity_gets_median():
+    values = [1.0, 2.0, 3.0, 4.0, None, None, None]
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Float64)})
+    cp = _numeric_cp(
+        null_count=3, total_rows=7, severity=MissingSeverity.Moderate,
+        skewness_severity=SkewSeverity.Normal,
+    )
+    rec = _fit_one(df, cp)
+    assert rec.strategy == ImputationStrategy.Median
+
+
+def test_mcar_high_severity_gets_knn_when_guards_pass():
+    # 1 feature, 100 rows — both KNN guards pass with defaults
+    values = [float(i) for i in range(80)] + [None] * 20
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Float64)})
+    cp = _numeric_cp(
+        null_count=20, total_rows=100, severity=MissingSeverity.High,
+    )
+    rec = _fit_one(df, cp)
+    assert rec.strategy == ImputationStrategy.KNN
+
+
+def test_mcar_high_severity_falls_back_to_median_when_all_guards_fail():
+    # Force both guards to fail: tiny dataset (< regression_min_rows) + large features
+    config = NumericImputationConfig(
+        knn_max_rows=10,      # row guard: fail for 100-row df
+        knn_max_features=0,   # feature guard: always fail
+        regression_min_rows=10_000,  # regression guard: fail for 100-row df
+    )
+    values = [float(i) for i in range(80)] + [None] * 20
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Float64)})
+    cp = _numeric_cp(null_count=20, total_rows=100, severity=MissingSeverity.High)
+    profile = _make_profile(_COL, cp)
+    bundle = NumericImputer().fit(
+        train_df=df, columns=[_COL], profile=profile,
+        config=config, mnar_columns=set(),
+    )
+    assert bundle.records[0].strategy == ImputationStrategy.Median
+
+
+def test_mcar_severe_severity_gets_mice():
+    values = [float(i) for i in range(70)] + [None] * 30
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Float64)})
+    cp = _numeric_cp(
+        null_count=30, total_rows=100, severity=MissingSeverity.Severe,
+    )
+    rec = _fit_one(df, cp)
+    assert rec.strategy == ImputationStrategy.MICE
+
+
+def test_median_computed_excluding_nulls():
+    values = [1.0, 3.0, 5.0, None]
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Float64)})
+    cp = _numeric_cp(
+        null_count=1, total_rows=4, severity=MissingSeverity.Minor,
+        skewness_severity=SkewSeverity.Moderate,
+    )
+    rec = _fit_one(df, cp)
+    assert rec.fill_value == pytest.approx(3.0)
+
+
+# ---------------------------------------------------------------------------
+# Record metadata
+# ---------------------------------------------------------------------------
+
+
+def test_record_column_name_matches():
+    df = pl.DataFrame({_COL: pl.Series([1.0, None], dtype=pl.Float64)})
+    cp = _numeric_cp(null_count=1, total_rows=2, severity=MissingSeverity.Minor)
+    rec = _fit_one(df, cp)
+    assert rec.column == _COL
+
+
+def test_record_semantic_type_is_numeric():
+    df = pl.DataFrame({_COL: pl.Series([1.0, None], dtype=pl.Float64)})
+    cp = _numeric_cp(null_count=1, total_rows=2, severity=MissingSeverity.Minor)
+    rec = _fit_one(df, cp)
+    assert rec.semantic_type == SemanticType.Numeric
+
+
+def test_record_signals_are_non_empty_for_all_strategies():
+    """Every routing decision should produce at least one signal string."""
+    cases = [
+        _numeric_cp(null_count=60, total_rows=100, flags=[MissingnessFlag.DropCandidate]),
+        _numeric_cp(null_count=0),
+        _numeric_cp(null_count=1, total_rows=10, severity=MissingSeverity.Minor,
+                    skewness_severity=SkewSeverity.Normal),
+        _numeric_cp(null_count=1, total_rows=10, severity=MissingSeverity.Minor,
+                    skewness_severity=SkewSeverity.Moderate),
+        _numeric_cp(null_count=1, total_rows=10, severity=MissingSeverity.Minor,
+                    numeric_kind=NumericKind.Discrete),
+    ]
+    for cp in cases:
+        df = pl.DataFrame({_COL: pl.Series([1.0, 2.0, 3.0, None], dtype=pl.Float64)})
+        rec = _fit_one(df, cp)
+        assert len(rec.signals) >= 1, f"No signals for strategy {rec.strategy}"

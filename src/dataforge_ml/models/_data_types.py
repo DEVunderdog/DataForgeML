@@ -5,6 +5,8 @@ _INT_DTYPES = {
     pl.UInt8, pl.UInt16, pl.UInt32, pl.UInt64,
 }
 
+_FLOAT_DTYPES = (pl.Float32, pl.Float64)
+
 _CAT_DTYPES = {pl.Utf8, pl.String, pl.Categorical, pl.Boolean}
 
 _NUMERIC_DTYPES = _INT_DTYPES | {pl.Float32, pl.Float64}
