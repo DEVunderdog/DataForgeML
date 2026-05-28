@@ -157,6 +157,28 @@ def test_split_imbalance_warning_emitted_when_train_has_no_nulls():
     assert "a" in str(split_warnings[0].message)
 
 
+def test_split_imbalance_warning_names_all_imbalanced_columns_in_single_warning():
+    """All imbalanced columns must appear together in a single SplitImbalanceWarning."""
+    profile = _make_profile({
+        "a": _numeric_cp_with_nulls("a", null_count=5, total=100),
+        "b": _numeric_cp_with_nulls("b", null_count=3, total=100),
+    })
+    clean_train = pl.DataFrame({
+        "a": pl.Series([float(i) for i in range(10)], dtype=pl.Float64),
+        "b": pl.Series([float(i) for i in range(10)], dtype=pl.Float64),
+    })
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        ImputationOrchestrator().fit(clean_train, profile)
+
+    split_warnings = [w for w in caught if issubclass(w.category, SplitImbalanceWarning)]
+    assert len(split_warnings) == 1
+    msg = str(split_warnings[0].message)
+    assert "a" in msg
+    assert "b" in msg
+
+
 def test_no_split_imbalance_warning_when_train_has_nulls():
     """If train_df has nulls matching profile, no warning should fire."""
     profile = _make_profile({"a": _numeric_cp_with_nulls("a", null_count=5, total=100)})

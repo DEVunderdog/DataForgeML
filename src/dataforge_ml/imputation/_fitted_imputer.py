@@ -66,6 +66,7 @@ class FittedImputer:
             fit() (strategy == Passthrough).
         """
         # --- Passthrough violation check ---
+        violating_cols: list[str] = []
         for col, rec in self.records.items():
             if rec.strategy != ImputationStrategy.Passthrough:
                 continue
@@ -76,12 +77,16 @@ class FittedImputer:
             if not has_missing and series.dtype in _FLOAT_DTYPES:
                 has_missing = series.is_nan().any()
             if has_missing:
-                raise UnfittedColumnError(
-                    f"Column '{col}' has missing values but no fill strategy was "
-                    f"learned during fit() because the training split had no missing "
-                    f"values. Consider using DataSplitter.profile_stratified_split() "
-                    f"to ensure missingness is represented in training data."
-                )
+                violating_cols.append(col)
+
+        if violating_cols:
+            cols_str = ", ".join(f"'{c}'" for c in violating_cols)
+            raise UnfittedColumnError(
+                f"Column(s) {cols_str} have missing values but no fill strategy was "
+                f"learned during fit() because the training split had no missing "
+                f"values. Consider using DataSplitter.profile_stratified_split() "
+                f"to ensure missingness is represented in training data."
+            )
 
         # --- Drop columns ---
         dropped_cols = [

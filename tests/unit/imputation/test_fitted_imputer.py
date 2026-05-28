@@ -220,6 +220,36 @@ def test_unfitted_column_error_message_is_informative():
     assert "my_col" in str(exc_info.value)
 
 
+def test_unfitted_column_error_names_all_offending_columns():
+    """All passthrough columns with missing values must be named in the single raised error."""
+    imputer = FittedImputer(records={
+        "col_a": _record("col_a", ImputationStrategy.Passthrough),
+        "col_b": _record("col_b", ImputationStrategy.Passthrough),
+    })
+    df = pl.DataFrame({
+        "col_a": pl.Series([None, 2.0], dtype=pl.Float64),
+        "col_b": pl.Series([1.0, None], dtype=pl.Float64),
+    })
+    with pytest.raises(UnfittedColumnError) as exc_info:
+        imputer.transform(df)
+    msg = str(exc_info.value)
+    assert "col_a" in msg
+    assert "col_b" in msg
+
+
+def test_columns_not_in_records_do_not_trigger_unfitted_column_error():
+    """Columns outside the active set (not in records) must not raise UnfittedColumnError."""
+    imputer = FittedImputer(records={
+        "num": _record("num", ImputationStrategy.Mean, fill_value=5.0),
+    })
+    df = pl.DataFrame({
+        "num": pl.Series([1.0, None], dtype=pl.Float64),
+        "txt": pl.Series([None, "hello"], dtype=pl.Utf8),
+    })
+    result = imputer.transform(df)
+    assert "txt" in result.dataframe.columns
+
+
 # ---------------------------------------------------------------------------
 # transform() — columns not in records pass through unchanged
 # ---------------------------------------------------------------------------
