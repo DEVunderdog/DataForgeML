@@ -21,6 +21,7 @@ from ._config import (
     ImputationStrategy,
 )
 from ..models._data_types import _INT_DTYPES, _FLOAT_DTYPES
+from ..utils._null_normalization import _resolve_effective_nulls
 
 
 class UnfittedColumnError(Exception):
@@ -65,6 +66,8 @@ class FittedImputer:
             If df has missing values in a column that had no missingness during
             fit() (strategy == Passthrough).
         """
+        df = _resolve_effective_nulls(df)
+
         # --- Passthrough violation check ---
         violating_cols: list[str] = []
         for col, rec in self.records.items():
@@ -72,11 +75,7 @@ class FittedImputer:
                 continue
             if col not in df.columns:
                 continue
-            series = df[col]
-            has_missing = series.null_count() > 0
-            if not has_missing and series.dtype in _FLOAT_DTYPES:
-                has_missing = series.is_nan().any()
-            if has_missing:
+            if df[col].null_count() > 0:
                 violating_cols.append(col)
 
         if violating_cols:
@@ -103,12 +102,9 @@ class FittedImputer:
                 continue
             if col not in result_df.columns:
                 continue
-            dtype = result_df.schema[col]
-            if dtype in _FLOAT_DTYPES:
-                null_expr = pl.col(col).is_null() | pl.col(col).is_nan()
-            else:
-                null_expr = pl.col(col).is_null()
-            indicator_exprs.append(null_expr.cast(pl.Int8).alias(f"{col}_missing"))
+            indicator_exprs.append(
+                pl.col(col).is_null().cast(pl.Int8).alias(f"{col}_missing")
+            )
 
         if indicator_exprs:
             result_df = result_df.with_columns(indicator_exprs)
@@ -134,8 +130,7 @@ class FittedImputer:
                 fill_val = int(round(float(fill_val)))
                 fill_exprs.append(pl.col(col).fill_null(fill_val))
             elif dtype in _FLOAT_DTYPES:
-                fv = float(fill_val)
-                fill_exprs.append(pl.col(col).fill_nan(fv).fill_null(fv))
+                fill_exprs.append(pl.col(col).fill_null(float(fill_val)))
             else:
                 fill_exprs.append(pl.col(col).fill_null(fill_val))
 

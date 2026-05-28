@@ -269,6 +269,121 @@ def test_columns_not_in_records_pass_through():
 
 
 # ---------------------------------------------------------------------------
+# transform() — effective null normalisation (Inf, NaN, string sentinels)
+# ---------------------------------------------------------------------------
+
+
+def test_inf_in_float_column_filled_by_mean_record():
+    imputer = FittedImputer(records={
+        "f": _record("f", ImputationStrategy.Mean, fill_value=9.0),
+    })
+    df = pl.DataFrame({"f": pl.Series([1.0, float("inf"), 3.0], dtype=pl.Float64)})
+    result = imputer.transform(df)
+    assert result.dataframe["f"].null_count() == 0
+    assert not result.dataframe["f"].is_infinite().any()
+    assert result.dataframe["f"][1] == pytest.approx(9.0)
+
+
+def test_neg_inf_in_float_column_filled_by_median_record():
+    imputer = FittedImputer(records={
+        "f": _record("f", ImputationStrategy.Median, fill_value=5.0),
+    })
+    df = pl.DataFrame({"f": pl.Series([1.0, float("-inf"), 3.0], dtype=pl.Float64)})
+    result = imputer.transform(df)
+    assert result.dataframe["f"].null_count() == 0
+    assert not result.dataframe["f"].is_infinite().any()
+    assert result.dataframe["f"][1] == pytest.approx(5.0)
+
+
+def test_nan_in_float_column_filled_by_mean_record():
+    imputer = FittedImputer(records={
+        "f": _record("f", ImputationStrategy.Mean, fill_value=4.0),
+    })
+    df = pl.DataFrame({"f": pl.Series([1.0, float("nan"), 3.0], dtype=pl.Float64)})
+    result = imputer.transform(df)
+    assert result.dataframe["f"].null_count() == 0
+    assert result.dataframe["f"].is_nan().sum() == 0
+    assert result.dataframe["f"][1] == pytest.approx(4.0)
+
+
+def test_string_sentinel_na_filled_by_constant_record():
+    imputer = FittedImputer(records={
+        "cat": ColumnImputationRecord(
+            column="cat", semantic_type=SemanticType.Categorical,
+            strategy=ImputationStrategy.Constant, fill_value="unknown",
+            indicator_added=False, signals=[],
+        ),
+    })
+    df = pl.DataFrame({"cat": pl.Series(["NA", "hello", "world"], dtype=pl.String)})
+    result = imputer.transform(df)
+    assert result.dataframe["cat"].null_count() == 0
+    assert result.dataframe["cat"][0] == "unknown"
+
+
+def test_string_sentinel_question_mark_filled_by_constant_record():
+    imputer = FittedImputer(records={
+        "cat": ColumnImputationRecord(
+            column="cat", semantic_type=SemanticType.Categorical,
+            strategy=ImputationStrategy.Constant, fill_value="missing",
+            indicator_added=False, signals=[],
+        ),
+    })
+    df = pl.DataFrame({"cat": pl.Series(["?", "hello", "?"], dtype=pl.String)})
+    result = imputer.transform(df)
+    assert result.dataframe["cat"].null_count() == 0
+    assert result.dataframe["cat"][0] == "missing"
+    assert result.dataframe["cat"][2] == "missing"
+
+
+def test_indicator_set_to_one_for_inf_rows():
+    imputer = FittedImputer(records={
+        "f": _record("f", ImputationStrategy.Constant, fill_value=-1.0, indicator_added=True),
+    })
+    df = pl.DataFrame({"f": pl.Series([1.0, float("inf"), 3.0], dtype=pl.Float64)})
+    result = imputer.transform(df)
+    assert result.dataframe["f_missing"][0] == 0
+    assert result.dataframe["f_missing"][1] == 1
+    assert result.dataframe["f_missing"][2] == 0
+
+
+def test_indicator_set_to_one_for_string_sentinel_rows():
+    imputer = FittedImputer(records={
+        "cat": ColumnImputationRecord(
+            column="cat", semantic_type=SemanticType.Categorical,
+            strategy=ImputationStrategy.Constant, fill_value="unknown",
+            indicator_added=True, signals=[],
+        ),
+    })
+    df = pl.DataFrame({"cat": pl.Series(["?", "hello", "world"], dtype=pl.String)})
+    result = imputer.transform(df)
+    assert result.dataframe["cat_missing"][0] == 1
+    assert result.dataframe["cat_missing"][1] == 0
+    assert result.dataframe["cat_missing"][2] == 0
+
+
+def test_unfitted_column_error_raised_for_inf_in_passthrough_float_column():
+    imputer = FittedImputer(records={
+        "clean": _record("clean", ImputationStrategy.Passthrough),
+    })
+    df = pl.DataFrame({"clean": pl.Series([1.0, float("inf"), 3.0], dtype=pl.Float64)})
+    with pytest.raises(UnfittedColumnError, match="clean"):
+        imputer.transform(df)
+
+
+def test_unfitted_column_error_raised_for_string_sentinel_in_passthrough_column():
+    imputer = FittedImputer(records={
+        "cat": ColumnImputationRecord(
+            column="cat", semantic_type=SemanticType.Categorical,
+            strategy=ImputationStrategy.Passthrough, fill_value=None,
+            indicator_added=False, signals=[],
+        ),
+    })
+    df = pl.DataFrame({"cat": pl.Series(["NA", "hello"], dtype=pl.String)})
+    with pytest.raises(UnfittedColumnError, match="cat"):
+        imputer.transform(df)
+
+
+# ---------------------------------------------------------------------------
 # to_dict() / from_dict()
 # ---------------------------------------------------------------------------
 
