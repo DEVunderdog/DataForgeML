@@ -1,8 +1,8 @@
 """
-_null_detection  –  shared dtype-driven null primitives for Phase 1.
+_null_detection  –  shared dtype-driven null primitives for Phase 1 and Phase 2.
 
 Single authority for what counts as "effectively null" across the entire
-Phase 1 implementation. No config, no SemanticType overrides, no state.
+implementation. No config, no SemanticType overrides, no state.
 """
 
 from __future__ import annotations

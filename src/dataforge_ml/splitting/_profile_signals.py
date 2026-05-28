@@ -17,7 +17,7 @@ from ..profiling._config import StructuralProfileResult
 from ..profiling._boolean_config import BooleanStats
 from ..profiling._categorical_config import CategoricalStats
 from ..profiling._numeric_config import NumericStats, SkewSeverity
-from ..profiling._null_detection import _SENTINEL_STRINGS, _inf_eligible, _sentinel_eligible
+from dataforge_ml.utils._null_detection import _SENTINEL_STRINGS, _inf_eligible, _sentinel_eligible
 
 _MAX_SIGNALS = 50
 _RARE_THRESHOLD = 0.05

@@ -244,7 +244,7 @@ class StructuralProfiler:
         cols: list[str],
         n_rows: int,
     ) -> RowMissingnessDistribution:
-        from ._null_detection import (
+        from ..utils._null_detection import (
             _sentinel_eligible,
             _inf_eligible,
             _SENTINEL_STRINGS,

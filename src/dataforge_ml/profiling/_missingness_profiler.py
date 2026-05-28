@@ -21,7 +21,7 @@ from ._missingness_config import (
     MissingnessProfileResult,
     MissingSeverity,
 )
-from ._null_detection import _SENTINEL_STRINGS, _inf_eligible, _sentinel_eligible
+from ..utils._null_detection import _SENTINEL_STRINGS, _inf_eligible, _sentinel_eligible
 
 # ---------------------------------------------------------------------------
 # Thresholds

@@ -3,7 +3,7 @@ import inspect
 import polars as pl
 import pytest
 
-from dataforge_ml.profiling._null_detection import (
+from dataforge_ml.utils._null_detection import (
     _SENTINEL_STRINGS,
     _inf_eligible,
     _sentinel_eligible,
