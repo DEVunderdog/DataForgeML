@@ -80,6 +80,25 @@ class PipelineConfig:
         excluded = hard_set | soft_set
         return [c for c in available_columns if c not in excluded]
 
+    def add_exclusions(self, cols: list[str]) -> None:
+        """Add columns to the hard exclusion set, deduplicating automatically.
+
+        Columns already present in ``exclude_columns`` and duplicate entries
+        within ``cols`` are silently ignored. Calling with an empty list is a
+        no-op.
+
+        Parameters
+        ----------
+        cols : list[str]
+            Column names to register as hard exclusions. Deduplication is
+            handled here; callers do not need to pre-deduplicate.
+        """
+        existing = set(self.exclude_columns)
+        for col in cols:
+            if col not in existing:
+                self.exclude_columns.append(col)
+                existing.add(col)
+
     def set_column_type(
         self, column: str, semantic_type: Union[str, SemanticType]
     ) -> None:

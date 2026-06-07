@@ -99,3 +99,49 @@ def test_set_column_type_singular_unaffected_by_bulk_method():
     cfg.set_columns_type(["a", "b"], SemanticType.Categorical)
     assert cfg.column_overrides["solo"] is SemanticType.Identifier
     assert cfg.column_overrides["a"] is SemanticType.Categorical
+
+
+# ---------------------------------------------------------------------------
+# add_exclusions — adding to hard exclusion set
+# ---------------------------------------------------------------------------
+
+
+def test_add_exclusions_single_column_added_to_exclude_columns():
+    cfg = PipelineConfig()
+    cfg.add_exclusions(["id"])
+    assert "id" in cfg.exclude_columns
+
+
+def test_add_exclusions_input_duplicates_are_deduplicated():
+    cfg = PipelineConfig()
+    cfg.add_exclusions(["id", "id", "id"])
+    assert cfg.exclude_columns.count("id") == 1
+
+
+def test_add_exclusions_repeated_calls_with_overlapping_lists_do_not_double_add():
+    cfg = PipelineConfig()
+    cfg.add_exclusions(["id"])
+    cfg.add_exclusions(["id", "key"])
+    assert cfg.exclude_columns.count("id") == 1
+    assert "key" in cfg.exclude_columns
+
+
+def test_add_exclusions_resolve_active_columns_excludes_added_columns():
+    cfg = PipelineConfig()
+    cfg.add_exclusions(["id"])
+    result = cfg.resolve_active_columns(PipelinePhase.Profiling, ["id", "age", "score"])
+    assert "id" not in result
+    assert result == ["age", "score"]
+
+
+def test_add_exclusions_empty_list_is_a_no_op():
+    cfg = PipelineConfig()
+    cfg.add_exclusions(["id"])
+    cfg.add_exclusions([])
+    assert cfg.exclude_columns == ["id"]
+
+
+def test_add_exclusions_empty_list_on_fresh_config_leaves_exclude_columns_empty():
+    cfg = PipelineConfig()
+    cfg.add_exclusions([])
+    assert cfg.exclude_columns == []
