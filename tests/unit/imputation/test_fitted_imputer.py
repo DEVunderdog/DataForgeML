@@ -562,3 +562,52 @@ def test_to_dict_does_not_contain_exclusions_applied_key():
     d = imputer.to_dict()
     assert "_exclusions_applied" not in d
     assert "exclusions_applied" not in d
+
+
+# ---------------------------------------------------------------------------
+# ImputationResult.exclusions_applied — stamped by transform()
+# ---------------------------------------------------------------------------
+
+
+def test_transform_stamps_exclusions_applied_false_when_not_called():
+    imputer = FittedImputer(records={
+        "a": _record("a", ImputationStrategy.Mean, fill_value=1.0),
+    })
+    df = pl.DataFrame({"a": pl.Series([1.0, None], dtype=pl.Float64)})
+    result = imputer.transform(df)
+    assert result.exclusions_applied is False
+
+
+def test_transform_stamps_exclusions_applied_true_when_called():
+    from dataforge_ml.config import PipelineConfig
+    imputer = FittedImputer(records={
+        "drop_me": _record("drop_me", ImputationStrategy.Dropped),
+        "keep_me": _record("keep_me", ImputationStrategy.Mean, fill_value=1.0),
+    })
+    config = PipelineConfig()
+    imputer.apply_exclusions(config)
+    df = pl.DataFrame({
+        "drop_me": pl.Series([None, 1.0], dtype=pl.Float64),
+        "keep_me": pl.Series([1.0, None], dtype=pl.Float64),
+    })
+    result = imputer.transform(df)
+    assert result.exclusions_applied is True
+
+
+def test_fit_path_apply_exclusions_transform_stamps_field():
+    """Demonstrates the fit() → apply_exclusions() → transform() pipeline path."""
+    from dataforge_ml.config import PipelineConfig
+    imputer = FittedImputer(records={
+        "drop_me": _record("drop_me", ImputationStrategy.Dropped),
+        "score": _record("score", ImputationStrategy.Mean, fill_value=5.0),
+    })
+    config = PipelineConfig()
+    # caller invokes apply_exclusions on the FittedImputer returned by fit()
+    imputer.apply_exclusions(config)
+    df = pl.DataFrame({
+        "drop_me": pl.Series([None, 1.0], dtype=pl.Float64),
+        "score": pl.Series([1.0, None], dtype=pl.Float64),
+    })
+    result = imputer.transform(df)
+    assert result.exclusions_applied is True
+    assert "drop_me" in config.exclude_columns

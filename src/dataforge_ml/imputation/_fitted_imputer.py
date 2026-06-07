@@ -187,6 +187,7 @@ class FittedImputer:
             dataframe=result_df,
             records=dict(self.records),
             dropped_columns=dropped_cols,
+            exclusions_applied=self._exclusions_applied,
         )
 
     def to_dict(self) -> dict:
