@@ -4,6 +4,8 @@ Unit tests for FittedImputer.transform() and to_dict()/from_dict().
 FittedImputer is constructed directly with known records — no profiler run.
 """
 
+import warnings
+
 import polars as pl
 import pytest
 
@@ -13,7 +15,11 @@ from dataforge_ml.imputation._config import (
     ImputationResult,
     ImputationStrategy,
 )
-from dataforge_ml.imputation._fitted_imputer import FittedImputer, UnfittedColumnError
+from dataforge_ml.imputation._fitted_imputer import (
+    DroppedColumnAbsentWarning,
+    FittedImputer,
+    UnfittedColumnError,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -465,3 +471,210 @@ def test_deserialised_imputer_produces_identical_output():
     r2 = restored.transform(df)
     assert r1.dataframe.equals(r2.dataframe)
     assert r1.dropped_columns == r2.dropped_columns
+
+
+# ---------------------------------------------------------------------------
+# _exclusions_applied — initial state
+# ---------------------------------------------------------------------------
+
+
+def test_exclusions_applied_is_false_on_fresh_imputer():
+    imputer = FittedImputer(records={
+        "a": _record("a", ImputationStrategy.Mean, fill_value=1.0),
+    })
+    assert imputer._exclusions_applied is False
+
+
+# ---------------------------------------------------------------------------
+# apply_exclusions — config mutation and flag
+# ---------------------------------------------------------------------------
+
+
+def test_apply_exclusions_adds_dropped_columns_to_config():
+    from dataforge_ml.config import PipelineConfig
+    imputer = FittedImputer(records={
+        "drop_me": _record("drop_me", ImputationStrategy.Dropped),
+        "keep_me": _record("keep_me", ImputationStrategy.Mean, fill_value=1.0),
+    })
+    config = PipelineConfig()
+    imputer.apply_exclusions(config)
+    assert "drop_me" in config.exclude_columns
+    assert "keep_me" not in config.exclude_columns
+
+
+def test_apply_exclusions_sets_exclusions_applied_true():
+    from dataforge_ml.config import PipelineConfig
+    imputer = FittedImputer(records={
+        "drop_me": _record("drop_me", ImputationStrategy.Dropped),
+    })
+    config = PipelineConfig()
+    imputer.apply_exclusions(config)
+    assert imputer._exclusions_applied is True
+
+
+def test_apply_exclusions_with_no_dropped_columns_is_no_op_on_config():
+    from dataforge_ml.config import PipelineConfig
+    imputer = FittedImputer(records={
+        "a": _record("a", ImputationStrategy.Mean, fill_value=1.0),
+    })
+    config = PipelineConfig()
+    imputer.apply_exclusions(config)
+    assert config.exclude_columns == []
+
+
+def test_apply_exclusions_with_no_dropped_columns_still_sets_flag():
+    from dataforge_ml.config import PipelineConfig
+    imputer = FittedImputer(records={
+        "a": _record("a", ImputationStrategy.Mean, fill_value=1.0),
+    })
+    config = PipelineConfig()
+    imputer.apply_exclusions(config)
+    assert imputer._exclusions_applied is True
+
+
+def test_apply_exclusions_twice_is_idempotent():
+    from dataforge_ml.config import PipelineConfig
+    imputer = FittedImputer(records={
+        "drop_me": _record("drop_me", ImputationStrategy.Dropped),
+    })
+    config = PipelineConfig()
+    imputer.apply_exclusions(config)
+    imputer.apply_exclusions(config)
+    assert config.exclude_columns.count("drop_me") == 1
+
+
+# ---------------------------------------------------------------------------
+# apply_exclusions — serialisation round-trip
+# ---------------------------------------------------------------------------
+
+
+def test_exclusions_applied_is_false_after_from_dict_round_trip():
+    from dataforge_ml.config import PipelineConfig
+    imputer = FittedImputer(records={
+        "drop_me": _record("drop_me", ImputationStrategy.Dropped),
+    })
+    config = PipelineConfig()
+    imputer.apply_exclusions(config)
+    assert imputer._exclusions_applied is True
+
+    restored = FittedImputer.from_dict(imputer.to_dict())
+    assert restored._exclusions_applied is False
+
+
+def test_to_dict_does_not_contain_exclusions_applied_key():
+    imputer = FittedImputer(records={
+        "drop_me": _record("drop_me", ImputationStrategy.Dropped),
+    })
+    d = imputer.to_dict()
+    assert "_exclusions_applied" not in d
+    assert "exclusions_applied" not in d
+
+
+# ---------------------------------------------------------------------------
+# ImputationResult.exclusions_applied — stamped by transform()
+# ---------------------------------------------------------------------------
+
+
+def test_transform_stamps_exclusions_applied_false_when_not_called():
+    imputer = FittedImputer(records={
+        "a": _record("a", ImputationStrategy.Mean, fill_value=1.0),
+    })
+    df = pl.DataFrame({"a": pl.Series([1.0, None], dtype=pl.Float64)})
+    result = imputer.transform(df)
+    assert result.exclusions_applied is False
+
+
+def test_transform_stamps_exclusions_applied_true_when_called():
+    from dataforge_ml.config import PipelineConfig
+    imputer = FittedImputer(records={
+        "drop_me": _record("drop_me", ImputationStrategy.Dropped),
+        "keep_me": _record("keep_me", ImputationStrategy.Mean, fill_value=1.0),
+    })
+    config = PipelineConfig()
+    imputer.apply_exclusions(config)
+    df = pl.DataFrame({
+        "drop_me": pl.Series([None, 1.0], dtype=pl.Float64),
+        "keep_me": pl.Series([1.0, None], dtype=pl.Float64),
+    })
+    result = imputer.transform(df)
+    assert result.exclusions_applied is True
+
+
+def test_fit_path_apply_exclusions_transform_stamps_field():
+    """Demonstrates the fit() → apply_exclusions() → transform() pipeline path."""
+    from dataforge_ml.config import PipelineConfig
+    imputer = FittedImputer(records={
+        "drop_me": _record("drop_me", ImputationStrategy.Dropped),
+        "score": _record("score", ImputationStrategy.Mean, fill_value=5.0),
+    })
+    config = PipelineConfig()
+    # caller invokes apply_exclusions on the FittedImputer returned by fit()
+    imputer.apply_exclusions(config)
+    df = pl.DataFrame({
+        "drop_me": pl.Series([None, 1.0], dtype=pl.Float64),
+        "score": pl.Series([1.0, None], dtype=pl.Float64),
+    })
+    result = imputer.transform(df)
+    assert result.exclusions_applied is True
+    assert "drop_me" in config.exclude_columns
+
+
+# ---------------------------------------------------------------------------
+# DroppedColumnAbsentWarning
+# ---------------------------------------------------------------------------
+
+
+def test_warning_emitted_when_dropped_column_already_absent():
+    imputer = FittedImputer(records={
+        "drop_me": _record("drop_me", ImputationStrategy.Dropped),
+        "keep_me": _record("keep_me", ImputationStrategy.Mean, fill_value=1.0),
+    })
+    df = pl.DataFrame({"keep_me": pl.Series([1.0, None], dtype=pl.Float64)})
+    with pytest.warns(DroppedColumnAbsentWarning):
+        imputer.transform(df)
+
+
+def test_warning_names_the_absent_column():
+    imputer = FittedImputer(records={
+        "target_col": _record("target_col", ImputationStrategy.Dropped),
+        "other": _record("other", ImputationStrategy.Mean, fill_value=0.0),
+    })
+    df = pl.DataFrame({"other": pl.Series([1.0, 2.0], dtype=pl.Float64)})
+    with pytest.warns(DroppedColumnAbsentWarning, match="target_col"):
+        imputer.transform(df)
+
+
+def test_transform_completes_despite_warning():
+    imputer = FittedImputer(records={
+        "drop_me": _record("drop_me", ImputationStrategy.Dropped),
+        "keep_me": _record("keep_me", ImputationStrategy.Mean, fill_value=3.0),
+    })
+    df = pl.DataFrame({"keep_me": pl.Series([1.0, None], dtype=pl.Float64)})
+    with pytest.warns(DroppedColumnAbsentWarning):
+        result = imputer.transform(df)
+    assert isinstance(result, ImputationResult)
+    assert "keep_me" in result.dataframe.columns
+    assert result.dataframe["keep_me"].null_count() == 0
+
+
+def test_no_warning_when_dropped_column_is_present_in_input():
+    imputer = FittedImputer(records={
+        "drop_me": _record("drop_me", ImputationStrategy.Dropped),
+    })
+    df = pl.DataFrame({"drop_me": pl.Series([None, 1.0], dtype=pl.Float64)})
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DroppedColumnAbsentWarning)
+        result = imputer.transform(df)
+    assert "drop_me" not in result.dataframe.columns
+
+
+def test_warning_is_suppressible_via_filter():
+    imputer = FittedImputer(records={
+        "drop_me": _record("drop_me", ImputationStrategy.Dropped),
+        "keep_me": _record("keep_me", ImputationStrategy.Mean, fill_value=1.0),
+    })
+    df = pl.DataFrame({"keep_me": pl.Series([1.0, None], dtype=pl.Float64)})
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=DroppedColumnAbsentWarning)
+        result = imputer.transform(df)
+    assert isinstance(result, ImputationResult)

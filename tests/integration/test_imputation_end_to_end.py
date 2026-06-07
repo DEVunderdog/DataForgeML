@@ -8,7 +8,7 @@ StructuralProfiler and ImputationOrchestrator (no stubs).
 import polars as pl
 import pytest
 
-from dataforge_ml.config import PipelineConfig
+from dataforge_ml.config import PipelineConfig, PipelinePhase
 from dataforge_ml.imputation import FittedImputer, ImputationOrchestrator
 from dataforge_ml.profiling._config import ProfileConfig
 from dataforge_ml.profiling.orchestrator import StructuralProfiler
@@ -170,3 +170,58 @@ def test_orchestrator_stateless_across_multiple_fits(imputation_df, imputation_p
     for col in ["score", "revenue"]:
         assert r1.dataframe[col].null_count() == 0
         assert r2.dataframe[col].null_count() == 0
+
+
+# ---------------------------------------------------------------------------
+# Scope 10: DropCandidate lifecycle end-to-end (#115)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def drop_candidate_df():
+    n = 300
+    # "sparse": 67% null — well above the 50% DropCandidate threshold
+    sparse = [None if i < 200 else float(i) for i in range(n)]
+    # "dense": 10% null — normal column, should survive imputation
+    dense = [None if i % 10 == 0 else float(i) for i in range(n)]
+    return pl.DataFrame({
+        "sparse": pl.Series(sparse, dtype=pl.Float64),
+        "dense": pl.Series(dense, dtype=pl.Float64),
+    })
+
+
+@pytest.fixture(scope="module")
+def drop_candidate_profile(drop_candidate_df):
+    return StructuralProfiler(PipelineConfig()).profile(drop_candidate_df)
+
+
+def test_drop_candidate_column_in_dropped_columns(drop_candidate_df, drop_candidate_profile):
+    fi = ImputationOrchestrator().fit(drop_candidate_df, drop_candidate_profile)
+    result = fi.transform(drop_candidate_df)
+    assert "sparse" in result.dropped_columns
+
+
+def test_drop_candidate_apply_exclusions_adds_column_to_config(drop_candidate_df, drop_candidate_profile):
+    fi = ImputationOrchestrator().fit(drop_candidate_df, drop_candidate_profile)
+    config = PipelineConfig()
+    fi.apply_exclusions(config)
+    assert "sparse" in config.exclude_columns
+
+
+def test_drop_candidate_exclusions_applied_true_after_apply_exclusions(drop_candidate_df, drop_candidate_profile):
+    fi = ImputationOrchestrator().fit(drop_candidate_df, drop_candidate_profile)
+    config = PipelineConfig()
+    fi.apply_exclusions(config)
+    result = fi.transform(drop_candidate_df)
+    assert result.exclusions_applied is True
+
+
+def test_drop_candidate_resolve_active_columns_excludes_dropped(drop_candidate_df, drop_candidate_profile):
+    fi = ImputationOrchestrator().fit(drop_candidate_df, drop_candidate_profile)
+    config = PipelineConfig()
+    fi.apply_exclusions(config)
+    active = config.resolve_active_columns(
+        PipelinePhase.Imputation, list(drop_candidate_df.columns)
+    )
+    assert "sparse" not in active
+    assert "dense" in active

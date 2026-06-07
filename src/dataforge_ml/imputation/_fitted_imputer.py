@@ -8,13 +8,14 @@ to_dict() / from_dict() round-trips all scalar strategies and model-based strate
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
 import polars as pl
 
-from ..config import SemanticType
+from ..config import PipelineConfig, SemanticType
 from ._config import (
     ColumnImputationRecord,
     ImputationResult,
@@ -32,6 +33,19 @@ class UnfittedColumnError(Exception):
     fit() — i.e. the column had zero missing values in the training split.
 
     Typically indicates that a non-profile-stratified split was used.
+    """
+
+
+class DroppedColumnAbsentWarning(UserWarning):
+    """
+    Emitted by FittedImputer.transform() when a column recorded as
+    ``ImputationStrategy.Dropped`` during fit() is already absent from the
+    input DataFrame.
+
+    This typically means the caller pre-removed the column before calling
+    transform(). Transform continues normally; the warning is the only signal.
+    Suppress with
+    ``warnings.filterwarnings("ignore", category=DroppedColumnAbsentWarning)``.
     """
 
 
@@ -57,6 +71,37 @@ class FittedImputer:
     models: dict[str, Any] = field(default_factory=dict)
     model_cols: dict[str, list[str]] = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        self._exclusions_applied: bool = False
+
+    def apply_exclusions(self, config: PipelineConfig) -> None:
+        """Propagate dropped columns into the pipeline config's hard exclusion set.
+
+        Reads all columns recorded with ``ImputationStrategy.Dropped`` and
+        passes them to ``config.add_exclusions``. Sets ``_exclusions_applied``
+        to ``True`` regardless of whether any dropped columns exist, so callers
+        can invoke this method unconditionally without branching on whether any
+        columns were dropped.
+
+        Propagation is caller-initiated per ADR 0023: ``fit()`` does not touch
+        ``PipelineConfig``, preserving re-fit idempotency. A fresh call is
+        required after deserialising via ``from_dict()`` because
+        ``_exclusions_applied`` is not persisted across serialisation.
+
+        Parameters
+        ----------
+        config : PipelineConfig
+            Pipeline config to update. Dropped columns are unioned into
+            ``config.exclude_columns`` via ``add_exclusions``, so duplicate
+            calls are safe.
+        """
+        dropped = [
+            col for col, rec in self.records.items()
+            if rec.strategy == ImputationStrategy.Dropped
+        ]
+        config.add_exclusions(dropped)
+        self._exclusions_applied = True
+
     def transform(self, df: pl.DataFrame) -> ImputationResult:
         """
         Apply train-time fill parameters and models to df.
@@ -66,6 +111,13 @@ class FittedImputer:
         UnfittedColumnError
             If df has missing values in a column that had no missingness during
             fit() (strategy == Passthrough).
+
+        Warns
+        -----
+        DroppedColumnAbsentWarning
+            If a column recorded as Dropped during fit() is already absent from
+            df. One warning is emitted per absent column. Transform continues
+            normally.
         """
         df = _resolve_effective_nulls(df)
 
@@ -87,6 +139,16 @@ class FittedImputer:
                 f"values. Consider using DataSplitter.profile_stratified_split() "
                 f"to ensure missingness is represented in training data."
             )
+
+        # --- Warn about already-absent dropped columns ---
+        for col, rec in self.records.items():
+            if rec.strategy == ImputationStrategy.Dropped and col not in df.columns:
+                warnings.warn(
+                    f"Column '{col}' was recorded as Dropped during fit() but is "
+                    f"already absent from the input DataFrame. The drop is a no-op.",
+                    DroppedColumnAbsentWarning,
+                    stacklevel=2,
+                )
 
         # --- Drop columns ---
         dropped_cols = [
@@ -156,6 +218,7 @@ class FittedImputer:
             dataframe=result_df,
             records=dict(self.records),
             dropped_columns=dropped_cols,
+            exclusions_applied=self._exclusions_applied,
         )
 
     def to_dict(self) -> dict:

@@ -158,8 +158,15 @@ class ImputationResult:
         Per-column audit log keyed by column name.
     dropped_columns : list[str]
         Columns removed because they exceeded the drop threshold (>50% missing).
+    exclusions_applied : bool
+        ``True`` when ``FittedImputer.apply_exclusions`` was called before
+        ``transform()``, meaning dropped columns have been propagated into the
+        pipeline config's hard exclusion set. A future Phase 3 orchestrator
+        will raise if this is ``False`` when it receives an
+        ``ImputationResult``.
     """
 
     dataframe: pl.DataFrame
     records: dict[str, ColumnImputationRecord] = field(default_factory=dict)
     dropped_columns: list[str] = field(default_factory=list)
+    exclusions_applied: bool = False
