@@ -87,6 +87,20 @@ def test_transform_int_column_fills_with_rounded_value():
     assert result.dataframe["x"].dtype == pl.Int64
 
 
+def test_transform_int64_fill_value_above_2_pow_53_survives():
+    # 2^53 is the largest integer exactly representable in float64.
+    # Verifies the integer round-trip does not corrupt the value through a
+    # Float64 Polars intermediate (regression guard for the Scope 13b fix).
+    fill = float(2**53)  # exactly representable
+    imputer = FittedImputer(records={
+        "x": _record("x", ImputationStrategy.Mean, fill_value=fill),
+    })
+    df = pl.DataFrame({"x": pl.Series([2**53, None], dtype=pl.Int64)})
+    result = imputer.transform(df)
+    assert result.dataframe["x"].dtype == pl.Int64
+    assert result.dataframe["x"][1] == 2**53
+
+
 def test_transform_float_column_fills_nan_values():
     imputer = FittedImputer(records={
         "f": _record("f", ImputationStrategy.Median, fill_value=7.0),
