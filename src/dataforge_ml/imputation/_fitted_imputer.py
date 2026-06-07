@@ -8,6 +8,7 @@ to_dict() / from_dict() round-trips all scalar strategies and model-based strate
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -32,6 +33,19 @@ class UnfittedColumnError(Exception):
     fit() — i.e. the column had zero missing values in the training split.
 
     Typically indicates that a non-profile-stratified split was used.
+    """
+
+
+class DroppedColumnAbsentWarning(UserWarning):
+    """
+    Emitted by FittedImputer.transform() when a column recorded as
+    ``ImputationStrategy.Dropped`` during fit() is already absent from the
+    input DataFrame.
+
+    This typically means the caller pre-removed the column before calling
+    transform(). Transform continues normally; the warning is the only signal.
+    Suppress with
+    ``warnings.filterwarnings("ignore", category=DroppedColumnAbsentWarning)``.
     """
 
 
@@ -97,6 +111,13 @@ class FittedImputer:
         UnfittedColumnError
             If df has missing values in a column that had no missingness during
             fit() (strategy == Passthrough).
+
+        Warns
+        -----
+        DroppedColumnAbsentWarning
+            If a column recorded as Dropped during fit() is already absent from
+            df. One warning is emitted per absent column. Transform continues
+            normally.
         """
         df = _resolve_effective_nulls(df)
 
@@ -118,6 +139,16 @@ class FittedImputer:
                 f"values. Consider using DataSplitter.profile_stratified_split() "
                 f"to ensure missingness is represented in training data."
             )
+
+        # --- Warn about already-absent dropped columns ---
+        for col, rec in self.records.items():
+            if rec.strategy == ImputationStrategy.Dropped and col not in df.columns:
+                warnings.warn(
+                    f"Column '{col}' was recorded as Dropped during fit() but is "
+                    f"already absent from the input DataFrame. The drop is a no-op.",
+                    DroppedColumnAbsentWarning,
+                    stacklevel=2,
+                )
 
         # --- Drop columns ---
         dropped_cols = [

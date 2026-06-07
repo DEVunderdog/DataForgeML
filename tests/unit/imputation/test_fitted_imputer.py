@@ -4,6 +4,8 @@ Unit tests for FittedImputer.transform() and to_dict()/from_dict().
 FittedImputer is constructed directly with known records — no profiler run.
 """
 
+import warnings
+
 import polars as pl
 import pytest
 
@@ -13,7 +15,11 @@ from dataforge_ml.imputation._config import (
     ImputationResult,
     ImputationStrategy,
 )
-from dataforge_ml.imputation._fitted_imputer import FittedImputer, UnfittedColumnError
+from dataforge_ml.imputation._fitted_imputer import (
+    DroppedColumnAbsentWarning,
+    FittedImputer,
+    UnfittedColumnError,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -611,3 +617,64 @@ def test_fit_path_apply_exclusions_transform_stamps_field():
     result = imputer.transform(df)
     assert result.exclusions_applied is True
     assert "drop_me" in config.exclude_columns
+
+
+# ---------------------------------------------------------------------------
+# DroppedColumnAbsentWarning
+# ---------------------------------------------------------------------------
+
+
+def test_warning_emitted_when_dropped_column_already_absent():
+    imputer = FittedImputer(records={
+        "drop_me": _record("drop_me", ImputationStrategy.Dropped),
+        "keep_me": _record("keep_me", ImputationStrategy.Mean, fill_value=1.0),
+    })
+    df = pl.DataFrame({"keep_me": pl.Series([1.0, None], dtype=pl.Float64)})
+    with pytest.warns(DroppedColumnAbsentWarning):
+        imputer.transform(df)
+
+
+def test_warning_names_the_absent_column():
+    imputer = FittedImputer(records={
+        "target_col": _record("target_col", ImputationStrategy.Dropped),
+        "other": _record("other", ImputationStrategy.Mean, fill_value=0.0),
+    })
+    df = pl.DataFrame({"other": pl.Series([1.0, 2.0], dtype=pl.Float64)})
+    with pytest.warns(DroppedColumnAbsentWarning, match="target_col"):
+        imputer.transform(df)
+
+
+def test_transform_completes_despite_warning():
+    imputer = FittedImputer(records={
+        "drop_me": _record("drop_me", ImputationStrategy.Dropped),
+        "keep_me": _record("keep_me", ImputationStrategy.Mean, fill_value=3.0),
+    })
+    df = pl.DataFrame({"keep_me": pl.Series([1.0, None], dtype=pl.Float64)})
+    with pytest.warns(DroppedColumnAbsentWarning):
+        result = imputer.transform(df)
+    assert isinstance(result, ImputationResult)
+    assert "keep_me" in result.dataframe.columns
+    assert result.dataframe["keep_me"].null_count() == 0
+
+
+def test_no_warning_when_dropped_column_is_present_in_input():
+    imputer = FittedImputer(records={
+        "drop_me": _record("drop_me", ImputationStrategy.Dropped),
+    })
+    df = pl.DataFrame({"drop_me": pl.Series([None, 1.0], dtype=pl.Float64)})
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DroppedColumnAbsentWarning)
+        result = imputer.transform(df)
+    assert "drop_me" not in result.dataframe.columns
+
+
+def test_warning_is_suppressible_via_filter():
+    imputer = FittedImputer(records={
+        "drop_me": _record("drop_me", ImputationStrategy.Dropped),
+        "keep_me": _record("keep_me", ImputationStrategy.Mean, fill_value=1.0),
+    })
+    df = pl.DataFrame({"keep_me": pl.Series([1.0, None], dtype=pl.Float64)})
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=DroppedColumnAbsentWarning)
+        result = imputer.transform(df)
+    assert isinstance(result, ImputationResult)
