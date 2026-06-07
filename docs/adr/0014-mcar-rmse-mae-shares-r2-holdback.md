@@ -1,0 +1,7 @@
+# ADR 0014: MCAR RMSE/MAE evaluation shares the R² holdback pass — no separate masking pass
+
+The simulated-missingness RMSE/MAE evaluation (Scope 4) uses the same 20% held-back complete rows already established by ADR-0013 for `r2_train`. R², RMSE, and MAE are all computed in a single evaluation pass; the final stored model is then re-fit on all complete rows as ADR-0013 prescribes.
+
+The alternative — a separate MCAR masking pass that masks specific values within rows (rather than holding back whole rows) before running a full fit+transform — was rejected for two reasons. First, it requires an extra fit pass for every column (and for MICE, an extra full block fit), which is expensive at pipeline setup time and compounds with dataset size. Second, the additional fidelity over whole-row holdback is minimal in practice: for the purpose of reporting RMSE/MAE as a quality signal, the distinction between "masked value in an otherwise-present row" and "row withheld entirely from fitting" does not change the user's interpretation of the diagnostic. Changing to a separate masking pass later would silently alter the meaning of all existing `rmse`/`mae` values in serialised `FittedImputer` records.
+
+For MICE, the holdback is the intersection of rows complete across all MICE columns. If that intersection is smaller than `refit_r2_min_complete_rows`, `r2_train`, `rmse`, and `mae` all go `None` together — one guard, one decision.
