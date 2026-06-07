@@ -26,6 +26,7 @@ from ._config import (
     ImputationStrategy,
     NumericImputationConfig,
 )
+from ._utils import _df_to_numpy
 
 if TYPE_CHECKING:
     from ..profiling._config import ColumnProfile, StructuralProfileResult
@@ -339,15 +340,6 @@ def _fallback_to_median(
 # ---------------------------------------------------------------------------
 # Scalar statistics helpers
 # ---------------------------------------------------------------------------
-
-
-def _df_to_numpy(df: pl.DataFrame, cols: list[str]) -> np.ndarray:
-    """Extract columns as float64 numpy array, converting Polars nulls to NaN."""
-    return (
-        df.select([pl.col(c).cast(pl.Float64).fill_null(float("nan")) for c in cols])
-        .to_numpy()
-        .astype(np.float64)
-    )
 
 
 def _clean(series: pl.Series) -> pl.Series:

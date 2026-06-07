@@ -22,6 +22,7 @@ from ._config import (
 )
 from ..models._data_types import _INT_DTYPES, _FLOAT_DTYPES
 from ..utils._null_normalization import _resolve_effective_nulls
+from ._utils import _df_to_numpy, _numpy_to_df
 
 
 class UnfittedColumnError(Exception):
@@ -264,27 +265,3 @@ def _apply_regression(
     return _numpy_to_df(df, [col], target_arr.reshape(-1, 1))
 
 
-def _df_to_numpy(df: pl.DataFrame, cols: list[str]) -> np.ndarray:
-    """Extract columns as float64 numpy array, converting Polars nulls to NaN."""
-    return (
-        df.select([pl.col(c).cast(pl.Float64).fill_null(float("nan")) for c in cols])
-        .to_numpy()
-        .astype(np.float64)
-    )
-
-
-def _numpy_to_df(df: pl.DataFrame, cols: list[str], arr: np.ndarray) -> pl.DataFrame:
-    """Replace column values in df with values from arr, preserving original dtypes."""
-    new_cols = []
-    for i, col in enumerate(cols):
-        dtype = df.schema[col]
-        col_arr = arr[:, i]
-        if dtype in _INT_DTYPES:
-            new_cols.append(
-                pl.Series(col, np.round(col_arr), dtype=pl.Float64).cast(dtype)
-            )
-        elif dtype in _FLOAT_DTYPES:
-            new_cols.append(pl.Series(col, col_arr, dtype=pl.Float64).cast(dtype))
-        else:
-            new_cols.append(pl.Series(col, col_arr, dtype=pl.Float64).cast(dtype))
-    return df.with_columns(new_cols)
