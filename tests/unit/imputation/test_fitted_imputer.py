@@ -465,3 +465,100 @@ def test_deserialised_imputer_produces_identical_output():
     r2 = restored.transform(df)
     assert r1.dataframe.equals(r2.dataframe)
     assert r1.dropped_columns == r2.dropped_columns
+
+
+# ---------------------------------------------------------------------------
+# _exclusions_applied — initial state
+# ---------------------------------------------------------------------------
+
+
+def test_exclusions_applied_is_false_on_fresh_imputer():
+    imputer = FittedImputer(records={
+        "a": _record("a", ImputationStrategy.Mean, fill_value=1.0),
+    })
+    assert imputer._exclusions_applied is False
+
+
+# ---------------------------------------------------------------------------
+# apply_exclusions — config mutation and flag
+# ---------------------------------------------------------------------------
+
+
+def test_apply_exclusions_adds_dropped_columns_to_config():
+    from dataforge_ml.config import PipelineConfig
+    imputer = FittedImputer(records={
+        "drop_me": _record("drop_me", ImputationStrategy.Dropped),
+        "keep_me": _record("keep_me", ImputationStrategy.Mean, fill_value=1.0),
+    })
+    config = PipelineConfig()
+    imputer.apply_exclusions(config)
+    assert "drop_me" in config.exclude_columns
+    assert "keep_me" not in config.exclude_columns
+
+
+def test_apply_exclusions_sets_exclusions_applied_true():
+    from dataforge_ml.config import PipelineConfig
+    imputer = FittedImputer(records={
+        "drop_me": _record("drop_me", ImputationStrategy.Dropped),
+    })
+    config = PipelineConfig()
+    imputer.apply_exclusions(config)
+    assert imputer._exclusions_applied is True
+
+
+def test_apply_exclusions_with_no_dropped_columns_is_no_op_on_config():
+    from dataforge_ml.config import PipelineConfig
+    imputer = FittedImputer(records={
+        "a": _record("a", ImputationStrategy.Mean, fill_value=1.0),
+    })
+    config = PipelineConfig()
+    imputer.apply_exclusions(config)
+    assert config.exclude_columns == []
+
+
+def test_apply_exclusions_with_no_dropped_columns_still_sets_flag():
+    from dataforge_ml.config import PipelineConfig
+    imputer = FittedImputer(records={
+        "a": _record("a", ImputationStrategy.Mean, fill_value=1.0),
+    })
+    config = PipelineConfig()
+    imputer.apply_exclusions(config)
+    assert imputer._exclusions_applied is True
+
+
+def test_apply_exclusions_twice_is_idempotent():
+    from dataforge_ml.config import PipelineConfig
+    imputer = FittedImputer(records={
+        "drop_me": _record("drop_me", ImputationStrategy.Dropped),
+    })
+    config = PipelineConfig()
+    imputer.apply_exclusions(config)
+    imputer.apply_exclusions(config)
+    assert config.exclude_columns.count("drop_me") == 1
+
+
+# ---------------------------------------------------------------------------
+# apply_exclusions — serialisation round-trip
+# ---------------------------------------------------------------------------
+
+
+def test_exclusions_applied_is_false_after_from_dict_round_trip():
+    from dataforge_ml.config import PipelineConfig
+    imputer = FittedImputer(records={
+        "drop_me": _record("drop_me", ImputationStrategy.Dropped),
+    })
+    config = PipelineConfig()
+    imputer.apply_exclusions(config)
+    assert imputer._exclusions_applied is True
+
+    restored = FittedImputer.from_dict(imputer.to_dict())
+    assert restored._exclusions_applied is False
+
+
+def test_to_dict_does_not_contain_exclusions_applied_key():
+    imputer = FittedImputer(records={
+        "drop_me": _record("drop_me", ImputationStrategy.Dropped),
+    })
+    d = imputer.to_dict()
+    assert "_exclusions_applied" not in d
+    assert "exclusions_applied" not in d

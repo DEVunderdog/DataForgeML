@@ -14,7 +14,7 @@ from typing import Any
 import numpy as np
 import polars as pl
 
-from ..config import SemanticType
+from ..config import PipelineConfig, SemanticType
 from ._config import (
     ColumnImputationRecord,
     ImputationResult,
@@ -56,6 +56,37 @@ class FittedImputer:
     records: dict[str, ColumnImputationRecord] = field(default_factory=dict)
     models: dict[str, Any] = field(default_factory=dict)
     model_cols: dict[str, list[str]] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        self._exclusions_applied: bool = False
+
+    def apply_exclusions(self, config: PipelineConfig) -> None:
+        """Propagate dropped columns into the pipeline config's hard exclusion set.
+
+        Reads all columns recorded with ``ImputationStrategy.Dropped`` and
+        passes them to ``config.add_exclusions``. Sets ``_exclusions_applied``
+        to ``True`` regardless of whether any dropped columns exist, so callers
+        can invoke this method unconditionally without branching on whether any
+        columns were dropped.
+
+        Propagation is caller-initiated per ADR 0023: ``fit()`` does not touch
+        ``PipelineConfig``, preserving re-fit idempotency. A fresh call is
+        required after deserialising via ``from_dict()`` because
+        ``_exclusions_applied`` is not persisted across serialisation.
+
+        Parameters
+        ----------
+        config : PipelineConfig
+            Pipeline config to update. Dropped columns are unioned into
+            ``config.exclude_columns`` via ``add_exclusions``, so duplicate
+            calls are safe.
+        """
+        dropped = [
+            col for col, rec in self.records.items()
+            if rec.strategy == ImputationStrategy.Dropped
+        ]
+        config.add_exclusions(dropped)
+        self._exclusions_applied = True
 
     def transform(self, df: pl.DataFrame) -> ImputationResult:
         """
