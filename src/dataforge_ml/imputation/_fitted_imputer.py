@@ -15,7 +15,7 @@ from typing import Any
 import numpy as np
 import polars as pl
 
-from ..config import PipelineConfig, SemanticType
+from ..config import PipelineConfig, PipelinePhase, SemanticType
 from ._config import (
     ColumnImputationRecord,
     ImputationResult,
@@ -49,6 +49,33 @@ class DroppedColumnAbsentWarning(UserWarning):
     """
 
 
+class UnseenColumnError(Exception):
+    """
+    Raised by FittedImputer.transform() when the input DataFrame contains
+    columns that were not present in the training DataFrame during fit().
+
+    Fires before any DataFrame mutations regardless of whether the unknown
+    columns contain missing values, so schema drift is caught at transform
+    entry rather than silently propagating downstream (ADR 0026).
+
+    All unknown column names are reported in a single raise so the caller
+    can resolve all schema mismatches at once.
+    """
+
+
+class FittedColumnAbsentError(Exception):
+    """
+    Raised by FittedImputer.transform() when a column that received an active
+    imputation strategy during fit() is absent from the input DataFrame.
+
+    Active strategies are any strategy other than ``Dropped`` or ``Indicator``.
+    Absence of such a column is always a pipeline bug — imputation was never
+    applied — so this is escalated to an error rather than a warning.
+
+    All absent column names are reported in a single raise.
+    """
+
+
 @dataclass
 class FittedImputer:
     """
@@ -75,31 +102,55 @@ class FittedImputer:
         self._exclusions_applied: bool = False
 
     def apply_exclusions(self, config: PipelineConfig) -> None:
-        """Propagate dropped columns into the pipeline config's hard exclusion set.
+        """Propagate dropped and indicator columns into the pipeline config.
 
-        Reads all columns recorded with ``ImputationStrategy.Dropped`` and
-        passes them to ``config.add_exclusions``. Sets ``_exclusions_applied``
-        to ``True`` regardless of whether any dropped columns exist, so callers
-        can invoke this method unconditionally without branching on whether any
-        columns were dropped.
+        Hard Exclusions (ADR 0023): columns recorded with
+        ``ImputationStrategy.Dropped`` are added to ``config.exclude_columns``
+        via ``add_exclusions``, removing them from every downstream phase.
 
-        Propagation is caller-initiated per ADR 0023: ``fit()`` does not touch
+        Soft Exclusions: columns recorded with ``ImputationStrategy.Indicator``
+        are registered in ``config.phase_exclusions`` for Phases 3–6
+        (OutlierDetection, Normalization, Encoding, Scaling), so those phases
+        skip indicator columns without removing them from the dataset.
+
+        Sets ``_exclusions_applied`` to ``True`` regardless of whether any
+        excluded columns exist, so callers can invoke this method
+        unconditionally without branching.
+
+        Propagation is caller-initiated: ``fit()`` does not touch
         ``PipelineConfig``, preserving re-fit idempotency. A fresh call is
         required after deserialising via ``from_dict()`` because
         ``_exclusions_applied`` is not persisted across serialisation.
+        Duplicate calls are safe — both hard and soft exclusion registrations
+        deduplicate automatically.
 
         Parameters
         ----------
         config : PipelineConfig
-            Pipeline config to update. Dropped columns are unioned into
-            ``config.exclude_columns`` via ``add_exclusions``, so duplicate
-            calls are safe.
+            Pipeline config to update.
         """
         dropped = [
             col for col, rec in self.records.items()
             if rec.strategy == ImputationStrategy.Dropped
         ]
         config.add_exclusions(dropped)
+
+        indicator_cols = [
+            col for col, rec in self.records.items()
+            if rec.strategy == ImputationStrategy.Indicator
+        ]
+        _soft_phases = [
+            PipelinePhase.OutlierDetection,
+            PipelinePhase.Normalization,
+            PipelinePhase.Encoding,
+            PipelinePhase.Scaling,
+        ]
+        for phase in _soft_phases:
+            existing = set(config.phase_exclusions.get(phase, []))
+            new_cols = [c for c in indicator_cols if c not in existing]
+            if new_cols:
+                config.phase_exclusions.setdefault(phase, []).extend(new_cols)
+
         self._exclusions_applied = True
 
     def transform(self, df: pl.DataFrame) -> ImputationResult:
@@ -108,6 +159,14 @@ class FittedImputer:
 
         Raises
         ------
+        UnseenColumnError
+            If df contains any column absent from ``self.records``. Fires before
+            any DataFrame mutations regardless of whether the unknown column has
+            missing values. All unknown column names are reported in one raise.
+        FittedColumnAbsentError
+            If a column with an active imputation strategy (any strategy other
+            than ``Dropped`` or ``Indicator``) is absent from df. All absent
+            column names are reported in one raise.
         UnfittedColumnError
             If df has missing values in a column that had no missingness during
             fit() (strategy == Passthrough).
@@ -119,6 +178,30 @@ class FittedImputer:
             df. One warning is emitted per absent column. Transform continues
             normally.
         """
+        # --- UnseenColumnError check (before any mutations) ---
+        unseen = [col for col in df.columns if col not in self.records]
+        if unseen:
+            cols_str = ", ".join(f"'{c}'" for c in unseen)
+            raise UnseenColumnError(
+                f"Column(s) {cols_str} were not present in the training DataFrame "
+                f"during fit() and have no entry in the schema manifest. Schema "
+                f"drift between fit and transform is not permitted."
+            )
+
+        # --- FittedColumnAbsentError check (before any mutations) ---
+        _absent_exempt = {ImputationStrategy.Dropped, ImputationStrategy.Indicator}
+        absent = [
+            col for col, rec in self.records.items()
+            if rec.strategy not in _absent_exempt and col not in df.columns
+        ]
+        if absent:
+            cols_str = ", ".join(f"'{c}'" for c in absent)
+            raise FittedColumnAbsentError(
+                f"Column(s) {cols_str} were fitted with an active imputation "
+                f"strategy but are absent from the input DataFrame. Imputation "
+                f"cannot be applied to absent columns."
+            )
+
         df = _resolve_effective_nulls(df)
 
         # --- Passthrough violation check ---

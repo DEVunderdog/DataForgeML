@@ -5,7 +5,12 @@ from ._config import (
     ImputationStrategy,
     NumericImputationConfig,
 )
-from ._fitted_imputer import FittedImputer, UnfittedColumnError
+from ._fitted_imputer import (
+    FittedColumnAbsentError,
+    FittedImputer,
+    UnfittedColumnError,
+    UnseenColumnError,
+)
 from .orchestrator import ImputationOrchestrator, SplitImbalanceWarning
 
 __all__ = [
@@ -16,6 +21,8 @@ __all__ = [
     "ImputationResult",
     "FittedImputer",
     "UnfittedColumnError",
+    "UnseenColumnError",
+    "FittedColumnAbsentError",
     "ImputationOrchestrator",
     "SplitImbalanceWarning",
 ]

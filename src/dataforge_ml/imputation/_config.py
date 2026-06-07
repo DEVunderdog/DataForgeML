@@ -26,6 +26,7 @@ class ImputationStrategy(StrEnum):
     Constant = "constant"
     Dropped = "dropped"
     Passthrough = "passthrough"
+    Indicator = "indicator"
 
 
 @dataclass
