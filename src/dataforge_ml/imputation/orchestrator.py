@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 import polars as pl
 
 from ..config import PipelineConfig, SemanticType
-from ._config import ImputationResult
+from ._config import ColumnImputationRecord, ImputationResult, ImputationStrategy
 from ._fitted_imputer import FittedImputer
 from ._numeric_imputer import NumericImputer, _NumericFitBundle
 from ..utils._null_normalization import _resolve_effective_nulls
@@ -115,6 +115,34 @@ class ImputationOrchestrator:
                 recs = result
             for rec in recs:
                 all_records[rec.column] = rec
+
+        # Passthrough pass: register every train_df column not handled by a sub-processor
+        for col in train_df.columns:
+            if col in all_records:
+                continue
+            cp = profile.columns.get(col)
+            if cp is None or cp.semantic_type is None:
+                continue
+            all_records[col] = ColumnImputationRecord(
+                column=col,
+                semantic_type=cp.semantic_type,
+                strategy=ImputationStrategy.Passthrough,
+                fill_value=None,
+                indicator_added=False,
+            )
+
+        # Indicator pass: pre-register {col}_missing columns that transform() will produce
+        for col, rec in list(all_records.items()):
+            if not rec.indicator_added:
+                continue
+            indicator_col = f"{col}_missing"
+            all_records[indicator_col] = ColumnImputationRecord(
+                column=indicator_col,
+                semantic_type=SemanticType.Boolean,
+                strategy=ImputationStrategy.Indicator,
+                fill_value=None,
+                indicator_added=False,
+            )
 
         return FittedImputer(
             records=all_records,

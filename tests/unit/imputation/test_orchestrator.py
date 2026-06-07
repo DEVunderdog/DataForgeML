@@ -8,6 +8,7 @@ import polars as pl
 import pytest
 
 from dataforge_ml.config import PipelineConfig, SemanticType
+from dataforge_ml.imputation._config import ImputationStrategy
 from dataforge_ml.imputation._fitted_imputer import FittedImputer
 from dataforge_ml.imputation.orchestrator import (
     ImputationOrchestrator,
@@ -111,7 +112,7 @@ def test_fit_records_all_numeric_columns():
 # ---------------------------------------------------------------------------
 
 
-def test_text_columns_absent_from_records():
+def test_text_columns_in_records_with_passthrough():
     df = pl.DataFrame({
         "num": pl.Series([1.0, None], dtype=pl.Float64),
         "txt": pl.Series(["hello", "world"], dtype=pl.Utf8),
@@ -121,10 +122,12 @@ def test_text_columns_absent_from_records():
     profile = _make_profile({"num": num_cp, "txt": txt_cp})
 
     fi = ImputationOrchestrator().fit(df, profile)
-    assert "txt" not in fi.records
+    assert "txt" in fi.records
+    assert fi.records["txt"].strategy == ImputationStrategy.Passthrough
+    assert fi.records["txt"].semantic_type == SemanticType.Text
 
 
-def test_identifier_columns_absent_from_records():
+def test_identifier_columns_in_records_with_passthrough():
     df = pl.DataFrame({
         "num": pl.Series([1.0, None], dtype=pl.Float64),
         "id_col": pl.Series(["A001", "A002"], dtype=pl.Utf8),
@@ -134,7 +137,9 @@ def test_identifier_columns_absent_from_records():
     profile = _make_profile({"num": num_cp, "id_col": id_cp})
 
     fi = ImputationOrchestrator().fit(df, profile)
-    assert "id_col" not in fi.records
+    assert "id_col" in fi.records
+    assert fi.records["id_col"].strategy == ImputationStrategy.Passthrough
+    assert fi.records["id_col"].semantic_type == SemanticType.Identifier
 
 
 # ---------------------------------------------------------------------------
@@ -264,3 +269,171 @@ def test_fit_transform_is_equivalent_to_fit_then_transform():
     r1 = orch.fit_transform(df, profile)
     r2 = orch.fit(df, profile).transform(df)
     assert r1.dataframe.equals(r2.dataframe)
+
+
+# ---------------------------------------------------------------------------
+# fit() — schema manifest: Passthrough records for all unhandled columns
+# ---------------------------------------------------------------------------
+
+
+def _categorical_cp(col: str) -> ColumnProfile:
+    return ColumnProfile(name=col, semantic_type=SemanticType.Categorical)
+
+
+def test_text_column_passthrough_record_fill_value_is_none():
+    df = pl.DataFrame({"txt": pl.Series(["a", "b"], dtype=pl.Utf8)})
+    profile = _make_profile({"txt": ColumnProfile(name="txt", semantic_type=SemanticType.Text)})
+    fi = ImputationOrchestrator().fit(df, profile)
+    assert fi.records["txt"].fill_value is None
+
+
+def test_text_column_passthrough_record_indicator_added_is_false():
+    df = pl.DataFrame({"txt": pl.Series(["a", "b"], dtype=pl.Utf8)})
+    profile = _make_profile({"txt": ColumnProfile(name="txt", semantic_type=SemanticType.Text)})
+    fi = ImputationOrchestrator().fit(df, profile)
+    assert fi.records["txt"].indicator_added is False
+
+
+def test_identifier_column_passthrough_record_semantic_type():
+    df = pl.DataFrame({"id": pl.Series(["X1", "X2"], dtype=pl.Utf8)})
+    profile = _make_profile({"id": ColumnProfile(name="id", semantic_type=SemanticType.Identifier)})
+    fi = ImputationOrchestrator().fit(df, profile)
+    assert fi.records["id"].semantic_type == SemanticType.Identifier
+
+
+def test_categorical_column_with_no_fill_strategy_gets_passthrough():
+    df = pl.DataFrame({
+        "num": pl.Series([1.0, None], dtype=pl.Float64),
+        "cat": pl.Series(["a", "b"], dtype=pl.Utf8),
+    })
+    profile = _make_profile({
+        "num": _numeric_cp_with_nulls("num"),
+        "cat": _categorical_cp("cat"),
+    })
+    fi = ImputationOrchestrator().fit(df, profile)
+    assert "cat" in fi.records
+    assert fi.records["cat"].strategy == ImputationStrategy.Passthrough
+    assert fi.records["cat"].semantic_type == SemanticType.Categorical
+
+
+def test_numeric_column_already_in_records_is_not_overwritten_by_passthrough():
+    """Sub-processor result must win over the Passthrough pass for numeric columns."""
+    df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
+    profile = _make_profile({"a": _numeric_cp_with_nulls("a")})
+    fi = ImputationOrchestrator().fit(df, profile)
+    assert fi.records["a"].strategy != ImputationStrategy.Passthrough
+
+
+def test_all_train_df_profiled_columns_in_records():
+    """Every column in train_df that has a profile entry must appear in records."""
+    df = pl.DataFrame({
+        "num": pl.Series([1.0, None], dtype=pl.Float64),
+        "txt": pl.Series(["x", "y"], dtype=pl.Utf8),
+        "id": pl.Series(["A", "B"], dtype=pl.Utf8),
+    })
+    profile = _make_profile({
+        "num": _numeric_cp_with_nulls("num"),
+        "txt": ColumnProfile(name="txt", semantic_type=SemanticType.Text),
+        "id": ColumnProfile(name="id", semantic_type=SemanticType.Identifier),
+    })
+    fi = ImputationOrchestrator().fit(df, profile)
+    assert "num" in fi.records
+    assert "txt" in fi.records
+    assert "id" in fi.records
+
+
+# ---------------------------------------------------------------------------
+# fit() — schema manifest: Indicator records pre-registered at fit time
+# ---------------------------------------------------------------------------
+
+
+def _numeric_cp_mnar(col: str) -> ColumnProfile:
+    return ColumnProfile(
+        name=col,
+        semantic_type=SemanticType.Numeric,
+        numeric_kind=None,
+        missingness=ColumnMissingnessProfile(
+            column=col, total_rows=100,
+            effective_null_count=10,
+            effective_null_ratio=0.10,
+            severity=MissingSeverity.Minor,
+        ),
+        stats=NumericStats(),
+    )
+
+
+def test_indicator_record_present_in_records_after_fit_before_transform():
+    from dataforge_ml.config import PipelineConfig
+
+    df = pl.DataFrame({"income": pl.Series([1.0, None, 3.0] * 4, dtype=pl.Float64)})
+    profile = _make_profile({"income": _numeric_cp_mnar("income")})
+
+    cfg = PipelineConfig()
+    cfg.imputation.mnar_columns = ["income"]
+    fi = ImputationOrchestrator(cfg).fit(df, profile)
+
+    assert "income_missing" in fi.records
+
+
+def test_indicator_record_has_strategy_indicator():
+    from dataforge_ml.config import PipelineConfig
+
+    df = pl.DataFrame({"income": pl.Series([1.0, None, 3.0] * 4, dtype=pl.Float64)})
+    profile = _make_profile({"income": _numeric_cp_mnar("income")})
+
+    cfg = PipelineConfig()
+    cfg.imputation.mnar_columns = ["income"]
+    fi = ImputationOrchestrator(cfg).fit(df, profile)
+
+    assert fi.records["income_missing"].strategy == ImputationStrategy.Indicator
+
+
+def test_indicator_record_has_boolean_semantic_type():
+    from dataforge_ml.config import PipelineConfig
+
+    df = pl.DataFrame({"income": pl.Series([1.0, None, 3.0] * 4, dtype=pl.Float64)})
+    profile = _make_profile({"income": _numeric_cp_mnar("income")})
+
+    cfg = PipelineConfig()
+    cfg.imputation.mnar_columns = ["income"]
+    fi = ImputationOrchestrator(cfg).fit(df, profile)
+
+    assert fi.records["income_missing"].semantic_type == SemanticType.Boolean
+
+
+def test_indicator_record_indicator_added_is_false():
+    from dataforge_ml.config import PipelineConfig
+
+    df = pl.DataFrame({"income": pl.Series([1.0, None, 3.0] * 4, dtype=pl.Float64)})
+    profile = _make_profile({"income": _numeric_cp_mnar("income")})
+
+    cfg = PipelineConfig()
+    cfg.imputation.mnar_columns = ["income"]
+    fi = ImputationOrchestrator(cfg).fit(df, profile)
+
+    assert fi.records["income_missing"].indicator_added is False
+
+
+def test_indicator_record_not_present_when_no_indicator_added_columns():
+    df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
+    profile = _make_profile({"a": _numeric_cp_with_nulls("a")})
+    fi = ImputationOrchestrator().fit(df, profile)
+    indicator_cols = [c for c in fi.records if c.endswith("_missing")]
+    assert indicator_cols == []
+
+
+def test_indicator_record_round_trips_via_to_dict_from_dict():
+    from dataforge_ml.config import PipelineConfig
+
+    df = pl.DataFrame({"income": pl.Series([1.0, None, 3.0] * 4, dtype=pl.Float64)})
+    profile = _make_profile({"income": _numeric_cp_mnar("income")})
+
+    cfg = PipelineConfig()
+    cfg.imputation.mnar_columns = ["income"]
+    fi = ImputationOrchestrator(cfg).fit(df, profile)
+
+    from dataforge_ml.imputation._fitted_imputer import FittedImputer
+    restored = FittedImputer.from_dict(fi.to_dict())
+    assert "income_missing" in restored.records
+    assert restored.records["income_missing"].strategy == ImputationStrategy.Indicator
+    assert restored.records["income_missing"].semantic_type == SemanticType.Boolean

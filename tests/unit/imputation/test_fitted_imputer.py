@@ -17,8 +17,10 @@ from dataforge_ml.imputation._config import (
 )
 from dataforge_ml.imputation._fitted_imputer import (
     DroppedColumnAbsentWarning,
+    FittedColumnAbsentError,
     FittedImputer,
     UnfittedColumnError,
+    UnseenColumnError,
 )
 
 
@@ -257,35 +259,145 @@ def test_unfitted_column_error_names_all_offending_columns():
     assert "col_b" in msg
 
 
-def test_columns_not_in_records_do_not_trigger_unfitted_column_error():
-    """Columns outside the active set (not in records) must not raise UnfittedColumnError."""
+def test_unfitted_column_error_not_raised_for_passthrough_column_absent_from_df():
+    """FittedColumnAbsentError fires (not UnfittedColumnError) when a Passthrough column is absent."""
     imputer = FittedImputer(records={
-        "num": _record("num", ImputationStrategy.Mean, fill_value=5.0),
+        "clean": _record("clean", ImputationStrategy.Passthrough),
+        "other": _record("other", ImputationStrategy.Mean, fill_value=1.0),
     })
-    df = pl.DataFrame({
-        "num": pl.Series([1.0, None], dtype=pl.Float64),
-        "txt": pl.Series([None, "hello"], dtype=pl.Utf8),
-    })
-    result = imputer.transform(df)
-    assert "txt" in result.dataframe.columns
+    df = pl.DataFrame({"other": pl.Series([1.0, 2.0], dtype=pl.Float64)})
+    with pytest.raises(FittedColumnAbsentError):
+        imputer.transform(df)
 
 
 # ---------------------------------------------------------------------------
-# transform() — columns not in records pass through unchanged
+# transform() — UnseenColumnError schema enforcement
 # ---------------------------------------------------------------------------
 
 
-def test_columns_not_in_records_pass_through():
+def test_unseen_column_error_fires_for_column_not_in_records():
     imputer = FittedImputer(records={
-        "a": _record("a", ImputationStrategy.Mean, fill_value=1.0),
+        "a": _record("a", ImputationStrategy.Mean, fill_value=5.0),
     })
     df = pl.DataFrame({
         "a": pl.Series([1.0, None], dtype=pl.Float64),
-        "b": pl.Series(["x", "y"], dtype=pl.Utf8),
+        "unknown": pl.Series(["x", "y"], dtype=pl.Utf8),
     })
+    with pytest.raises(UnseenColumnError, match="unknown"):
+        imputer.transform(df)
+
+
+def test_unseen_column_error_fires_even_when_unknown_column_has_no_nulls():
+    imputer = FittedImputer(records={
+        "a": _record("a", ImputationStrategy.Mean, fill_value=5.0),
+    })
+    df = pl.DataFrame({
+        "a": pl.Series([1.0, 2.0], dtype=pl.Float64),
+        "extra": pl.Series(["x", "y"], dtype=pl.Utf8),
+    })
+    with pytest.raises(UnseenColumnError):
+        imputer.transform(df)
+
+
+def test_unseen_column_error_names_all_unknown_columns_in_single_raise():
+    imputer = FittedImputer(records={
+        "a": _record("a", ImputationStrategy.Mean, fill_value=5.0),
+    })
+    df = pl.DataFrame({
+        "a": pl.Series([1.0, None], dtype=pl.Float64),
+        "ghost1": pl.Series(["x", "y"], dtype=pl.Utf8),
+        "ghost2": pl.Series([1, 2], dtype=pl.Int64),
+    })
+    with pytest.raises(UnseenColumnError) as exc_info:
+        imputer.transform(df)
+    msg = str(exc_info.value)
+    assert "ghost1" in msg
+    assert "ghost2" in msg
+
+
+def test_unseen_column_error_fires_before_resolve_effective_nulls():
+    """UnseenColumnError must fire before any DataFrame mutation (incl. null normalisation)."""
+    imputer = FittedImputer(records={
+        "a": _record("a", ImputationStrategy.Mean, fill_value=5.0),
+    })
+    df = pl.DataFrame({
+        "a": pl.Series([float("inf"), None], dtype=pl.Float64),
+        "unseen": pl.Series([1.0, 2.0], dtype=pl.Float64),
+    })
+    with pytest.raises(UnseenColumnError):
+        imputer.transform(df)
+
+
+# ---------------------------------------------------------------------------
+# transform() — FittedColumnAbsentError schema enforcement
+# ---------------------------------------------------------------------------
+
+
+def test_fitted_column_absent_error_fires_for_active_strategy_column_absent():
+    imputer = FittedImputer(records={
+        "a": _record("a", ImputationStrategy.Mean, fill_value=5.0),
+        "b": _record("b", ImputationStrategy.Median, fill_value=3.0),
+    })
+    df = pl.DataFrame({"a": pl.Series([1.0, None], dtype=pl.Float64)})
+    with pytest.raises(FittedColumnAbsentError, match="b"):
+        imputer.transform(df)
+
+
+def test_fitted_column_absent_error_names_all_absent_columns():
+    imputer = FittedImputer(records={
+        "a": _record("a", ImputationStrategy.Mean, fill_value=5.0),
+        "b": _record("b", ImputationStrategy.Median, fill_value=3.0),
+        "c": _record("c", ImputationStrategy.Mode, fill_value=1.0),
+    })
+    df = pl.DataFrame({"a": pl.Series([1.0, None], dtype=pl.Float64)})
+    with pytest.raises(FittedColumnAbsentError) as exc_info:
+        imputer.transform(df)
+    msg = str(exc_info.value)
+    assert "b" in msg
+    assert "c" in msg
+
+
+def test_fitted_column_absent_error_does_not_fire_for_dropped_column_absent():
+    imputer = FittedImputer(records={
+        "a": _record("a", ImputationStrategy.Mean, fill_value=5.0),
+        "drop_me": _record("drop_me", ImputationStrategy.Dropped),
+    })
+    df = pl.DataFrame({"a": pl.Series([1.0, None], dtype=pl.Float64)})
+    with pytest.warns(DroppedColumnAbsentWarning):
+        result = imputer.transform(df)
+    assert isinstance(result, ImputationResult)
+
+
+def test_fitted_column_absent_error_does_not_fire_for_indicator_column_absent():
+    imputer = FittedImputer(records={
+        "a": _record("a", ImputationStrategy.Mean, fill_value=5.0),
+        "a_missing": ColumnImputationRecord(
+            column="a_missing",
+            semantic_type=SemanticType.Boolean,
+            strategy=ImputationStrategy.Indicator,
+            fill_value=None,
+            indicator_added=False,
+            signals=[],
+        ),
+    })
+    df = pl.DataFrame({"a": pl.Series([1.0, None], dtype=pl.Float64)})
     result = imputer.transform(df)
-    assert "b" in result.dataframe.columns
-    assert result.dataframe["b"].to_list() == ["x", "y"]
+    assert isinstance(result, ImputationResult)
+
+
+def test_unseen_column_error_fires_before_fitted_column_absent_error():
+    """When both conditions apply, UnseenColumnError must be the one raised."""
+    imputer = FittedImputer(records={
+        "a": _record("a", ImputationStrategy.Mean, fill_value=5.0),
+        "b": _record("b", ImputationStrategy.Median, fill_value=3.0),
+    })
+    # df has 'a' and an unseen 'extra'; 'b' is absent from df
+    df = pl.DataFrame({
+        "a": pl.Series([1.0, None], dtype=pl.Float64),
+        "extra": pl.Series(["x", "y"], dtype=pl.Utf8),
+    })
+    with pytest.raises(UnseenColumnError):
+        imputer.transform(df)
 
 
 # ---------------------------------------------------------------------------
@@ -544,6 +656,112 @@ def test_apply_exclusions_twice_is_idempotent():
 
 
 # ---------------------------------------------------------------------------
+# apply_exclusions — Soft Exclusion registration for Indicator columns
+# ---------------------------------------------------------------------------
+
+
+def _indicator_record(col: str) -> ColumnImputationRecord:
+    return ColumnImputationRecord(
+        column=col,
+        semantic_type=SemanticType.Boolean,
+        strategy=ImputationStrategy.Indicator,
+        fill_value=None,
+        indicator_added=False,
+        signals=[],
+    )
+
+
+def test_apply_exclusions_registers_indicator_column_in_phase_exclusions():
+    from dataforge_ml.config import PipelineConfig, PipelinePhase
+    imputer = FittedImputer(records={
+        "a": _record("a", ImputationStrategy.Mean, fill_value=1.0),
+        "a_missing": _indicator_record("a_missing"),
+    })
+    config = PipelineConfig()
+    imputer.apply_exclusions(config)
+    assert "a_missing" in config.phase_exclusions.get(PipelinePhase.Normalization, [])
+
+
+def test_apply_exclusions_registers_indicator_for_all_four_soft_phases():
+    from dataforge_ml.config import PipelineConfig, PipelinePhase
+    imputer = FittedImputer(records={
+        "x": _record("x", ImputationStrategy.Constant, fill_value=-1.0),
+        "x_missing": _indicator_record("x_missing"),
+    })
+    config = PipelineConfig()
+    imputer.apply_exclusions(config)
+    for phase in [
+        PipelinePhase.OutlierDetection,
+        PipelinePhase.Normalization,
+        PipelinePhase.Encoding,
+        PipelinePhase.Scaling,
+    ]:
+        assert "x_missing" in config.phase_exclusions.get(phase, []), phase
+
+
+def test_apply_exclusions_registers_multiple_indicator_columns():
+    from dataforge_ml.config import PipelineConfig, PipelinePhase
+    imputer = FittedImputer(records={
+        "a": _record("a", ImputationStrategy.Constant, fill_value=-1.0),
+        "a_missing": _indicator_record("a_missing"),
+        "b": _record("b", ImputationStrategy.Constant, fill_value=-1.0),
+        "b_missing": _indicator_record("b_missing"),
+    })
+    config = PipelineConfig()
+    imputer.apply_exclusions(config)
+    norm = config.phase_exclusions.get(PipelinePhase.Normalization, [])
+    assert "a_missing" in norm
+    assert "b_missing" in norm
+
+
+def test_apply_exclusions_indicator_not_added_to_hard_exclusions():
+    from dataforge_ml.config import PipelineConfig
+    imputer = FittedImputer(records={
+        "a": _record("a", ImputationStrategy.Mean, fill_value=1.0),
+        "a_missing": _indicator_record("a_missing"),
+    })
+    config = PipelineConfig()
+    imputer.apply_exclusions(config)
+    assert "a_missing" not in config.exclude_columns
+
+
+def test_apply_exclusions_dropped_still_hard_excluded_alongside_indicator():
+    from dataforge_ml.config import PipelineConfig, PipelinePhase
+    imputer = FittedImputer(records={
+        "drop_me": _record("drop_me", ImputationStrategy.Dropped),
+        "b": _record("b", ImputationStrategy.Constant, fill_value=-1.0),
+        "b_missing": _indicator_record("b_missing"),
+    })
+    config = PipelineConfig()
+    imputer.apply_exclusions(config)
+    assert "drop_me" in config.exclude_columns
+    assert "b_missing" in config.phase_exclusions.get(PipelinePhase.Normalization, [])
+
+
+def test_apply_exclusions_soft_exclusion_twice_is_idempotent():
+    from dataforge_ml.config import PipelineConfig, PipelinePhase
+    imputer = FittedImputer(records={
+        "a": _record("a", ImputationStrategy.Mean, fill_value=1.0),
+        "a_missing": _indicator_record("a_missing"),
+    })
+    config = PipelineConfig()
+    imputer.apply_exclusions(config)
+    imputer.apply_exclusions(config)
+    norm = config.phase_exclusions.get(PipelinePhase.Normalization, [])
+    assert norm.count("a_missing") == 1
+
+
+def test_apply_exclusions_no_indicator_columns_leaves_phase_exclusions_empty():
+    from dataforge_ml.config import PipelineConfig
+    imputer = FittedImputer(records={
+        "a": _record("a", ImputationStrategy.Mean, fill_value=1.0),
+    })
+    config = PipelineConfig()
+    imputer.apply_exclusions(config)
+    assert config.phase_exclusions == {}
+
+
+# ---------------------------------------------------------------------------
 # apply_exclusions — serialisation round-trip
 # ---------------------------------------------------------------------------
 
@@ -678,3 +896,89 @@ def test_warning_is_suppressible_via_filter():
         warnings.filterwarnings("ignore", category=DroppedColumnAbsentWarning)
         result = imputer.transform(df)
     assert isinstance(result, ImputationResult)
+
+
+# ---------------------------------------------------------------------------
+# ImputationStrategy.Indicator — enum value and round-trip
+# ---------------------------------------------------------------------------
+
+
+def test_indicator_enum_value_is_indicator_string():
+    assert ImputationStrategy.Indicator == "indicator"
+    assert str(ImputationStrategy.Indicator) == "indicator"
+
+
+def test_indicator_round_trips_via_to_dict_from_dict():
+    imputer = FittedImputer(records={
+        "col_missing": ColumnImputationRecord(
+            column="col_missing",
+            semantic_type=SemanticType.Boolean,
+            strategy=ImputationStrategy.Indicator,
+            fill_value=None,
+            indicator_added=False,
+            signals=[],
+        ),
+    })
+    restored = FittedImputer.from_dict(imputer.to_dict())
+    assert restored.records["col_missing"].strategy == ImputationStrategy.Indicator
+
+
+def test_indicator_string_deserialises_to_indicator_enum():
+    raw = {
+        "records": {
+            "x_missing": {
+                "column": "x_missing",
+                "semantic_type": "boolean",
+                "strategy": "indicator",
+                "fill_value": None,
+                "indicator_added": False,
+                "signals": [],
+            }
+        },
+        "models": {},
+        "model_cols": {},
+    }
+    restored = FittedImputer.from_dict(raw)
+    assert restored.records["x_missing"].strategy is ImputationStrategy.Indicator
+
+
+# ---------------------------------------------------------------------------
+# UnseenColumnError and FittedColumnAbsentError — class identity
+# ---------------------------------------------------------------------------
+
+
+def test_unseen_column_error_is_exception():
+    assert issubclass(UnseenColumnError, Exception)
+
+
+def test_fitted_column_absent_error_is_exception():
+    assert issubclass(FittedColumnAbsentError, Exception)
+
+
+def test_unseen_column_error_is_distinct_from_unfitted_column_error():
+    assert UnseenColumnError is not UnfittedColumnError
+
+
+def test_unseen_column_error_is_distinct_from_fitted_column_absent_error():
+    assert UnseenColumnError is not FittedColumnAbsentError
+
+
+def test_fitted_column_absent_error_is_distinct_from_unfitted_column_error():
+    assert FittedColumnAbsentError is not UnfittedColumnError
+
+
+def test_unseen_column_error_is_instantiable():
+    err = UnseenColumnError("unknown: 'foo', 'bar'")
+    assert "foo" in str(err)
+
+
+def test_fitted_column_absent_error_is_instantiable():
+    err = FittedColumnAbsentError("absent: 'score'")
+    assert "score" in str(err)
+
+
+def test_new_error_classes_exported_from_package():
+    from dataforge_ml.imputation import FittedColumnAbsentError as FCE
+    from dataforge_ml.imputation import UnseenColumnError as UCE
+    assert UCE is UnseenColumnError
+    assert FCE is FittedColumnAbsentError
