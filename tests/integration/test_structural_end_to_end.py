@@ -1,13 +1,16 @@
+import polars as pl
 import pytest
 from dataforge_ml.profiling.orchestrator import StructuralProfiler
 from dataforge_ml.config import PipelineConfig, PipelinePhase, SemanticType
 from dataforge_ml.profiling._config import ProfileConfig, StructuralProfileResult
-from dataforge_ml.profiling._numeric_config import NumericStats
+from dataforge_ml.profiling._numeric_config import NumericStats, SkewSeverity
 from dataforge_ml.profiling._categorical_config import CategoricalStats
 from dataforge_ml.profiling._datetime_config import DatetimeStats
 from dataforge_ml.profiling._boolean_config import BooleanStats
 from dataforge_ml.profiling._text_config import TextStats
 from dataforge_ml.profiling._target_config import TargetProfileResult
+from dataforge_ml.profiling._missingness_config import MissingSeverity, MissingnessProfileConfig
+from dataforge_ml.profiling._numeric_config import NumericProfileConfig
 
 
 def test_happy_path(mixed_df):
@@ -255,3 +258,91 @@ def test_numeric_kind_in_to_dict(mixed_df):
             assert d["numeric_kind"] is None, (
                 f"non-numeric column '{name}' to_dict()['numeric_kind']={d['numeric_kind']!r}"
             )
+
+
+# ---------------------------------------------------------------------------
+# Scope 15: sub-config override E2E tests
+# ---------------------------------------------------------------------------
+
+
+def test_default_profile_config_no_regression(mixed_df):
+    # ProfileConfig() with all defaults must produce the same result as
+    # an explicitly constructed PipelineConfig — no behaviour change from Scope 15.
+    result_default = StructuralProfiler(PipelineConfig()).profile(mixed_df)
+    result_explicit = StructuralProfiler(
+        PipelineConfig(profiling=ProfileConfig())
+    ).profile(mixed_df)
+
+    assert set(result_default.columns.keys()) == set(result_explicit.columns.keys())
+    for col in result_default.columns:
+        cp_d = result_default.columns[col]
+        cp_e = result_explicit.columns[col]
+        assert cp_d.semantic_type == cp_e.semantic_type
+        assert cp_d.missingness is None or (
+            cp_d.missingness.severity == cp_e.missingness.severity
+        )
+
+
+def test_missingness_severity_override_via_profile_config():
+    # Column with 12 % null ratio.
+    # Default severity_high=0.20 → 0.12 < 0.20 → MissingSeverity.High
+    # Override severity_high=0.10 → 0.12 >= 0.10 → MissingSeverity.Severe
+    n = 100
+    values = [None] * 12 + [1.0] * 88
+    df = pl.DataFrame({"x": pl.Series(values, dtype=pl.Float64)})
+
+    result_default = StructuralProfiler(PipelineConfig()).profile(df)
+    assert result_default.columns["x"].missingness.severity == MissingSeverity.High
+
+    custom_profile = ProfileConfig(
+        missingness=MissingnessProfileConfig(severity_high=0.10)
+    )
+    result_custom = StructuralProfiler(
+        PipelineConfig(profiling=custom_profile)
+    ).profile(df)
+    assert result_custom.columns["x"].missingness.severity == MissingSeverity.Severe
+
+
+def test_skew_high_override_via_profile_config():
+    # exp(x/10) for x in [1,100] produces skewness ≈ 2.58 (verified empirically).
+    # Default skew_high=2.0 → 2.58 > 2.0 → SkewSeverity.Severe.
+    # Override skew_high=3.0 → 2.58 <= 3.0 AND > skew_moderate(1.0) → SkewSeverity.High.
+    import math
+    values = [math.exp(x / 10.0) for x in range(1, 101)]
+    df = pl.DataFrame({"val": pl.Series(values, dtype=pl.Float64)})
+
+    result_default = StructuralProfiler(PipelineConfig()).profile(df)
+    stats_default = result_default.columns["val"].stats
+    assert isinstance(stats_default, NumericStats)
+    assert stats_default.skewness_severity == SkewSeverity.Severe
+
+    custom_profile = ProfileConfig(
+        numeric=NumericProfileConfig(skew_high=3.0)
+    )
+    result_custom = StructuralProfiler(
+        PipelineConfig(profiling=custom_profile)
+    ).profile(df)
+    stats_custom = result_custom.columns["val"].stats
+    assert isinstance(stats_custom, NumericStats)
+    assert stats_custom.skewness_severity == SkewSeverity.High
+
+
+def test_row_drop_threshold_override_via_profile_config():
+    # 5 rows, each missing exactly 2 out of 4 columns (50 % each row).
+    # Default row_drop_threshold=0.50 → ceil(4 * 0.50)=2 → rows with ≥2 missing are candidates
+    # Override row_drop_threshold=0.60 → ceil(4 * 0.60)=3 → rows with ≥3 missing are candidates
+    df = pl.DataFrame({
+        "a": pl.Series([None, None, 1.0, 1.0, 1.0], dtype=pl.Float64),
+        "b": pl.Series([None, None, 1.0, 1.0, 1.0], dtype=pl.Float64),
+        "c": pl.Series([1.0, 1.0, None, None, 1.0], dtype=pl.Float64),
+        "d": pl.Series([1.0, 1.0, None, None, 1.0], dtype=pl.Float64),
+    })
+
+    result_default = StructuralProfiler(PipelineConfig()).profile(df)
+    assert result_default.dataset.row_distribution.drop_candidate_row_count == 4
+
+    custom_profile = ProfileConfig(row_drop_threshold=0.60)
+    result_custom = StructuralProfiler(
+        PipelineConfig(profiling=custom_profile)
+    ).profile(df)
+    assert result_custom.dataset.row_distribution.drop_candidate_row_count == 0

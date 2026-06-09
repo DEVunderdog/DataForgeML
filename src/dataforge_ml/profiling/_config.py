@@ -15,19 +15,25 @@ from typing import Optional, Union
 from ..config import SemanticType, Modality
 from ._missingness_config import (
     ColumnMissingnessProfile,
+    MissingnessProfileConfig,
 )
 from ._correlation_config import (
     CorrelationProfileResult,
+    CorrelationProfileConfig,
 )
 from ._categorical_config import (
     CategoricalStats,
+    CategoricalProfileConfig,
 )
 from ._numeric_config import (
     NumericStats,
+    NumericProfileConfig,
 )
 from ._datetime_config import (
     DatetimeStats,
+    DatetimeProfileConfig,
 )
+from ._type_detection_config import TypeDetectionConfig
 from ._boolean_config import BooleanStats
 from ._text_config import TextStats
 from ._target_config import TargetProfileResult
@@ -189,6 +195,30 @@ class StructuralProfileResult:
 # ---------------------------------------------------------------------------
 
 
+def _default_missingness_config() -> MissingnessProfileConfig:
+    return MissingnessProfileConfig()
+
+
+def _default_numeric_config() -> NumericProfileConfig:
+    return NumericProfileConfig()
+
+
+def _default_type_detection_config() -> TypeDetectionConfig:
+    return TypeDetectionConfig()
+
+
+def _default_categorical_config() -> CategoricalProfileConfig:
+    return CategoricalProfileConfig()
+
+
+def _default_correlation_config() -> CorrelationProfileConfig:
+    return CorrelationProfileConfig()
+
+
+def _default_datetime_config() -> DatetimeProfileConfig:
+    return DatetimeProfileConfig()
+
+
 @dataclass
 class ProfileConfig:
     """
@@ -198,8 +228,8 @@ class ProfileConfig:
     ----------
     modality : Modality
         Data modality. Currently only Tabular is implemented.
-    target_column : Optional[str]
-        Name of the label/target column, if any.
+    target_columns : list[str]
+        Names of label/target columns, if any.
     compute_correlation : bool
         Whether to compute the feature-feature correlation matrix.
     correlation_target_column : Optional[str]
@@ -208,6 +238,21 @@ class ProfileConfig:
         Memory (MB) above which chunked processing activates.
     chunk_size : int
         Rows per chunk when chunked processing is active.
+    row_drop_threshold : float
+        Fraction of columns that must be missing in a row for that row to be
+        counted as a drop candidate in ``RowMissingnessDistribution``.
+    missingness : MissingnessProfileConfig
+        Threshold configuration for the missingness sub-processor.
+    numeric : NumericProfileConfig
+        Threshold configuration for the numeric distribution sub-processor.
+    type_detection : TypeDetectionConfig
+        Threshold configuration for the type-detection sub-processor.
+    categorical : CategoricalProfileConfig
+        Threshold configuration for the categorical sub-processor.
+    correlation : CorrelationProfileConfig
+        Threshold configuration for the correlation sub-processor.
+    datetime_ : DatetimeProfileConfig
+        Threshold configuration for the datetime sub-processor.
     """
 
     modality: Modality = Modality.Tabular
@@ -216,9 +261,31 @@ class ProfileConfig:
     correlation_target_column: Optional[str] = None
     memory_threshold_mb: float = 500.0
     chunk_size: int = 100_000
-
+    row_drop_threshold: float = 0.50
+    missingness: MissingnessProfileConfig = field(
+        default_factory=_default_missingness_config
+    )
+    numeric: NumericProfileConfig = field(default_factory=_default_numeric_config)
+    type_detection: TypeDetectionConfig = field(
+        default_factory=_default_type_detection_config
+    )
+    categorical: CategoricalProfileConfig = field(
+        default_factory=_default_categorical_config
+    )
+    correlation: CorrelationProfileConfig = field(
+        default_factory=_default_correlation_config
+    )
+    datetime_: DatetimeProfileConfig = field(default_factory=_default_datetime_config)
 
     def to_dict(self) -> dict:
+        """
+        Serialise the config to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            All field values, with nested sub-configs serialised recursively.
+        """
         return {
             "modality": str(self.modality),
             "target_columns": list(self.target_columns),
@@ -226,10 +293,31 @@ class ProfileConfig:
             "correlation_target_column": self.correlation_target_column,
             "memory_threshold_mb": self.memory_threshold_mb,
             "chunk_size": self.chunk_size,
+            "row_drop_threshold": self.row_drop_threshold,
+            "missingness": self.missingness.to_dict(),
+            "numeric": self.numeric.to_dict(),
+            "type_detection": self.type_detection.to_dict(),
+            "categorical": self.categorical.to_dict(),
+            "correlation": self.correlation.to_dict(),
+            "datetime_": self.datetime_.to_dict(),
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> ProfileConfig:
+        """
+        Construct a ``ProfileConfig`` from a plain dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            Mapping produced by ``to_dict()``. Missing keys fall back to field
+            defaults.
+
+        Returns
+        -------
+        ProfileConfig
+            Reconstructed config instance with all sub-configs deserialised.
+        """
         return cls(
             modality=Modality(data.get("modality", Modality.Tabular)),
             target_columns=list(data.get("target_columns", [])),
@@ -237,13 +325,49 @@ class ProfileConfig:
             correlation_target_column=data.get("correlation_target_column"),
             memory_threshold_mb=float(data.get("memory_threshold_mb", 500.0)),
             chunk_size=int(data.get("chunk_size", 100_000)),
+            row_drop_threshold=float(data.get("row_drop_threshold", 0.50)),
+            missingness=MissingnessProfileConfig.from_dict(
+                data.get("missingness", {})
+            ),
+            numeric=NumericProfileConfig.from_dict(data.get("numeric", {})),
+            type_detection=TypeDetectionConfig.from_dict(
+                data.get("type_detection", {})
+            ),
+            categorical=CategoricalProfileConfig.from_dict(
+                data.get("categorical", {})
+            ),
+            correlation=CorrelationProfileConfig.from_dict(
+                data.get("correlation", {})
+            ),
+            datetime_=DatetimeProfileConfig.from_dict(data.get("datetime_", {})),
         )
 
     def to_json(self) -> str:
+        """
+        Serialise the config to a JSON string.
+
+        Returns
+        -------
+        str
+            JSON representation of ``to_dict()``.
+        """
         return json.dumps(self.to_dict())
 
     @classmethod
     def from_json(cls, json_str: str) -> ProfileConfig:
+        """
+        Construct a ``ProfileConfig`` from a JSON string.
+
+        Parameters
+        ----------
+        json_str : str
+            JSON produced by ``to_json()``.
+
+        Returns
+        -------
+        ProfileConfig
+            Reconstructed config instance.
+        """
         return cls.from_dict(json.loads(json_str))
 
 

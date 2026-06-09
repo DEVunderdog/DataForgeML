@@ -1,5 +1,5 @@
 """
-Result dataclasses for datetime column profiling.
+Result dataclasses and sub-config for datetime column profiling.
 
 Populated by DatetimeProfiler, which is opt-in via
 ProfileConfig.datetime_columns.
@@ -121,3 +121,79 @@ class DatetimeProfileResult:
         for profile in self.columns.values():
             lines.append(str(profile))
         return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Sub-config
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class DatetimeProfileConfig:
+    """
+    Threshold configuration for the datetime sub-processor.
+
+    All fields default to the library's original hard-coded constants so that
+    constructing ``DatetimeProfileConfig()`` produces identical behaviour to
+    the pre-config implementation.
+
+    Parameters
+    ----------
+    mnar_null_ratio_threshold : float
+        Null ratio above which a datetime column receives the
+        ``DatetimeFlag.MnarSuspected`` flag.  A column whose parse-level null
+        ratio (including values that failed datetime coercion) exceeds this
+        value is considered potentially Missing Not At Random.
+    high_gap_cv_threshold : float
+        Coefficient of variation (std / mean) of consecutive time gaps above
+        which a column receives the ``DatetimeFlag.HighGapVariance`` flag,
+        indicating irregular temporal spacing.
+    recent_window_fraction : float
+        Fraction of the total date range considered the "recent" window when
+        checking for ``DatetimeFlag.RecentDateMissing``.  A value of 0.10
+        means the last 10 % of the observed date range is examined for data
+        sparsity.
+    """
+
+    mnar_null_ratio_threshold: float = 0.05
+    high_gap_cv_threshold: float = 1.0
+    recent_window_fraction: float = 0.10
+
+    def to_dict(self) -> dict:
+        """
+        Serialise the config to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            All field values keyed by field name.
+        """
+        return {
+            "mnar_null_ratio_threshold": self.mnar_null_ratio_threshold,
+            "high_gap_cv_threshold": self.high_gap_cv_threshold,
+            "recent_window_fraction": self.recent_window_fraction,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> DatetimeProfileConfig:
+        """
+        Construct a ``DatetimeProfileConfig`` from a plain dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            Mapping produced by ``to_dict()``. Missing keys fall back to field
+            defaults.
+
+        Returns
+        -------
+        DatetimeProfileConfig
+            Reconstructed config instance.
+        """
+        return cls(
+            mnar_null_ratio_threshold=float(
+                data.get("mnar_null_ratio_threshold", 0.05)
+            ),
+            high_gap_cv_threshold=float(data.get("high_gap_cv_threshold", 1.0)),
+            recent_window_fraction=float(data.get("recent_window_fraction", 0.10)),
+        )

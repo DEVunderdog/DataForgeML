@@ -129,6 +129,107 @@ class NumericStats:
 ColumnNumericProfile = NumericStats
 
 
+# ---------------------------------------------------------------------------
+# Sub-config
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class NumericProfileConfig:
+    """
+    Threshold configuration for the numeric distribution sub-processor.
+
+    All fields default to the library's original hard-coded constants so that
+    constructing ``NumericProfileConfig()`` produces identical behaviour to the
+    pre-config implementation.
+
+    Parameters
+    ----------
+    skew_normal : float
+        Absolute skewness upper bound (inclusive) for ``SkewSeverity.Normal``.
+    skew_moderate : float
+        Absolute skewness upper bound (inclusive) for ``SkewSeverity.Moderate``.
+        Columns with ``|skew| > skew_normal`` and ``|skew| <= skew_moderate``
+        are classified as Moderate.
+    skew_high : float
+        Absolute skewness upper bound (inclusive) for ``SkewSeverity.High``.
+        Columns with ``|skew| > skew_moderate`` and ``|skew| <= skew_high``
+        are classified as High. Columns above this bound are Severe.
+    kurt_platykurtic_upper : float
+        Excess kurtosis upper bound (exclusive) for ``KurtosisTag.Platykurtic``.
+        Columns with ``kurtosis < kurt_platykurtic_upper`` are Platykurtic.
+    kurt_leptokurtic_lower : float
+        Excess kurtosis lower bound (exclusive) for ``KurtosisTag.Leptokurtic``.
+        Columns with ``kurtosis > kurt_leptokurtic_lower`` are Leptokurtic.
+        All others are Mesokurtic.
+    near_constant_threshold : float
+        Mode frequency above which a column receives ``NumericFlag.NearConstant``.
+        Expressed as a fraction of total rows (e.g. 0.90 = 90%).
+    scale_orders_of_magnitude : int
+        Number of orders of magnitude the absolute value range must span for a
+        column to receive ``NumericFlag.ScaleAnomaly`` (i.e. ratio >= 10^n).
+    discrete_max_unique : int
+        Maximum number of unique values for a non-integer column to be treated
+        as discrete (top-value counts) rather than continuous (histogram).
+    """
+
+    skew_normal: float = 0.5
+    skew_moderate: float = 1.0
+    skew_high: float = 2.0
+    kurt_platykurtic_upper: float = -1.0
+    kurt_leptokurtic_lower: float = 3.0
+    near_constant_threshold: float = 0.90
+    scale_orders_of_magnitude: int = 3
+    discrete_max_unique: int = 20
+
+    def to_dict(self) -> dict:
+        """
+        Serialise the config to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            All field values keyed by field name.
+        """
+        return {
+            "skew_normal": self.skew_normal,
+            "skew_moderate": self.skew_moderate,
+            "skew_high": self.skew_high,
+            "kurt_platykurtic_upper": self.kurt_platykurtic_upper,
+            "kurt_leptokurtic_lower": self.kurt_leptokurtic_lower,
+            "near_constant_threshold": self.near_constant_threshold,
+            "scale_orders_of_magnitude": self.scale_orders_of_magnitude,
+            "discrete_max_unique": self.discrete_max_unique,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> NumericProfileConfig:
+        """
+        Construct a ``NumericProfileConfig`` from a plain dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            Mapping produced by ``to_dict()``. Missing keys fall back to field
+            defaults.
+
+        Returns
+        -------
+        NumericProfileConfig
+            Reconstructed config instance.
+        """
+        return cls(
+            skew_normal=float(data.get("skew_normal", 0.5)),
+            skew_moderate=float(data.get("skew_moderate", 1.0)),
+            skew_high=float(data.get("skew_high", 2.0)),
+            kurt_platykurtic_upper=float(data.get("kurt_platykurtic_upper", -1.0)),
+            kurt_leptokurtic_lower=float(data.get("kurt_leptokurtic_lower", 3.0)),
+            near_constant_threshold=float(data.get("near_constant_threshold", 0.90)),
+            scale_orders_of_magnitude=int(data.get("scale_orders_of_magnitude", 3)),
+            discrete_max_unique=int(data.get("discrete_max_unique", 20)),
+        )
+
+
 @dataclass
 class NumericProfileResult:
     """

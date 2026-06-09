@@ -110,7 +110,6 @@ class ColumnMissingnessProfile:
         return "\n".join(lines)
 
 
-
 @dataclass
 class MissingnessProfileResult:
     """
@@ -148,3 +147,83 @@ class MissingnessProfileResult:
             )
 
         return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Sub-config
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class MissingnessProfileConfig:
+    """
+    Threshold configuration for the missingness sub-processor.
+
+    All fields default to the library's original hard-coded constants so that
+    constructing ``MissingnessProfileConfig()`` produces identical behaviour to
+    the pre-config implementation.
+
+    Parameters
+    ----------
+    severity_minor : float
+        Effective null ratio upper bound (exclusive) for ``MissingSeverity.Minor``.
+        Columns with a ratio below this value are classified as Minor.
+    severity_moderate : float
+        Effective null ratio upper bound (exclusive) for ``MissingSeverity.Moderate``.
+    severity_high : float
+        Effective null ratio upper bound (exclusive) for ``MissingSeverity.High``.
+        Columns at or above this value are classified as ``MissingSeverity.Severe``.
+    mar_correlation_threshold : float
+        Minimum absolute Pearson correlation between binary missingness indicators
+        for a column pair to receive the ``MissingnessFlag.MARSuspect`` flag.
+    col_drop_threshold : float
+        Effective null ratio above which a non-fully-null column receives the
+        ``MissingnessFlag.DropCandidate`` flag.
+    """
+
+    severity_minor: float = 0.01
+    severity_moderate: float = 0.05
+    severity_high: float = 0.20
+    mar_correlation_threshold: float = 0.60
+    col_drop_threshold: float = 0.50
+
+    def to_dict(self) -> dict:
+        """
+        Serialise the config to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            All field values keyed by field name.
+        """
+        return {
+            "severity_minor": self.severity_minor,
+            "severity_moderate": self.severity_moderate,
+            "severity_high": self.severity_high,
+            "mar_correlation_threshold": self.mar_correlation_threshold,
+            "col_drop_threshold": self.col_drop_threshold,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> MissingnessProfileConfig:
+        """
+        Construct a ``MissingnessProfileConfig`` from a plain dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            Mapping produced by ``to_dict()``. Missing keys fall back to field
+            defaults.
+
+        Returns
+        -------
+        MissingnessProfileConfig
+            Reconstructed config instance.
+        """
+        return cls(
+            severity_minor=float(data.get("severity_minor", 0.01)),
+            severity_moderate=float(data.get("severity_moderate", 0.05)),
+            severity_high=float(data.get("severity_high", 0.20)),
+            mar_correlation_threshold=float(data.get("mar_correlation_threshold", 0.60)),
+            col_drop_threshold=float(data.get("col_drop_threshold", 0.50)),
+        )

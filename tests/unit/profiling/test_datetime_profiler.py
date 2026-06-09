@@ -5,6 +5,7 @@ import polars as pl
 from dataforge_ml.profiling._datetime_profiler import DatetimeProfiler
 from dataforge_ml.profiling._datetime_config import (
     DatetimeFlag,
+    DatetimeProfileConfig,
     DatetimeProfileResult,
     InferredGranularity,
 )
@@ -131,3 +132,106 @@ def test_temporal_signals_month_and_dow_vary_not_year():
     assert stats.signals.has_year is False
     assert stats.signals.has_month is True
     assert stats.signals.has_day_of_week is True
+
+
+# ---------------------------------------------------------------------------
+# Config: overriding mnar_null_ratio_threshold changes MnarSuspected flag
+# ---------------------------------------------------------------------------
+
+
+def test_mnar_suspected_fires_when_null_ratio_exceeds_threshold():
+    base = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    # 8 non-null values + 2 nulls → null_ratio = 0.20
+    ts_values = [base + timedelta(days=i) for i in range(8)] + [None, None]
+    df = pl.DataFrame(
+        {"ts": pl.Series(ts_values, dtype=pl.Datetime("us", "UTC"))}
+    )
+
+    # Default threshold (0.05): 20% > 5% → flag expected
+    stats_default = DatetimeProfiler().profile(df, ["ts"]).columns["ts"]
+    assert DatetimeFlag.MnarSuspected in stats_default.flags
+
+    # Raise threshold above 20%: flag should not fire
+    cfg = DatetimeProfileConfig(mnar_null_ratio_threshold=0.25)
+    stats_high = DatetimeProfiler(config=cfg).profile(df, ["ts"]).columns["ts"]
+    assert DatetimeFlag.MnarSuspected not in stats_high.flags
+
+
+def test_mnar_suspected_absent_below_threshold():
+    base = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    # 19 non-null + 1 null → null_ratio = 0.05 (not strictly greater)
+    ts_values = [base + timedelta(days=i) for i in range(19)] + [None]
+    df = pl.DataFrame(
+        {"ts": pl.Series(ts_values, dtype=pl.Datetime("us", "UTC"))}
+    )
+
+    # Default threshold (0.05): ratio == threshold, not strictly greater → no flag
+    stats = DatetimeProfiler().profile(df, ["ts"]).columns["ts"]
+    assert DatetimeFlag.MnarSuspected not in stats.flags
+
+    # Lower threshold so 5% triggers
+    cfg = DatetimeProfileConfig(mnar_null_ratio_threshold=0.04)
+    stats_low = DatetimeProfiler(config=cfg).profile(df, ["ts"]).columns["ts"]
+    assert DatetimeFlag.MnarSuspected in stats_low.flags
+
+
+# ---------------------------------------------------------------------------
+# Config: overriding high_gap_cv_threshold changes HighGapVariance flag
+# ---------------------------------------------------------------------------
+
+
+def test_high_gap_variance_flag_controlled_by_config():
+    base = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    # Irregular gaps: 1d, 1d, 1d, 30d, 1d, 1d → high CV
+    offsets = [0, 1, 2, 3, 33, 34, 35]
+    ts_values = [base + timedelta(days=d) for d in offsets]
+    df = pl.DataFrame(
+        {"ts": pl.Series(ts_values, dtype=pl.Datetime("us", "UTC"))}
+    )
+
+    # Default threshold (1.0): high CV dataset → flag expected
+    stats_default = DatetimeProfiler().profile(df, ["ts"]).columns["ts"]
+    assert DatetimeFlag.HighGapVariance in stats_default.flags
+
+    # Raise threshold very high: same data → flag absent
+    cfg = DatetimeProfileConfig(high_gap_cv_threshold=100.0)
+    stats_high = DatetimeProfiler(config=cfg).profile(df, ["ts"]).columns["ts"]
+    assert DatetimeFlag.HighGapVariance not in stats_high.flags
+
+
+def test_high_gap_variance_absent_for_regular_series():
+    base = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    # Perfectly uniform daily series → CV near 0
+    ts_values = [base + timedelta(days=i) for i in range(30)]
+    df = pl.DataFrame(
+        {"ts": pl.Series(ts_values, dtype=pl.Datetime("us", "UTC"))}
+    )
+    stats = DatetimeProfiler().profile(df, ["ts"]).columns["ts"]
+    assert DatetimeFlag.HighGapVariance not in stats.flags
+
+
+# ---------------------------------------------------------------------------
+# Config: round-trip serialisation preserves all fields
+# ---------------------------------------------------------------------------
+
+
+def test_datetime_profile_config_round_trip_defaults():
+    cfg = DatetimeProfileConfig()
+    assert DatetimeProfileConfig.from_dict(cfg.to_dict()) == cfg
+
+
+def test_datetime_profile_config_round_trip_custom_values():
+    cfg = DatetimeProfileConfig(
+        mnar_null_ratio_threshold=0.02,
+        high_gap_cv_threshold=1.5,
+        recent_window_fraction=0.20,
+    )
+    restored = DatetimeProfileConfig.from_dict(cfg.to_dict())
+    assert restored.mnar_null_ratio_threshold == 0.02
+    assert restored.high_gap_cv_threshold == 1.5
+    assert restored.recent_window_fraction == 0.20
+
+
+def test_datetime_profile_config_exported_from_profiling_api():
+    from dataforge_ml.profiling import DatetimeProfileConfig as _Exported
+    assert _Exported is DatetimeProfileConfig

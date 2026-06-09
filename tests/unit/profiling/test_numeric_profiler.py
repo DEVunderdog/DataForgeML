@@ -5,6 +5,7 @@ from dataforge_ml.profiling._numeric_profiler import NumericProfiler
 from dataforge_ml.profiling._numeric_config import (
     KurtosisTag,
     NumericFlag,
+    NumericProfileConfig,
     NumericProfileResult,
     NumericStats,
     PercentileSnapshot,
@@ -279,3 +280,180 @@ def test_batched_50_column_profiling_speed():
 
     assert len(result.analysed_columns) == n_cols
     assert elapsed < 10.0, f"50-column profiling took {elapsed:.2f}s — batching may be broken"
+
+
+# ---------------------------------------------------------------------------
+# NumericProfileConfig — construction and defaults
+# ---------------------------------------------------------------------------
+
+
+def test_config_instantiates_with_defaults():
+    cfg = NumericProfileConfig()
+    assert cfg.skew_normal == 0.5
+    assert cfg.skew_moderate == 1.0
+    assert cfg.skew_high == 2.0
+    assert cfg.kurt_platykurtic_upper == -1.0
+    assert cfg.kurt_leptokurtic_lower == 3.0
+    assert cfg.near_constant_threshold == 0.90
+    assert cfg.scale_orders_of_magnitude == 3
+    assert cfg.discrete_max_unique == 20
+
+
+def test_profiler_accepts_config_parameter():
+    cfg = NumericProfileConfig(skew_high=3.0)
+    profiler = NumericProfiler(config=cfg)
+    assert profiler is not None
+
+
+def test_profiler_constructed_without_config_uses_defaults():
+    profiler = NumericProfiler()
+    assert profiler._config.skew_high == 2.0
+    assert profiler._config.near_constant_threshold == 0.90
+
+
+# ---------------------------------------------------------------------------
+# skew_high override
+# ---------------------------------------------------------------------------
+
+
+def test_skew_high_override_relabels_severe_to_high():
+    # Data with |skew| >> 2.0 → Severe by default.
+    # Raising skew_high to a very large value → same data becomes High
+    # (|skew| > skew_moderate=1.0 and |skew| <= new skew_high).
+    data = [0.1] * 57 + [100.0, 200.0, 300.0]
+    df = pl.DataFrame({"v": pl.Series(data, dtype=pl.Float64)})
+
+    default_stats = NumericProfiler().profile(df, ["v"]).columns["v"]
+    assert default_stats.skewness_severity == SkewSeverity.Severe
+
+    cfg = NumericProfileConfig(skew_high=1_000.0)
+    overridden_stats = NumericProfiler(config=cfg).profile(df, ["v"]).columns["v"]
+    assert overridden_stats.skewness_severity == SkewSeverity.High
+
+
+def test_skew_moderate_override_relabels_high_to_moderate():
+    # Data with |skew| >> 1.0 but close to 1.0; default → High.
+    # Raising skew_moderate to a very large value → Moderate.
+    data = [0.1] * 57 + [100.0, 200.0, 300.0]
+    df = pl.DataFrame({"v": pl.Series(data, dtype=pl.Float64)})
+
+    cfg = NumericProfileConfig(skew_moderate=1_000.0, skew_high=10_000.0)
+    overridden_stats = NumericProfiler(config=cfg).profile(df, ["v"]).columns["v"]
+    assert overridden_stats.skewness_severity == SkewSeverity.Moderate
+
+
+# ---------------------------------------------------------------------------
+# kurt_leptokurtic_lower override
+# ---------------------------------------------------------------------------
+
+
+def test_kurt_leptokurtic_lower_override_suppresses_leptokurtic():
+    # Data known to be Leptokurtic by default (kurtosis >> 3.0).
+    # Raising the lower bound to an impossibly large value → Mesokurtic.
+    data = [5.0] * 54 + [0.1, 0.1, 0.1, 9.9, 9.9, 9.9]
+    df = pl.DataFrame({"v": pl.Series(data, dtype=pl.Float64)})
+
+    default_stats = NumericProfiler().profile(df, ["v"]).columns["v"]
+    assert default_stats.kurtosis_tag == KurtosisTag.Leptokurtic
+
+    cfg = NumericProfileConfig(kurt_leptokurtic_lower=1_000.0)
+    overridden_stats = NumericProfiler(config=cfg).profile(df, ["v"]).columns["v"]
+    assert overridden_stats.kurtosis_tag == KurtosisTag.Mesokurtic
+
+
+def test_kurt_platykurtic_upper_override_suppresses_platykurtic():
+    # Uniform 4-value distribution → Platykurtic by default.
+    # Lowering upper bound to -1000.0 (impossible to go below) → Mesokurtic.
+    data = [1.0] * 15 + [4.0] * 15 + [7.0] * 15 + [10.0] * 15
+    df = pl.DataFrame({"v": pl.Series(data, dtype=pl.Float64)})
+
+    default_stats = NumericProfiler().profile(df, ["v"]).columns["v"]
+    assert default_stats.kurtosis_tag == KurtosisTag.Platykurtic
+
+    cfg = NumericProfileConfig(kurt_platykurtic_upper=-1_000.0)
+    overridden_stats = NumericProfiler(config=cfg).profile(df, ["v"]).columns["v"]
+    assert overridden_stats.kurtosis_tag == KurtosisTag.Mesokurtic
+
+
+# ---------------------------------------------------------------------------
+# near_constant_threshold override
+# ---------------------------------------------------------------------------
+
+
+def test_near_constant_threshold_override_triggers_flag():
+    # 85/100 = 0.85 → default 0.90: NOT NearConstant; override 0.80: NearConstant
+    data = [5.0] * 85 + list(range(15))
+    df = pl.DataFrame({"v": pl.Series([float(x) for x in data], dtype=pl.Float64)})
+
+    default_stats = NumericProfiler().profile(df, ["v"]).columns["v"]
+    assert NumericFlag.NearConstant not in default_stats.flags
+
+    cfg = NumericProfileConfig(near_constant_threshold=0.80)
+    overridden_stats = NumericProfiler(config=cfg).profile(df, ["v"]).columns["v"]
+    assert NumericFlag.NearConstant in overridden_stats.flags
+
+
+def test_near_constant_threshold_override_suppresses_flag():
+    # 55/60 = 0.917 → default 0.90: NearConstant; override 0.95: NOT NearConstant
+    data = [5.0] * 55 + [1.0, 2.0, 3.0, 4.0, 6.0]
+    df = pl.DataFrame({"v": pl.Series(data, dtype=pl.Float64)})
+
+    default_stats = NumericProfiler().profile(df, ["v"]).columns["v"]
+    assert NumericFlag.NearConstant in default_stats.flags
+
+    cfg = NumericProfileConfig(near_constant_threshold=0.95)
+    overridden_stats = NumericProfiler(config=cfg).profile(df, ["v"]).columns["v"]
+    assert NumericFlag.NearConstant not in overridden_stats.flags
+
+
+# ---------------------------------------------------------------------------
+# NumericProfileConfig serialisation round-trip
+# ---------------------------------------------------------------------------
+
+
+def test_config_round_trip_preserves_all_fields():
+    cfg = NumericProfileConfig(
+        skew_normal=0.3,
+        skew_moderate=0.8,
+        skew_high=1.5,
+        kurt_platykurtic_upper=-2.0,
+        kurt_leptokurtic_lower=5.0,
+        near_constant_threshold=0.85,
+        scale_orders_of_magnitude=4,
+        discrete_max_unique=30,
+    )
+    restored = NumericProfileConfig.from_dict(cfg.to_dict())
+    assert restored.skew_normal == cfg.skew_normal
+    assert restored.skew_moderate == cfg.skew_moderate
+    assert restored.skew_high == cfg.skew_high
+    assert restored.kurt_platykurtic_upper == cfg.kurt_platykurtic_upper
+    assert restored.kurt_leptokurtic_lower == cfg.kurt_leptokurtic_lower
+    assert restored.near_constant_threshold == cfg.near_constant_threshold
+    assert restored.scale_orders_of_magnitude == cfg.scale_orders_of_magnitude
+    assert restored.discrete_max_unique == cfg.discrete_max_unique
+
+
+def test_config_from_dict_uses_defaults_for_missing_keys():
+    restored = NumericProfileConfig.from_dict({})
+    default = NumericProfileConfig()
+    assert restored.skew_normal == default.skew_normal
+    assert restored.skew_high == default.skew_high
+    assert restored.kurt_leptokurtic_lower == default.kurt_leptokurtic_lower
+    assert restored.near_constant_threshold == default.near_constant_threshold
+    assert restored.scale_orders_of_magnitude == default.scale_orders_of_magnitude
+    assert restored.discrete_max_unique == default.discrete_max_unique
+
+
+def test_config_to_dict_contains_all_keys():
+    cfg = NumericProfileConfig()
+    d = cfg.to_dict()
+    assert set(d.keys()) == {
+        "skew_normal",
+        "skew_moderate",
+        "skew_high",
+        "kurt_platykurtic_upper",
+        "kurt_leptokurtic_lower",
+        "near_constant_threshold",
+        "scale_orders_of_magnitude",
+        "discrete_max_unique",
+    }

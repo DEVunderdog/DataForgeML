@@ -38,6 +38,7 @@ import math
 import polars as pl
 from ._base import ColumnBatchProfiler
 from ._categorical_config import (
+    CategoricalProfileConfig,
     CategoricalProfileResult,
     CategoricalStats,
     TopValueEntry,
@@ -46,25 +47,26 @@ from ._categorical_config import (
     ImbalanceMetrics,
 )
 
-# ---------------------------------------------------------------------------
-# Module-level thresholds (documented so callers can see what drives flags)
-# ---------------------------------------------------------------------------
-
-_RARE_THRESHOLD_PCT: float = 0.01  # <1 % of rows → rare (diagnostic)
-_STRATIFICATION_RARE_THRESHOLD_PCT: float = 0.05  # <5 % of rows → rare (stratification)
-_MIXED_TYPE_MIN_MINOR_PCT: float = 0.05
 _MIXED_TYPE_Z_SCORE: float = 1.96
-
-_NEAR_CONSTANT_THRESHOLD: float = 0.90
 
 
 class CategoricalProfiler(ColumnBatchProfiler[CategoricalProfileResult]):
     """
     Categorical profiler for Polars DataFrames.
 
-    Profiles every column passed to profile(df, columns) — no config,
-    no internal eligibility gate.
+    Profiles every column passed to profile(df, columns) — no internal
+    eligibility gate.
+
+    Parameters
+    ----------
+    config : CategoricalProfileConfig, optional
+        Threshold configuration. Defaults to ``CategoricalProfileConfig()``
+        which reproduces the library's original hard-coded behaviour.
     """
+
+    def __init__(self, config: CategoricalProfileConfig | None = None) -> None:
+        super().__init__()
+        self._config = config if config is not None else CategoricalProfileConfig()
 
     # ------------------------------------------------------------------
     # Public API
@@ -186,16 +188,16 @@ class CategoricalProfiler(ColumnBatchProfiler[CategoricalProfileResult]):
         ]
 
         profile.mode_frequency = profile.top_values[0].percentage
-        if profile.mode_frequency > _NEAR_CONSTANT_THRESHOLD:
+        if profile.mode_frequency > self._config.near_constant_threshold:
             profile.flags.append(CategoricalFlag.NearConstant)
 
         # --- Rare category analysis ---
-        rare_threshold_abs = max(1, math.floor(_RARE_THRESHOLD_PCT * n_rows))
+        rare_threshold_abs = max(1, math.floor(self._config.rare_threshold_pct * n_rows))
         rare_mask = vc["count"] < rare_threshold_abs
         rare_rows = vc.filter(rare_mask)
 
         profile.rare_categories = RareCategoryStats(
-            threshold_pct=_RARE_THRESHOLD_PCT,
+            threshold_pct=self._config.rare_threshold_pct,
             rare_category_count=rare_rows.height,
             total_rare_rows=(
                 int(rare_rows["count"].sum()) if rare_rows.height > 0 else 0
@@ -205,13 +207,18 @@ class CategoricalProfiler(ColumnBatchProfiler[CategoricalProfileResult]):
             profile.rare_categories.total_rare_rows / n_rows if n_rows > 0 else 0.0
         )
 
-        # --- Stratification rare-label list (5% threshold) ---
-        strat_rare_mask = (vc["count"].cast(pl.Float64) / n_rows) < _STRATIFICATION_RARE_THRESHOLD_PCT
+        # --- Stratification rare-label list ---
+        strat_rare_mask = (
+            (vc["count"].cast(pl.Float64) / n_rows)
+            < self._config.stratification_rare_threshold_pct
+        )
         strat_rare_rows = vc.filter(strat_rare_mask)
         profile.rare_categories.rare_label_values = (
             strat_rare_rows[value_col].to_list() if strat_rare_rows.height > 0 else []
         )
-        profile.rare_categories.rare_label_threshold_pct = _STRATIFICATION_RARE_THRESHOLD_PCT
+        profile.rare_categories.rare_label_threshold_pct = (
+            self._config.stratification_rare_threshold_pct
+        )
 
         # --- Imbalance metrics ---
         # Class Ratio -> raw distribution
@@ -240,8 +247,8 @@ class CategoricalProfiler(ColumnBatchProfiler[CategoricalProfileResult]):
     # Step 5: Mixed-type flag
     # ------------------------------------------------------------------
 
-    @staticmethod
     def _check_mixed_type(
+        self,
         series: pl.Series,
         profile: CategoricalStats,
     ) -> None:
@@ -278,5 +285,5 @@ class CategoricalProfiler(ColumnBatchProfiler[CategoricalProfileResult]):
 
         lower_bound = (center - spread) / denominator
 
-        if lower_bound >= _MIXED_TYPE_MIN_MINOR_PCT:
+        if lower_bound >= self._config.mixed_type_min_minor_pct:
             profile.flags.append(CategoricalFlag.MixedType)

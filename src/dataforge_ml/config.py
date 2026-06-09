@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Union
 if TYPE_CHECKING:
     from dataforge_ml.profiling._config import ProfileConfig
     from dataforge_ml.imputation._config import ImputationConfig
+    from dataforge_ml.splitting._config import SplitConfig
 
 
 class SemanticType(StrEnum):
@@ -42,6 +43,11 @@ def _default_imputation_config() -> ImputationConfig:
     return ImputationConfig()
 
 
+def _default_split_config() -> SplitConfig:
+    from dataforge_ml.splitting._config import SplitConfig
+    return SplitConfig()
+
+
 @dataclass
 class PipelineConfig:
     """
@@ -58,6 +64,8 @@ class PipelineConfig:
         Explicit semantic type assignments respected by all downstream phases.
     profiling : ProfileConfig
         Phase 1-specific parameters (correlation, chunking, memory threshold).
+    split : SplitConfig
+        Splitting thresholds (stratification signal cap, boolean minority bar).
     """
 
     exclude_columns: list[str] = field(default_factory=list)
@@ -65,6 +73,7 @@ class PipelineConfig:
     column_overrides: dict[str, SemanticType] = field(default_factory=dict)
     profiling: ProfileConfig = field(default_factory=_default_profile_config)
     imputation: ImputationConfig = field(default_factory=_default_imputation_config)
+    split: SplitConfig = field(default_factory=_default_split_config)
 
     def resolve_active_columns(
         self, phase: PipelinePhase, available_columns: list[str]
@@ -134,12 +143,14 @@ class PipelineConfig:
             },
             "profiling": self.profiling.to_dict(),
             "imputation": self.imputation.to_dict(),
+            "split": self.split.to_dict(),
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> PipelineConfig:
         from dataforge_ml.profiling._config import ProfileConfig
         from dataforge_ml.imputation._config import ImputationConfig
+        from dataforge_ml.splitting._config import SplitConfig
         return cls(
             exclude_columns=list(data.get("exclude_columns", [])),
             phase_exclusions={
@@ -152,6 +163,7 @@ class PipelineConfig:
             },
             profiling=ProfileConfig.from_dict(data.get("profiling", {})),
             imputation=ImputationConfig.from_dict(data.get("imputation", {})),
+            split=SplitConfig.from_dict(data.get("split", {})),
         )
 
     def to_json(self, indent: int = 2) -> str:

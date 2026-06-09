@@ -21,29 +21,15 @@ from typing import TYPE_CHECKING
 import polars as pl
 
 from ._config import ColumnTypeInfo, NumericKind, TypeFlag, SemanticType
+from ._type_detection_config import TypeDetectionConfig
 from ..models._data_types import _INT_DTYPES, _NUMERIC_DTYPES
 
 if TYPE_CHECKING:
     pass
 
-# Threshold constants
-_NUMERIC_COERCE_THRESHOLD = 0.95  # ≥95 % non-null after cast → reclassify
-_DATETIME_COERCE_THRESHOLD = 0.80  # ≥80 % non-null after cast → reclassify
-_ENCODED_CATEGORY_MAX_UNIQUE = 15  # int with fewer unique values → label-encoded
-_ENCODED_CATEGORY_MAX_RATIO = 0.05
-_IDENTIFIER_UNIQUE_RATIO = 0.99  # >99 % unique → identifier
-_IDENTIFIER_MAX_MEDIAN_LENGTH = 40
-_DISCRETE_NUNIQUE_THRESHOLD = 20  # numeric with <20 unique values → discrete
-
-_FREE_TEXT_AVG_WORDS: int = 3
-_FREE_TEXT_MEDIAN_CHARS: int = 20
-_FREE_TEXT_P90_CHARS: int = 35
-_FREE_TEXT_MIN_UNIQUE_RATIO: float = 0.40
-_FREE_TEXT_HIGH_UNIQUE_WITH_SPACES: float = 0.70  # unique ratio above which multi-token strings → Text
-
-
 # Common boolean string values (lowercased)
 _BOOL_STRING_SET = {"true", "false", "yes", "no", "t", "f", "0", "1"}
+
 
 class TypeDetector:
     """
@@ -53,10 +39,18 @@ class TypeDetector:
     ----------
     columns : list[str]
         The columns to inspect (already validated against the frame).
+    config : TypeDetectionConfig, optional
+        Threshold configuration. Defaults to ``TypeDetectionConfig()`` which
+        reproduces the library's original hard-coded behaviour.
     """
 
-    def __init__(self, columns: list[str]) -> None:
+    def __init__(
+        self,
+        columns: list[str],
+        config: TypeDetectionConfig | None = None,
+    ) -> None:
         self._columns = columns
+        self._config = config if config is not None else TypeDetectionConfig()
 
     # ------------------------------------------------------------------
     # Public
@@ -66,6 +60,16 @@ class TypeDetector:
         """
         Return a mapping of column name → ColumnTypeInfo for every
         column in self._columns.
+
+        Parameters
+        ----------
+        df : pl.DataFrame
+            The DataFrame to inspect.
+
+        Returns
+        -------
+        dict[str, ColumnTypeInfo]
+            Per-column type detection results.
         """
         results: dict[str, ColumnTypeInfo] = {}
         n_rows = df.height
@@ -163,14 +167,9 @@ class TypeDetector:
     # Step 1: Numeric coercion
     # ------------------------------------------------------------------
 
-    @staticmethod
     def _try_numeric_coerce(
-        series: pl.Series, n_rows: int
+        self, series: pl.Series, n_rows: int
     ) -> tuple[pl.Series, TypeFlag] | tuple[None, None]:
-        """
-        Attempt to cast a Utf8 series to Float64.
-        Returns the cast series + flag if success rate ≥ threshold, else (None, None).
-        """
         if n_rows == 0:
             return None, None
         try:
@@ -179,12 +178,10 @@ class TypeDetector:
             return None, None
 
         non_null = cast.drop_nulls().len()
-        # Compare against original non-null count to avoid penalising
-        # columns that were already sparse
         original_non_null = series.drop_nulls().len()
         denom = original_non_null if original_non_null > 0 else n_rows
         success_rate = non_null / denom
-        if success_rate >= _NUMERIC_COERCE_THRESHOLD:
+        if success_rate >= self._config.numeric_coerce_threshold:
             return cast, TypeFlag.NumericCoerced
         return None, None
 
@@ -192,14 +189,9 @@ class TypeDetector:
     # Step 2: Datetime coercion
     # ------------------------------------------------------------------
 
-    @staticmethod
     def _try_datetime_coerce(
-        series: pl.Series, n_rows: int
+        self, series: pl.Series, n_rows: int
     ) -> tuple[pl.Series, TypeFlag] | tuple[None, None]:
-        """
-        Attempt datetime coercion if the column name looks date-like.
-        Returns the parsed series + flag if success rate ≥ threshold.
-        """
         if n_rows == 0:
             return None, None
 
@@ -211,7 +203,7 @@ class TypeDetector:
         original_non_null = series.drop_nulls().len()
         denom = original_non_null if original_non_null > 0 else n_rows
         non_null = cast.drop_nulls().len()
-        if denom > 0 and non_null / denom >= _DATETIME_COERCE_THRESHOLD:
+        if denom > 0 and non_null / denom >= self._config.datetime_coerce_threshold:
             return cast, TypeFlag.DatetimeCoerced
         return None, None
 
@@ -240,9 +232,8 @@ class TypeDetector:
     # Step 4: Encoded category
     # ------------------------------------------------------------------
 
-    @staticmethod
     def _check_coerced_encoded_category(
-        series: pl.Series, info: ColumnTypeInfo
+        self, series: pl.Series, info: ColumnTypeInfo
     ) -> None:
         """
         Post-coercion low-cardinality check for Float64 series that originated
@@ -276,16 +267,15 @@ class TypeDetector:
         max_val = int(valid.max())
         range_span = (max_val - min_val) + 1
         is_tight_sequence = range_span == n_unique
-        absolute_limit = 50 if is_tight_sequence else _ENCODED_CATEGORY_MAX_UNIQUE
+        absolute_limit = 50 if is_tight_sequence else self._config.encoded_category_max_unique
         absolute_ok = 0 < n_unique < absolute_limit
-        ratio_ok = (n_unique / n_valid) < _ENCODED_CATEGORY_MAX_RATIO
+        ratio_ok = (n_unique / n_valid) < self._config.encoded_category_max_ratio
 
         if (absolute_ok and ratio_ok) or (is_tight_sequence and absolute_ok):
             info.flags.append(TypeFlag.EncodedCategory)
 
-    @staticmethod
     def _check_encoded_category(
-        series: pl.Series, info: ColumnTypeInfo
+        self, series: pl.Series, info: ColumnTypeInfo
     ) -> None:
         if TypeFlag.BooleanCandidate in info.flags:
             return
@@ -307,10 +297,10 @@ class TypeDetector:
 
         is_tight_sequence = range_span == n_unique
 
-        absolute_limit = 50 if is_tight_sequence else _ENCODED_CATEGORY_MAX_UNIQUE
+        absolute_limit = 50 if is_tight_sequence else self._config.encoded_category_max_unique
 
         absolute_ok = 0 < n_unique < absolute_limit
-        ratio_ok = (n_unique / n_valid) < _ENCODED_CATEGORY_MAX_RATIO
+        ratio_ok = (n_unique / n_valid) < self._config.encoded_category_max_ratio
 
         if (absolute_ok and ratio_ok) or (is_tight_sequence and absolute_ok):
             info.flags.append(TypeFlag.EncodedCategory)
@@ -319,13 +309,14 @@ class TypeDetector:
     # Step 5: Identifier column
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _check_identifier(series: pl.Series, info: ColumnTypeInfo, n_rows: int) -> None:
+    def _check_identifier(
+        self, series: pl.Series, info: ColumnTypeInfo, n_rows: int
+    ) -> None:
         if n_rows == 0:
             return
 
         n_unique = series.n_unique()
-        if n_unique / n_rows <= _IDENTIFIER_UNIQUE_RATIO:
+        if n_unique / n_rows <= self._config.identifier_unique_ratio:
             return
 
         if series.dtype in (pl.Utf8, pl.String):
@@ -334,7 +325,7 @@ class TypeDetector:
                 return
 
             median_length = non_null.str.len_chars().median()
-            if median_length is not None and median_length > _IDENTIFIER_MAX_MEDIAN_LENGTH:
+            if median_length is not None and median_length > self._config.identifier_max_median_length:
                 return
 
             # Real identifiers are single tokens — no spaces.
@@ -386,8 +377,7 @@ class TypeDetector:
     # Step 7: Numeric kind
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _classify_numeric_kind(series: pl.Series, info: ColumnTypeInfo) -> None:
+    def _classify_numeric_kind(self, series: pl.Series, info: ColumnTypeInfo) -> None:
         # Skip if it's an encoded category (treat as categorical, not numeric)
         if TypeFlag.EncodedCategory in info.flags:
             return
@@ -396,13 +386,13 @@ class TypeDetector:
 
         if series.dtype in _INT_DTYPES:
             info.numeric_kind = NumericKind.Discrete
-        elif n_unique < _DISCRETE_NUNIQUE_THRESHOLD:
+        elif n_unique < self._config.discrete_nunique_threshold:
             info.numeric_kind = NumericKind.Discrete
         else:
             info.numeric_kind = NumericKind.Continuous
 
-    @staticmethod
     def _check_free_text(
+        self,
         series: pl.Series,
         info: ColumnTypeInfo,
         n_rows: int,
@@ -419,21 +409,21 @@ class TypeDetector:
         unique_ratio = series.n_unique() / n_rows if n_rows > 0 else 0.0
 
         # Multi-word strings of medium length: names, addresses, short descriptions
-        if median_chars > _FREE_TEXT_MEDIAN_CHARS and median_spaces >= 1.0:
+        if median_chars > self._config.free_text_median_chars and median_spaces >= 1.0:
             info.flags.append(TypeFlag.FreeTextCandidate)
             return
 
         # Long average word count: sentences, paragraphs
-        if median_words > _FREE_TEXT_AVG_WORDS:
+        if median_words > self._config.free_text_avg_words:
             info.flags.append(TypeFlag.FreeTextCandidate)
             return
 
         p90_chars = float(char_lengths.quantile(0.9) or 0.0)
-        if p90_chars > _FREE_TEXT_P90_CHARS and unique_ratio > _FREE_TEXT_MIN_UNIQUE_RATIO:
+        if p90_chars > self._config.free_text_p90_chars and unique_ratio > self._config.free_text_min_unique_ratio:
             info.flags.append(TypeFlag.FreeTextCandidate)
             return
 
         # High-cardinality multi-token strings that don't meet char thresholds:
         # e.g. short full names like "John Smith", compound tokens
-        if unique_ratio >= _FREE_TEXT_HIGH_UNIQUE_WITH_SPACES and median_spaces >= 1.0:
+        if unique_ratio >= self._config.free_text_high_unique_with_spaces and median_spaces >= 1.0:
             info.flags.append(TypeFlag.FreeTextCandidate)
