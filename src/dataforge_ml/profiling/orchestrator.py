@@ -42,8 +42,6 @@ from ._config import (
     TypeFlag,
 )
 
-_ROW_DROP_THRESHOLD = 0.50
-
 # ---------------------------------------------------------------------------
 # Registry: SemanticType → ColumnTypeProfiler class
 #
@@ -61,6 +59,16 @@ _COLUMN_PROFILER_REGISTRY: dict[SemanticType, type[ColumnBatchProfiler]] = {  # 
 
 
 class StructuralProfiler:
+    """
+    Phase 1 orchestrator — runs all sub-processors and assembles
+    ``StructuralProfileResult``.
+
+    Parameters
+    ----------
+    config : PipelineConfig, optional
+        Master pipeline configuration.  Defaults to ``PipelineConfig()`` which
+        applies all sub-processor defaults exactly as they were before Scope 15.
+    """
 
     def __init__(self, config: PipelineConfig | None = None) -> None:
         self.config: PipelineConfig = config or PipelineConfig()
@@ -77,6 +85,29 @@ class StructuralProfiler:
     # ------------------------------------------------------------------
 
     def profile(self, data: Any) -> StructuralProfileResult:
+        """
+        Profile a Polars DataFrame and return a full ``StructuralProfileResult``.
+
+        Runs all Phase 1 sub-processors in sequence: modality stats, missingness,
+        type detection, per-column distribution profiling, target profiling, and
+        (optionally) correlation analysis.  Sub-processor thresholds are drawn
+        from the nested sub-configs on ``config.profiling``.
+
+        Parameters
+        ----------
+        data : Any
+            Must be a ``polars.DataFrame``.
+
+        Returns
+        -------
+        StructuralProfileResult
+            Fully populated profile result for the dataset.
+
+        Raises
+        ------
+        TypeError
+            When ``data`` is not a ``polars.DataFrame``.
+        """
         if not isinstance(data, pl.DataFrame):
             raise TypeError(
                 f"StructuralProfiler expects a Polars DataFrame, "
@@ -105,9 +136,9 @@ class StructuralProfiler:
         # ── 2. Missingness pre-pass ──────────────────────────────────────
         # setdefault creates ColumnProfile entries; subsequent steps mutate
         # the same objects via the same setdefault pattern.
-        missingness_result = MissingnessProfiler().profile(
-            data, columns=active_cols
-        )
+        missingness_result = MissingnessProfiler(
+            config=self.config.profiling.missingness
+        ).profile(data, columns=active_cols)
         for col_name in missingness_result.analysed_columns:
             cp = result.columns.setdefault(col_name, ColumnProfile(name=col_name))
             cp.missingness = missingness_result.columns.get(col_name)
@@ -120,12 +151,16 @@ class StructuralProfiler:
             df=data,
             cols=active_cols,
             n_rows=data.height,
+            row_drop_threshold=self.config.profiling.row_drop_threshold,
         )
 
         # ── 4. Type detection ────────────────────────────────────────────
         # setdefault returns the existing ColumnProfile from step 2, so
         # missingness and type info land on the same object.
-        type_info = TypeDetector(columns=active_cols).detect(data)
+        type_info = TypeDetector(
+            columns=active_cols,
+            config=self.config.profiling.type_detection,
+        ).detect(data)
         for col_name, info in type_info.items():
             cp = result.columns.setdefault(col_name, ColumnProfile(name=col_name))
             cp.semantic_type = info.semantic_type
@@ -157,11 +192,19 @@ class StructuralProfiler:
             sem_type = cp.semantic_type
             type_to_cols.setdefault(sem_type, []).append(col_name)
 
+        pc = self.config.profiling
         for sem_type, cols in type_to_cols.items():
-            profiler_cls = _COLUMN_PROFILER_REGISTRY.get(sem_type)  # type: ignore[arg-type]
-            if profiler_cls is None:
-                continue
-            profiler = profiler_cls()
+            if sem_type == SemanticType.Numeric:
+                profiler = NumericProfiler(config=pc.numeric)
+            elif sem_type == SemanticType.Categorical:
+                profiler = CategoricalProfiler(config=pc.categorical)
+            elif sem_type == SemanticType.Datetime:
+                profiler = DatetimeProfiler(config=pc.datetime_)
+            else:
+                profiler_cls = _COLUMN_PROFILER_REGISTRY.get(sem_type)  # type: ignore[arg-type]
+                if profiler_cls is None:
+                    continue
+                profiler = profiler_cls()
             try:
                 batch = profiler.profile(data, columns=cols)
                 for col_name in batch.analysed_columns:
@@ -206,7 +249,7 @@ class StructuralProfiler:
             corr_profiler = CorrelationProfiler(
                 numeric_columns=numeric_cols,
                 categorical_columns=categorical_cols,
-                config=self.config.profiling,
+                config=self.config.profiling.correlation,
             )
 
             # 8a. Feature-feature matrices — computed ONCE, target-independent.
@@ -243,6 +286,7 @@ class StructuralProfiler:
         df: pl.DataFrame,
         cols: list[str],
         n_rows: int,
+        row_drop_threshold: float = 0.50,
     ) -> RowMissingnessDistribution:
         from ..utils._null_detection import (
             _sentinel_eligible,
@@ -280,7 +324,7 @@ class StructuralProfiler:
             pl.sum_horizontal(pl.all()).alias("row_missing")
         )["row_missing"]
 
-        half_threshold = math.ceil(n_cols * _ROW_DROP_THRESHOLD)
+        half_threshold = math.ceil(n_cols * row_drop_threshold)
 
         dist.pct_zero_missing = float((row_missing == 0).sum()) / n_rows
         dist.pct_one_to_two = (

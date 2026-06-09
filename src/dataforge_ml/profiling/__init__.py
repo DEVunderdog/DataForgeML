@@ -14,6 +14,12 @@ from ._config import (
     StructuralProfileResult,
 )
 from ._base import ModalityProfiler
+from ._missingness_config import MissingnessProfileConfig
+from ._numeric_config import NumericProfileConfig
+from ._type_detection_config import TypeDetectionConfig
+from ._categorical_config import CategoricalProfileConfig
+from ._correlation_config import CorrelationProfileConfig
+from ._datetime_config import DatetimeProfileConfig
 
 __all__ = [
     "StructuralProfiler",
@@ -33,4 +39,10 @@ __all__ = [
     "DatasetStats",
     "StructuralProfileResult",
     "ModalityProfiler",
+    "MissingnessProfileConfig",
+    "NumericProfileConfig",
+    "TypeDetectionConfig",
+    "CategoricalProfileConfig",
+    "CorrelationProfileConfig",
+    "DatetimeProfileConfig",
 ]

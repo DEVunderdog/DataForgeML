@@ -37,6 +37,7 @@ import polars as pl
 from ._base import ColumnBatchProfiler
 from ._correlation_profiler import _INT_DTYPES
 from ._numeric_config import (
+    NumericProfileConfig,
     NumericProfileResult,
     NumericStats,
     PercentileSnapshot,
@@ -47,38 +48,20 @@ from ._numeric_config import (
     HistogramBin,
 )
 
-# ---------------------------------------------------------------------------
-# Thresholds (documented so callers can see what drives labels / flags)
-# ---------------------------------------------------------------------------
-
-# Skewness severity bands (applied to |skewness|)
-_SKEW_NORMAL = 0.5  # |skew| ≤ this  →  normal
-_SKEW_MODERATE = 1.0  # |skew| ≤ this  →  moderate
-_SKEW_HIGH = 2.0  # |skew| ≤ this  →  high
-#                        |skew| > 2.0   →  severe
-
-# Excess kurtosis bands
-_KURT_PLATY_UPPER = -1.0  # excess < this  →  platykurtic
-_KURT_LEPTO_LOWER = 3.0  # excess > this  →  leptokurtic
-#                            else          →  mesokurtic
-
-# Scale-anomaly: flag when max/min ratio spans ≥ 3 orders of magnitude
-_SCALE_ORDERS_OF_MAGNITUDE = 3  # i.e. ratio ≥ 10^3
-
-
-# Percentile quantile levels (in order)
+# Percentile quantile levels — not a user-configurable threshold
 _QUANTILE_LEVELS = (0.01, 0.05, 0.25, 0.50, 0.75, 0.95, 0.99)
-_NEAR_CONSTANT_THRESHOLD = 0.90
-_DISCRETE_MAX_UNIQUE = 20
 
 
 class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
     """
     Numeric distribution profiler for Polars DataFrames.
 
-    Profiles every column passed to profile(df, columns) — no config,
-    no internal eligibility gate.
+    Profiles every column passed to profile(df, columns) — no internal
+    eligibility gate.
     """
+
+    def __init__(self, config: NumericProfileConfig | None = None) -> None:
+        self._config = config if config is not None else NumericProfileConfig()
 
     # ------------------------------------------------------------------
     # Public API
@@ -164,12 +147,12 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
             )
 
             # Frequency / distribution stays per-column (returns a frame, not a scalar)
-            self._compute_frequency_and_distribution(series, clean, profile, n_rows)
+            self._compute_frequency_and_distribution(series, clean, profile, n_rows, self._config)
 
             # Shape stays per-column (delegates to scipy on a numpy array)
-            self._compute_shape(clean, profile)
+            self._compute_shape(clean, profile, self._config)
 
-            self._check_scale_anomaly(profile)
+            self._check_scale_anomaly(profile, self._config)
 
             result.columns[col] = profile
 
@@ -186,6 +169,7 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
         clean_f64: pl.Series,
         profile: NumericStats,
         n_rows: int,
+        config: NumericProfileConfig,
     ) -> None:
         """
         Compute Mode, and depending on whether the feature is continuous or discrete,
@@ -205,12 +189,12 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
         profile.mode = mode_val
         profile.mode_frequency = mode_freq
 
-        if mode_freq > _NEAR_CONSTANT_THRESHOLD:
+        if mode_freq > config.near_constant_threshold:
             profile.flags.append(NumericFlag.NearConstant)
 
         n_unique = vc.height
         is_discrete = (
-            original_series.dtype in _INT_DTYPES or n_unique <= _DISCRETE_MAX_UNIQUE
+            original_series.dtype in _INT_DTYPES or n_unique <= config.discrete_max_unique
         )
 
         if is_discrete:
@@ -248,6 +232,7 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
     def _compute_shape(
         clean: pl.Series,
         profile: NumericStats,
+        config: NumericProfileConfig,
     ) -> None:
         from scipy.stats import skew, kurtosis as scipy_kurtosis
 
@@ -266,18 +251,18 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
         profile.kurtosis = float(scipy_kurtosis(arr, bias=False))
 
         abs_skew = abs(profile.skewness)
-        if abs_skew <= _SKEW_NORMAL:
+        if abs_skew <= config.skew_normal:
             profile.skewness_severity = SkewSeverity.Normal
-        elif abs_skew <= _SKEW_MODERATE:
+        elif abs_skew <= config.skew_moderate:
             profile.skewness_severity = SkewSeverity.Moderate
-        elif abs_skew <= _SKEW_HIGH:
+        elif abs_skew <= config.skew_high:
             profile.skewness_severity = SkewSeverity.High
         else:
             profile.skewness_severity = SkewSeverity.Severe
 
-        if profile.kurtosis < _KURT_PLATY_UPPER:
+        if profile.kurtosis < config.kurt_platykurtic_upper:
             profile.kurtosis_tag = KurtosisTag.Platykurtic
-        elif profile.kurtosis > _KURT_LEPTO_LOWER:
+        elif profile.kurtosis > config.kurt_leptokurtic_lower:
             profile.kurtosis_tag = KurtosisTag.Leptokurtic
         else:
             profile.kurtosis_tag = KurtosisTag.Mesokurtic
@@ -289,9 +274,10 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
     @staticmethod
     def _check_scale_anomaly(
         profile: NumericStats,
+        config: NumericProfileConfig,
     ) -> None:
         """
-        Flag when values span ≥ 3 orders of magnitude *on the positive side*.
+        Flag when values span ≥ N orders of magnitude *on the positive side*.
 
         Rationale: a column with values like [0.002, 15000] almost certainly
         mixes units or scales, which will mislead distance-based models.
@@ -321,10 +307,10 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
         if abs_min == 0.0:
             # Any non-zero max with a zero minimum → infinite ratio →
             # conservatively flag if max is large enough to be suspicious.
-            if abs_max >= 10**_SCALE_ORDERS_OF_MAGNITUDE:
+            if abs_max >= 10**config.scale_orders_of_magnitude:
                 profile.flags.append(NumericFlag.ScaleAnomaly)
             return
 
         ratio = abs_max / abs_min
-        if ratio >= 10**_SCALE_ORDERS_OF_MAGNITUDE:
+        if ratio >= 10**config.scale_orders_of_magnitude:
             profile.flags.append(NumericFlag.ScaleAnomaly)

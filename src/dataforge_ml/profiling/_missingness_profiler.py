@@ -18,28 +18,19 @@ from ._base import DatasetLevelProfiler
 from ._missingness_config import (
     ColumnMissingnessProfile,
     MissingnessFlag,
+    MissingnessProfileConfig,
     MissingnessProfileResult,
     MissingSeverity,
 )
 from ..utils._null_detection import _SENTINEL_STRINGS, _inf_eligible, _sentinel_eligible
 
-# ---------------------------------------------------------------------------
-# Thresholds
-# ---------------------------------------------------------------------------
-
-_SEVERITY_MINOR = 0.01
-_SEVERITY_MODERATE = 0.05
-_SEVERITY_HIGH = 0.20
-
-_MAR_CORRELATION_THRESHOLD = 0.60
-_COL_DROP_THRESHOLD = 0.50
-
 
 class MissingnessProfiler(DatasetLevelProfiler[MissingnessProfileResult]):
     """Missingness profiler for Polars DataFrames."""
 
-    def __init__(self) -> None:
+    def __init__(self, config: MissingnessProfileConfig | None = None) -> None:
         super().__init__()
+        self._config = config if config is not None else MissingnessProfileConfig()
 
     # ------------------------------------------------------------------
     # Public API
@@ -75,6 +66,7 @@ class MissingnessProfiler(DatasetLevelProfiler[MissingnessProfileResult]):
                 series=df[col_name],
                 col_name=col_name,
                 n_rows=n_rows,
+                config=self._config,
             )
             result.columns[col_name] = col_profile
             indicator_cols.append(indicator)
@@ -83,7 +75,7 @@ class MissingnessProfiler(DatasetLevelProfiler[MissingnessProfileResult]):
             if ratio == 1.0:
                 result.fully_null_columns.append(col_name)
                 col_profile.flags.append(MissingnessFlag.FullyNull)
-            elif ratio > _COL_DROP_THRESHOLD:
+            elif ratio > self._config.col_drop_threshold:
                 col_profile.flags.append(MissingnessFlag.DropCandidate)
 
         # ── Missingness correlation matrix ────────────────────────────
@@ -103,7 +95,7 @@ class MissingnessProfiler(DatasetLevelProfiler[MissingnessProfileResult]):
                 mar_peers = [
                     col_b
                     for col_b, r in corr_matrix.get(col_a, {}).items()
-                    if col_b != col_a and r > _MAR_CORRELATION_THRESHOLD
+                    if col_b != col_a and r > self._config.mar_correlation_threshold
                 ]
                 if mar_peers:
                     result.columns[col_a].correlated_with = mar_peers
@@ -121,6 +113,7 @@ class MissingnessProfiler(DatasetLevelProfiler[MissingnessProfileResult]):
         series: pl.Series,
         col_name: str,
         n_rows: int,
+        config: MissingnessProfileConfig,
     ) -> tuple[ColumnMissingnessProfile, pl.Series]:
         profile = ColumnMissingnessProfile(column=col_name, total_rows=n_rows)
         dtype = series.dtype
@@ -149,11 +142,11 @@ class MissingnessProfiler(DatasetLevelProfiler[MissingnessProfileResult]):
 
         if r == 0.0:
             profile.severity = None
-        elif r < _SEVERITY_MINOR:
+        elif r < config.severity_minor:
             profile.severity = MissingSeverity.Minor
-        elif r < _SEVERITY_MODERATE:
+        elif r < config.severity_moderate:
             profile.severity = MissingSeverity.Moderate
-        elif r < _SEVERITY_HIGH:
+        elif r < config.severity_high:
             profile.severity = MissingSeverity.High
         else:
             profile.severity = MissingSeverity.Severe

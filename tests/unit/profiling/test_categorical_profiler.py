@@ -4,6 +4,7 @@ import pytest
 from dataforge_ml.profiling._categorical import CategoricalProfiler
 from dataforge_ml.profiling._categorical_config import (
     CategoricalFlag,
+    CategoricalProfileConfig,
     CategoricalProfileResult,
     CategoricalStats,
     ImbalanceMetrics,
@@ -235,3 +236,51 @@ def test_rare_categories_to_dict_includes_new_fields():
     assert "rare_label_threshold_pct" in d
     assert "rare" in d["rare_label_values"]
     assert d["rare_label_threshold_pct"] == 0.05
+
+
+# ---------------------------------------------------------------------------
+# CategoricalProfileConfig — threshold override tests
+# ---------------------------------------------------------------------------
+
+
+def test_rare_threshold_pct_override_flags_borderline_category_as_rare():
+    # 200 rows: "common" appears 197 times, "edge" appears 3 times (1.5% of rows).
+    # Default rare_threshold_pct (0.01): floor(0.01 * 200) = 2 → "edge" (3 rows)
+    #   is NOT rare (3 >= 2).
+    # Raised threshold (0.02): floor(0.02 * 200) = 4 → "edge" (3 rows) IS rare.
+    data = ["common"] * 197 + ["edge"] * 3
+    df = pl.DataFrame({"cat": pl.Series(data, dtype=pl.Utf8)})
+
+    default_stats = CategoricalProfiler().profile(df, ["cat"]).columns["cat"]
+    assert default_stats.rare_categories.rare_category_count == 0
+
+    raised = CategoricalProfileConfig(rare_threshold_pct=0.02)
+    override_stats = CategoricalProfiler(config=raised).profile(df, ["cat"]).columns["cat"]
+    assert override_stats.rare_categories.rare_category_count == 1
+
+
+def test_near_constant_threshold_override_triggers_flag():
+    # "dominant" appears 88% of the time — below default 0.90 but above lowered 0.85.
+    data = ["dominant"] * 88 + ["other"] * 12
+    df = pl.DataFrame({"cat": pl.Series(data, dtype=pl.Utf8)})
+
+    default_stats = CategoricalProfiler().profile(df, ["cat"]).columns["cat"]
+    assert CategoricalFlag.NearConstant not in default_stats.flags
+
+    lowered = CategoricalProfileConfig(near_constant_threshold=0.85)
+    override_stats = CategoricalProfiler(config=lowered).profile(df, ["cat"]).columns["cat"]
+    assert CategoricalFlag.NearConstant in override_stats.flags
+
+
+def test_categorical_profile_config_round_trip():
+    cfg = CategoricalProfileConfig(
+        rare_threshold_pct=0.02,
+        stratification_rare_threshold_pct=0.08,
+        mixed_type_min_minor_pct=0.10,
+        near_constant_threshold=0.85,
+    )
+    restored = CategoricalProfileConfig.from_dict(cfg.to_dict())
+    assert restored.rare_threshold_pct == 0.02
+    assert restored.stratification_rare_threshold_pct == 0.08
+    assert restored.mixed_type_min_minor_pct == 0.10
+    assert restored.near_constant_threshold == 0.85

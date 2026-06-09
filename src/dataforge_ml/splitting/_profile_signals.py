@@ -17,10 +17,9 @@ from ..profiling._config import StructuralProfileResult
 from ..profiling._boolean_config import BooleanStats
 from ..profiling._categorical_config import CategoricalStats
 from ..profiling._numeric_config import NumericStats, SkewSeverity
+from ._config import SplitConfig
 from dataforge_ml.utils._null_detection import _SENTINEL_STRINGS, _inf_eligible, _sentinel_eligible
 
-_MAX_SIGNALS = 50
-_RARE_THRESHOLD = 0.05
 _BUCKET_LABELS = ["q1", "q2", "q3", "q4", "q5"]
 
 
@@ -28,16 +27,18 @@ def build_label_matrix(
     df: pl.DataFrame,
     profile: StructuralProfileResult,
     target: Optional[str],
-    max_signals: int = _MAX_SIGNALS,
+    config: Optional[SplitConfig] = None,
 ) -> np.ndarray:
     """
     Return a (n_rows, n_signals) int8 label matrix for multilabel stratification.
 
     Signals with zero proportion (all zeros) are dropped before capping.
-    When total signals exceed max_signals, the rarest signals (smallest
-    proportion of 1s) are retained. Returns shape (n_rows, 0) when no
-    usable signals exist, signalling the caller to fall back to random splitting.
+    When total signals exceed ``config.max_stratification_signals``, the rarest
+    signals (smallest proportion of 1s) are retained. Returns shape (n_rows, 0)
+    when no usable signals exist, signalling the caller to fall back to random
+    splitting.
     """
+    _config = config if config is not None else SplitConfig()
     n = len(df)
     signals: list[np.ndarray] = []
 
@@ -135,9 +136,9 @@ def build_label_matrix(
         if col not in df.columns:
             continue
         bs = cp.stats
-        if bs.true_ratio < _RARE_THRESHOLD:
+        if bs.true_ratio < _config.boolean_minority_threshold:
             minority_val = True
-        elif bs.false_ratio < _RARE_THRESHOLD:
+        elif bs.false_ratio < _config.boolean_minority_threshold:
             minority_val = False
         else:
             continue
@@ -165,7 +166,8 @@ def build_label_matrix(
     if not signals:
         return np.empty((n, 0), dtype=np.int8)
 
-    # Cap at max_signals: keep rarest (smallest proportion of 1s) first
+    # Cap at max_stratification_signals: keep rarest (smallest proportion of 1s) first
+    max_signals = _config.max_stratification_signals
     if len(signals) > max_signals:
         proportions = [float(s.mean()) for s in signals]
         ranked = sorted(range(len(signals)), key=lambda i: proportions[i])

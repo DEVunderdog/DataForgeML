@@ -23,6 +23,89 @@ from enum import StrEnum
 from typing import Optional
 
 # ---------------------------------------------------------------------------
+# Sub-config
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class CorrelationProfileConfig:
+    """
+    Threshold configuration for the correlation sub-processor.
+
+    All fields default to the library's original hard-coded constants so that
+    constructing ``CorrelationProfileConfig()`` produces identical behaviour to
+    the pre-config implementation.
+
+    Parameters
+    ----------
+    near_redundant_pearson_threshold : float
+        Maximum absolute Pearson or Spearman |r| below which a numeric column
+        pair is *not* flagged ``near_redundant``.  Pairs whose
+        ``max(|pearson_r|, |spearman_r|)`` exceeds this value are flagged.
+    near_redundant_cramer_v_threshold : float
+        Cramér's V above which a categorical column pair is flagged
+        ``near_redundant``.
+    near_redundant_eta_squared_threshold : float
+        Eta-squared (η²) above which a numeric-categorical pair is flagged
+        ``near_redundant``.
+    mi_min_rows : int
+        Minimum number of complete-case rows required for a k-NN mutual
+        information estimate to be computed.  Columns with fewer valid rows
+        are silently skipped.
+    """
+
+    near_redundant_pearson_threshold: float = 0.95
+    near_redundant_cramer_v_threshold: float = 0.80
+    near_redundant_eta_squared_threshold: float = 0.50
+    mi_min_rows: int = 10
+
+    def to_dict(self) -> dict:
+        """
+        Serialise the config to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            All field values keyed by field name.
+        """
+        return {
+            "near_redundant_pearson_threshold": self.near_redundant_pearson_threshold,
+            "near_redundant_cramer_v_threshold": self.near_redundant_cramer_v_threshold,
+            "near_redundant_eta_squared_threshold": self.near_redundant_eta_squared_threshold,
+            "mi_min_rows": self.mi_min_rows,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> CorrelationProfileConfig:
+        """
+        Construct a ``CorrelationProfileConfig`` from a plain dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            Mapping produced by ``to_dict()``. Missing keys fall back to field
+            defaults.
+
+        Returns
+        -------
+        CorrelationProfileConfig
+            Reconstructed config instance.
+        """
+        return cls(
+            near_redundant_pearson_threshold=float(
+                data.get("near_redundant_pearson_threshold", 0.95)
+            ),
+            near_redundant_cramer_v_threshold=float(
+                data.get("near_redundant_cramer_v_threshold", 0.80)
+            ),
+            near_redundant_eta_squared_threshold=float(
+                data.get("near_redundant_eta_squared_threshold", 0.50)
+            ),
+            mi_min_rows=int(data.get("mi_min_rows", 10)),
+        )
+
+
+# ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------
 

@@ -8,6 +8,12 @@ import pytest
 
 from dataforge_ml.config import PipelineConfig, PipelinePhase, SemanticType
 from dataforge_ml.profiling._config import ProfileConfig
+from dataforge_ml.profiling._missingness_config import MissingnessProfileConfig
+from dataforge_ml.profiling._numeric_config import NumericProfileConfig
+from dataforge_ml.profiling._type_detection_config import TypeDetectionConfig
+from dataforge_ml.profiling._categorical_config import CategoricalProfileConfig
+from dataforge_ml.profiling._correlation_config import CorrelationProfileConfig
+from dataforge_ml.profiling._datetime_config import DatetimeProfileConfig
 
 _ALL_PHASES = list(PipelinePhase)
 
@@ -218,3 +224,112 @@ def test_round_trip_empty_config():
     assert restored.exclude_columns == []
     assert restored.phase_exclusions == {}
     assert restored.column_overrides == {}
+
+
+# ---------------------------------------------------------------------------
+# ProfileConfig sub-config round-trip
+# ---------------------------------------------------------------------------
+
+
+def test_profile_config_sub_config_round_trip():
+    original = ProfileConfig(
+        compute_correlation=True,
+        row_drop_threshold=0.30,
+        missingness=MissingnessProfileConfig(
+            severity_minor=0.02,
+            severity_moderate=0.08,
+            severity_high=0.25,
+            mar_correlation_threshold=0.70,
+            col_drop_threshold=0.60,
+        ),
+        numeric=NumericProfileConfig(
+            skew_normal=0.3,
+            skew_moderate=0.8,
+            skew_high=1.5,
+            kurt_platykurtic_upper=-2.0,
+            kurt_leptokurtic_lower=4.0,
+            near_constant_threshold=0.85,
+            scale_orders_of_magnitude=4,
+            discrete_max_unique=25,
+        ),
+        type_detection=TypeDetectionConfig(
+            numeric_coerce_threshold=0.99,
+            datetime_coerce_threshold=0.90,
+            encoded_category_max_unique=20,
+            identifier_unique_ratio=0.995,
+        ),
+        categorical=CategoricalProfileConfig(
+            rare_threshold_pct=0.02,
+            stratification_rare_threshold_pct=0.10,
+            near_constant_threshold=0.85,
+        ),
+        correlation=CorrelationProfileConfig(
+            near_redundant_pearson_threshold=0.85,
+            near_redundant_cramer_v_threshold=0.70,
+            near_redundant_eta_squared_threshold=0.40,
+            mi_min_rows=20,
+        ),
+        datetime_=DatetimeProfileConfig(
+            mnar_null_ratio_threshold=0.02,
+            high_gap_cv_threshold=0.8,
+            recent_window_fraction=0.15,
+        ),
+    )
+
+    restored = ProfileConfig.from_dict(original.to_dict())
+
+    assert restored.row_drop_threshold == original.row_drop_threshold
+
+    assert restored.missingness.severity_minor == original.missingness.severity_minor
+    assert restored.missingness.severity_moderate == original.missingness.severity_moderate
+    assert restored.missingness.severity_high == original.missingness.severity_high
+    assert restored.missingness.mar_correlation_threshold == original.missingness.mar_correlation_threshold
+    assert restored.missingness.col_drop_threshold == original.missingness.col_drop_threshold
+
+    assert restored.numeric.skew_normal == original.numeric.skew_normal
+    assert restored.numeric.skew_moderate == original.numeric.skew_moderate
+    assert restored.numeric.skew_high == original.numeric.skew_high
+    assert restored.numeric.kurt_platykurtic_upper == original.numeric.kurt_platykurtic_upper
+    assert restored.numeric.kurt_leptokurtic_lower == original.numeric.kurt_leptokurtic_lower
+    assert restored.numeric.near_constant_threshold == original.numeric.near_constant_threshold
+    assert restored.numeric.scale_orders_of_magnitude == original.numeric.scale_orders_of_magnitude
+    assert restored.numeric.discrete_max_unique == original.numeric.discrete_max_unique
+
+    assert restored.type_detection.numeric_coerce_threshold == original.type_detection.numeric_coerce_threshold
+    assert restored.type_detection.datetime_coerce_threshold == original.type_detection.datetime_coerce_threshold
+    assert restored.type_detection.encoded_category_max_unique == original.type_detection.encoded_category_max_unique
+    assert restored.type_detection.identifier_unique_ratio == original.type_detection.identifier_unique_ratio
+
+    assert restored.categorical.rare_threshold_pct == original.categorical.rare_threshold_pct
+    assert restored.categorical.stratification_rare_threshold_pct == original.categorical.stratification_rare_threshold_pct
+    assert restored.categorical.near_constant_threshold == original.categorical.near_constant_threshold
+
+    assert restored.correlation.near_redundant_pearson_threshold == original.correlation.near_redundant_pearson_threshold
+    assert restored.correlation.near_redundant_cramer_v_threshold == original.correlation.near_redundant_cramer_v_threshold
+    assert restored.correlation.near_redundant_eta_squared_threshold == original.correlation.near_redundant_eta_squared_threshold
+    assert restored.correlation.mi_min_rows == original.correlation.mi_min_rows
+
+    assert restored.datetime_.mnar_null_ratio_threshold == original.datetime_.mnar_null_ratio_threshold
+    assert restored.datetime_.high_gap_cv_threshold == original.datetime_.high_gap_cv_threshold
+    assert restored.datetime_.recent_window_fraction == original.datetime_.recent_window_fraction
+
+
+def test_profile_config_defaults_unchanged():
+    cfg = ProfileConfig()
+
+    assert cfg.row_drop_threshold == 0.50
+    assert cfg.missingness.severity_minor == 0.01
+    assert cfg.missingness.severity_moderate == 0.05
+    assert cfg.missingness.severity_high == 0.20
+    assert cfg.missingness.mar_correlation_threshold == 0.60
+    assert cfg.missingness.col_drop_threshold == 0.50
+    assert cfg.numeric.skew_normal == 0.5
+    assert cfg.numeric.skew_moderate == 1.0
+    assert cfg.numeric.skew_high == 2.0
+    assert cfg.numeric.near_constant_threshold == 0.90
+    assert cfg.type_detection.numeric_coerce_threshold == 0.95
+    assert cfg.type_detection.identifier_unique_ratio == 0.99
+    assert cfg.categorical.rare_threshold_pct == 0.01
+    assert cfg.categorical.near_constant_threshold == 0.90
+    assert cfg.correlation.near_redundant_pearson_threshold == 0.95
+    assert cfg.datetime_.mnar_null_ratio_threshold == 0.05

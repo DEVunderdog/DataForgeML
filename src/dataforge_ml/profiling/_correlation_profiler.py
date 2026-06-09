@@ -42,10 +42,10 @@ from typing import Optional
 import polars as pl
 
 from ._base import DatasetLevelProfiler
-from ._config import ProfileConfig
 from ._correlation_config import (
     CategoricalTargetCorrelation,
     CorrelationPair,
+    CorrelationProfileConfig,
     CorrelationProfileResult,
     CramerVPair,
     EtaSquaredPair,
@@ -56,12 +56,8 @@ from ._correlation_config import (
 )
 from ..models._data_types import _NUMERIC_DTYPES, _INT_DTYPES
 
-_NEAR_REDUNDANT_THRESHOLD: float = 0.95
-_NEAR_REDUNDANT_CRAMER_V_THRESHOLD: float = 0.80
-_NEAR_REDUNDANT_ETA_SQUARED_THRESHOLD: float = 0.50
 _TOP_N_FEATURE_TARGET: int = 10
 _MI_N_NEIGHBORS: int = 3
-_MI_MIN_ROWS: int = 10  # min complete-case rows for a meaningful k-NN MI estimate
 
 
 # ---------------------------------------------------------------------------
@@ -108,27 +104,27 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
     ----------
     numeric_columns : list[str]
         Columns to include in pairwise matrices.
-    categorical_columns : list[str]
-        Columns to include in MI / ANOVA target steps.
-    target_column : str | None
-        Used only by the legacy profile() path.
-    config : ProfileConfig | None
-    near_redundant_threshold : float
-    top_n_feature_target : int
+    categorical_columns : list[str], optional
+        Columns to include in Cramér's V, eta-squared, and MI target steps.
+    config : CorrelationProfileConfig, optional
+        Threshold configuration. Defaults to ``CorrelationProfileConfig()``
+        which reproduces the library's original hard-coded behaviour.
+    top_n_feature_target : int, optional
+        Maximum number of feature-target entries returned by
+        ``profile_target``.
     """
 
     def __init__(
         self,
         numeric_columns: list[str],
         categorical_columns: Optional[list[str]] = None,
-        config: Optional[ProfileConfig] = None,
-        near_redundant_threshold: float = _NEAR_REDUNDANT_THRESHOLD,
+        config: Optional[CorrelationProfileConfig] = None,
         top_n_feature_target: int = _TOP_N_FEATURE_TARGET,
     ) -> None:
         super().__init__()
         self._numeric_columns = numeric_columns
         self._categorical_columns = categorical_columns or []
-        self._threshold = near_redundant_threshold
+        self._config = config if config is not None else CorrelationProfileConfig()
         self._top_n = top_n_feature_target
 
     # ------------------------------------------------------------------
@@ -181,7 +177,7 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
 
         if len(resolved_categorical) >= 2:
             result.cramer_v_pairs = self._compute_cramer_v_pairs(
-                df, resolved_categorical, _NEAR_REDUNDANT_CRAMER_V_THRESHOLD
+                df, resolved_categorical, self._config.near_redundant_cramer_v_threshold
             )
             result.near_redundant_cramer_v_pairs = [
                 p for p in result.cramer_v_pairs if p.near_redundant
@@ -189,7 +185,8 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
 
         if resolved_numeric and resolved_categorical:
             result.eta_squared_pairs = self._compute_eta_squared_pairs(
-                df, resolved_numeric, resolved_categorical, _NEAR_REDUNDANT_ETA_SQUARED_THRESHOLD
+                df, resolved_numeric, resolved_categorical,
+                self._config.near_redundant_eta_squared_threshold,
             )
             result.near_redundant_eta_squared_pairs = [
                 p for p in result.eta_squared_pairs if p.near_redundant
@@ -314,8 +311,12 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
         for col_a, col_b in itertools.combinations(cols, 2):
             p_r = pearson_mat.get(col_a, {}).get(col_b)
             s_r = spearman_mat.get(col_a, {}).get(col_b)
-            near_redundant = (p_r is not None and abs(p_r) > self._threshold) or (
-                s_r is not None and abs(s_r) > self._threshold
+            near_redundant = (
+                p_r is not None
+                and abs(p_r) > self._config.near_redundant_pearson_threshold
+            ) or (
+                s_r is not None
+                and abs(s_r) > self._config.near_redundant_pearson_threshold
             )
             pairs.append(
                 CorrelationPair(
@@ -643,7 +644,7 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
             feat_null = (series.is_null() | series.is_nan()).to_numpy()
             valid = ~(feat_null | target_null)
             n_valid = int(valid.sum())
-            if n_valid < _MI_MIN_ROWS:
+            if n_valid < self._config.mi_min_rows:
                 continue
             x = series.to_numpy()[valid].reshape(-1, 1)
             y = y_full[valid]
@@ -673,10 +674,10 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
             feat_null = df[col].is_null().to_numpy()
             valid = ~(feat_null | target_null)
             n_valid = int(valid.sum())
-            if n_valid < _MI_MIN_ROWS:
+            if n_valid < self._config.mi_min_rows:
                 warnings.warn(
                     f"Skipping MI for '{col}': only {n_valid} complete rows "
-                    f"(need {_MI_MIN_ROWS}).",
+                    f"(need {self._config.mi_min_rows}).",
                     stacklevel=3,
                 )
                 continue

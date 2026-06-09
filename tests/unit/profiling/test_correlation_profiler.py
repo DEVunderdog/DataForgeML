@@ -1,7 +1,10 @@
 import polars as pl
 
 from dataforge_ml.profiling._correlation_profiler import CorrelationProfiler
-from dataforge_ml.profiling._correlation_config import CorrelationProfileResult
+from dataforge_ml.profiling._correlation_config import (
+    CorrelationProfileConfig,
+    CorrelationProfileResult,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -228,3 +231,80 @@ def test_cramer_v_near_saturated_does_not_raise():
     result = profiler.profile_features(df, [], categorical_cols=["name", "group"])
     assert len(result.cramer_v_pairs) == 1
     assert result.cramer_v_pairs[0].cramer_v is None
+
+
+# ---------------------------------------------------------------------------
+# CorrelationProfileConfig — threshold override tests
+# ---------------------------------------------------------------------------
+
+
+def test_pearson_threshold_override_flags_borderline_pair():
+    # x = [0..99]; y = x with indices 10, 30, 50, 70, 90 set to 0.
+    # Pearson |r| ≈ 0.91 — above 0.85 but below the default 0.95.
+    n = 100
+    x = [float(i) for i in range(n)]
+    y = [0.0 if i in (10, 30, 50, 70, 90) else float(i) for i in range(n)]
+    df = pl.DataFrame({
+        "x": pl.Series(x, dtype=pl.Float64),
+        "y": pl.Series(y, dtype=pl.Float64),
+    })
+    cols = ["x", "y"]
+
+    # Default threshold (0.95): not near-redundant
+    default_result = CorrelationProfiler(numeric_columns=cols).profile_features(df, cols)
+    pair = default_result.pairwise[0]
+    assert pair.pearson_r is not None
+    assert abs(pair.pearson_r) < 0.95
+    assert pair.near_redundant is False
+
+    # Lowered threshold (0.85): pair is now near-redundant
+    config = CorrelationProfileConfig(near_redundant_pearson_threshold=0.85)
+    override_result = CorrelationProfiler(
+        numeric_columns=cols, config=config
+    ).profile_features(df, cols)
+    assert override_result.pairwise[0].near_redundant is True
+
+
+def test_cramer_v_threshold_override_flags_borderline_pair():
+    # 2×2 contingency table with 75/25 split → Cramér's V ≈ 0.50.
+    # Default threshold (0.80): NOT near-redundant.
+    # Lowered threshold (0.45): IS near-redundant.
+    col_a = ["A"] * 100 + ["B"] * 100
+    col_b = ["X"] * 75 + ["Y"] * 25 + ["X"] * 25 + ["Y"] * 75
+    df = pl.DataFrame({
+        "cat1": pl.Series(col_a, dtype=pl.Utf8),
+        "cat2": pl.Series(col_b, dtype=pl.Utf8),
+    })
+    cat_cols = ["cat1", "cat2"]
+
+    # Default threshold (0.80): not near-redundant
+    default_profiler = CorrelationProfiler(
+        numeric_columns=[], categorical_columns=cat_cols
+    )
+    default_result = default_profiler.profile_features(df, [], categorical_cols=cat_cols)
+    pair = default_result.cramer_v_pairs[0]
+    assert pair.cramer_v is not None
+    assert pair.cramer_v < 0.80
+    assert pair.near_redundant is False
+
+    # Lowered threshold (0.45): near-redundant
+    config = CorrelationProfileConfig(near_redundant_cramer_v_threshold=0.45)
+    override_profiler = CorrelationProfiler(
+        numeric_columns=[], categorical_columns=cat_cols, config=config
+    )
+    override_result = override_profiler.profile_features(df, [], categorical_cols=cat_cols)
+    assert override_result.cramer_v_pairs[0].near_redundant is True
+
+
+def test_correlation_profile_config_round_trip():
+    cfg = CorrelationProfileConfig(
+        near_redundant_pearson_threshold=0.85,
+        near_redundant_cramer_v_threshold=0.70,
+        near_redundant_eta_squared_threshold=0.40,
+        mi_min_rows=20,
+    )
+    restored = CorrelationProfileConfig.from_dict(cfg.to_dict())
+    assert restored.near_redundant_pearson_threshold == 0.85
+    assert restored.near_redundant_cramer_v_threshold == 0.70
+    assert restored.near_redundant_eta_squared_threshold == 0.40
+    assert restored.mi_min_rows == 20

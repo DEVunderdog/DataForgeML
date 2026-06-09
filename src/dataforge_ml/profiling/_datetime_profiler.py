@@ -3,7 +3,7 @@ DatetimeProfiler  –  Phase 1 extension: Datetime Column Profiling.
 
 Per-column metrics (opt-in via ProfileConfig.datetime_columns):
   1. Range              – min date, max date, total range in days
-  2. Null analysis      – count, ratio, MNAR flag when null_ratio > 5 %
+  2. Null analysis      – count, ratio, MNAR flag when null_ratio > threshold
   3. Future dates       – count of values > now, with context note
   4. Granularity        – inferred periodicity from median consecutive gap;
                           high gap-CV flagged as irregular
@@ -19,21 +19,6 @@ Granularity inference bands (median gap in seconds):
   < 1 209 600 s → weekly     (< 14 days)
   < 5 184 000 s → monthly    (< 60 days)
   else          → yearly
-
-Integration
------------
-Add ``datetime_columns: list[str] | None`` to ProfileConfig, then call::
-
-    from profiling.datetime_profiler import DatetimeProfiler
-
-    dt_profiler = DatetimeProfiler(
-        columns=["created_at", "event_time"],
-        config=cfg,
-    )
-    dt_result = dt_profiler.profile(df)
-
-Attach ``dt_result`` to ``StructuralProfileResult`` as
-``result.datetime``.
 """
 
 from __future__ import annotations
@@ -44,6 +29,7 @@ import polars as pl
 
 from ._base import ColumnBatchProfiler
 from ._datetime_config import (
+    DatetimeProfileConfig,
     DatetimeProfileResult,
     DatetimeStats,
     InferredGranularity,
@@ -51,18 +37,8 @@ from ._datetime_config import (
     TemporalSignals,
 )
 
-# ---------------------------------------------------------------------------
-# Thresholds
-# ---------------------------------------------------------------------------
-
-# MNAR suspicion: missing rate above this fraction → flag
-_MNAR_NULL_RATIO_THRESHOLD: float = 0.05
-
-# Gap coefficient of variation above this → flag as irregular
-_HIGH_GAP_CV_THRESHOLD: float = 1.0
-
-# Granularity bands — upper bound (exclusive) in seconds for each label
-# Ordered from finest to coarsest.
+# Granularity bands — upper bound (exclusive) in seconds for each label.
+# Ordered from finest to coarsest.  Not user-configurable.
 _GRANULARITY_BANDS: list[tuple[float, InferredGranularity]] = [
     (90.0, InferredGranularity.Secondly),  # < 1.5 min
     (3_600.0, InferredGranularity.Minutely),  # < 1 h
@@ -72,9 +48,6 @@ _GRANULARITY_BANDS: list[tuple[float, InferredGranularity]] = [
     (5_184_000.0, InferredGranularity.Monthly),  # < 60 days
 ]
 # Anything ≥ 5_184_000 s → Yearly
-
-# Recent-data sparsity: consider the last this-fraction of the total range
-_RECENT_WINDOW_FRACTION: float = 0.10
 
 
 def _is_datetime_dtype(dtype: pl.DataType) -> bool:
@@ -86,10 +59,13 @@ class DatetimeProfiler(ColumnBatchProfiler[DatetimeProfileResult]):
     """
     Datetime distribution profiler for Polars DataFrames.
 
-    Profiles every column passed to profile(df, columns) — no config,
-    no internal eligibility gate. String columns are coerced to Datetime;
-    columns that cannot be coerced are silently skipped.
+    Profiles every column passed to profile(df, columns).  String columns are
+    coerced to Datetime; columns that cannot be coerced are silently skipped.
+    All detection thresholds are controlled by ``DatetimeProfileConfig``.
     """
+
+    def __init__(self, config: DatetimeProfileConfig | None = None) -> None:
+        self._config = config if config is not None else DatetimeProfileConfig()
 
     # ------------------------------------------------------------------
     # Public API
@@ -146,7 +122,7 @@ class DatetimeProfiler(ColumnBatchProfiler[DatetimeProfileResult]):
     ) -> DatetimeStats:
         profile = DatetimeStats()
 
-        # Normalise to microsecond Datetime (UTC) for uniform arithmetic
+        # Normalise to microsecond Datetime (UTC) for uniform arithmetic.
         # Date columns are cast to Datetime at midnight UTC.
         if isinstance(series.dtype, pl.Date):
             series = series.cast(pl.Datetime("us", "UTC"))
@@ -159,28 +135,34 @@ class DatetimeProfiler(ColumnBatchProfiler[DatetimeProfileResult]):
         # Drop nulls for all remaining computations
         clean = series.drop_nulls()
 
+        # 2. Null analysis — MNAR flag
+        if n_rows > 0:
+            null_ratio = (n_rows - clean.len()) / n_rows
+            if null_ratio > self._config.mnar_null_ratio_threshold:
+                profile.flags.append(DatetimeFlag.MnarSuspected)
+
         if clean.len() == 0:
             return profile
 
-        # 2. Range
+        # 3. Range
         self._compute_range(clean, profile)
 
-        # 3. Future dates
+        # 4. Future dates
         self._check_future_dates(clean, profile, now)
 
-        # 4. Recent data sparsity (needs range, so after _compute_range)
+        # 5. Recent data sparsity (needs range, so after _compute_range)
         self._check_recent_date_missing(series, profile)
 
-        # 5. Granularity
+        # 6. Granularity
         self._infer_granularity(clean, profile)
 
-        # 6. Temporal signals
+        # 7. Temporal signals
         self._audit_temporal_signals(clean, profile)
 
         return profile
 
     # ------------------------------------------------------------------
-    # Step 2: Range
+    # Step 3: Range
     # ------------------------------------------------------------------
 
     @staticmethod
@@ -209,7 +191,7 @@ class DatetimeProfiler(ColumnBatchProfiler[DatetimeProfileResult]):
             profile.date_range_days = delta.total_seconds() / 86_400.0
 
     # ------------------------------------------------------------------
-    # Step 3: Future dates
+    # Step 4: Future dates
     # ------------------------------------------------------------------
 
     @staticmethod
@@ -229,16 +211,16 @@ class DatetimeProfiler(ColumnBatchProfiler[DatetimeProfileResult]):
             profile.flags.append(DatetimeFlag.FutureDates)
 
     # ------------------------------------------------------------------
-    # Step 3b: Recent data sparsity
+    # Step 5: Recent data sparsity
     # ------------------------------------------------------------------
 
-    @staticmethod
     def _check_recent_date_missing(
+        self,
         series: pl.Series,
         profile: DatetimeStats,
     ) -> None:
         """
-        Flag when the last _RECENT_WINDOW_FRACTION of the expected date
+        Flag when the last ``recent_window_fraction`` of the expected date
         range contains fewer observations than expected.
 
         We compare density in the recent window vs overall density.
@@ -250,7 +232,7 @@ class DatetimeProfiler(ColumnBatchProfiler[DatetimeProfileResult]):
             return
 
         range_seconds = profile.date_range_days * 86_400.0
-        window_seconds = range_seconds * _RECENT_WINDOW_FRACTION
+        window_seconds = range_seconds * self._config.recent_window_fraction
 
         # Compute cutoff as epoch microseconds
         max_ts_us = int(profile.max_date.timestamp() * 1_000_000)
@@ -266,18 +248,18 @@ class DatetimeProfiler(ColumnBatchProfiler[DatetimeProfileResult]):
         total_non_null = series.drop_nulls().len()
         if total_non_null == 0:
             return
-        expected_recent = total_non_null * _RECENT_WINDOW_FRACTION
+        expected_recent = total_non_null * self._config.recent_window_fraction
         density_ratio = recent_count / expected_recent if expected_recent > 0 else 1.0
 
         if density_ratio < 0.20:
             profile.flags.append(DatetimeFlag.RecentDateMissing)
 
     # ------------------------------------------------------------------
-    # Step 4: Granularity inference
+    # Step 6: Granularity inference
     # ------------------------------------------------------------------
 
-    @staticmethod
     def _infer_granularity(
+        self,
         clean: pl.Series,
         profile: DatetimeStats,
     ) -> None:
@@ -312,7 +294,7 @@ class DatetimeProfiler(ColumnBatchProfiler[DatetimeProfileResult]):
         # Coefficient of variation (robust to skewed gap distributions)
         if mean_gap_s > 0:
             profile.gap_cv = std_gap_s / mean_gap_s
-            if profile.gap_cv > _HIGH_GAP_CV_THRESHOLD:
+            if profile.gap_cv > self._config.high_gap_cv_threshold:
                 profile.flags.append(DatetimeFlag.HighGapVariance)
         else:
             profile.gap_cv = 0.0
@@ -327,7 +309,7 @@ class DatetimeProfiler(ColumnBatchProfiler[DatetimeProfileResult]):
         profile.inferred_granularity = granularity
 
     # ------------------------------------------------------------------
-    # Step 5: Temporal signal audit
+    # Step 7: Temporal signal audit
     # ------------------------------------------------------------------
 
     @staticmethod
@@ -336,7 +318,7 @@ class DatetimeProfiler(ColumnBatchProfiler[DatetimeProfileResult]):
         profile: DatetimeStats,
     ) -> None:
         """
-        Check which temporal features vary across rows
+        Check which temporal features vary across rows.
 
         All checks are done via Polars expressions on the full clean series,
         so no Python-level loops are required.
@@ -361,11 +343,8 @@ class DatetimeProfiler(ColumnBatchProfiler[DatetimeProfileResult]):
             signals.has_is_weekend = bool(weekend_mask.any())
 
         # Month-end: day == last day of the respective month
-        # We approximate: day == 28/29/30/31 AND next-day's month ≠ current month.
-        # Polars has dt.month_end() which returns the last day of the month.
         try:
             month_end_ts = clean.dt.month_end()
-            # Strip time component for date-level comparison
             is_month_end_mask = (
                 (clean.dt.year() == month_end_ts.dt.year())
                 & (clean.dt.month() == month_end_ts.dt.month())
@@ -373,7 +352,6 @@ class DatetimeProfiler(ColumnBatchProfiler[DatetimeProfileResult]):
             )
             signals.has_is_month_end = bool(is_month_end_mask.any())
         except Exception:
-            # Fallback: flag if day ≥ 28
             signals.has_is_month_end = False
 
         profile.signals = signals

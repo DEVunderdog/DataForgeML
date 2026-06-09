@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, List, Optional
 import polars as pl
 from sklearn.model_selection import KFold, ShuffleSplit, StratifiedKFold, StratifiedShuffleSplit
 
-from ._config import FoldResult, SplitResult
+from ._config import FoldResult, SplitConfig, SplitResult
 
 if TYPE_CHECKING:
     from ..profiling._config import StructuralProfileResult
@@ -31,6 +31,8 @@ class DataSplitter:
         Name of the target column. Required for stratified splits.
     random_seed : int, optional
         Seed forwarded to sklearn splitters for reproducibility.
+    config : SplitConfig, optional
+        Splitting thresholds.  Defaults to ``SplitConfig()`` (library defaults).
     """
 
     def __init__(
@@ -38,6 +40,7 @@ class DataSplitter:
         df: pl.DataFrame,
         target: Optional[str] = None,
         random_seed: Optional[int] = None,
+        config: Optional[SplitConfig] = None,
     ) -> None:
         if not isinstance(df, pl.DataFrame):
             raise TypeError(f"df must be a polars DataFrame, got {type(df).__name__}")
@@ -49,6 +52,7 @@ class DataSplitter:
         self._df = df
         self._target = target
         self._random_seed = random_seed
+        self._config = config if config is not None else SplitConfig()
 
     def random_split(self, test_size: float, stratify=_UNSET) -> SplitResult:
         """
@@ -231,7 +235,7 @@ class DataSplitter:
         from ._profile_signals import build_label_matrix
         from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
 
-        label_matrix = build_label_matrix(self._df, profile, self._target)
+        label_matrix = build_label_matrix(self._df, profile, self._target, config=self._config)
 
         if label_matrix.shape[1] == 0:
             return self.random_split(test_size, stratify=False)
@@ -284,7 +288,7 @@ class DataSplitter:
         from ._profile_signals import build_label_matrix
         from iterstrat.ml_stratifiers import MultilabelStratifiedKFold
 
-        label_matrix = build_label_matrix(self._df, profile, self._target)
+        label_matrix = build_label_matrix(self._df, profile, self._target, config=self._config)
 
         if label_matrix.shape[1] == 0:
             return self.kfold(k, stratify=False)

@@ -25,6 +25,7 @@ from ._target_config import (
 # Reuse your internal profilers to prevent duplication
 from ._type_detector import TypeDetector, TypeFlag, NumericKind
 from ._missingness_profiler import MissingnessProfiler
+from ._missingness_config import MissingnessProfileConfig
 from ._categorical import CategoricalProfiler
 from ._numeric_profiler import NumericProfiler
 from ._numeric_config import SkewSeverity
@@ -66,7 +67,7 @@ class TargetProfiler(DatasetLevelProfiler[TargetProfileResult]):
         # 2. Target Missingness Check
         # We reuse MissingnessProfiler's static method to get standard + effective nulls
         col_miss_profile, _ = MissingnessProfiler._profile_column(
-            series, self.target_column, n_rows
+            series, self.target_column, n_rows, config=MissingnessProfileConfig()
         )
         result.missing_count = col_miss_profile.effective_null_count
         result.missing_ratio = col_miss_profile.effective_null_ratio

@@ -10,6 +10,89 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import StrEnum
 
+
+# ---------------------------------------------------------------------------
+# Sub-config
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class CategoricalProfileConfig:
+    """
+    Threshold configuration for the categorical column sub-processor.
+
+    All fields default to the library's original hard-coded constants so that
+    constructing ``CategoricalProfileConfig()`` produces identical behaviour to
+    the pre-config implementation.
+
+    Note: ``near_constant_threshold`` is independent of the equivalent field
+    in ``NumericProfileConfig`` — they share a default but are separately
+    tunable.
+
+    Parameters
+    ----------
+    rare_threshold_pct : float
+        Fraction of total rows below which a category is counted as rare for
+        diagnostic purposes (``RareCategoryStats.rare_category_count``).
+    stratification_rare_threshold_pct : float
+        Fraction of total rows below which a category is added to
+        ``RareCategoryStats.rare_label_values``, used by the stratified
+        splitter to protect minority classes.
+    mixed_type_min_minor_pct : float
+        Minimum Wilson-interval lower bound for the minority type fraction
+        required to set ``CategoricalFlag.MixedType``.
+    near_constant_threshold : float
+        Mode frequency above which a column receives
+        ``CategoricalFlag.NearConstant``. Expressed as a fraction of total
+        rows (e.g. 0.90 = 90%).
+    """
+
+    rare_threshold_pct: float = 0.01
+    stratification_rare_threshold_pct: float = 0.05
+    mixed_type_min_minor_pct: float = 0.05
+    near_constant_threshold: float = 0.90
+
+    def to_dict(self) -> dict:
+        """
+        Serialise the config to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            All field values keyed by field name.
+        """
+        return {
+            "rare_threshold_pct": self.rare_threshold_pct,
+            "stratification_rare_threshold_pct": self.stratification_rare_threshold_pct,
+            "mixed_type_min_minor_pct": self.mixed_type_min_minor_pct,
+            "near_constant_threshold": self.near_constant_threshold,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> CategoricalProfileConfig:
+        """
+        Construct a ``CategoricalProfileConfig`` from a plain dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            Mapping produced by ``to_dict()``. Missing keys fall back to field
+            defaults.
+
+        Returns
+        -------
+        CategoricalProfileConfig
+            Reconstructed config instance.
+        """
+        return cls(
+            rare_threshold_pct=float(data.get("rare_threshold_pct", 0.01)),
+            stratification_rare_threshold_pct=float(
+                data.get("stratification_rare_threshold_pct", 0.05)
+            ),
+            mixed_type_min_minor_pct=float(data.get("mixed_type_min_minor_pct", 0.05)),
+            near_constant_threshold=float(data.get("near_constant_threshold", 0.90)),
+        )
+
 # ---------------------------------------------------------------------------
 # Categorical stats dataclasses (canonical home — config.py re-exports these)
 # ---------------------------------------------------------------------------

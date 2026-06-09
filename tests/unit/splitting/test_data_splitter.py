@@ -571,9 +571,10 @@ def test_profile_kfold_missingness_in_training(ps_profile, ps_splitter):
 # ---------------------------------------------------------------------------
 
 
-def test_signal_cap_at_50():
-    """When more than 50 signals exist, only the 50 rarest are used."""
-    from dataforge_ml.splitting._profile_signals import build_label_matrix, _MAX_SIGNALS
+def test_signal_cap_at_default_50():
+    """When more than 50 signals exist, only the 50 rarest are used by default."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+    from dataforge_ml.splitting._config import SplitConfig
 
     # Build a DataFrame with many columns that each have missingness
     n = 200
@@ -582,7 +583,7 @@ def test_signal_cap_at_50():
     df = pl.DataFrame(cols)
     profile = StructuralProfiler(PipelineConfig()).profile(df)
     mat = build_label_matrix(df, profile, target=None)
-    assert mat.shape[1] <= _MAX_SIGNALS
+    assert mat.shape[1] <= SplitConfig().max_stratification_signals
 
 
 # ---------------------------------------------------------------------------
@@ -721,3 +722,150 @@ def test_signal_7_categorical_target_produces_one_signal_per_class():
 
     # Only signals here: 3 target class signals (feature has no nulls, no extremes)
     assert mat.shape[1] == 3
+
+
+# ---------------------------------------------------------------------------
+# SplitConfig — dataclass basics
+# ---------------------------------------------------------------------------
+
+
+def test_split_config_defaults():
+    from dataforge_ml.splitting._config import SplitConfig
+    cfg = SplitConfig()
+    assert cfg.max_stratification_signals == 50
+    assert cfg.boolean_minority_threshold == 0.05
+
+
+def test_split_config_round_trip_defaults():
+    from dataforge_ml.splitting._config import SplitConfig
+    cfg = SplitConfig()
+    assert SplitConfig.from_dict(cfg.to_dict()) == cfg
+
+
+def test_split_config_round_trip_custom_values():
+    from dataforge_ml.splitting._config import SplitConfig
+    cfg = SplitConfig(max_stratification_signals=20, boolean_minority_threshold=0.10)
+    restored = SplitConfig.from_dict(cfg.to_dict())
+    assert restored.max_stratification_signals == 20
+    assert restored.boolean_minority_threshold == 0.10
+
+
+def test_split_config_exported_from_splitting_api():
+    from dataforge_ml.splitting import SplitConfig as _Exported
+    from dataforge_ml.splitting._config import SplitConfig
+    assert _Exported is SplitConfig
+
+
+# ---------------------------------------------------------------------------
+# DataSplitter — SplitConfig constructor wiring
+# ---------------------------------------------------------------------------
+
+
+def test_data_splitter_no_config_uses_defaults(df):
+    from dataforge_ml.splitting._config import SplitConfig
+    splitter = DataSplitter(df, target="label", random_seed=0)
+    assert splitter._config == SplitConfig()
+
+
+def test_data_splitter_accepts_custom_config(df):
+    from dataforge_ml.splitting._config import SplitConfig
+    cfg = SplitConfig(max_stratification_signals=10)
+    splitter = DataSplitter(df, target="label", random_seed=0, config=cfg)
+    assert splitter._config.max_stratification_signals == 10
+
+
+# ---------------------------------------------------------------------------
+# max_stratification_signals — custom cap respected by build_label_matrix
+# ---------------------------------------------------------------------------
+
+
+def test_custom_max_signals_cap_is_respected():
+    """Setting max_stratification_signals=5 caps the matrix at 5 columns."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+    from dataforge_ml.splitting._config import SplitConfig
+
+    n = 200
+    # 60 columns each with one null → 60 missingness signals before cap
+    cols = {f"c{i}": pl.Series([None if j == i else float(j) for j in range(n)], dtype=pl.Float64)
+            for i in range(60)}
+    df = pl.DataFrame(cols)
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+
+    cfg = SplitConfig(max_stratification_signals=5)
+    mat = build_label_matrix(df, profile, target=None, config=cfg)
+    assert mat.shape[1] <= 5
+
+
+# ---------------------------------------------------------------------------
+# boolean_minority_threshold — controls boolean stratification signal
+# ---------------------------------------------------------------------------
+
+
+def test_boolean_minority_threshold_triggers_signal():
+    """A boolean column with 8% true_ratio fires a signal at threshold=0.10."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+    from dataforge_ml.splitting._config import SplitConfig
+
+    n = 100
+    # 8 True, 92 False → true_ratio = 0.08
+    bool_vals = [True] * 8 + [False] * 92
+    df = pl.DataFrame({"flag": pl.Series(bool_vals, dtype=pl.Boolean)})
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+
+    # Default threshold (0.05): 8% > 5% → no signal
+    mat_default = build_label_matrix(df, profile, target=None)
+    assert mat_default.shape[1] == 0
+
+    # Raised threshold (0.10): 8% < 10% → signal fires
+    cfg = SplitConfig(boolean_minority_threshold=0.10)
+    mat_custom = build_label_matrix(df, profile, target=None, config=cfg)
+    assert mat_custom.shape[1] == 1
+    # The True rows should be marked
+    assert mat_custom[:8, 0].sum() == 8
+
+
+def test_boolean_minority_threshold_suppresses_signal():
+    """Lowering the threshold below the minority ratio suppresses the signal."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+    from dataforge_ml.splitting._config import SplitConfig
+
+    n = 100
+    # 3 True, 97 False → true_ratio = 0.03
+    bool_vals = [True] * 3 + [False] * 97
+    df = pl.DataFrame({"flag": pl.Series(bool_vals, dtype=pl.Boolean)})
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+
+    # Default (0.05): 3% < 5% → signal fires
+    mat_default = build_label_matrix(df, profile, target=None)
+    assert mat_default.shape[1] == 1
+
+    # Threshold lowered to 0.02: 3% > 2% → signal suppressed
+    cfg = SplitConfig(boolean_minority_threshold=0.02)
+    mat_custom = build_label_matrix(df, profile, target=None, config=cfg)
+    assert mat_custom.shape[1] == 0
+
+
+# ---------------------------------------------------------------------------
+# PipelineConfig — SplitConfig nested round-trip
+# ---------------------------------------------------------------------------
+
+
+def test_pipeline_config_has_split_field():
+    from dataforge_ml.splitting._config import SplitConfig
+    cfg = PipelineConfig()
+    assert isinstance(cfg.split, SplitConfig)
+
+
+def test_pipeline_config_round_trip_preserves_split():
+    from dataforge_ml.splitting._config import SplitConfig
+    original = PipelineConfig(split=SplitConfig(max_stratification_signals=15, boolean_minority_threshold=0.08))
+    restored = PipelineConfig.from_dict(original.to_dict())
+    assert restored.split.max_stratification_signals == 15
+    assert restored.split.boolean_minority_threshold == 0.08
+
+
+def test_pipeline_config_round_trip_default_split():
+    from dataforge_ml.splitting._config import SplitConfig
+    cfg = PipelineConfig()
+    restored = PipelineConfig.from_dict(cfg.to_dict())
+    assert restored.split == SplitConfig()
