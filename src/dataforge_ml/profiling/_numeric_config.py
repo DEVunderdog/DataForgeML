@@ -168,9 +168,6 @@ class NumericProfileConfig:
     scale_orders_of_magnitude : int
         Number of orders of magnitude the absolute value range must span for a
         column to receive ``NumericFlag.ScaleAnomaly`` (i.e. ratio >= 10^n).
-    discrete_max_unique : int
-        Maximum number of unique values for a non-integer column to be treated
-        as discrete (top-value counts) rather than continuous (histogram).
     """
 
     skew_normal: float = 0.5
@@ -180,7 +177,6 @@ class NumericProfileConfig:
     kurt_leptokurtic_lower: float = 3.0
     near_constant_threshold: float = 0.90
     scale_orders_of_magnitude: int = 3
-    discrete_max_unique: int = 20
 
     def to_dict(self) -> dict:
         """
@@ -199,7 +195,6 @@ class NumericProfileConfig:
             "kurt_leptokurtic_lower": self.kurt_leptokurtic_lower,
             "near_constant_threshold": self.near_constant_threshold,
             "scale_orders_of_magnitude": self.scale_orders_of_magnitude,
-            "discrete_max_unique": self.discrete_max_unique,
         }
 
     @classmethod
@@ -226,7 +221,6 @@ class NumericProfileConfig:
             kurt_leptokurtic_lower=float(data.get("kurt_leptokurtic_lower", 3.0)),
             near_constant_threshold=float(data.get("near_constant_threshold", 0.90)),
             scale_orders_of_magnitude=int(data.get("scale_orders_of_magnitude", 3)),
-            discrete_max_unique=int(data.get("discrete_max_unique", 20)),
         )
 
 

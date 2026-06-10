@@ -193,9 +193,7 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
             profile.flags.append(NumericFlag.NearConstant)
 
         n_unique = vc.height
-        is_discrete = (
-            original_series.dtype in _INT_DTYPES or n_unique <= config.discrete_max_unique
-        )
+        is_discrete = original_series.dtype in _INT_DTYPES
 
         if is_discrete:
             # --- Top-10 Distribution (Discrete) ---

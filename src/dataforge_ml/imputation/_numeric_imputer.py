@@ -157,7 +157,18 @@ def _fit_one(
             indicator_added=False, signals=signals,
         )
 
-    # Priority 3: MARSuspect — full fallback chain
+    # Priority 3: BoundedDiscrete → Mode (unconditional — finite domain requires finite fill)
+    # Fires before MAR routing: model-based predictions are not valid members of a fixed vocabulary.
+    if cp.numeric_kind == NumericKind.BoundedDiscrete:
+        signals.append("NumericKind.BoundedDiscrete: mode imputation")
+        return ColumnImputationRecord(
+            column=col, semantic_type=SemanticType.Numeric,
+            strategy=ImputationStrategy.Mode,
+            fill_value=_compute_mode(train_df, col),
+            indicator_added=False, signals=signals,
+        )
+
+    # Priority 4: MARSuspect — full fallback chain
     if missingness.has_flag(MissingnessFlag.MARSuspect):
         corrs = missingness.correlated_with
         signals.append(f"mar_suspect: correlated missingness with {corrs}")
@@ -174,16 +185,6 @@ def _fit_one(
         return ColumnImputationRecord(
             column=col, semantic_type=SemanticType.Numeric,
             strategy=strategy, fill_value=fill_value,
-            indicator_added=False, signals=signals,
-        )
-
-    # Priority 4: Discrete numeric → Mode
-    if cp.numeric_kind == NumericKind.Discrete:
-        signals.append("NumericKind.Discrete: mode imputation")
-        return ColumnImputationRecord(
-            column=col, semantic_type=SemanticType.Numeric,
-            strategy=ImputationStrategy.Mode,
-            fill_value=_compute_mode(train_df, col),
             indicator_added=False, signals=signals,
         )
 

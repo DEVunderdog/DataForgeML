@@ -296,7 +296,6 @@ def test_config_instantiates_with_defaults():
     assert cfg.kurt_leptokurtic_lower == 3.0
     assert cfg.near_constant_threshold == 0.90
     assert cfg.scale_orders_of_magnitude == 3
-    assert cfg.discrete_max_unique == 20
 
 
 def test_profiler_accepts_config_parameter():
@@ -420,7 +419,6 @@ def test_config_round_trip_preserves_all_fields():
         kurt_leptokurtic_lower=5.0,
         near_constant_threshold=0.85,
         scale_orders_of_magnitude=4,
-        discrete_max_unique=30,
     )
     restored = NumericProfileConfig.from_dict(cfg.to_dict())
     assert restored.skew_normal == cfg.skew_normal
@@ -430,7 +428,6 @@ def test_config_round_trip_preserves_all_fields():
     assert restored.kurt_leptokurtic_lower == cfg.kurt_leptokurtic_lower
     assert restored.near_constant_threshold == cfg.near_constant_threshold
     assert restored.scale_orders_of_magnitude == cfg.scale_orders_of_magnitude
-    assert restored.discrete_max_unique == cfg.discrete_max_unique
 
 
 def test_config_from_dict_uses_defaults_for_missing_keys():
@@ -441,7 +438,6 @@ def test_config_from_dict_uses_defaults_for_missing_keys():
     assert restored.kurt_leptokurtic_lower == default.kurt_leptokurtic_lower
     assert restored.near_constant_threshold == default.near_constant_threshold
     assert restored.scale_orders_of_magnitude == default.scale_orders_of_magnitude
-    assert restored.discrete_max_unique == default.discrete_max_unique
 
 
 def test_config_to_dict_contains_all_keys():
@@ -455,5 +451,4 @@ def test_config_to_dict_contains_all_keys():
         "kurt_leptokurtic_lower",
         "near_constant_threshold",
         "scale_orders_of_magnitude",
-        "discrete_max_unique",
     }
