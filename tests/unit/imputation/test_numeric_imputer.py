@@ -210,7 +210,7 @@ def test_discrete_column_gets_mode_strategy():
     df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
     cp = _numeric_cp(
         null_count=1, total_rows=7, severity=MissingSeverity.Minor,
-        numeric_kind=NumericKind.Discrete,
+        numeric_kind=NumericKind.BoundedDiscrete,
     )
     rec = _fit_one(df, cp)
     assert rec.strategy == ImputationStrategy.Mode
@@ -223,7 +223,7 @@ def test_discrete_mode_computed_on_training_data():
     df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
     cp = _numeric_cp(
         null_count=1, total_rows=6, severity=MissingSeverity.Minor,
-        numeric_kind=NumericKind.Discrete,
+        numeric_kind=NumericKind.BoundedDiscrete,
     )
     rec = _fit_one(df, cp)
     assert rec.fill_value == pytest.approx(5.0)
@@ -367,6 +367,72 @@ def test_record_semantic_type_is_numeric():
     assert rec.semantic_type == SemanticType.Numeric
 
 
+# ---------------------------------------------------------------------------
+# BoundedDiscrete routing — Priority 3, unconditional Mode
+# ---------------------------------------------------------------------------
+
+
+def test_bounded_discrete_gets_mode_strategy():
+    """BoundedDiscrete column → Mode regardless of severity."""
+    values = [1, 2, 1, 1, None, 3, 1]
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
+    cp = _numeric_cp(
+        null_count=1, total_rows=7, severity=MissingSeverity.Minor,
+        numeric_kind=NumericKind.BoundedDiscrete,
+    )
+    rec = _fit_one(df, cp)
+    assert rec.strategy == ImputationStrategy.Mode
+
+
+def test_bounded_discrete_high_severity_still_gets_mode():
+    """Priority 3 fires before MCAR chain — High severity does not escalate."""
+    values = [1, 2, 3, 4, 5, None, None, None]
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
+    cp = _numeric_cp(
+        null_count=3, total_rows=8, severity=MissingSeverity.High,
+        numeric_kind=NumericKind.BoundedDiscrete,
+    )
+    rec = _fit_one(df, cp)
+    assert rec.strategy == ImputationStrategy.Mode
+
+
+def test_bounded_discrete_mar_suspect_still_gets_mode():
+    """Priority 3 fires before MAR routing — MARSuspect does not override Mode."""
+    values = [1, 2, 3, 4, 5, None, None]
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
+    cp = _numeric_cp(
+        null_count=2, total_rows=7, severity=MissingSeverity.Minor,
+        flags=[MissingnessFlag.MARSuspect],
+        numeric_kind=NumericKind.BoundedDiscrete,
+    )
+    rec = _fit_one(df, cp)
+    assert rec.strategy == ImputationStrategy.Mode
+
+
+def test_continuous_integer_with_gaps_falls_to_mcar_chain():
+    """Column failing signal 1 (gaps) → classified Continuous → strategy is not Mode."""
+    values = [18.0, 22.0, 35.0, None, 22.0]
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Float64)})
+    cp = _numeric_cp(
+        null_count=1, total_rows=5, severity=MissingSeverity.Minor,
+        numeric_kind=NumericKind.Continuous,
+    )
+    rec = _fit_one(df, cp)
+    assert rec.strategy != ImputationStrategy.Mode
+
+
+def test_continuous_integer_non_zero_origin_falls_to_mcar_chain():
+    """Column failing signal 4 (min≠0/1) → classified Continuous → strategy is not Mode."""
+    values = [18.0, 19.0, 20.0, 21.0, None]
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Float64)})
+    cp = _numeric_cp(
+        null_count=1, total_rows=5, severity=MissingSeverity.Minor,
+        numeric_kind=NumericKind.Continuous,
+    )
+    rec = _fit_one(df, cp)
+    assert rec.strategy != ImputationStrategy.Mode
+
+
 def test_record_signals_are_non_empty_for_all_strategies():
     """Every routing decision should produce at least one signal string."""
     cases = [
@@ -377,9 +443,39 @@ def test_record_signals_are_non_empty_for_all_strategies():
         _numeric_cp(null_count=1, total_rows=10, severity=MissingSeverity.Minor,
                     skewness_severity=SkewSeverity.Moderate),
         _numeric_cp(null_count=1, total_rows=10, severity=MissingSeverity.Minor,
-                    numeric_kind=NumericKind.Discrete),
+                    numeric_kind=NumericKind.BoundedDiscrete),
     ]
     for cp in cases:
         df = pl.DataFrame({_COL: pl.Series([1.0, 2.0, 3.0, None], dtype=pl.Float64)})
         rec = _fit_one(df, cp)
         assert len(rec.signals) >= 1, f"No signals for strategy {rec.strategy}"
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 routing: numeric_kind_overrides flow-through
+# ---------------------------------------------------------------------------
+
+
+def test_override_forced_bounded_discrete_gets_mode():
+    """A column forced to BoundedDiscrete via override → Mode strategy."""
+    values = [25, 32, 45, 28, None, 39]
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
+    cp = _numeric_cp(
+        null_count=1, total_rows=6, severity=MissingSeverity.Minor,
+        numeric_kind=NumericKind.BoundedDiscrete,
+    )
+    rec = _fit_one(df, cp)
+    assert rec.strategy == ImputationStrategy.Mode
+
+
+def test_override_forced_continuous_falls_to_mcar_chain():
+    """A column forced to Continuous via override does not get Mode."""
+    values = [1, 2, 3, 4, 5, None, 1, 2, 3, 4]
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
+    cp = _numeric_cp(
+        null_count=1, total_rows=10, severity=MissingSeverity.Minor,
+        numeric_kind=NumericKind.Continuous,
+        skewness_severity=SkewSeverity.Normal,
+    )
+    rec = _fit_one(df, cp)
+    assert rec.strategy != ImputationStrategy.Mode

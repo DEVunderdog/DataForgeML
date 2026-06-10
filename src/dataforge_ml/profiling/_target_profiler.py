@@ -120,7 +120,7 @@ class TargetProfiler(DatasetLevelProfiler[TargetProfileResult]):
         # 4. Confirmed Numerics -> Regression
         # Note: TypeDetector strips the 'NumericKind' if it was flagged as an EncodedCategory.
         # So we won't accidentally treat [0, 1, 2] classes as a regression target here.
-        if type_info.numeric_kind in (NumericKind.Continuous, NumericKind.Discrete):
+        if type_info.numeric_kind in (NumericKind.Continuous, NumericKind.BoundedDiscrete):
             return TargetProblemType.Regression
 
         # If it's a string with too many unique values, or an unparsed datetime, etc.

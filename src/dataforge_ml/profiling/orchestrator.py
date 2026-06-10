@@ -7,8 +7,9 @@ Execution order inside profile(df):
   3. Row-missingness dist  → dataset.row_distribution
   4. TypeDetector          → ColumnProfile.semantic_type / type_flags / dtypes
   5. column_overrides      → replace SemanticType on existing ColumnProfiles
+     numeric_kind_overrides→ replace NumericKind (validated; Numeric-only)
   6. ColumnTypeProfiler    → route each column to its profiler by SemanticType;
-                             Identifier columns: skip, stats stays None
+                            Identifier columns: skip, stats stays None
   7. target_columns        → TargetProfiler; mark ColumnProfile.is_target=True
   8. Correlation           → if compute_correlation=True:
        a. profile_features()  → dataset.feature_correlation  (computed once)
@@ -169,15 +170,31 @@ class StructuralProfiler:
             cp.original_dtype = info.original_dtype
             cp.inferred_dtype = info.inferred_dtype
 
-        # ── 5. Apply column_overrides ────────────────────────────────────
+        # ── 5. Apply column_overrides then numeric_kind_overrides ────────
         # All active columns are in result.columns by now (steps 2 + 4).
         # Overrides for excluded / non-existent columns are silently ignored.
+        # SemanticType overrides must be applied first so the NumericKind guard
+        # checks the user's declared type, not the detector's raw type.
         for col_name, override_type in self.config.column_overrides.items():
             if col_name in result.columns:
                 cp = result.columns[col_name]
                 cp.semantic_type = override_type
                 if TypeFlag.UserOverride not in cp.type_flags:
                     cp.type_flags.append(TypeFlag.UserOverride)
+
+        for col_name, override_kind in self.config.numeric_kind_overrides.items():
+            if col_name not in result.columns:
+                continue
+            cp = result.columns[col_name]
+            if cp.semantic_type != SemanticType.Numeric:
+                raise ValueError(
+                    f"NumericKind override for column {col_name!r} is invalid — "
+                    f"column has {cp.semantic_type!r}. "
+                    f"NumericKind only applies to SemanticType.Numeric columns."
+                )
+            cp.numeric_kind = override_kind
+            if TypeFlag.NumericKindOverride not in cp.type_flags:
+                cp.type_flags.append(TypeFlag.NumericKindOverride)
 
         # ── 6. Per-column profiling routed by SemanticType ───────────────
         # Batch all columns of the same SemanticType together and call each

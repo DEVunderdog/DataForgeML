@@ -231,7 +231,7 @@ def test_numeric_kind_set_for_numeric_columns(mixed_df):
 
     for name, cp in result.columns.items():
         if cp.semantic_type == SemanticType.Numeric:
-            assert cp.numeric_kind in (NumericKind.Discrete, NumericKind.Continuous), (
+            assert cp.numeric_kind in (NumericKind.BoundedDiscrete, NumericKind.Continuous), (
                 f"column '{name}' is Numeric but numeric_kind={cp.numeric_kind!r}"
             )
         else:
@@ -252,7 +252,7 @@ def test_numeric_kind_in_to_dict(mixed_df):
         if cp.semantic_type == SemanticType.Numeric:
             assert d["numeric_kind"] in (
                 NumericKind.Continuous.value,
-                NumericKind.Discrete.value,
+                NumericKind.BoundedDiscrete.value,
             ), f"column '{name}' to_dict()['numeric_kind']={d['numeric_kind']!r}"
         else:
             assert d["numeric_kind"] is None, (

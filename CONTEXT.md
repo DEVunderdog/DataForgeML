@@ -117,7 +117,7 @@ A value that counts as missing beyond a standard Polars `null`. Detection combin
 
 A diagnostic annotation attached to a `ColumnProfile` to explain *why* the type detector reached its `SemanticType` verdict. Not used in any decision logic — read-only metadata in the output JSON.
 
-Examples: `numeric_coerced` (string column successfully cast to float), `free_text_candidate` (heuristics detected multi-token natural-language content), `user_override` (the semantic type was explicitly set by the caller via `set_column_type` or `set_columns_type` — the detector's verdict was ignored for this column).
+Examples: `numeric_coerced` (string column successfully cast to float), `free_text_candidate` (heuristics detected multi-token natural-language content), `user_override` (the semantic type was explicitly set by the caller via `set_column_type` or `set_columns_type` — the detector's verdict was ignored for this column), `numeric_kind_override` (the `NumericKind` was explicitly set by the caller via `PipelineConfig.numeric_kind_overrides` — distinct from `user_override`, which is SemanticType-only; both flags can coexist on the same column when the user overrides both).
 
 ## Phase 2 — Imputation
 

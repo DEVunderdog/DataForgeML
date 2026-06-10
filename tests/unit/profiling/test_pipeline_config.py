@@ -7,7 +7,7 @@ All tests are pure — no DataFrames, no StructuralProfiler.
 import pytest
 
 from dataforge_ml.config import PipelineConfig, PipelinePhase, SemanticType
-from dataforge_ml.profiling._config import ProfileConfig
+from dataforge_ml.profiling._config import ProfileConfig, NumericKind
 from dataforge_ml.profiling._missingness_config import MissingnessProfileConfig
 from dataforge_ml.profiling._numeric_config import NumericProfileConfig
 from dataforge_ml.profiling._type_detection_config import TypeDetectionConfig
@@ -250,7 +250,6 @@ def test_profile_config_sub_config_round_trip():
             kurt_leptokurtic_lower=4.0,
             near_constant_threshold=0.85,
             scale_orders_of_magnitude=4,
-            discrete_max_unique=25,
         ),
         type_detection=TypeDetectionConfig(
             numeric_coerce_threshold=0.99,
@@ -293,7 +292,6 @@ def test_profile_config_sub_config_round_trip():
     assert restored.numeric.kurt_leptokurtic_lower == original.numeric.kurt_leptokurtic_lower
     assert restored.numeric.near_constant_threshold == original.numeric.near_constant_threshold
     assert restored.numeric.scale_orders_of_magnitude == original.numeric.scale_orders_of_magnitude
-    assert restored.numeric.discrete_max_unique == original.numeric.discrete_max_unique
 
     assert restored.type_detection.numeric_coerce_threshold == original.type_detection.numeric_coerce_threshold
     assert restored.type_detection.datetime_coerce_threshold == original.type_detection.datetime_coerce_threshold
@@ -333,3 +331,114 @@ def test_profile_config_defaults_unchanged():
     assert cfg.categorical.near_constant_threshold == 0.90
     assert cfg.correlation.near_redundant_pearson_threshold == 0.95
     assert cfg.datetime_.mnar_null_ratio_threshold == 0.05
+
+
+# ---------------------------------------------------------------------------
+# numeric_kind_overrides — set_numeric_kind
+# ---------------------------------------------------------------------------
+
+
+def test_set_numeric_kind_with_enum_value():
+    cfg = PipelineConfig()
+    cfg.set_numeric_kind("rating", NumericKind.BoundedDiscrete)
+    assert cfg.numeric_kind_overrides["rating"] == NumericKind.BoundedDiscrete
+
+
+def test_set_numeric_kind_with_string_bounded_discrete():
+    cfg = PipelineConfig()
+    cfg.set_numeric_kind("rating", "bounded_discrete")
+    assert cfg.numeric_kind_overrides["rating"] == NumericKind.BoundedDiscrete
+
+
+def test_set_numeric_kind_with_string_continuous():
+    cfg = PipelineConfig()
+    cfg.set_numeric_kind("age", "continuous")
+    assert cfg.numeric_kind_overrides["age"] == NumericKind.Continuous
+
+
+def test_set_numeric_kind_invalid_string_raises_value_error():
+    cfg = PipelineConfig()
+    with pytest.raises(ValueError, match="Unknown NumericKind"):
+        cfg.set_numeric_kind("col", "ordinal")
+
+
+def test_set_numeric_kind_invalid_string_lists_valid_options():
+    cfg = PipelineConfig()
+    with pytest.raises(ValueError, match="continuous"):
+        cfg.set_numeric_kind("col", "garbage")
+
+
+# ---------------------------------------------------------------------------
+# numeric_kind_overrides — set_columns_numeric_kind
+# ---------------------------------------------------------------------------
+
+
+def test_set_columns_numeric_kind_sets_all_columns():
+    cfg = PipelineConfig()
+    cfg.set_columns_numeric_kind(["a", "b", "c"], NumericKind.Continuous)
+    assert cfg.numeric_kind_overrides["a"] == NumericKind.Continuous
+    assert cfg.numeric_kind_overrides["b"] == NumericKind.Continuous
+    assert cfg.numeric_kind_overrides["c"] == NumericKind.Continuous
+
+
+def test_set_columns_numeric_kind_with_string():
+    cfg = PipelineConfig()
+    cfg.set_columns_numeric_kind(["x", "y"], "bounded_discrete")
+    assert cfg.numeric_kind_overrides["x"] == NumericKind.BoundedDiscrete
+    assert cfg.numeric_kind_overrides["y"] == NumericKind.BoundedDiscrete
+
+
+# ---------------------------------------------------------------------------
+# numeric_kind_overrides — defaults
+# ---------------------------------------------------------------------------
+
+
+def test_numeric_kind_overrides_defaults_to_empty_dict():
+    cfg = PipelineConfig()
+    assert cfg.numeric_kind_overrides == {}
+
+
+# ---------------------------------------------------------------------------
+# numeric_kind_overrides — serialisation
+# ---------------------------------------------------------------------------
+
+
+def test_to_dict_includes_numeric_kind_overrides_as_strings():
+    cfg = PipelineConfig()
+    cfg.set_numeric_kind("rating", NumericKind.BoundedDiscrete)
+    d = cfg.to_dict()
+    assert "numeric_kind_overrides" in d
+    assert d["numeric_kind_overrides"]["rating"] == "bounded_discrete"
+    assert isinstance(d["numeric_kind_overrides"]["rating"], str)
+
+
+def test_to_dict_numeric_kind_overrides_empty_when_unset():
+    cfg = PipelineConfig()
+    d = cfg.to_dict()
+    assert d["numeric_kind_overrides"] == {}
+
+
+def test_from_dict_restores_numeric_kind_enum():
+    d = {
+        "numeric_kind_overrides": {"age": "continuous", "rating": "bounded_discrete"},
+    }
+    cfg = PipelineConfig.from_dict(d)
+    assert cfg.numeric_kind_overrides["age"] == NumericKind.Continuous
+    assert cfg.numeric_kind_overrides["rating"] == NumericKind.BoundedDiscrete
+    assert isinstance(cfg.numeric_kind_overrides["age"], NumericKind)
+
+
+def test_round_trip_preserves_numeric_kind_overrides():
+    cfg = PipelineConfig()
+    cfg.set_numeric_kind("rating", NumericKind.BoundedDiscrete)
+    cfg.set_numeric_kind("age", NumericKind.Continuous)
+
+    restored = PipelineConfig.from_json(cfg.to_json())
+    assert restored.numeric_kind_overrides["rating"] == NumericKind.BoundedDiscrete
+    assert restored.numeric_kind_overrides["age"] == NumericKind.Continuous
+
+
+def test_round_trip_empty_numeric_kind_overrides():
+    cfg = PipelineConfig()
+    restored = PipelineConfig.from_json(cfg.to_json())
+    assert restored.numeric_kind_overrides == {}

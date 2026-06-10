@@ -45,7 +45,7 @@ from ._target_config import TargetProfileResult
 
 class NumericKind(StrEnum):
     Continuous = "continuous"
-    Discrete = "discrete"
+    BoundedDiscrete = "bounded_discrete"
 
 
 class TypeFlag(StrEnum):
@@ -58,6 +58,7 @@ class TypeFlag(StrEnum):
     FloatSequentialIndex = "float_sequential_index"
     FreeTextCandidate = "free_text_candidate"
     UserOverride = "user_override"
+    NumericKindOverride = "numeric_kind_override"
 
 
 # ---------------------------------------------------------------------------
@@ -69,6 +70,13 @@ AnyStats = Union[NumericStats, CategoricalStats, DatetimeStats, BooleanStats, Te
 
 @dataclass
 class ColumnProfile:
+    """
+    Per-column result produced by the structural profiler.
+
+    Carries the type classification, missingness summary, and computed
+    statistics for a single column after Phase 1 profiling completes.
+    """
+
     name: str = ""
     semantic_type: Optional[SemanticType] = None
     numeric_kind: Optional[NumericKind] = None
@@ -80,6 +88,15 @@ class ColumnProfile:
     stats: Optional[AnyStats] = None
 
     def to_dict(self) -> dict:
+        """
+        Serialise the column profile to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            All field values with nested objects serialised to their string or
+            dict representations.
+        """
         return {
             "name": self.name,
             "semantic_type": str(self.semantic_type) if self.semantic_type else None,
@@ -135,6 +152,14 @@ class MemoryBreakdown:
 
 @dataclass
 class DatasetStats:
+    """
+    Dataset-level statistics produced by the structural profiler.
+
+    Aggregates row and memory counts, duplicate and sparsity ratios, the
+    missingness matrix, row-level missingness distribution, and correlation
+    results for the full profiled DataFrame.
+    """
+
     modality: Modality = Modality.Tabular
     row_count: int = 0
     column_count: int = 0
@@ -156,6 +181,15 @@ class DatasetStats:
     )
 
     def to_dict(self) -> dict:
+        """
+        Serialise the dataset stats to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            All field values with nested objects serialised to their dict
+            representations.
+        """
         return {
             "modality": str(self.modality),
             "row_count": self.row_count,
@@ -175,11 +209,27 @@ class DatasetStats:
 
 @dataclass
 class StructuralProfileResult:
+    """
+    Top-level result returned by ``StructuralProfiler.profile()``.
+
+    Contains per-column profiles, dataset-level statistics, and any target
+    variable analyses requested via ``ProfileConfig.target_columns``.
+    """
+
     columns: dict[str, ColumnProfile] = field(default_factory=dict)
     dataset: DatasetStats = field(default_factory=DatasetStats)
     targets: dict[str, TargetProfileResult] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
+        """
+        Serialise the full profiling result to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            Nested dictionary with ``columns``, ``dataset``, and ``targets``
+            keys, each recursively serialised.
+        """
         return {
             "columns": {k: v.to_dict() for k, v in self.columns.items()},
             "dataset": self.dataset.to_dict(),
@@ -187,6 +237,19 @@ class StructuralProfileResult:
         }
 
     def to_json(self, indent: int = 2) -> str:
+        """
+        Serialise the full profiling result to a JSON string.
+
+        Parameters
+        ----------
+        indent : int
+            Number of spaces used for JSON indentation.
+
+        Returns
+        -------
+        str
+            JSON representation of ``to_dict()``.
+        """
         return json.dumps(self.to_dict(), indent=indent, default=str)
 
 

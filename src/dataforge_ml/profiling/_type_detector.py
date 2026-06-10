@@ -11,7 +11,7 @@ Detection pipeline (in order, applied per column):
   4. Encoded category   – int with low cardinality (<15 unique values)
   5. Identifier column  – unique ratio > 99 %
   6. Sequential index   – integer column == range(0,n) or range(1,n+1)
-  7. Numeric kind       – continuous vs discrete for confirmed numeric cols
+  7. Numeric kind       – BoundedDiscrete or Continuous for confirmed numeric cols
 """
 
 from __future__ import annotations
@@ -135,7 +135,7 @@ class TypeDetector:
                 elif TypeFlag.IdentifierColumn in info.flags:
                     info.semantic_type = SemanticType.Identifier
                 else:
-                    self._classify_numeric_kind(working, info)
+                    self._classify_numeric_kind(working, info, n_rows)
                     info.semantic_type = SemanticType.Numeric
 
                 results[col_name] = info
@@ -377,19 +377,53 @@ class TypeDetector:
     # Step 7: Numeric kind
     # ------------------------------------------------------------------
 
-    def _classify_numeric_kind(self, series: pl.Series, info: ColumnTypeInfo) -> None:
-        # Skip if it's an encoded category (treat as categorical, not numeric)
+    def _classify_numeric_kind(
+        self, series: pl.Series, info: ColumnTypeInfo, n_rows: int
+    ) -> None:
+        # Skip encoded categories — those are SemanticType.Categorical.
         if TypeFlag.EncodedCategory in info.flags:
             return
 
-        n_unique = series.drop_nulls().n_unique()
+        valid = series.drop_nulls()
+        n_unique = valid.n_unique()
 
-        if series.dtype in _INT_DTYPES:
-            info.numeric_kind = NumericKind.Discrete
-        elif n_unique < self._config.discrete_nunique_threshold:
-            info.numeric_kind = NumericKind.Discrete
-        else:
+        if n_unique == 0:
             info.numeric_kind = NumericKind.Continuous
+            return
+
+        # Float pre-check: any fractional value → always Continuous.
+        # The four-signal test assumes integer steps and is undefined for decimal spacing.
+        if series.dtype not in _INT_DTYPES:
+            if not (valid % 1 == 0).all():
+                info.numeric_kind = NumericKind.Continuous
+                return
+
+        min_val = float(valid.min())
+        max_val = float(valid.max())
+
+        # Signal 1: Tight sequence — every integer slot between min and max is present.
+        range_span = int(round(max_val - min_val)) + 1
+        if range_span != n_unique:
+            info.numeric_kind = NumericKind.Continuous
+            return
+
+        # Signal 2: Small range — max - min ≤ 20.
+        if (max_val - min_val) > 20:
+            info.numeric_kind = NumericKind.Continuous
+            return
+
+        # Signal 3: Low cardinality — ratio < 0.05 OR absolute floor n_unique ≤ 10.
+        # The absolute floor protects small datasets where the ratio inflates.
+        if n_rows > 0 and (n_unique / n_rows) >= 0.05 and n_unique > 10:
+            info.numeric_kind = NumericKind.Continuous
+            return
+
+        # Signal 4: Standard origin — min must be 0 or 1.
+        if min_val not in (0.0, 1.0):
+            info.numeric_kind = NumericKind.Continuous
+            return
+
+        info.numeric_kind = NumericKind.BoundedDiscrete
 
     def _check_free_text(
         self,

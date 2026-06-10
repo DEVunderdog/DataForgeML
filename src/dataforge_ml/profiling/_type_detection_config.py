@@ -44,10 +44,6 @@ class TypeDetectionConfig:
         Maximum median character length allowed for a ``Utf8`` column to be
         classified as ``SemanticType.Identifier``. Columns with longer median
         length are treated as free text instead.
-    discrete_nunique_threshold : int
-        Maximum number of unique values for a non-integer numeric column to be
-        treated as discrete (top-value counts) rather than continuous
-        (histogram).
     free_text_avg_words : int
         Median word count above which a ``Utf8`` column is flagged as
         ``TypeFlag.FreeTextCandidate``.
@@ -71,7 +67,6 @@ class TypeDetectionConfig:
     encoded_category_max_ratio: float = 0.05
     identifier_unique_ratio: float = 0.99
     identifier_max_median_length: int = 40
-    discrete_nunique_threshold: int = 20
     free_text_avg_words: int = 3
     free_text_median_chars: int = 20
     free_text_p90_chars: int = 35
@@ -94,7 +89,6 @@ class TypeDetectionConfig:
             "encoded_category_max_ratio": self.encoded_category_max_ratio,
             "identifier_unique_ratio": self.identifier_unique_ratio,
             "identifier_max_median_length": self.identifier_max_median_length,
-            "discrete_nunique_threshold": self.discrete_nunique_threshold,
             "free_text_avg_words": self.free_text_avg_words,
             "free_text_median_chars": self.free_text_median_chars,
             "free_text_p90_chars": self.free_text_p90_chars,
@@ -125,7 +119,6 @@ class TypeDetectionConfig:
             encoded_category_max_ratio=float(data.get("encoded_category_max_ratio", 0.05)),
             identifier_unique_ratio=float(data.get("identifier_unique_ratio", 0.99)),
             identifier_max_median_length=int(data.get("identifier_max_median_length", 40)),
-            discrete_nunique_threshold=int(data.get("discrete_nunique_threshold", 20)),
             free_text_avg_words=int(data.get("free_text_avg_words", 3)),
             free_text_median_chars=int(data.get("free_text_median_chars", 20)),
             free_text_p90_chars=int(data.get("free_text_p90_chars", 35)),
