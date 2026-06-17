@@ -15,7 +15,7 @@ from ._config import (
 )
 from ._base import ModalityProfiler
 from ._missingness_config import MissingnessProfileConfig
-from ._numeric_config import NumericProfileConfig
+from ._numeric_config import NumericProfileConfig, NonlinearityProfileConfig
 from ._type_detection_config import TypeDetectionConfig
 from ._categorical_config import CategoricalProfileConfig
 from ._correlation_config import CorrelationProfileConfig
@@ -41,6 +41,7 @@ __all__ = [
     "ModalityProfiler",
     "MissingnessProfileConfig",
     "NumericProfileConfig",
+    "NonlinearityProfileConfig",
     "TypeDetectionConfig",
     "CategoricalProfileConfig",
     "CorrelationProfileConfig",

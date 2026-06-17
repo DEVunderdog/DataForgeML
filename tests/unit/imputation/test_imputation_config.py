@@ -69,6 +69,11 @@ def test_numeric_imputation_config_default_mnar_constant_fill():
     assert cfg.mnar_constant_fill == -1
 
 
+def test_numeric_imputation_config_default_gradient_boost_min_rows():
+    cfg = NumericImputationConfig()
+    assert cfg.gradient_boost_min_rows == 10_000
+
+
 # ---------------------------------------------------------------------------
 # NumericImputationConfig — to_dict / from_dict round-trip
 # ---------------------------------------------------------------------------
@@ -77,7 +82,14 @@ def test_numeric_imputation_config_default_mnar_constant_fill():
 def test_numeric_config_to_dict_contains_all_keys():
     cfg = NumericImputationConfig()
     d = cfg.to_dict()
-    assert set(d.keys()) == {"knn_max_rows", "knn_max_features", "regression_min_rows", "mnar_constant_fill"}
+    assert set(d.keys()) == {
+        "knn_max_rows",
+        "knn_max_features",
+        "regression_min_rows",
+        "mnar_constant_fill",
+        "gradient_boost_min_rows",
+        "regression_base_max_iter",
+    }
 
 
 def test_numeric_config_round_trip_default_values():
@@ -87,6 +99,8 @@ def test_numeric_config_round_trip_default_values():
     assert restored.knn_max_features == original.knn_max_features
     assert restored.regression_min_rows == original.regression_min_rows
     assert restored.mnar_constant_fill == original.mnar_constant_fill
+    assert restored.gradient_boost_min_rows == original.gradient_boost_min_rows
+    assert restored.regression_base_max_iter == original.regression_base_max_iter
 
 
 def test_numeric_config_round_trip_non_default_values():
@@ -95,12 +109,16 @@ def test_numeric_config_round_trip_non_default_values():
         knn_max_features=20,
         regression_min_rows=1_000,
         mnar_constant_fill=-999,
+        gradient_boost_min_rows=25_000,
+        regression_base_max_iter=20,
     )
     restored = NumericImputationConfig.from_dict(original.to_dict())
     assert restored.knn_max_rows == 10_000
     assert restored.knn_max_features == 20
     assert restored.regression_min_rows == 1_000
     assert restored.mnar_constant_fill == -999
+    assert restored.gradient_boost_min_rows == 25_000
+    assert restored.regression_base_max_iter == 20
 
 
 def test_numeric_config_from_dict_empty_uses_defaults():
@@ -109,6 +127,18 @@ def test_numeric_config_from_dict_empty_uses_defaults():
     assert cfg.knn_max_features == 50
     assert cfg.regression_min_rows == 500
     assert cfg.mnar_constant_fill == -1
+    assert cfg.gradient_boost_min_rows == 10_000
+    assert cfg.regression_base_max_iter == 10
+
+
+def test_numeric_config_default_regression_base_max_iter():
+    cfg = NumericImputationConfig()
+    assert cfg.regression_base_max_iter == 10
+
+
+def test_numeric_config_custom_regression_base_max_iter():
+    cfg = NumericImputationConfig(regression_base_max_iter=20)
+    assert cfg.regression_base_max_iter == 20
 
 
 # ---------------------------------------------------------------------------

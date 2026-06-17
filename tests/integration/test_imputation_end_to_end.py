@@ -225,3 +225,96 @@ def test_drop_candidate_resolve_active_columns_excludes_dropped(drop_candidate_d
     )
     assert "sparse" not in active
     assert "dense" in active
+
+
+# ---------------------------------------------------------------------------
+# Scope 143: Regression imputation with partially missing features
+# ---------------------------------------------------------------------------
+
+
+def test_regression_imputation_with_partially_missing_features():
+    """Integration test: exercises regression imputation with partially missing features.
+
+    Verifies the complete pipeline contract from profiling to imputation fitting
+    and transformation, ensuring zero nulls, correct signals, and round-trip identity.
+    """
+    import numpy as np
+    from dataforge_ml.config import PipelineConfig
+    from dataforge_ml.imputation import (
+        ImputationConfig,
+        ImputationOrchestrator,
+        ImputationStrategy,
+        NumericImputationConfig,
+    )
+    from dataforge_ml.profiling._numeric_config import NonlinearityTag
+    from dataforge_ml.profiling.orchestrator import StructuralProfiler
+
+    rng = np.random.default_rng(42)
+    n = 600
+
+    # Generate linear relationship: target = 2 * feat + 5 + noise
+    feat_clean = rng.normal(10.0, 2.0, n)
+    target_clean = 2.0 * feat_clean + 5.0 + rng.normal(0.0, 0.5, n)
+
+    # Introduce missingness (~10% for target, ~8% for feat)
+    null_mask_target = rng.random(n) < 0.10
+    null_mask_feat = rng.random(n) < 0.08
+
+    target_vals = [None if null_mask_target[i] else float(target_clean[i]) for i in range(n)]
+    feat_vals = [None if null_mask_feat[i] else float(feat_clean[i]) for i in range(n)]
+
+    df = pl.DataFrame({
+        "target": pl.Series(target_vals, dtype=pl.Float64),
+        "feat": pl.Series(feat_vals, dtype=pl.Float64),
+    })
+
+    # Configure pipeline: force MCAR High columns to route to Regression
+    config = PipelineConfig(
+        profiling=ProfileConfig(
+            compute_nonlinearity=True,
+            compute_correlation=True,
+        ),
+        imputation=ImputationConfig(
+            numeric=NumericImputationConfig(
+                knn_max_rows=10,
+                regression_min_rows=100,
+            )
+        )
+    )
+
+    # 1. Verify Phase 1 profile contains a valid NonlinearityTag
+    profile = StructuralProfiler(config).profile(df)
+    assert "target" in profile.columns
+    target_profile = profile.columns["target"]
+    assert target_profile.stats is not None
+    assert target_profile.stats.nonlinearity_tag in list(NonlinearityTag)
+
+    # 2. Fit ImputationOrchestrator
+    orch = ImputationOrchestrator(config=config)
+    fi = orch.fit(df, profile)
+
+    # Verify strategy routed to Regression
+    assert "target" in fi.records
+    target_rec = fi.records["target"]
+    assert target_rec.strategy == ImputationStrategy.Regression
+
+    # 3. Assert ColumnImputationRecord.signals contains correct entries
+    # Estimator chosen entry
+    assert any("regression_estimator:" in s for s in target_rec.signals)
+
+    # Convergence warning entry (if max_iter hit, check format)
+    assert len(target_rec.signals) > 0
+    convergence_warnings = [s for s in target_rec.signals if "convergence_warning:" in s]
+    for warning in convergence_warnings:
+        assert "max_iter=" in warning
+
+    # 4. Transform and assert zero nulls
+    res = fi.transform(df)
+    assert res.dataframe["target"].null_count() == 0
+    assert res.dataframe["feat"].null_count() == 0
+
+    # 5. Serialise / deserialise round-trip
+    restored = FittedImputer.from_dict(fi.to_dict())
+    res_restored = restored.transform(df)
+    assert res.dataframe.equals(res_restored.dataframe)
+

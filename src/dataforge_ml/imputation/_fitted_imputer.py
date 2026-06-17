@@ -21,6 +21,7 @@ from ._config import (
     ImputationResult,
     ImputationStrategy,
 )
+from ._numeric_imputer import FittedRegression
 from ..models._data_types import _INT_DTYPES, _FLOAT_DTYPES
 from ..utils._null_normalization import _resolve_effective_nulls
 from ._utils import _df_to_numpy, _numpy_to_df
@@ -76,10 +77,73 @@ class FittedColumnAbsentError(Exception):
     """
 
 
+class _LegacyRegressionModel(tuple):
+    """Wrapper for legacy (BayesianRidge, feat_means) models.
+
+    Inherits from tuple to maintain backwards-compatibility with tests checking
+    for tuple type, while providing a ``transform`` method to unify the
+    inference path and eliminate the mean-patching loop from the caller.
+    """
+
+    def __new__(cls, reg: Any, feat_means: np.ndarray) -> _LegacyRegressionModel:
+        """Create a new instance of _LegacyRegressionModel.
+
+        Parameters
+        ----------
+        reg : Any
+            The fitted BayesianRidge regressor.
+        feat_means : np.ndarray
+            The mean feature values computed during training.
+
+        Returns
+        -------
+        _LegacyRegressionModel
+            The legacy model wrapper.
+        """
+        return super().__new__(cls, (reg, feat_means))
+
+    def transform(self, X: np.ndarray) -> np.ndarray:
+        """Apply legacy regression prediction with mean-patching.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Joint array of target and feature columns.
+
+        Returns
+        -------
+        np.ndarray
+            Filled array.
+        """
+        X = X.copy()
+        target_arr = X[:, 0]
+        null_mask = np.isnan(target_arr)
+        if not null_mask.any():
+            return X
+
+        # Feature columns are at indices 1 to end
+        X_feats = X[:, 1:]
+        nan_in_X = np.isnan(X_feats)
+        if nan_in_X.any():
+            X_feats = X_feats.copy()
+            for j in range(X_feats.shape[1]):
+                if nan_in_X[:, j].any():
+                    fill = float(self[1][j]) if j < len(self[1]) else 0.0
+                    X_feats[nan_in_X[:, j], j] = fill
+
+        if X_feats.shape[1] > 0:
+            y_pred = self[0].predict(X_feats[null_mask])
+        else:
+            y_pred = np.zeros(null_mask.sum())
+
+        target_arr[null_mask] = y_pred
+        X[:, 0] = target_arr
+        return X
+
+
 @dataclass
 class FittedImputer:
-    """
-    Stores per-column imputation records and fitted models; applies them to any DataFrame.
+    """Stores per-column imputation records and fitted models; applies them to any DataFrame.
 
     Parameters
     ----------
@@ -87,11 +151,18 @@ class FittedImputer:
         One record per column processed during fit().
     models : dict[str, Any]
         Fitted sklearn model objects keyed by model name.
-        - "knn"           : KNNImputer for KNN-assigned columns
-        - "mice"          : IterativeImputer for MICE-assigned columns
-        - "regression:{col}" : (BayesianRidge, feat_means ndarray) tuple per column
+
+        - ``"knn"``           : ``KNNImputer`` for KNN-assigned columns.
+        - ``"mice"``          : ``IterativeImputer`` for MICE-assigned columns.
+        - ``"regression:{col}"`` : ``FittedRegression`` containing a fitted
+        ``IterativeImputer``.  Legacy entries serialised before Issue #141
+        carried a ``(BayesianRidge, feat_means)`` tuple directly; the
+        ``from_dict()`` migration path wraps these in a ``FittedRegression``
+        transparently.
     model_cols : dict[str, list[str]]
-        Ordered column lists for each model entry in models.
+        Ordered column lists for each model entry in models.  Regression
+        entries store the full ``[col] + feat_cols`` list (including the
+        target at index 0).
     """
 
     records: dict[str, ColumnImputationRecord] = field(default_factory=dict)
@@ -305,6 +376,14 @@ class FittedImputer:
         )
 
     def to_dict(self) -> dict:
+        """Serialize the FittedImputer instance to a dictionary.
+
+        Returns
+        -------
+        dict
+            Dictionary containing serialized records, models (as base64-encoded
+            joblib bytes), and model column lists.
+        """
         import base64
         import io
         import joblib
@@ -323,6 +402,20 @@ class FittedImputer:
 
     @classmethod
     def from_dict(cls, data: dict) -> FittedImputer:
+        """Deserialize a dictionary back into a FittedImputer instance.
+
+        Also performs migration of legacy regression entries transparently.
+
+        Parameters
+        ----------
+        data : dict
+            Dictionary containing serialized FittedImputer state.
+
+        Returns
+        -------
+        FittedImputer
+            The deserialized and migrated FittedImputer instance.
+        """
         import base64
         import io
         import joblib
@@ -339,14 +432,36 @@ class FittedImputer:
                 signals=list(rec_data.get("signals", [])),
             )
 
-        models: dict[str, Any] = {}
-        for key, b64str in data.get("models", {}).items():
-            buf = io.BytesIO(base64.b64decode(b64str))
-            models[key] = joblib.load(buf)
-
         model_cols: dict[str, list[str]] = {
             k: list(v) for k, v in data.get("model_cols", {}).items()
         }
+
+        models: dict[str, Any] = {}
+        for key, b64str in data.get("models", {}).items():
+            buf = io.BytesIO(base64.b64decode(b64str))
+            loaded = joblib.load(buf)
+
+            # Migration: legacy regression entries are identified by the absence of
+            # target_idx in the stored object (or model_cols entry not starting with target).
+            if key.startswith("regression:"):
+                target_col = key[len("regression:"):]
+                feat_cols = list(model_cols.get(key, []))
+                # 1. Detect legacy format: model_cols entry does not start with target
+                if not feat_cols or feat_cols[0] != target_col:
+                    # 2. Derive col from the key (target_col)
+                    # 3. Prepend col to the stored list to produce all_cols
+                    all_cols = [target_col] + feat_cols
+                    model_cols[key] = all_cols
+                    # 4. Wrap the loaded (BayesianRidge, feat_means) tuple in a FittedRegression
+                    # with target_idx=0 and the migrated all_cols.
+                    legacy_tuple = loaded if isinstance(loaded, tuple) else (loaded[0], loaded[1])
+                    loaded = FittedRegression(
+                        model=_LegacyRegressionModel(legacy_tuple[0], legacy_tuple[1]),
+                        target_idx=0,
+                        all_cols=all_cols,
+                    )
+
+            models[key] = loaded
 
         return cls(records=records, models=models, model_cols=model_cols)
 
@@ -380,34 +495,44 @@ def _apply_regression(
     models: dict[str, Any],
     model_cols: dict[str, list[str]],
 ) -> pl.DataFrame:
-    """Apply a per-column BayesianRidge model to fill nulls in col."""
+    """Apply a per-column IterativeImputer (or migrated legacy model) to fill nulls in col.
+
+    Parameters
+    ----------
+    df : pl.DataFrame
+        Input DataFrame.
+    col : str
+        Target column name.
+    models : dict[str, Any]
+        Fitted models dictionary.
+    model_cols : dict[str, list[str]]
+        Ordered column lists for each model.
+
+    Returns
+    -------
+    pl.DataFrame
+        DataFrame with imputed values in col.
+    """
     model_key = f"regression:{col}"
     if model_key not in models or col not in df.columns:
         return df
 
-    reg, feat_means = models[model_key]
-    feat_cols = [c for c in model_cols.get(model_key, []) if c in df.columns]
+    fitted_reg: FittedRegression = models[model_key]
+    all_cols = model_cols.get(model_key, [])
 
-    target_arr = _df_to_numpy(df, [col]).ravel().copy()
-    null_mask = np.isnan(target_arr)
-    if not null_mask.any():
+    target_arr = _df_to_numpy(df, [col]).ravel()
+    if not np.isnan(target_arr).any():
         return df
 
-    if feat_cols:
-        X_full = _df_to_numpy(df, feat_cols)
-        nan_in_X = np.isnan(X_full)
-        if nan_in_X.any():
-            X_full = X_full.copy()
-            for j in range(X_full.shape[1]):
-                col_nans = nan_in_X[:, j]
-                if col_nans.any():
-                    fill = float(feat_means[j]) if j < len(feat_means) else 0.0
-                    X_full[col_nans, j] = fill
-        y_pred = reg.predict(X_full[null_mask])
-    else:
-        y_pred = np.zeros(null_mask.sum())
+    # Build the joint array ([col] + feat_cols); absent columns stay NaN.
+    n_df_rows = len(df)
+    arr = np.full((n_df_rows, len(all_cols)), np.nan, dtype=np.float64)
+    for j, c in enumerate(all_cols):
+        if c in df.columns:
+            arr[:, j] = _df_to_numpy(df, [c]).ravel()
 
-    target_arr[null_mask] = y_pred
-    return _numpy_to_df(df, [col], target_arr.reshape(-1, 1))
+    arr_filled = fitted_reg.model.transform(arr)
+    target_filled = arr_filled[:, fitted_reg.target_idx]
+    return _numpy_to_df(df, [col], target_filled.reshape(-1, 1))
 
 

@@ -612,10 +612,88 @@ def test_deserialized_imputer_fills_no_nulls():
     assert result.dataframe["a"].null_count() == 0
 
 
-def test_regression_model_stored_as_tuple_with_feature_means():
-    _, df = _make_fitted_imputer_with_regression()
+def test_regression_model_stored_as_fitted_regression():
+    """Regression entry is now a FittedRegression with an IterativeImputer."""
     fi, _ = _make_fitted_imputer_with_regression()
+    from dataforge_ml.imputation._numeric_imputer import FittedRegression
+    from sklearn.impute import IterativeImputer
     assert "regression:a" in fi.models
-    reg, feat_means = fi.models["regression:a"]
-    assert hasattr(reg, "predict")
-    assert isinstance(feat_means, np.ndarray)
+    fitted_reg = fi.models["regression:a"]
+    assert isinstance(fitted_reg, FittedRegression)
+    assert isinstance(fitted_reg.model, IterativeImputer)
+    assert fitted_reg.target_idx == 0
+    assert fitted_reg.all_cols[0] == "a"
+    assert "b" in fitted_reg.all_cols
+
+
+def test_regression_model_cols_stores_full_all_cols():
+    """model_cols['regression:col'] stores [col] + feat_cols, not just feat_cols."""
+    fi, _ = _make_fitted_imputer_with_regression()
+    all_cols = fi.model_cols["regression:a"]
+    assert all_cols[0] == "a"
+    assert "b" in all_cols
+
+
+def test_regression_new_format_round_trip_fills_nulls():
+    """Serialising and deserialising a new-format regression entry produces no nulls."""
+    fi, df = _make_fitted_imputer_with_regression()
+    restored = FittedImputer.from_dict(fi.to_dict())
+    result = restored.transform(df)
+    assert result.dataframe["a"].null_count() == 0
+    assert result.dataframe["a"].is_nan().sum() == 0
+
+
+def test_regression_legacy_migration_in_from_dict():
+    """from_dict() migrates a legacy (BayesianRidge, feat_means) entry to FittedRegression."""
+    import base64
+    import io
+    import joblib
+    import numpy as np
+    from sklearn.linear_model import BayesianRidge
+
+    from dataforge_ml.config import SemanticType
+    from dataforge_ml.imputation._config import (
+        ColumnImputationRecord,
+        ImputationStrategy,
+    )
+    from dataforge_ml.imputation._numeric_imputer import FittedRegression
+
+    # Build a minimal legacy dict by hand: models["regression:a"] = (reg, feat_means)
+    rng = np.random.default_rng(99)
+    X = rng.standard_normal((50, 1))
+    y = 2.0 * X[:, 0] + rng.standard_normal(50) * 0.1
+    reg = BayesianRidge()
+    reg.fit(X, y)
+    feat_means = np.array([X.mean()])
+
+    buf = io.BytesIO()
+    joblib.dump((reg, feat_means), buf)
+    b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+
+    legacy_dict = {
+        "records": {
+            "a": {
+                "column": "a", "semantic_type": "numeric",
+                "strategy": "regression", "fill_value": None,
+                "indicator_added": False, "signals": [],
+            },
+            "b": {
+                "column": "b", "semantic_type": "numeric",
+                "strategy": "passthrough", "fill_value": None,
+                "indicator_added": False, "signals": [],
+            },
+        },
+        "models": {"regression:a": b64},
+        # Legacy: model_cols stores only feat_cols, not [col] + feat_cols
+        "model_cols": {"regression:a": ["b"]},
+    }
+
+    fi = FittedImputer.from_dict(legacy_dict)
+
+    # After migration, models["regression:a"] should be a FittedRegression
+    assert isinstance(fi.models["regression:a"], FittedRegression)
+    # model_cols should now be ["a", "b"] (target prepended)
+    assert fi.model_cols["regression:a"][0] == "a"
+    assert "b" in fi.model_cols["regression:a"]
+    # The wrapped legacy model carries the (reg, feat_means) tuple
+    assert isinstance(fi.models["regression:a"].model, tuple)
