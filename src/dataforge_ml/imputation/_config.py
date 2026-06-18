@@ -54,6 +54,20 @@ class NumericImputationConfig:
         Base number of ``IterativeImputer`` iterations before dynamic signal
         adjustments are applied.  Increase this value for columns that exhibit
         convergence warnings in ``ColumnImputationRecord.signals``.
+    knn_min_neighbors : int
+        Floor on the adaptively computed ``n_neighbors`` value passed to
+        ``KNNImputer``. The computed k will never fall below this value.
+    knn_max_neighbors : int
+        Cap on the adaptively computed ``n_neighbors`` value passed to
+        ``KNNImputer``. The computed k will never exceed this value.
+    knn_distance_weight_max_null_ratio : float
+        Feature-matrix missingness fraction below which distance weighting is
+        considered reliable. When ``miss_frac`` exceeds this threshold,
+        ``weights`` is forced to ``"uniform"``.
+    knn_distance_weight_max_features : int
+        Dimensionality threshold below which distance weighting is considered
+        reliable. When the number of KNN feature columns exceeds this value,
+        ``weights`` is forced to ``"uniform"``.
     """
 
     knn_max_rows: int = 50_000
@@ -62,6 +76,10 @@ class NumericImputationConfig:
     mnar_constant_fill: float = -1
     gradient_boost_min_rows: int = 10_000
     regression_base_max_iter: int = 10
+    knn_min_neighbors: int = 5
+    knn_max_neighbors: int = 25
+    knn_distance_weight_max_null_ratio: float = 0.15
+    knn_distance_weight_max_features: int = 30
 
     def to_dict(self) -> dict:
         """
@@ -79,6 +97,10 @@ class NumericImputationConfig:
             "mnar_constant_fill": self.mnar_constant_fill,
             "gradient_boost_min_rows": self.gradient_boost_min_rows,
             "regression_base_max_iter": self.regression_base_max_iter,
+            "knn_min_neighbors": self.knn_min_neighbors,
+            "knn_max_neighbors": self.knn_max_neighbors,
+            "knn_distance_weight_max_null_ratio": self.knn_distance_weight_max_null_ratio,
+            "knn_distance_weight_max_features": self.knn_distance_weight_max_features,
         }
 
     @classmethod
@@ -104,6 +126,10 @@ class NumericImputationConfig:
             mnar_constant_fill=float(data.get("mnar_constant_fill", -1)),
             gradient_boost_min_rows=int(data.get("gradient_boost_min_rows", 10_000)),
             regression_base_max_iter=int(data.get("regression_base_max_iter", 10)),
+            knn_min_neighbors=int(data.get("knn_min_neighbors", 5)),
+            knn_max_neighbors=int(data.get("knn_max_neighbors", 25)),
+            knn_distance_weight_max_null_ratio=float(data.get("knn_distance_weight_max_null_ratio", 0.15)),
+            knn_distance_weight_max_features=int(data.get("knn_distance_weight_max_features", 30)),
         )
 
 

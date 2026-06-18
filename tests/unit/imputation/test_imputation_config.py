@@ -89,6 +89,10 @@ def test_numeric_config_to_dict_contains_all_keys():
         "mnar_constant_fill",
         "gradient_boost_min_rows",
         "regression_base_max_iter",
+        "knn_min_neighbors",
+        "knn_max_neighbors",
+        "knn_distance_weight_max_null_ratio",
+        "knn_distance_weight_max_features",
     }
 
 
@@ -139,6 +143,76 @@ def test_numeric_config_default_regression_base_max_iter():
 def test_numeric_config_custom_regression_base_max_iter():
     cfg = NumericImputationConfig(regression_base_max_iter=20)
     assert cfg.regression_base_max_iter == 20
+
+
+# ---------------------------------------------------------------------------
+# NumericImputationConfig — KNN tuning fields (defaults)
+# ---------------------------------------------------------------------------
+
+
+def test_numeric_config_default_knn_min_neighbors():
+    cfg = NumericImputationConfig()
+    assert cfg.knn_min_neighbors == 5
+
+
+def test_numeric_config_default_knn_max_neighbors():
+    cfg = NumericImputationConfig()
+    assert cfg.knn_max_neighbors == 25
+
+
+def test_numeric_config_default_knn_distance_weight_max_null_ratio():
+    cfg = NumericImputationConfig()
+    assert cfg.knn_distance_weight_max_null_ratio == 0.15
+
+
+def test_numeric_config_default_knn_distance_weight_max_features():
+    cfg = NumericImputationConfig()
+    assert cfg.knn_distance_weight_max_features == 30
+
+
+# ---------------------------------------------------------------------------
+# NumericImputationConfig — KNN tuning fields round-trip
+# ---------------------------------------------------------------------------
+
+
+def test_numeric_config_knn_tuning_fields_in_to_dict():
+    cfg = NumericImputationConfig()
+    d = cfg.to_dict()
+    assert d["knn_min_neighbors"] == 5
+    assert d["knn_max_neighbors"] == 25
+    assert d["knn_distance_weight_max_null_ratio"] == 0.15
+    assert d["knn_distance_weight_max_features"] == 30
+
+
+def test_numeric_config_knn_tuning_fields_round_trip_default():
+    original = NumericImputationConfig()
+    restored = NumericImputationConfig.from_dict(original.to_dict())
+    assert restored.knn_min_neighbors == original.knn_min_neighbors
+    assert restored.knn_max_neighbors == original.knn_max_neighbors
+    assert restored.knn_distance_weight_max_null_ratio == original.knn_distance_weight_max_null_ratio
+    assert restored.knn_distance_weight_max_features == original.knn_distance_weight_max_features
+
+
+def test_numeric_config_knn_tuning_fields_round_trip_non_default():
+    original = NumericImputationConfig(
+        knn_min_neighbors=3,
+        knn_max_neighbors=50,
+        knn_distance_weight_max_null_ratio=0.20,
+        knn_distance_weight_max_features=20,
+    )
+    restored = NumericImputationConfig.from_dict(original.to_dict())
+    assert restored.knn_min_neighbors == 3
+    assert restored.knn_max_neighbors == 50
+    assert restored.knn_distance_weight_max_null_ratio == 0.20
+    assert restored.knn_distance_weight_max_features == 20
+
+
+def test_numeric_config_knn_tuning_fields_from_dict_empty_uses_defaults():
+    cfg = NumericImputationConfig.from_dict({})
+    assert cfg.knn_min_neighbors == 5
+    assert cfg.knn_max_neighbors == 25
+    assert cfg.knn_distance_weight_max_null_ratio == 0.15
+    assert cfg.knn_distance_weight_max_features == 30
 
 
 # ---------------------------------------------------------------------------

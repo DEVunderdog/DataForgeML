@@ -597,12 +597,14 @@ def test_to_dict_stores_model_cols():
 
 
 def test_from_dict_restores_live_sklearn_objects():
+    from dataforge_ml.imputation._fitted_imputer import _FittedKNN
     fi, df = _make_fitted_imputer_with_knn()
     d = fi.to_dict()
     restored = FittedImputer.from_dict(d)
     assert "knn" in restored.models
-    # Should be a callable sklearn object
-    assert hasattr(restored.models["knn"], "transform")
+    # models["knn"] is now a _FittedKNN storing model, col_means, col_stds
+    assert isinstance(restored.models["knn"], _FittedKNN)
+    assert hasattr(restored.models["knn"].model, "transform")
 
 
 def test_deserialized_imputer_fills_no_nulls():
@@ -754,3 +756,278 @@ def test_domain_snap_applied_after_regression_for_bounded_discrete():
     vals = rating_col.drop_nulls().to_list()
     assert all(1.0 <= v <= 5.0 for v in vals), f"Values out of [1,5]: {vals}"
     assert all(v == round(v) for v in vals), f"Non-integer values after snap: {vals}"
+
+
+# ---------------------------------------------------------------------------
+# Issue #152 — Adaptive KNN hyperparameter selection
+# ---------------------------------------------------------------------------
+
+
+def _parse_knn_n_neighbors(signals: list[str]) -> int:
+    """Extract the reported n_neighbors value from a knn_params signal entry."""
+    for s in signals:
+        if s.startswith("knn_params:"):
+            # Format: "knn_params: n_neighbors=K, weights=W | ..."
+            part = s.split("n_neighbors=")[1]
+            return int(part.split(",")[0].strip())
+    raise AssertionError(f"No knn_params signal found in: {signals}")
+
+
+def _has_weights(signals: list[str], expected_weights: str) -> bool:
+    """Return True if any knn_params signal contains weights=<expected_weights>."""
+    for s in signals:
+        if s.startswith("knn_params:") and f"weights={expected_weights}" in s:
+            return True
+    return False
+
+
+def _make_knn_df_and_profile(n: int, n_cols: int, miss_frac: float, rng: np.random.Generator):
+    """Build a DataFrame and profile with KNN strategy forced for all columns.
+
+    All columns are MCAR High so they route to KNN (given small n and few features).
+    The first `int(n * n_cols * miss_frac)` cells are set to None.
+    """
+    data = {}
+    for i in range(n_cols):
+        vals = rng.normal(0, 1, n).tolist()
+        # Introduce nulls at the requested fraction
+        n_nulls = int(n * miss_frac)
+        for j in range(n_nulls):
+            vals[j] = None
+        data[f"c{i}"] = vals
+    df = pl.DataFrame({k: pl.Series(v, dtype=pl.Float64) for k, v in data.items()})
+
+    items = []
+    for col in data:
+        null_count = int(n * miss_frac)
+        cp = _numeric_cp(col, null_count=null_count, total_rows=n, severity=MissingSeverity.High)
+        if null_count == 0:
+            cp.missingness = None
+        items.append((col, cp))
+    profile = _make_profile(*items)
+    return df, profile, list(data.keys())
+
+
+def test_knn_high_dim_produces_larger_n_neighbors_than_low_dim():
+    """High-dimensional KNN column set → larger n_neighbors than low-dimensional, all else equal.
+
+    Directional test only: we do not assert the exact k value, just the ordering.
+    """
+    rng = np.random.default_rng(200)
+    miss = 0.05  # same missingness for both cases
+
+    # Low-dim: 2 KNN features
+    df_low, prof_low, cols_low = _make_knn_df_and_profile(n=500, n_cols=2, miss_frac=miss, rng=rng)
+    bundle_low = _fit(df_low, cols_low, prof_low)
+    rec_low = next(r for r in bundle_low.records if r.strategy == ImputationStrategy.KNN)
+    k_low = _parse_knn_n_neighbors(rec_low.signals)
+
+    # High-dim: 25 KNN features (sqrt(25)=5 > sqrt(2)≈1)
+    rng2 = np.random.default_rng(201)
+    df_high, prof_high, cols_high = _make_knn_df_and_profile(n=500, n_cols=25, miss_frac=miss, rng=rng2)
+    bundle_high = _fit(df_high, cols_high, prof_high)
+    rec_high = next(r for r in bundle_high.records if r.strategy == ImputationStrategy.KNN)
+    k_high = _parse_knn_n_neighbors(rec_high.signals)
+
+    assert k_high >= k_low, (
+        f"Expected high-dim k ({k_high}) >= low-dim k ({k_low})"
+    )
+
+
+def test_knn_high_miss_frac_produces_larger_n_neighbors_than_low_miss_frac():
+    """High feature-matrix missingness → larger n_neighbors than low missingness."""
+    rng = np.random.default_rng(202)
+
+    # Low missingness: 5%
+    df_low, prof_low, cols_low = _make_knn_df_and_profile(n=500, n_cols=4, miss_frac=0.05, rng=rng)
+    bundle_low = _fit(df_low, cols_low, prof_low)
+    rec_low = next(r for r in bundle_low.records if r.strategy == ImputationStrategy.KNN)
+    k_low = _parse_knn_n_neighbors(rec_low.signals)
+
+    # High missingness: 40%
+    rng2 = np.random.default_rng(203)
+    df_high, prof_high, cols_high = _make_knn_df_and_profile(n=500, n_cols=4, miss_frac=0.40, rng=rng2)
+    bundle_high = _fit(df_high, cols_high, prof_high)
+    rec_high = next(r for r in bundle_high.records if r.strategy == ImputationStrategy.KNN)
+    k_high = _parse_knn_n_neighbors(rec_high.signals)
+
+    assert k_high >= k_low, (
+        f"Expected high miss_frac k ({k_high}) >= low miss_frac k ({k_low})"
+    )
+
+
+def test_knn_low_miss_frac_few_features_gives_distance_weights():
+    """Low miss_frac + few features → weights=distance in knn_params signal."""
+    rng = np.random.default_rng(204)
+    # miss_frac < 0.15 and n_features <= 30 → reliability_high=True → distance
+    df, profile, cols = _make_knn_df_and_profile(n=500, n_cols=3, miss_frac=0.05, rng=rng)
+    config = NumericImputationConfig(
+        knn_distance_weight_max_null_ratio=0.15,
+        knn_distance_weight_max_features=30,
+    )
+    bundle = _fit(df, cols, profile, config=config)
+    knn_recs = [r for r in bundle.records if r.strategy == ImputationStrategy.KNN]
+    assert knn_recs, "Expected at least one KNN column"
+    for rec in knn_recs:
+        assert _has_weights(rec.signals, "distance"), (
+            f"Expected weights=distance in signals; got: {rec.signals}"
+        )
+
+
+def test_knn_high_miss_frac_gives_uniform_weights():
+    """High miss_frac (above threshold) → weights=uniform in knn_params signal."""
+    rng = np.random.default_rng(205)
+    # miss_frac >= 0.15 → reliability_high=False → uniform
+    df, profile, cols = _make_knn_df_and_profile(n=500, n_cols=3, miss_frac=0.40, rng=rng)
+    config = NumericImputationConfig(
+        knn_distance_weight_max_null_ratio=0.15,
+        knn_distance_weight_max_features=30,
+    )
+    bundle = _fit(df, cols, profile, config=config)
+    knn_recs = [r for r in bundle.records if r.strategy == ImputationStrategy.KNN]
+    assert knn_recs, "Expected at least one KNN column"
+    for rec in knn_recs:
+        assert _has_weights(rec.signals, "uniform"), (
+            f"Expected weights=uniform in signals; got: {rec.signals}"
+        )
+
+
+def test_knn_many_features_gives_uniform_weights():
+    """Many features (above knn_distance_weight_max_features) → weights=uniform even with low miss_frac."""
+    rng = np.random.default_rng(206)
+    # n_features > knn_distance_weight_max_features=5 → reliability_high=False → uniform
+    df, profile, cols = _make_knn_df_and_profile(n=500, n_cols=10, miss_frac=0.05, rng=rng)
+    config = NumericImputationConfig(
+        knn_distance_weight_max_null_ratio=0.15,
+        knn_distance_weight_max_features=5,  # threshold below 10 features
+    )
+    bundle = _fit(df, cols, profile, config=config)
+    knn_recs = [r for r in bundle.records if r.strategy == ImputationStrategy.KNN]
+    assert knn_recs, "Expected at least one KNN column"
+    for rec in knn_recs:
+        assert _has_weights(rec.signals, "uniform"), (
+            f"Expected weights=uniform in signals; got: {rec.signals}"
+        )
+
+
+def test_knn_signals_contain_knn_scaling_entry():
+    """Every KNN-routed column must have a knn_scaling signal entry."""
+    rng = np.random.default_rng(207)
+    df, profile, cols = _make_knn_df_and_profile(n=400, n_cols=3, miss_frac=0.10, rng=rng)
+    bundle = _fit(df, cols, profile)
+    knn_recs = [r for r in bundle.records if r.strategy == ImputationStrategy.KNN]
+    assert knn_recs, "Expected at least one KNN column"
+    for rec in knn_recs:
+        assert any("knn_scaling: applied" in s for s in rec.signals), (
+            f"Expected knn_scaling signal; got: {rec.signals}"
+        )
+
+
+def test_knn_model_stored_as_fitted_knn_instance():
+    """models['knn'] must be a _FittedKNN with model, col_means, col_stds."""
+    from dataforge_ml.imputation._fitted_imputer import _FittedKNN
+    rng = np.random.default_rng(208)
+    df, profile, cols = _make_knn_df_and_profile(n=300, n_cols=2, miss_frac=0.10, rng=rng)
+    bundle = _fit(df, cols, profile)
+    assert "knn" in bundle.models
+    fitted = bundle.models["knn"]
+    assert isinstance(fitted, _FittedKNN)
+    assert hasattr(fitted.model, "transform")
+    assert fitted.col_means.shape == (len(cols),)
+    assert fitted.col_stds.shape == (len(cols),)
+
+
+# ---------------------------------------------------------------------------
+# Issue #154 — KNN audit log signal format
+# ---------------------------------------------------------------------------
+
+
+def _find_signal(signals: list[str], prefix: str) -> str | None:
+    """Return the first signal string that starts with prefix, or None."""
+    for s in signals:
+        if s.startswith(prefix):
+            return s
+    return None
+
+
+def test_knn_both_signals_present_on_every_column_multi_col():
+    """Both knn_params and knn_scaling signals must be present on every KNN column.
+
+    Uses a 4-column KNN fit to confirm signals are appended per-column, not
+    globally (i.e., all four records must carry their own signal entries).
+    """
+    rng = np.random.default_rng(210)
+    df, profile, cols = _make_knn_df_and_profile(n=400, n_cols=4, miss_frac=0.10, rng=rng)
+    bundle = _fit(df, cols, profile)
+    knn_recs = [r for r in bundle.records if r.strategy == ImputationStrategy.KNN]
+    assert len(knn_recs) >= 2, f"Expected ≥2 KNN columns; got {len(knn_recs)}"
+    for rec in knn_recs:
+        assert _find_signal(rec.signals, "knn_params:") is not None, (
+            f"Column '{rec.column}' missing knn_params signal; got: {rec.signals}"
+        )
+        assert _find_signal(rec.signals, "knn_scaling:") is not None, (
+            f"Column '{rec.column}' missing knn_scaling signal; got: {rec.signals}"
+        )
+
+
+def test_knn_params_signal_contains_required_keys():
+    """knn_params signal must contain n_neighbors, weights, n_features, miss_frac, complete_frac."""
+    rng = np.random.default_rng(211)
+    df, profile, cols = _make_knn_df_and_profile(n=400, n_cols=3, miss_frac=0.10, rng=rng)
+    bundle = _fit(df, cols, profile)
+    knn_recs = [r for r in bundle.records if r.strategy == ImputationStrategy.KNN]
+    assert knn_recs, "Expected at least one KNN column"
+    for rec in knn_recs:
+        sig = _find_signal(rec.signals, "knn_params:")
+        assert sig is not None, f"No knn_params signal on '{rec.column}'"
+        for key in ("n_neighbors=", "weights=", "n_features=", "miss_frac=", "complete_frac="):
+            assert key in sig, (
+                f"Key '{key}' missing from knn_params signal on '{rec.column}': {sig}"
+            )
+
+
+def test_knn_params_signal_weights_value_is_valid():
+    """weights value in knn_params signal must be either 'distance' or 'uniform'."""
+    rng = np.random.default_rng(212)
+    df, profile, cols = _make_knn_df_and_profile(n=400, n_cols=3, miss_frac=0.10, rng=rng)
+    bundle = _fit(df, cols, profile)
+    knn_recs = [r for r in bundle.records if r.strategy == ImputationStrategy.KNN]
+    assert knn_recs, "Expected at least one KNN column"
+    for rec in knn_recs:
+        sig = _find_signal(rec.signals, "knn_params:")
+        assert sig is not None
+        assert "weights=distance" in sig or "weights=uniform" in sig, (
+            f"weights value is neither 'distance' nor 'uniform' in: {sig}"
+        )
+
+
+def test_knn_params_signal_n_neighbors_is_positive_integer():
+    """n_neighbors in knn_params signal must parse as a positive integer."""
+    rng = np.random.default_rng(213)
+    df, profile, cols = _make_knn_df_and_profile(n=400, n_cols=3, miss_frac=0.10, rng=rng)
+    bundle = _fit(df, cols, profile)
+    knn_recs = [r for r in bundle.records if r.strategy == ImputationStrategy.KNN]
+    assert knn_recs, "Expected at least one KNN column"
+    for rec in knn_recs:
+        k = _parse_knn_n_neighbors(rec.signals)
+        assert k >= 1, f"n_neighbors must be ≥ 1; got {k} for '{rec.column}'"
+
+
+def test_knn_scaling_signal_exact_format():
+    """knn_scaling signal must match the exact format defined in Issue #90."""
+    import re
+    rng = np.random.default_rng(214)
+    n_cols = 3
+    df, profile, cols = _make_knn_df_and_profile(n=400, n_cols=n_cols, miss_frac=0.10, rng=rng)
+    bundle = _fit(df, cols, profile)
+    knn_recs = [r for r in bundle.records if r.strategy == ImputationStrategy.KNN]
+    assert knn_recs, "Expected at least one KNN column"
+    pattern = re.compile(
+        r"^knn_scaling: applied StandardScaler \(nanmean/nanstd\) across \d+ feature columns$"
+    )
+    for rec in knn_recs:
+        sig = _find_signal(rec.signals, "knn_scaling:")
+        assert sig is not None, f"No knn_scaling signal on '{rec.column}'"
+        assert pattern.match(sig), (
+            f"knn_scaling signal format mismatch on '{rec.column}': {sig!r}"
+        )
