@@ -1036,62 +1036,6 @@ def test_regression_new_format_round_trip():
     assert res.dataframe["y"][1] is not None
 
 
-def test_regression_legacy_migration():
-    """Verify that from_dict() correctly migrates a legacy (BayesianRidge, feat_means)
-    tuple and old feat_cols-only model_cols format, and that the migrated
-    imputer transforms correctly.
-    """
-    import base64
-    import io
-    import joblib
-    import numpy as np
-    from sklearn.linear_model import BayesianRidge
-    from dataforge_ml.imputation._numeric_imputer import FittedRegression
-
-    # Create and fit a dummy BayesianRidge
-    X = np.array([[2.0], [4.0], [6.0]])
-    y = np.array([1.0, 3.0, 5.0])
-    reg = BayesianRidge()
-    reg.fit(X, y)
-    feat_means = np.array([4.0])
-
-    buf = io.BytesIO()
-    joblib.dump((reg, feat_means), buf)
-    b64 = base64.b64encode(buf.getvalue()).decode("ascii")
-
-    legacy_dict = {
-        "records": {
-            "y": {
-                "column": "y", "semantic_type": "numeric",
-                "strategy": "regression", "fill_value": None,
-                "indicator_added": False, "signals": [],
-            },
-            "x": {
-                "column": "x", "semantic_type": "numeric",
-                "strategy": "passthrough", "fill_value": None,
-                "indicator_added": False, "signals": [],
-            },
-        },
-        "models": {"regression:y": b64},
-        # Legacy: model_cols stores only feat_cols ["x"], not target ["y", "x"]
-        "model_cols": {"regression:y": ["x"]},
-    }
-
-    fi = FittedImputer.from_dict(legacy_dict)
-
-    # Verify migration
-    assert isinstance(fi.models["regression:y"], FittedRegression)
-    assert fi.model_cols["regression:y"] == ["y", "x"]
-    assert fi.models["regression:y"].target_idx == 0
-    # Must support transform
-    df = pl.DataFrame({
-        "y": pl.Series([1.0, None, 5.0], dtype=pl.Float64),
-        "x": pl.Series([2.0, 4.0, 6.0], dtype=pl.Float64),
-    })
-    res = fi.transform(df)
-    assert res.dataframe["y"].null_count() == 0
-
-
 def test_regression_target_vs_feature_identification():
     """Verify that inference correctly distinguishes between target and feature columns
     using target_idx, even when a feature has a distinctive value pattern.

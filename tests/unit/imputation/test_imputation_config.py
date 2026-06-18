@@ -343,3 +343,57 @@ def test_pipeline_config_round_trip_empty_config_imputation_defaults():
     assert restored.imputation.mnar_columns == []
     assert restored.imputation.add_indicator_columns == []
     assert restored.imputation.numeric.knn_max_rows == 50_000
+
+
+# ---------------------------------------------------------------------------
+# ColumnImputationRecord — domain_snap_bounds round-trip
+# ---------------------------------------------------------------------------
+
+
+def test_column_imputation_record_domain_snap_bounds_round_trips():
+    from dataforge_ml.imputation._fitted_imputer import FittedImputer
+
+    record = ColumnImputationRecord(
+        column="rating",
+        semantic_type=SemanticType.Numeric,
+        strategy=ImputationStrategy.Regression,
+        domain_snap_bounds=(1.0, 5.0),
+    )
+    d = record.to_dict()
+    assert d["domain_snap_bounds"] == [1.0, 5.0]
+
+    fi = FittedImputer(records={"rating": record})
+    restored = FittedImputer.from_dict(fi.to_dict())
+    assert restored.records["rating"].domain_snap_bounds == (1.0, 5.0)
+
+
+def test_column_imputation_record_domain_snap_bounds_none_by_default():
+    record = ColumnImputationRecord(
+        column="age",
+        semantic_type=SemanticType.Numeric,
+        strategy=ImputationStrategy.Mean,
+    )
+    d = record.to_dict()
+    assert d["domain_snap_bounds"] is None
+
+
+def test_column_imputation_record_missing_domain_snap_bounds_deserialises_to_none():
+    from dataforge_ml.imputation._fitted_imputer import FittedImputer
+
+    legacy_dict = {
+        "records": {
+            "age": {
+                "column": "age",
+                "semantic_type": "numeric",
+                "strategy": "mean",
+                "fill_value": 30.0,
+                "indicator_added": False,
+                "signals": [],
+                # no domain_snap_bounds key — simulates an old serialised record
+            }
+        },
+        "models": {},
+        "model_cols": {},
+    }
+    fi = FittedImputer.from_dict(legacy_dict)
+    assert fi.records["age"].domain_snap_bounds is None

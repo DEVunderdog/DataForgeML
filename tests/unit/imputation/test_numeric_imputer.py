@@ -214,7 +214,8 @@ def test_mar_suspect_signal_mentions_mar():
 # ---------------------------------------------------------------------------
 
 
-def test_discrete_column_gets_mode_strategy():
+def test_discrete_column_minor_normal_gets_mean_strategy():
+    """BoundedDiscrete + Minor + Normal skew → Mean (sub-chain step 5)."""
     values = [1, 2, 1, 1, None, 3, 1]
     df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
     cp = _numeric_cp(
@@ -222,12 +223,12 @@ def test_discrete_column_gets_mode_strategy():
         numeric_kind=NumericKind.BoundedDiscrete,
     )
     rec = _fit_one(df, cp)
-    assert rec.strategy == ImputationStrategy.Mode
-    assert rec.fill_value == pytest.approx(1.0)
+    assert rec.strategy == ImputationStrategy.Mean
+    assert rec.fill_value == pytest.approx(9 / 6)
 
 
-def test_discrete_mode_computed_on_training_data():
-    """Mode is the most frequent value in train_df, ignoring nulls."""
+def test_discrete_mean_computed_on_training_data():
+    """Mean fill value is computed from non-null training values for BoundedDiscrete."""
     values = [5, 5, 5, 1, 1, None]
     df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
     cp = _numeric_cp(
@@ -235,7 +236,8 @@ def test_discrete_mode_computed_on_training_data():
         numeric_kind=NumericKind.BoundedDiscrete,
     )
     rec = _fit_one(df, cp)
-    assert rec.fill_value == pytest.approx(5.0)
+    assert rec.strategy == ImputationStrategy.Mean
+    assert rec.fill_value == pytest.approx(17 / 5)
 
 
 # ---------------------------------------------------------------------------
@@ -377,12 +379,12 @@ def test_record_semantic_type_is_numeric():
 
 
 # ---------------------------------------------------------------------------
-# BoundedDiscrete routing — Priority 3, unconditional Mode
+# BoundedDiscrete routing — Priority 3, model-aware sub-chain with domain-snap
 # ---------------------------------------------------------------------------
 
 
-def test_bounded_discrete_gets_mode_strategy():
-    """BoundedDiscrete column → Mode regardless of severity."""
+def test_bounded_discrete_minor_normal_skew_gets_mean():
+    """BoundedDiscrete + Minor + Normal skew → Mean (sub-chain step 5)."""
     values = [1, 2, 1, 1, None, 3, 1]
     df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
     cp = _numeric_cp(
@@ -390,11 +392,11 @@ def test_bounded_discrete_gets_mode_strategy():
         numeric_kind=NumericKind.BoundedDiscrete,
     )
     rec = _fit_one(df, cp)
-    assert rec.strategy == ImputationStrategy.Mode
+    assert rec.strategy == ImputationStrategy.Mean
 
 
-def test_bounded_discrete_high_severity_still_gets_mode():
-    """Priority 3 fires before MCAR chain — High severity does not escalate."""
+def test_bounded_discrete_high_severity_gets_knn():
+    """BoundedDiscrete + High severity → KNN via domain-snapped MCAR sub-chain."""
     values = [1, 2, 3, 4, 5, None, None, None]
     df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
     cp = _numeric_cp(
@@ -402,11 +404,11 @@ def test_bounded_discrete_high_severity_still_gets_mode():
         numeric_kind=NumericKind.BoundedDiscrete,
     )
     rec = _fit_one(df, cp)
-    assert rec.strategy == ImputationStrategy.Mode
+    assert rec.strategy == ImputationStrategy.KNN
 
 
-def test_bounded_discrete_mar_suspect_still_gets_mode():
-    """Priority 3 fires before MAR routing — MARSuspect does not override Mode."""
+def test_bounded_discrete_mar_suspect_low_severity_no_corrs_gets_mode():
+    """BoundedDiscrete + MARSuspect + Minor + no correlations → Mode (terminal replaces Median)."""
     values = [1, 2, 3, 4, 5, None, None]
     df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
     cp = _numeric_cp(
@@ -416,6 +418,131 @@ def test_bounded_discrete_mar_suspect_still_gets_mode():
     )
     rec = _fit_one(df, cp)
     assert rec.strategy == ImputationStrategy.Mode
+
+
+# BoundedDiscrete sub-chain coverage
+# ---------------------------------------------------------------------------
+
+
+def test_bounded_discrete_unpredictable_routes_to_mode_with_signal():
+    """BoundedDiscrete + Unpredictable → Mode; unpredictable_guard signal recorded."""
+    from dataforge_ml.profiling._numeric_config import NumericFlag
+    values = [1, 2, 3, 1, None, 2, 1]
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
+    cp = _numeric_cp(
+        null_count=1, total_rows=7, severity=MissingSeverity.High,
+        numeric_kind=NumericKind.BoundedDiscrete,
+    )
+    cp.stats = NumericStats(nonlinearity_tag=NonlinearityTag.Unpredictable)
+    rec = _fit_one(df, cp)
+    assert rec.strategy == ImputationStrategy.Mode
+    assert any("unpredictable_guard" in s for s in rec.signals)
+
+
+def test_bounded_discrete_near_constant_routes_to_mode_with_signal():
+    """BoundedDiscrete + NearConstant → Mode; near_constant signal recorded."""
+    from dataforge_ml.profiling._numeric_config import NumericFlag
+    values = [1, 1, 1, 1, None, 1, 1]
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
+    cp = _numeric_cp(
+        null_count=1, total_rows=7, severity=MissingSeverity.Minor,
+        numeric_kind=NumericKind.BoundedDiscrete,
+    )
+    cp.stats = NumericStats(flags=[NumericFlag.NearConstant])
+    rec = _fit_one(df, cp)
+    assert rec.strategy == ImputationStrategy.Mode
+    assert any("near_constant" in s for s in rec.signals)
+
+
+def test_bounded_discrete_mar_suspect_severe_routes_to_mice_with_snap():
+    """BoundedDiscrete + MARSuspect + Severe → MICE with domain_snap_bounds set."""
+    values = [1, 2, 3, 4, 5, None, None, None, None, None]
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
+    cp = _numeric_cp(
+        null_count=5, total_rows=10, severity=MissingSeverity.Severe,
+        flags=[MissingnessFlag.MARSuspect], correlated_with=["other"],
+        numeric_kind=NumericKind.BoundedDiscrete,
+    )
+    cp.stats = NumericStats(min=1.0, max=5.0)
+    rec = _fit_one(df, cp)
+    assert rec.strategy == ImputationStrategy.MICE
+    assert rec.domain_snap_bounds == (1.0, 5.0)
+    assert any("domain_snap_bounds" in s for s in rec.signals)
+
+
+def test_bounded_discrete_mar_suspect_high_with_corrs_routes_to_regression():
+    """BoundedDiscrete + MARSuspect + High + large enough dataset → Regression with snap."""
+    rng = np.random.default_rng(0)
+    n = 600
+    values = [int(v % 5) + 1 if i % 10 != 0 else None for i, v in enumerate(range(n))]
+    feat_vals = rng.standard_normal(n).tolist()
+    df = pl.DataFrame({
+        _COL: pl.Series(values, dtype=pl.Int64),
+        "feat": pl.Series(feat_vals, dtype=pl.Float64),
+    })
+    profile = _make_profile(_COL, _numeric_cp(
+        null_count=60, total_rows=n, severity=MissingSeverity.High,
+        flags=[MissingnessFlag.MARSuspect], correlated_with=["feat"],
+        numeric_kind=NumericKind.BoundedDiscrete,
+    ))
+    profile.columns[_COL].stats = NumericStats(min=1.0, max=5.0)
+    profile.columns["feat"] = ColumnProfile(
+        name="feat", semantic_type=SemanticType.Numeric,
+        numeric_kind=NumericKind.Continuous, missingness=None, stats=NumericStats(),
+    )
+    config = NumericImputationConfig(regression_min_rows=500)
+    bundle = NumericImputer().fit(
+        train_df=df, columns=[_COL, "feat"],
+        profile=profile, config=config, mnar_columns=set(),
+    )
+    rec = next(r for r in bundle.records if r.column == _COL)
+    assert rec.strategy == ImputationStrategy.Regression
+    assert rec.domain_snap_bounds == (1.0, 5.0)
+
+
+def test_bounded_discrete_mcar_high_routes_to_knn_with_snap():
+    """BoundedDiscrete + MCAR High + size guards met → KNN with domain_snap_bounds."""
+    values = [1, 2, 3, 4, 5, None, None, 3]
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
+    cp = _numeric_cp(
+        null_count=2, total_rows=8, severity=MissingSeverity.High,
+        numeric_kind=NumericKind.BoundedDiscrete,
+    )
+    cp.stats = NumericStats(min=1.0, max=5.0)
+    rec = _fit_one(df, cp)
+    assert rec.strategy == ImputationStrategy.KNN
+    assert rec.domain_snap_bounds == (1.0, 5.0)
+    assert any("domain_snap_bounds" in s for s in rec.signals)
+
+
+def test_bounded_discrete_mcar_minor_normal_skew_mean_is_snapped():
+    """BoundedDiscrete + MCAR Minor + Normal skew → Mean snapped to [min, max]."""
+    values = [1, 5, 1, 5, None, 3]
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
+    cp = _numeric_cp(
+        null_count=1, total_rows=6, severity=MissingSeverity.Minor,
+        numeric_kind=NumericKind.BoundedDiscrete,
+    )
+    cp.stats = NumericStats(min=1.0, max=5.0, skewness_severity=None)
+    rec = _fit_one(df, cp)
+    assert rec.strategy == ImputationStrategy.Mean
+    assert rec.fill_value is not None
+    assert 1.0 <= rec.fill_value <= 5.0
+    assert any("snapped" in s for s in rec.signals)
+
+
+def test_bounded_discrete_all_size_guards_fail_routes_to_mode():
+    """BoundedDiscrete + Minor + Moderate skew → Mode (terminal, not Median)."""
+    values = [1, 2, 1, 1, None, 1, 1]
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
+    cp = _numeric_cp(
+        null_count=1, total_rows=7, severity=MissingSeverity.Minor,
+        numeric_kind=NumericKind.BoundedDiscrete,
+        skewness_severity=SkewSeverity.Moderate,
+    )
+    rec = _fit_one(df, cp)
+    assert rec.strategy == ImputationStrategy.Mode
+    assert any("terminal" in s for s in rec.signals)
 
 
 def test_continuous_integer_with_gaps_falls_to_mcar_chain():
@@ -465,8 +592,8 @@ def test_record_signals_are_non_empty_for_all_strategies():
 # ---------------------------------------------------------------------------
 
 
-def test_override_forced_bounded_discrete_gets_mode():
-    """A column forced to BoundedDiscrete via override → Mode strategy."""
+def test_override_forced_bounded_discrete_gets_mean_on_minor_normal():
+    """A column forced to BoundedDiscrete via override + Minor + Normal skew → Mean."""
     values = [25, 32, 45, 28, None, 39]
     df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
     cp = _numeric_cp(
@@ -474,7 +601,7 @@ def test_override_forced_bounded_discrete_gets_mode():
         numeric_kind=NumericKind.BoundedDiscrete,
     )
     rec = _fit_one(df, cp)
-    assert rec.strategy == ImputationStrategy.Mode
+    assert rec.strategy == ImputationStrategy.Mean
 
 
 def test_override_forced_continuous_falls_to_mcar_chain():
@@ -605,6 +732,35 @@ def test_unpredictable_tag_routes_to_median_with_signal():
     rec = next(r for r in bundle.records if r.column == "target")
     assert rec.strategy == ImputationStrategy.Median
     assert any("Unpredictable" in s for s in rec.signals)
+
+
+def test_unpredictable_guard_fires_before_mar_routing():
+    """Priority 4 Unpredictable guard routes to Median before MARSuspect routing is reached."""
+    rng = np.random.default_rng(0)
+    n = 600
+    col_vals = [None if i % 10 == 0 else rng.standard_normal() for i in range(n)]
+    feat_vals = rng.standard_normal(n).tolist()
+    df = pl.DataFrame({
+        "target": pl.Series(col_vals, dtype=pl.Float64),
+        "feat": pl.Series(feat_vals, dtype=pl.Float64),
+    })
+    # MARSuspect + Unpredictable: Priority 4 must fire before Priority 5 (MARSuspect)
+    profile = _regression_profile("target", n, ["feat"])
+    profile.columns["target"].stats = NumericStats(
+        nonlinearity_tag=NonlinearityTag.Unpredictable
+    )
+    config = NumericImputationConfig(regression_min_rows=500)
+    bundle = NumericImputer().fit(
+        train_df=df, columns=["target", "feat"],
+        profile=profile, config=config, mnar_columns=set(),
+    )
+    rec = next(r for r in bundle.records if r.column == "target")
+    assert rec.strategy == ImputationStrategy.Median
+    assert any("unpredictable_guard" in s for s in rec.signals)
+    # MAR routing must not have fired
+    assert not any("mar_suspect" in s for s in rec.signals)
+    assert not any(s in ("MICE", "Regression", "KNN") for s in
+                   [r.strategy for r in bundle.records if r.column == "target"])
 
 
 def test_estimator_choice_recorded_in_signals():

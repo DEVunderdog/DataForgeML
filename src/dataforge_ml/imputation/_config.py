@@ -186,6 +186,9 @@ class ColumnImputationRecord:
         Whether a binary missingness indicator column was appended.
     signals : list[str]
         Human-readable reasons that drove the strategy decision.
+    domain_snap_bounds : tuple[float, float], optional
+        ``(min, max)`` bounds applied to snap model-based predictions for
+        BoundedDiscrete columns.  ``None`` for all other columns.
     """
 
     column: str
@@ -194,6 +197,7 @@ class ColumnImputationRecord:
     fill_value: Optional[Any] = None
     indicator_added: bool = False
     signals: list[str] = field(default_factory=list)
+    domain_snap_bounds: Optional[tuple[float, float]] = None
 
     def to_dict(self) -> dict:
         """
@@ -211,6 +215,7 @@ class ColumnImputationRecord:
             "fill_value": self.fill_value,
             "indicator_added": self.indicator_added,
             "signals": list(self.signals),
+            "domain_snap_bounds": list(self.domain_snap_bounds) if self.domain_snap_bounds is not None else None,
         }
 
 

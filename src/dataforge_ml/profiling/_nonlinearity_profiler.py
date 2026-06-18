@@ -23,8 +23,7 @@ Computes four signals per numeric column against all other numeric columns
 
 Tag assignment (evaluated in priority order):
   - R²_RF < threshold                                       → Unpredictable
-  - (discrepancy ≥ threshold OR bp_pvalue < threshold)
-    AND r2_gap < r2_gap_threshold                           → MonotonicNonlinear
+  - discrepancy ≥ threshold AND r2_gap < r2_gap_threshold   → MonotonicNonlinear
   - r2_gap ≥ r2_gap_threshold OR mi ≥ mi_threshold          → ComplexNonlinear
   - otherwise                                               → Linear
 

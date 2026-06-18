@@ -20,7 +20,7 @@ from sklearn.pipeline import Pipeline
 from ..config import SemanticType
 from ..profiling._config import NumericKind
 from ..profiling._missingness_config import MissingnessFlag, MissingSeverity
-from ..profiling._numeric_config import NonlinearityTag, NumericStats, SkewSeverity
+from ..profiling._numeric_config import NonlinearityTag, NumericFlag, NumericStats, SkewSeverity
 from ._config import (
     ColumnImputationRecord,
     ImputationStrategy,
@@ -31,6 +31,7 @@ from ._utils import _df_to_numpy
 
 if TYPE_CHECKING:
     from ..profiling._config import ColumnProfile, StructuralProfileResult
+    from ..profiling._missingness_config import ColumnMissingnessProfile
 
 
 @dataclass
@@ -41,9 +42,7 @@ class FittedRegression:
     ----------
     model : Any
         Fitted ``IterativeImputer`` that handles missing feature values
-        internally.  Legacy entries serialised before Issue #141 may carry a
-        ``(BayesianRidge, feat_means)`` tuple — the ``FittedImputer``
-        migration path in ``from_dict()`` handles these transparently.
+        internally.
     target_idx : int
         Index of the target column in the joint array. Always ``0`` by
         construction; stored explicitly so inference never relies on a
@@ -221,18 +220,25 @@ def _fit_one(
             indicator_added=False, signals=signals,
         )
 
-    # Priority 3: BoundedDiscrete → Mode (unconditional — finite domain requires finite fill)
-    # Fires before MAR routing: model-based predictions are not valid members of a fixed vocabulary.
+    # Priority 3: BoundedDiscrete gate — model-aware sub-chain with domain-snap; exits here
     if cp.numeric_kind == NumericKind.BoundedDiscrete:
-        signals.append("NumericKind.BoundedDiscrete: mode imputation")
+        return _fit_bounded_discrete(
+            train_df, col, cp, config, missingness, n_rows, n_features, multi_mar, signals,
+        )
+
+    stats = cp.stats if isinstance(cp.stats, NumericStats) else None
+
+    # Priority 4: Unpredictable guard — non-BoundedDiscrete columns with no predictive signal
+    if stats is not None and stats.nonlinearity_tag == NonlinearityTag.Unpredictable:
+        signals.append("unpredictable_guard: nonlinearity_tag=Unpredictable")
         return ColumnImputationRecord(
             column=col, semantic_type=SemanticType.Numeric,
-            strategy=ImputationStrategy.Mode,
-            fill_value=_compute_mode(train_df, col),
+            strategy=ImputationStrategy.Median,
+            fill_value=_compute_median(train_df, col),
             indicator_added=False, signals=signals,
         )
 
-    # Priority 4: MARSuspect — full fallback chain
+    # Priority 5: MARSuspect — full fallback chain
     if missingness.has_flag(MissingnessFlag.MARSuspect):
         corrs = missingness.correlated_with
         signals.append(f"mar_suspect: correlated missingness with {corrs}")
@@ -252,9 +258,8 @@ def _fit_one(
             indicator_added=False, signals=signals,
         )
 
-    # Priority 5: MCAR routing by severity and skew
+    # Priority 6: MCAR routing by severity and skew
     severity = missingness.severity
-    stats = cp.stats if isinstance(cp.stats, NumericStats) else None
     skew_sev = stats.skewness_severity if stats else None
 
     if severity in (MissingSeverity.High, MissingSeverity.Severe):
@@ -287,6 +292,143 @@ def _fit_one(
         fill_value=_compute_median(train_df, col),
         indicator_added=False, signals=signals,
     )
+
+
+def _fit_bounded_discrete(
+    train_df: pl.DataFrame,
+    col: str,
+    cp: "ColumnProfile",
+    config: NumericImputationConfig,
+    missingness: "Optional[ColumnMissingnessProfile]",
+    n_rows: int,
+    n_features: int,
+    multi_mar: bool,
+    signals: list[str],
+) -> ColumnImputationRecord:
+    """Route a BoundedDiscrete column through the model-aware sub-chain with domain-snap.
+
+    Parameters
+    ----------
+    train_df : pl.DataFrame
+        Training split for computing scalar fill values.
+    col : str
+        Column name.
+    cp : ColumnProfile
+        Column profile from Phase 1.
+    config : NumericImputationConfig
+        Imputation configuration.
+    missingness : ColumnMissingnessProfile or None
+        Missingness profile for the column.
+    n_rows : int
+        Number of rows in the training split.
+    n_features : int
+        Total number of numeric columns being imputed.
+    multi_mar : bool
+        True when ≥2 numeric columns are MARSuspect.
+    signals : list[str]
+        Signal list to append routing decisions to.
+
+    Returns
+    -------
+    ColumnImputationRecord
+        Routing record with strategy, fill value, and signals populated.
+    """
+    stats = cp.stats if isinstance(cp.stats, NumericStats) else None
+    snap_min = stats.min if stats is not None else None
+    snap_max = stats.max if stats is not None else None
+
+    def _mode_record() -> ColumnImputationRecord:
+        return ColumnImputationRecord(
+            column=col, semantic_type=SemanticType.Numeric,
+            strategy=ImputationStrategy.Mode,
+            fill_value=_compute_mode(train_df, col),
+            indicator_added=False, signals=signals,
+        )
+
+    def _snap_scalar(val: float) -> float:
+        if snap_min is not None and snap_max is not None:
+            return float(max(snap_min, min(snap_max, round(val))))
+        return val
+
+    def _bounds() -> Optional[tuple[float, float]]:
+        if snap_min is not None and snap_max is not None:
+            return (snap_min, snap_max)
+        return None
+
+    # 1. Unpredictable → Mode (terminal; model-based uplift unavailable)
+    if stats is not None and stats.nonlinearity_tag == NonlinearityTag.Unpredictable:
+        signals.append("bounded_discrete: unpredictable_guard → mode")
+        return _mode_record()
+
+    # 2. NearConstant → Mode (terminal; fitting cost wasted when 90%+ share the same value)
+    if stats is not None and stats.has_flag(NumericFlag.NearConstant):
+        signals.append("bounded_discrete: near_constant → mode")
+        return _mode_record()
+
+    # 3. Bimodal → falls through (future scope; no special handling)
+
+    # 4. MARSuspect → domain-snapped MAR sub-chain (Mode replaces Median as terminal)
+    if missingness is not None and missingness.has_flag(MissingnessFlag.MARSuspect):
+        corrs = missingness.correlated_with
+        signals.append(f"bounded_discrete: mar_suspect: correlated missingness with {corrs}")
+        strategy, signal = _mar_strategy(
+            severity=missingness.severity,
+            corrs=corrs,
+            config=config,
+            n_rows=n_rows,
+            n_features=n_features,
+            multi_mar=multi_mar,
+        )
+        signals.append(signal)
+        if strategy == ImputationStrategy.Median:
+            signals.append("bounded_discrete: terminal → mode (median not valid domain member)")
+            return _mode_record()
+        signals.append(f"bounded_discrete: domain_snap_bounds=({snap_min}, {snap_max})")
+        return ColumnImputationRecord(
+            column=col, semantic_type=SemanticType.Numeric,
+            strategy=strategy, fill_value=None,
+            indicator_added=False, signals=signals,
+            domain_snap_bounds=_bounds(),
+        )
+
+    # 5. MCAR by severity — same routing as non-BoundedDiscrete; Mode replaces Median as terminal
+    severity = missingness.severity if missingness is not None else None
+    skew_sev = stats.skewness_severity if stats is not None else None
+
+    if severity in (MissingSeverity.High, MissingSeverity.Severe):
+        strategy, signal = _mcar_model_strategy(
+            severity=severity, config=config, n_rows=n_rows, n_features=n_features,
+        )
+        signals.append(signal)
+        if strategy == ImputationStrategy.Median:
+            signals.append("bounded_discrete: terminal → mode (median not valid domain member)")
+            return _mode_record()
+        signals.append(f"bounded_discrete: domain_snap_bounds=({snap_min}, {snap_max})")
+        return ColumnImputationRecord(
+            column=col, semantic_type=SemanticType.Numeric,
+            strategy=strategy, fill_value=None,
+            indicator_added=False, signals=signals,
+            domain_snap_bounds=_bounds(),
+        )
+
+    # Minor + Normal skew → Mean snapped to valid domain member at fit time
+    if severity == MissingSeverity.Minor and skew_sev in (None, SkewSeverity.Normal):
+        snapped = _snap_scalar(_compute_mean(train_df, col))
+        signals.append(
+            f"bounded_discrete: mcar minor + normal skew → mean snapped to {snapped}"
+        )
+        return ColumnImputationRecord(
+            column=col, semantic_type=SemanticType.Numeric,
+            strategy=ImputationStrategy.Mean,
+            fill_value=snapped,
+            indicator_added=False, signals=signals,
+        )
+
+    # Terminal fallback → Mode (replaces Median for all remaining cases)
+    signals.append(
+        f"bounded_discrete: terminal → mode (severity={severity}, skew={skew_sev})"
+    )
+    return _mode_record()
 
 
 def _mar_strategy(

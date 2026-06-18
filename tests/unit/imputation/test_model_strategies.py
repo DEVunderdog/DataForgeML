@@ -643,57 +643,114 @@ def test_regression_new_format_round_trip_fills_nulls():
     assert result.dataframe["a"].is_nan().sum() == 0
 
 
-def test_regression_legacy_migration_in_from_dict():
-    """from_dict() migrates a legacy (BayesianRidge, feat_means) entry to FittedRegression."""
-    import base64
-    import io
-    import joblib
-    import numpy as np
-    from sklearn.linear_model import BayesianRidge
+# ---------------------------------------------------------------------------
+# Domain-snap at transform time for BoundedDiscrete columns
+# ---------------------------------------------------------------------------
 
-    from dataforge_ml.config import SemanticType
-    from dataforge_ml.imputation._config import (
-        ColumnImputationRecord,
-        ImputationStrategy,
+
+def test_domain_snap_applied_after_knn_for_bounded_discrete():
+    """KNN predictions for a BoundedDiscrete column are clipped and rounded to [min, max]."""
+    rng = np.random.default_rng(42)
+    n = 200
+    # Rating scale 1–5
+    raw = rng.integers(1, 6, size=n).tolist()
+    null_mask = [i % 10 == 0 for i in range(n)]
+    col_vals = [None if null_mask[i] else float(raw[i]) for i in range(n)]
+    feat_vals = rng.standard_normal(n).tolist()
+
+    df = pl.DataFrame({
+        "rating": pl.Series(col_vals, dtype=pl.Float64),
+        "feat": pl.Series(feat_vals, dtype=pl.Float64),
+    })
+
+    profile = _make_profile(
+        ("rating", ColumnProfile(
+            name="rating",
+            semantic_type=SemanticType.Numeric,
+            numeric_kind=NumericKind.BoundedDiscrete,
+            missingness=ColumnMissingnessProfile(
+                column="rating",
+                total_rows=n,
+                effective_null_count=n // 10,
+                effective_null_ratio=0.1,
+                severity=MissingSeverity.High,
+                flags=[],
+                correlated_with=[],
+            ),
+            stats=NumericStats(min=1.0, max=5.0),
+        )),
+        ("feat", _numeric_cp("feat", null_count=0, severity=MissingSeverity.High,
+                              numeric_kind=NumericKind.Continuous)),
     )
-    from dataforge_ml.imputation._numeric_imputer import FittedRegression
 
-    # Build a minimal legacy dict by hand: models["regression:a"] = (reg, feat_means)
-    rng = np.random.default_rng(99)
-    X = rng.standard_normal((50, 1))
-    y = 2.0 * X[:, 0] + rng.standard_normal(50) * 0.1
-    reg = BayesianRidge()
-    reg.fit(X, y)
-    feat_means = np.array([X.mean()])
+    bundle = _fit(df, ["rating", "feat"], profile)
+    rec = next(r for r in bundle.records if r.column == "rating")
+    assert rec.strategy == ImputationStrategy.KNN
+    assert rec.domain_snap_bounds == (1.0, 5.0)
 
-    buf = io.BytesIO()
-    joblib.dump((reg, feat_means), buf)
-    b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+    fi = FittedImputer(
+        records={r.column: r for r in bundle.records},
+        models=bundle.models,
+        model_cols=bundle.model_cols,
+    )
+    result = fi.transform(df)
+    rating_col = result.dataframe["rating"]
 
-    legacy_dict = {
-        "records": {
-            "a": {
-                "column": "a", "semantic_type": "numeric",
-                "strategy": "regression", "fill_value": None,
-                "indicator_added": False, "signals": [],
-            },
-            "b": {
-                "column": "b", "semantic_type": "numeric",
-                "strategy": "passthrough", "fill_value": None,
-                "indicator_added": False, "signals": [],
-            },
-        },
-        "models": {"regression:a": b64},
-        # Legacy: model_cols stores only feat_cols, not [col] + feat_cols
-        "model_cols": {"regression:a": ["b"]},
-    }
+    assert rating_col.null_count() == 0
+    vals = rating_col.drop_nulls().to_list()
+    assert all(1.0 <= v <= 5.0 for v in vals), f"Values out of [1,5]: {vals}"
+    assert all(v == round(v) for v in vals), f"Non-integer values after snap: {vals}"
 
-    fi = FittedImputer.from_dict(legacy_dict)
 
-    # After migration, models["regression:a"] should be a FittedRegression
-    assert isinstance(fi.models["regression:a"], FittedRegression)
-    # model_cols should now be ["a", "b"] (target prepended)
-    assert fi.model_cols["regression:a"][0] == "a"
-    assert "b" in fi.model_cols["regression:a"]
-    # The wrapped legacy model carries the (reg, feat_means) tuple
-    assert isinstance(fi.models["regression:a"].model, tuple)
+def test_domain_snap_applied_after_regression_for_bounded_discrete():
+    """Regression predictions for a BoundedDiscrete column are clipped and rounded to [min, max]."""
+    rng = np.random.default_rng(7)
+    n = 600
+    raw = rng.integers(1, 6, size=n).tolist()
+    null_mask = [i % 10 == 0 for i in range(n)]
+    col_vals = [None if null_mask[i] else float(raw[i]) for i in range(n)]
+    feat_vals = rng.standard_normal(n).tolist()
+
+    df = pl.DataFrame({
+        "rating": pl.Series(col_vals, dtype=pl.Float64),
+        "feat": pl.Series(feat_vals, dtype=pl.Float64),
+    })
+
+    profile = _make_profile(
+        ("rating", ColumnProfile(
+            name="rating",
+            semantic_type=SemanticType.Numeric,
+            numeric_kind=NumericKind.BoundedDiscrete,
+            missingness=ColumnMissingnessProfile(
+                column="rating",
+                total_rows=n,
+                effective_null_count=n // 10,
+                effective_null_ratio=0.1,
+                severity=MissingSeverity.High,
+                flags=[],
+                correlated_with=[],
+            ),
+            stats=NumericStats(min=1.0, max=5.0),
+        )),
+        ("feat", _numeric_cp("feat", null_count=0, severity=MissingSeverity.High,
+                              numeric_kind=NumericKind.Continuous)),
+    )
+
+    config = NumericImputationConfig(knn_max_rows=100, regression_min_rows=500)
+    bundle = _fit(df, ["rating", "feat"], profile, config=config)
+    rec = next(r for r in bundle.records if r.column == "rating")
+    assert rec.strategy == ImputationStrategy.Regression
+    assert rec.domain_snap_bounds == (1.0, 5.0)
+
+    fi = FittedImputer(
+        records={r.column: r for r in bundle.records},
+        models=bundle.models,
+        model_cols=bundle.model_cols,
+    )
+    result = fi.transform(df)
+    rating_col = result.dataframe["rating"]
+
+    assert rating_col.null_count() == 0
+    vals = rating_col.drop_nulls().to_list()
+    assert all(1.0 <= v <= 5.0 for v in vals), f"Values out of [1,5]: {vals}"
+    assert all(v == round(v) for v in vals), f"Non-integer values after snap: {vals}"

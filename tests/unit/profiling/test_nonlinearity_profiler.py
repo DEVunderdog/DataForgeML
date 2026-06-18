@@ -41,17 +41,6 @@ def linear_df() -> pl.DataFrame:
     return pl.DataFrame({"x1": _X1, "x2": _X2, "y": y})
 
 
-@pytest.fixture(scope="module")
-def monotonic_nonlinear_df() -> pl.DataFrame:
-    """
-    y = x1 + 0.5 * |x1| * noise.
-
-    Conditional mean is linear (y ~ x1) but variance grows with |x1|,
-    producing clear Breusch-Pagan heteroscedasticity.  Linear and RF both
-    fit the conditional mean equally well, so r2_gap ≈ 0.
-    """
-    y = _X1 + 0.5 * np.abs(_X1) * _NOISE
-    return pl.DataFrame({"x1": _X1, "y": y})
 
 
 @pytest.fixture(scope="module")
@@ -97,10 +86,17 @@ def test_linear_tag(linear_df):
     assert signals.tag == NonlinearityTag.Linear
 
 
-def test_monotonic_nonlinear_tag(monotonic_nonlinear_df):
-    signals = _profile_col(monotonic_nonlinear_df, "y")
-    assert signals is not None
-    assert signals.tag == NonlinearityTag.MonotonicNonlinear
+def test_monotonic_nonlinear_tag():
+    """Curvature signal (discrepancy ≥ threshold) with small r2_gap → MonotonicNonlinear."""
+    profiler = NonlinearityProfiler(numeric_columns=[])
+    tag = profiler._assign_tag(
+        r2_rf=0.50,
+        discrepancy=0.15,
+        bp_pvalue=0.40,
+        r2_gap=0.04,
+        mi=0.01,
+    )
+    assert tag == NonlinearityTag.MonotonicNonlinear
 
 
 def test_complex_nonlinear_tag(complex_nonlinear_df):

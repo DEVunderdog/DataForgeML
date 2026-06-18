@@ -77,70 +77,6 @@ class FittedColumnAbsentError(Exception):
     """
 
 
-class _LegacyRegressionModel(tuple):
-    """Wrapper for legacy (BayesianRidge, feat_means) models.
-
-    Inherits from tuple to maintain backwards-compatibility with tests checking
-    for tuple type, while providing a ``transform`` method to unify the
-    inference path and eliminate the mean-patching loop from the caller.
-    """
-
-    def __new__(cls, reg: Any, feat_means: np.ndarray) -> _LegacyRegressionModel:
-        """Create a new instance of _LegacyRegressionModel.
-
-        Parameters
-        ----------
-        reg : Any
-            The fitted BayesianRidge regressor.
-        feat_means : np.ndarray
-            The mean feature values computed during training.
-
-        Returns
-        -------
-        _LegacyRegressionModel
-            The legacy model wrapper.
-        """
-        return super().__new__(cls, (reg, feat_means))
-
-    def transform(self, X: np.ndarray) -> np.ndarray:
-        """Apply legacy regression prediction with mean-patching.
-
-        Parameters
-        ----------
-        X : np.ndarray
-            Joint array of target and feature columns.
-
-        Returns
-        -------
-        np.ndarray
-            Filled array.
-        """
-        X = X.copy()
-        target_arr = X[:, 0]
-        null_mask = np.isnan(target_arr)
-        if not null_mask.any():
-            return X
-
-        # Feature columns are at indices 1 to end
-        X_feats = X[:, 1:]
-        nan_in_X = np.isnan(X_feats)
-        if nan_in_X.any():
-            X_feats = X_feats.copy()
-            for j in range(X_feats.shape[1]):
-                if nan_in_X[:, j].any():
-                    fill = float(self[1][j]) if j < len(self[1]) else 0.0
-                    X_feats[nan_in_X[:, j], j] = fill
-
-        if X_feats.shape[1] > 0:
-            y_pred = self[0].predict(X_feats[null_mask])
-        else:
-            y_pred = np.zeros(null_mask.sum())
-
-        target_arr[null_mask] = y_pred
-        X[:, 0] = target_arr
-        return X
-
-
 @dataclass
 class FittedImputer:
     """Stores per-column imputation records and fitted models; applies them to any DataFrame.
@@ -155,10 +91,7 @@ class FittedImputer:
         - ``"knn"``           : ``KNNImputer`` for KNN-assigned columns.
         - ``"mice"``          : ``IterativeImputer`` for MICE-assigned columns.
         - ``"regression:{col}"`` : ``FittedRegression`` containing a fitted
-        ``IterativeImputer``.  Legacy entries serialised before Issue #141
-        carried a ``(BayesianRidge, feat_means)`` tuple directly; the
-        ``from_dict()`` migration path wraps these in a ``FittedRegression``
-        transparently.
+        ``IterativeImputer``.
     model_cols : dict[str, list[str]]
         Ordered column lists for each model entry in models.  Regression
         entries store the full ``[col] + feat_cols`` list (including the
@@ -354,19 +287,30 @@ class FittedImputer:
         if fill_exprs:
             result_df = result_df.with_columns(fill_exprs)
 
-        # --- Apply model-based strategies (MICE → KNN → Regression) ---
+        # --- Apply model-based strategies (MICE → KNN → Regression) with domain-snap ---
         if self.models:
             result_df = _apply_block_model(
                 result_df, "mice", self.models, self.model_cols
             )
+            result_df = _apply_domain_snap(
+                result_df, self.model_cols.get("mice", []), self.records
+            )
             result_df = _apply_block_model(
                 result_df, "knn", self.models, self.model_cols
+            )
+            result_df = _apply_domain_snap(
+                result_df, self.model_cols.get("knn", []), self.records
             )
             for col, rec in self.records.items():
                 if rec.strategy == ImputationStrategy.Regression:
                     result_df = _apply_regression(
                         result_df, col, self.models, self.model_cols
                     )
+                    if rec.domain_snap_bounds is not None:
+                        lo, hi = rec.domain_snap_bounds
+                        result_df = result_df.with_columns(
+                            pl.col(col).round(0).clip(lo, hi).alias(col)
+                        )
 
         return ImputationResult(
             dataframe=result_df,
@@ -404,8 +348,6 @@ class FittedImputer:
     def from_dict(cls, data: dict) -> FittedImputer:
         """Deserialize a dictionary back into a FittedImputer instance.
 
-        Also performs migration of legacy regression entries transparently.
-
         Parameters
         ----------
         data : dict
@@ -414,7 +356,7 @@ class FittedImputer:
         Returns
         -------
         FittedImputer
-            The deserialized and migrated FittedImputer instance.
+            The deserialized FittedImputer instance.
         """
         import base64
         import io
@@ -423,6 +365,8 @@ class FittedImputer:
 
         records: dict[str, ColumnImputationRecord] = {}
         for col, rec_data in data.get("records", {}).items():
+            raw_bounds = rec_data.get("domain_snap_bounds")
+            snap_bounds = tuple(raw_bounds) if raw_bounds is not None else None
             records[col] = ColumnImputationRecord(
                 column=rec_data["column"],
                 semantic_type=SemanticType(rec_data["semantic_type"]),
@@ -430,6 +374,7 @@ class FittedImputer:
                 fill_value=rec_data.get("fill_value"),
                 indicator_added=bool(rec_data.get("indicator_added", False)),
                 signals=list(rec_data.get("signals", [])),
+                domain_snap_bounds=snap_bounds,
             )
 
         model_cols: dict[str, list[str]] = {
@@ -439,29 +384,7 @@ class FittedImputer:
         models: dict[str, Any] = {}
         for key, b64str in data.get("models", {}).items():
             buf = io.BytesIO(base64.b64decode(b64str))
-            loaded = joblib.load(buf)
-
-            # Migration: legacy regression entries are identified by the absence of
-            # target_idx in the stored object (or model_cols entry not starting with target).
-            if key.startswith("regression:"):
-                target_col = key[len("regression:"):]
-                feat_cols = list(model_cols.get(key, []))
-                # 1. Detect legacy format: model_cols entry does not start with target
-                if not feat_cols or feat_cols[0] != target_col:
-                    # 2. Derive col from the key (target_col)
-                    # 3. Prepend col to the stored list to produce all_cols
-                    all_cols = [target_col] + feat_cols
-                    model_cols[key] = all_cols
-                    # 4. Wrap the loaded (BayesianRidge, feat_means) tuple in a FittedRegression
-                    # with target_idx=0 and the migrated all_cols.
-                    legacy_tuple = loaded if isinstance(loaded, tuple) else (loaded[0], loaded[1])
-                    loaded = FittedRegression(
-                        model=_LegacyRegressionModel(legacy_tuple[0], legacy_tuple[1]),
-                        target_idx=0,
-                        all_cols=all_cols,
-                    )
-
-            models[key] = loaded
+            models[key] = joblib.load(buf)
 
         return cls(records=records, models=models, model_cols=model_cols)
 
@@ -495,7 +418,7 @@ def _apply_regression(
     models: dict[str, Any],
     model_cols: dict[str, list[str]],
 ) -> pl.DataFrame:
-    """Apply a per-column IterativeImputer (or migrated legacy model) to fill nulls in col.
+    """Apply a per-column IterativeImputer to fill nulls in col.
 
     Parameters
     ----------
@@ -534,5 +457,38 @@ def _apply_regression(
     arr_filled = fitted_reg.model.transform(arr)
     target_filled = arr_filled[:, fitted_reg.target_idx]
     return _numpy_to_df(df, [col], target_filled.reshape(-1, 1))
+
+
+def _apply_domain_snap(
+    df: pl.DataFrame,
+    cols: list[str],
+    records: dict[str, ColumnImputationRecord],
+) -> pl.DataFrame:
+    """Apply clip(round(p), lo, hi) after model inference for BoundedDiscrete columns.
+
+    Parameters
+    ----------
+    df : pl.DataFrame
+        DataFrame after model inference.
+    cols : list[str]
+        Columns processed by the preceding model block.
+    records : dict[str, ColumnImputationRecord]
+        Per-column imputation records; only columns with ``domain_snap_bounds`` set are snapped.
+
+    Returns
+    -------
+    pl.DataFrame
+        DataFrame with snapped values for any column that has ``domain_snap_bounds``.
+    """
+    snap_exprs = []
+    for col in cols:
+        rec = records.get(col)
+        if rec is None or rec.domain_snap_bounds is None:
+            continue
+        lo, hi = rec.domain_snap_bounds
+        snap_exprs.append(pl.col(col).round(0).clip(lo, hi).alias(col))
+    if snap_exprs:
+        df = df.with_columns(snap_exprs)
+    return df
 
 
