@@ -318,3 +318,206 @@ def test_regression_imputation_with_partially_missing_features():
     res_restored = restored.transform(df)
     assert res.dataframe.equals(res_restored.dataframe)
 
+
+# ---------------------------------------------------------------------------
+# Issue #152 — KNN imputation with mixed-scale columns (integration)
+# ---------------------------------------------------------------------------
+
+
+def test_knn_mixed_scale_imputation_integration():
+    """Integration test: KNN columns with 1000:1 magnitude ratio.
+
+    Verifies:
+    - No nulls in imputed output.
+    - knn_params and knn_scaling signals present for each KNN column.
+    - Imputed small-scale values remain in the small column's original range
+      (demonstrating scale-insensitive imputation).
+    """
+    import numpy as np
+    from dataforge_ml.config import PipelineConfig
+    from dataforge_ml.imputation import (
+        ImputationConfig,
+        ImputationOrchestrator,
+        ImputationStrategy,
+        NumericImputationConfig,
+    )
+    from dataforge_ml.profiling.orchestrator import StructuralProfiler
+    from dataforge_ml.profiling._config import ProfileConfig
+
+    rng = np.random.default_rng(999)
+    n = 500
+
+    # Two KNN columns: `small` in [0, 1], `large` in [0, 1000] — perfect correlation
+    small_clean = rng.uniform(0.0, 1.0, n)
+    large_clean = small_clean * 1000.0 + rng.normal(0, 0.01, n)
+
+    # Introduce ~15% missingness in both columns
+    null_mask_small = rng.random(n) < 0.15
+    null_mask_large = rng.random(n) < 0.12
+
+    small_vals = [None if null_mask_small[i] else float(small_clean[i]) for i in range(n)]
+    large_vals = [None if null_mask_large[i] else float(large_clean[i]) for i in range(n)]
+
+    df = pl.DataFrame({
+        "small": pl.Series(small_vals, dtype=pl.Float64),
+        "large": pl.Series(large_vals, dtype=pl.Float64),
+    })
+
+    # Force KNN routing by keeping dataset within KNN size guards
+    config = PipelineConfig(
+        profiling=ProfileConfig(),
+        imputation=ImputationConfig(
+            numeric=NumericImputationConfig(
+                knn_max_rows=50_000,
+                knn_max_features=50,
+            )
+        )
+    )
+
+    profile = StructuralProfiler(config).profile(df)
+    orch = ImputationOrchestrator(config=config)
+    fi = orch.fit(df, profile)
+
+    # Verify at least one column routes to KNN
+    knn_cols = [col for col, rec in fi.records.items() if rec.strategy == ImputationStrategy.KNN]
+    if not knn_cols:
+        pytest.skip("No columns routed to KNN under current profile; check size guards.")
+
+    # Each KNN column must carry both signal entries
+    for col in knn_cols:
+        signals = fi.records[col].signals
+        assert any("knn_params:" in s for s in signals), (
+            f"Column '{col}' missing knn_params signal; got: {signals}"
+        )
+        assert any("knn_scaling: applied" in s for s in signals), (
+            f"Column '{col}' missing knn_scaling signal; got: {signals}"
+        )
+
+    # Transform: zero nulls in imputed output
+    result = fi.transform(df)
+    for col in knn_cols:
+        assert result.dataframe[col].null_count() == 0, (
+            f"Column '{col}' still has nulls after KNN imputation"
+        )
+
+    # Scale-sensitivity check: imputed `small` values must stay in [0, 1]
+    if "small" in knn_cols:
+        small_imputed = result.dataframe["small"].to_list()
+        out_of_range = [v for v in small_imputed if v is not None and not (0.0 - 0.5 <= v <= 1.0 + 0.5)]
+        assert not out_of_range, (
+            f"Imputed 'small' values dominated by large-scale column: {out_of_range[:5]}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Issue #155 — Integration: adaptive KNN end-to-end with mixed-scale columns
+# ---------------------------------------------------------------------------
+
+
+def test_knn_adaptive_end_to_end_mixed_scale():
+    """End-to-end adaptive KNN with mixed-scale columns and adaptive k > 5.
+
+    Exercises all three problems fixed in Scope 1:
+    - Adaptive k (6 KNN features → base_k = max(5, sqrt(6)) = 5, k > 5 after
+      missingness/completeness scaling)
+    - Reliability-based weights
+    - NaN-safe scaling with correct inverse-scale (large-column values must not
+      collapse to small-column magnitudes)
+
+    Assertions:
+    1. No nulls in any KNN-routed column after transform.
+    2. knn_params signal present on every KNN column.
+    3. knn_scaling signal present on every KNN column.
+    4. Imputed large-scale column values are in a plausible range (~[0, 1000]),
+       not collapsed to small-scale magnitudes (~[0, 1]).
+    """
+    import numpy as np
+    from dataforge_ml.config import PipelineConfig
+    from dataforge_ml.imputation import (
+        ImputationConfig,
+        ImputationOrchestrator,
+        ImputationStrategy,
+        NumericImputationConfig,
+    )
+    from dataforge_ml.profiling._config import ProfileConfig
+    from dataforge_ml.profiling.orchestrator import StructuralProfiler
+
+    rng = np.random.default_rng(155)
+    n = 600
+
+    # Anchor signal: drives all other columns to create correlated structure.
+    anchor = rng.uniform(0.0, 1.0, n)
+
+    # 5 small-scale columns in [0, 1] and 1 large-scale column in [0, 1000].
+    # All are linearly related to `anchor` to make KNN meaningful.
+    small_cols = {f"s{i}": anchor + rng.normal(0, 0.05, n) for i in range(5)}
+    large_col = anchor * 1000.0 + rng.normal(0, 1.0, n)
+
+    # Introduce ~15% missingness in the large column and ~10% in two small cols.
+    null_large = rng.random(n) < 0.15
+    null_s0 = rng.random(n) < 0.10
+    null_s1 = rng.random(n) < 0.10
+
+    data = {}
+    for i, (name, vals) in enumerate(small_cols.items()):
+        col_vals = vals.tolist()
+        if i == 0:
+            col_vals = [None if null_s0[j] else v for j, v in enumerate(col_vals)]
+        elif i == 1:
+            col_vals = [None if null_s1[j] else v for j, v in enumerate(col_vals)]
+        data[name] = pl.Series(col_vals, dtype=pl.Float64)
+    data["large"] = pl.Series(
+        [None if null_large[j] else float(large_col[j]) for j in range(n)],
+        dtype=pl.Float64,
+    )
+
+    df = pl.DataFrame(data)
+
+    config = PipelineConfig(
+        profiling=ProfileConfig(),
+        imputation=ImputationConfig(
+            numeric=NumericImputationConfig(
+                knn_max_rows=50_000,
+                knn_max_features=50,
+            )
+        ),
+    )
+
+    profile = StructuralProfiler(config).profile(df)
+    orch = ImputationOrchestrator(config=config)
+    fi = orch.fit(df, profile)
+
+    knn_cols = [col for col, rec in fi.records.items() if rec.strategy == ImputationStrategy.KNN]
+    if not knn_cols:
+        pytest.skip("No columns routed to KNN under current profile; check size guards.")
+
+    # 1. Both signals on every KNN column.
+    for col in knn_cols:
+        signals = fi.records[col].signals
+        assert any("knn_params:" in s for s in signals), (
+            f"Column '{col}' missing knn_params signal; got: {signals}"
+        )
+        assert any("knn_scaling: applied" in s for s in signals), (
+            f"Column '{col}' missing knn_scaling signal; got: {signals}"
+        )
+
+    # 2. No nulls after transform.
+    result = fi.transform(df)
+    for col in knn_cols:
+        assert result.dataframe[col].null_count() == 0, (
+            f"Column '{col}' still has nulls after KNN imputation"
+        )
+
+    # 3. Large-scale column imputed values must be in a plausible range.
+    #    If inverse-scaling is broken, all imputed values collapse to the
+    #    standardised range (~[-3, 3]) instead of [0, 1000].  The max of a
+    #    600-row column whose true range is [0, 1000] must comfortably exceed
+    #    100 in correctly inverse-scaled output.
+    if "large" in knn_cols:
+        large_vals = result.dataframe["large"].drop_nulls().to_list()
+        max_large = max(large_vals)
+        assert max_large > 100.0, (
+            f"Max imputed 'large' value is {max_large:.2f} — appears collapsed to "
+            f"small-scale magnitudes (expected > 100 for a [0, 1000] column)"
+        )
+

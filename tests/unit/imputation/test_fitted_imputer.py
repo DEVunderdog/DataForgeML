@@ -1086,6 +1086,125 @@ def test_regression_target_vs_feature_identification():
     assert imputed_val != 999.0
 
 
+# ---------------------------------------------------------------------------
+# _FittedKNN — transform, scale-sensitivity, round-trip
+# ---------------------------------------------------------------------------
+
+
+def test_fitted_knn_transform_produces_no_nulls():
+    import numpy as np
+    from sklearn.impute import KNNImputer
+    from dataforge_ml.imputation._fitted_imputer import _FittedKNN
+
+    # Training matrix: 4 complete rows, 2 KNN columns.
+    train = np.array([
+        [0.0, 1.0],
+        [1.0, 0.0],
+        [0.5, 0.5],
+        [0.2, 0.8],
+    ], dtype=np.float64)
+    col_means = np.nanmean(train, axis=0)
+    col_stds = np.nanstd(train, axis=0)
+    col_stds[col_stds == 0.0] = 1.0
+    train_scaled = (train - col_means) / col_stds
+
+    knn = KNNImputer(n_neighbors=2)
+    knn.fit(train_scaled)
+
+    fitted_knn = _FittedKNN(model=knn, col_means=col_means, col_stds=col_stds)
+    imputer = FittedImputer(
+        records={
+            "a": _record("a", ImputationStrategy.KNN),
+            "b": _record("b", ImputationStrategy.KNN),
+        },
+        models={"knn": fitted_knn},
+        model_cols={"knn": ["a", "b"]},
+    )
+
+    df = pl.DataFrame({
+        "a": pl.Series([0.0, None, 0.5, 0.2], dtype=pl.Float64),
+        "b": pl.Series([1.0, 0.0, None, 0.8], dtype=pl.Float64),
+    })
+    result = imputer.transform(df)
+    assert result.dataframe["a"].null_count() == 0
+    assert result.dataframe["b"].null_count() == 0
+
+
+def test_fitted_knn_scale_sensitive_imputed_value_not_dominated_by_large_column():
+    """With 1000:1 magnitude ratio, _apply_knn must not let the large-scale
+    column dominate neighbour selection: the imputed value must be
+    inverse-scaled back to the original small-column range.
+    """
+    import numpy as np
+    from sklearn.impute import KNNImputer
+    from dataforge_ml.imputation._fitted_imputer import _FittedKNN
+
+    # `small` in [0, 1]; `large` in [0, 1000]; perfect positive correlation.
+    # Query: small=None, large=1000 → nearest scaled neighbour is row3 →
+    # imputed small must be ≈ 1.0, not ≈ 1220 (what unscaled-then-no-inverse
+    # would produce).
+    train = np.array([
+        [0.0, 0.0],
+        [0.5, 500.0],
+        [1.0, 1000.0],
+    ], dtype=np.float64)
+    col_means = np.nanmean(train, axis=0)
+    col_stds = np.nanstd(train, axis=0)
+    col_stds[col_stds == 0.0] = 1.0
+    train_scaled = (train - col_means) / col_stds
+
+    knn = KNNImputer(n_neighbors=1)
+    knn.fit(train_scaled)
+
+    fitted_knn = _FittedKNN(model=knn, col_means=col_means, col_stds=col_stds)
+    imputer = FittedImputer(
+        records={
+            "small": _record("small", ImputationStrategy.KNN),
+            "large": _record("large", ImputationStrategy.KNN),
+        },
+        models={"knn": fitted_knn},
+        model_cols={"knn": ["small", "large"]},
+    )
+
+    df = pl.DataFrame({
+        "small": pl.Series([None], dtype=pl.Float64),
+        "large": pl.Series([1000.0], dtype=pl.Float64),
+    })
+    result = imputer.transform(df)
+
+    imputed_small = result.dataframe["small"][0]
+    # Must be in the original column's range [0, 1], not dominated by large.
+    assert imputed_small == pytest.approx(1.0, abs=0.01)
+
+
+def test_fitted_knn_to_dict_from_dict_round_trip():
+    import numpy as np
+    from sklearn.impute import KNNImputer
+    from dataforge_ml.imputation._fitted_imputer import _FittedKNN
+
+    train = np.array([[0.0, 1.0], [1.0, 0.0], [0.5, 0.5]], dtype=np.float64)
+    col_means = np.nanmean(train, axis=0)
+    col_stds = np.nanstd(train, axis=0)
+    col_stds[col_stds == 0.0] = 1.0
+    train_scaled = (train - col_means) / col_stds
+
+    knn = KNNImputer(n_neighbors=1)
+    knn.fit(train_scaled)
+
+    original = _FittedKNN(model=knn, col_means=col_means, col_stds=col_stds)
+    restored = _FittedKNN.from_dict(original.to_dict())
+
+    np.testing.assert_array_almost_equal(restored.col_means, original.col_means)
+    np.testing.assert_array_almost_equal(restored.col_stds, original.col_stds)
+
+    # Restored model must produce identical transform output.
+    query = np.array([[None, 1.0]], dtype=np.float64)
+    query_scaled = (query - col_means) / col_stds
+    out_original = original.model.transform(query_scaled)
+    out_restored = restored.model.transform(query_scaled)
+    np.testing.assert_array_almost_equal(out_original, out_restored)
+
+
 def test_regression_inference_time_feature_nans():
     """Verify that regression imputation handles feature columns with missing values
     at inference time without errors and without resorting to a feat_means patching loop

@@ -125,11 +125,67 @@ class NumericImputer:
             model_cols["mice"] = list(mice_cols)
 
         if knn_cols:
+            from ._fitted_imputer import _FittedKNN
+
             arr = _df_to_numpy(train_df, knn_cols)
-            knn_model = KNNImputer(n_neighbors=5)
-            knn_model.fit(arr)
-            models["knn"] = knn_model
+            n_knn_features = len(knn_cols)
+            n_rows = len(train_df)
+
+            # --- Signal computation ---
+            total_cells = arr.size
+            miss_frac = float(np.isnan(arr).sum() / total_cells) if total_cells > 0 else 0.0
+            complete_rows = int((~np.isnan(arr).any(axis=1)).sum())
+            complete_frac = complete_rows / n_rows if n_rows > 0 else 0.0
+
+            # --- Adaptive n_neighbors formula ---
+            base_k = max(config.knn_min_neighbors, int(np.sqrt(n_knn_features)))
+            k_raw = base_k * (1.0 + miss_frac) * (1.0 / max(complete_frac, 0.1)) ** 0.5
+            n_neighbors = min(
+                max(config.knn_min_neighbors, int(k_raw)),
+                n_rows - 1,
+                config.knn_max_neighbors,
+            )
+            n_neighbors = max(1, n_neighbors)
+
+            # --- Reliability-based weights formula ---
+            reliability_high = (
+                miss_frac < config.knn_distance_weight_max_null_ratio
+                and n_knn_features <= config.knn_distance_weight_max_features
+            )
+            weights = "distance" if reliability_high else "uniform"
+
+            # --- NaN-safe StandardScaler ---
+            col_means = np.nanmean(arr, axis=0)
+            col_stds = np.nanstd(arr, axis=0)
+            col_stds[col_stds == 0.0] = 1.0
+            arr_scaled = (arr - col_means) / col_stds  # NaN cells remain NaN
+
+            # --- Fit KNNImputer on scaled matrix ---
+            knn_model = KNNImputer(n_neighbors=n_neighbors, weights=weights)
+            knn_model.fit(arr_scaled)
+
+            # --- Store _FittedKNN ---
+            models["knn"] = _FittedKNN(
+                model=knn_model,
+                col_means=col_means,
+                col_stds=col_stds,
+            )
             model_cols["knn"] = list(knn_cols)
+
+            # --- Append signals to each KNN column's record ---
+            knn_params_signal = (
+                f"knn_params: n_neighbors={n_neighbors}, weights={weights} | "
+                f"n_features={n_knn_features}, miss_frac={miss_frac:.2f}, "
+                f"complete_frac={complete_frac:.2f}"
+            )
+            knn_scaling_signal = (
+                f"knn_scaling: applied StandardScaler (nanmean/nanstd) "
+                f"across {n_knn_features} feature columns"
+            )
+            for rec in records:
+                if rec.column in knn_cols:
+                    rec.signals.append(knn_params_signal)
+                    rec.signals.append(knn_scaling_signal)
 
         for col in reg_cols:
             feat_cols = [c for c in columns if c != col]

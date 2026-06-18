@@ -78,6 +78,81 @@ class FittedColumnAbsentError(Exception):
 
 
 @dataclass
+class _FittedKNN:
+    """Fitted KNN state including scaling parameters.
+
+    Replaces the bare ``KNNImputer`` previously stored under ``"knn"`` in
+    ``FittedImputer.models``.  Stores the model together with the
+    ``nanmean``/``nanstd`` statistics used to scale the training matrix so
+    that ``_apply_knn`` can inverse-scale the imputed output back to original
+    units.
+
+    Parameters
+    ----------
+    model : Any
+        Fitted ``KNNImputer`` trained on the NaN-safe scaled training matrix.
+    col_means : np.ndarray
+        Per-column means computed with ``nanmean`` from the KNN training
+        matrix.  Shape ``(n_knn_features,)``.
+    col_stds : np.ndarray
+        Per-column standard deviations computed with ``nanstd`` from the KNN
+        training matrix, with zero values replaced by ``1.0``.
+        Shape ``(n_knn_features,)``.
+    """
+
+    model: Any
+    col_means: np.ndarray
+    col_stds: np.ndarray
+
+    def to_dict(self) -> dict:
+        """Serialise to a plain dictionary for JSON-safe storage.
+
+        Returns
+        -------
+        dict
+            Keys: ``"model"`` (base64-encoded joblib bytes), ``"col_means"``
+            and ``"col_stds"`` (plain Python lists).
+        """
+        import base64
+        import io
+        import joblib
+
+        buf = io.BytesIO()
+        joblib.dump(self.model, buf)
+        return {
+            "model": base64.b64encode(buf.getvalue()).decode("ascii"),
+            "col_means": self.col_means.tolist(),
+            "col_stds": self.col_stds.tolist(),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> _FittedKNN:
+        """Reconstruct a ``_FittedKNN`` from a plain dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            Mapping produced by ``to_dict()``.
+
+        Returns
+        -------
+        _FittedKNN
+            Reconstructed instance with a deserialised model and numpy arrays.
+        """
+        import base64
+        import io
+        import joblib
+
+        buf = io.BytesIO(base64.b64decode(data["model"]))
+        model = joblib.load(buf)
+        return cls(
+            model=model,
+            col_means=np.array(data["col_means"]),
+            col_stds=np.array(data["col_stds"]),
+        )
+
+
+@dataclass
 class FittedImputer:
     """Stores per-column imputation records and fitted models; applies them to any DataFrame.
 
@@ -88,7 +163,7 @@ class FittedImputer:
     models : dict[str, Any]
         Fitted sklearn model objects keyed by model name.
 
-        - ``"knn"``           : ``KNNImputer`` for KNN-assigned columns.
+        - ``"knn"``           : ``_FittedKNN`` for KNN-assigned columns.
         - ``"mice"``          : ``IterativeImputer`` for MICE-assigned columns.
         - ``"regression:{col}"`` : ``FittedRegression`` containing a fitted
         ``IterativeImputer``.
@@ -295,9 +370,7 @@ class FittedImputer:
             result_df = _apply_domain_snap(
                 result_df, self.model_cols.get("mice", []), self.records
             )
-            result_df = _apply_block_model(
-                result_df, "knn", self.models, self.model_cols
-            )
+            result_df = _apply_knn(result_df, self.models, self.model_cols)
             result_df = _apply_domain_snap(
                 result_df, self.model_cols.get("knn", []), self.records
             )
@@ -400,7 +473,7 @@ def _apply_block_model(
     models: dict[str, Any],
     model_cols: dict[str, list[str]],
 ) -> pl.DataFrame:
-    """Apply a block model (KNN or MICE) to its assigned columns."""
+    """Apply a block model (MICE) to its assigned columns."""
     if model_key not in models:
         return df
     model = models[model_key]
@@ -410,6 +483,45 @@ def _apply_block_model(
     arr = _df_to_numpy(df, cols)
     arr_filled = model.transform(arr)
     return _numpy_to_df(df, cols, arr_filled)
+
+
+def _apply_knn(
+    df: pl.DataFrame,
+    models: dict[str, Any],
+    model_cols: dict[str, list[str]],
+) -> pl.DataFrame:
+    """Apply NaN-safe scaling, KNN imputation, and inverse scaling.
+
+    Retrieves the ``_FittedKNN`` stored at ``models["knn"]``, scales the KNN
+    feature columns using the stored ``col_means``/``col_stds``, runs
+    ``KNNImputer.transform()`` on the scaled matrix, then inverse-scales the
+    output back to original units before writing the imputed values into ``df``.
+
+    Parameters
+    ----------
+    df : pl.DataFrame
+        Input DataFrame containing the KNN columns.
+    models : dict[str, Any]
+        Fitted models dictionary; the ``"knn"`` entry must be a ``_FittedKNN``.
+    model_cols : dict[str, list[str]]
+        Ordered column lists for each model.
+
+    Returns
+    -------
+    pl.DataFrame
+        DataFrame with KNN-imputed values, inverse-scaled to original units.
+    """
+    if "knn" not in models:
+        return df
+    fitted: _FittedKNN = models["knn"]
+    cols = [c for c in model_cols.get("knn", []) if c in df.columns]
+    if not cols:
+        return df
+    arr = _df_to_numpy(df, cols)
+    arr_scaled = (arr - fitted.col_means) / fitted.col_stds
+    arr_imputed = fitted.model.transform(arr_scaled)
+    arr_unscaled = arr_imputed * fitted.col_stds + fitted.col_means
+    return _numpy_to_df(df, cols, arr_unscaled)
 
 
 def _apply_regression(
