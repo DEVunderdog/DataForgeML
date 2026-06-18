@@ -9,27 +9,56 @@ exclusively from train_df; the profile is used only for strategy routing.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
 import polars as pl
 from sklearn.experimental import enable_iterative_imputer  # noqa: F401
 from sklearn.impute import IterativeImputer, KNNImputer
-from sklearn.linear_model import BayesianRidge
+from sklearn.pipeline import Pipeline
 
 from ..config import SemanticType
 from ..profiling._config import NumericKind
 from ..profiling._missingness_config import MissingnessFlag, MissingSeverity
-from ..profiling._numeric_config import NumericStats, SkewSeverity
+from ..profiling._numeric_config import NonlinearityTag, NumericFlag, NumericStats, SkewSeverity
 from ._config import (
     ColumnImputationRecord,
     ImputationStrategy,
     NumericImputationConfig,
 )
+from ._regression_estimator_factory import RegressionEstimatorFactory
 from ._utils import _df_to_numpy
 
 if TYPE_CHECKING:
     from ..profiling._config import ColumnProfile, StructuralProfileResult
+    from ..profiling._missingness_config import ColumnMissingnessProfile
+
+
+@dataclass
+class FittedRegression:
+    """Fitted state produced by _fit_regression for a single target column.
+
+    Parameters
+    ----------
+    model : Any
+        Fitted ``IterativeImputer`` that handles missing feature values
+        internally.
+    target_idx : int
+        Index of the target column in the joint array. Always ``0`` by
+        construction; stored explicitly so inference never relies on a
+        positional convention.
+    all_cols : list[str]
+        Full column list ``[col] + feat_cols`` in joint-array order.
+    signals : list[str]
+        Human-readable entries recording the estimator choice and any
+        convergence warning. Appended to ``ColumnImputationRecord.signals``
+        by the caller after a successful fit.
+    """
+
+    model: Any
+    target_idx: int
+    all_cols: list[str]
+    signals: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -104,7 +133,41 @@ class NumericImputer:
 
         for col in reg_cols:
             feat_cols = [c for c in columns if c != col]
-            _fit_regression(train_df, col, feat_cols, models, model_cols, records)
+            cp = profile.columns.get(col)
+            stats = cp.stats if cp is not None and isinstance(cp.stats, NumericStats) else None
+            tag = (
+                stats.nonlinearity_tag
+                if stats is not None and stats.nonlinearity_tag is not None
+                else NonlinearityTag.Linear
+            )
+
+            rec_idx = next(i for i, r in enumerate(records) if r.column == col)
+            record = records[rec_idx]
+
+            fitted = _fit_regression(train_df, col, feat_cols, tag, n_rows, config, stats)
+
+            if fitted is None:
+                if not feat_cols:
+                    reason = "no feature columns available"
+                elif tag == NonlinearityTag.Unpredictable:
+                    reason = "nonlinearity_tag=Unpredictable: regression unsuitable"
+                else:
+                    reason = "insufficient target observations for regression"
+                records[rec_idx] = _fallback_to_median(train_df, col, record, reason)
+                continue
+
+            model_key = f"regression:{col}"
+            if model_key in models:
+                raise RuntimeError(
+                    f"Duplicate regression model key: column '{col}' appears more than "
+                    f"once in the regression column list."
+                )
+
+            models[model_key] = fitted
+            model_cols[model_key] = fitted.all_cols
+
+            for signal in fitted.signals:
+                record.signals.append(signal)
 
         return _NumericFitBundle(records=records, models=models, model_cols=model_cols)
 
@@ -157,18 +220,25 @@ def _fit_one(
             indicator_added=False, signals=signals,
         )
 
-    # Priority 3: BoundedDiscrete → Mode (unconditional — finite domain requires finite fill)
-    # Fires before MAR routing: model-based predictions are not valid members of a fixed vocabulary.
+    # Priority 3: BoundedDiscrete gate — model-aware sub-chain with domain-snap; exits here
     if cp.numeric_kind == NumericKind.BoundedDiscrete:
-        signals.append("NumericKind.BoundedDiscrete: mode imputation")
+        return _fit_bounded_discrete(
+            train_df, col, cp, config, missingness, n_rows, n_features, multi_mar, signals,
+        )
+
+    stats = cp.stats if isinstance(cp.stats, NumericStats) else None
+
+    # Priority 4: Unpredictable guard — non-BoundedDiscrete columns with no predictive signal
+    if stats is not None and stats.nonlinearity_tag == NonlinearityTag.Unpredictable:
+        signals.append("unpredictable_guard: nonlinearity_tag=Unpredictable")
         return ColumnImputationRecord(
             column=col, semantic_type=SemanticType.Numeric,
-            strategy=ImputationStrategy.Mode,
-            fill_value=_compute_mode(train_df, col),
+            strategy=ImputationStrategy.Median,
+            fill_value=_compute_median(train_df, col),
             indicator_added=False, signals=signals,
         )
 
-    # Priority 4: MARSuspect — full fallback chain
+    # Priority 5: MARSuspect — full fallback chain
     if missingness.has_flag(MissingnessFlag.MARSuspect):
         corrs = missingness.correlated_with
         signals.append(f"mar_suspect: correlated missingness with {corrs}")
@@ -188,9 +258,8 @@ def _fit_one(
             indicator_added=False, signals=signals,
         )
 
-    # Priority 5: MCAR routing by severity and skew
+    # Priority 6: MCAR routing by severity and skew
     severity = missingness.severity
-    stats = cp.stats if isinstance(cp.stats, NumericStats) else None
     skew_sev = stats.skewness_severity if stats else None
 
     if severity in (MissingSeverity.High, MissingSeverity.Severe):
@@ -223,6 +292,143 @@ def _fit_one(
         fill_value=_compute_median(train_df, col),
         indicator_added=False, signals=signals,
     )
+
+
+def _fit_bounded_discrete(
+    train_df: pl.DataFrame,
+    col: str,
+    cp: "ColumnProfile",
+    config: NumericImputationConfig,
+    missingness: "Optional[ColumnMissingnessProfile]",
+    n_rows: int,
+    n_features: int,
+    multi_mar: bool,
+    signals: list[str],
+) -> ColumnImputationRecord:
+    """Route a BoundedDiscrete column through the model-aware sub-chain with domain-snap.
+
+    Parameters
+    ----------
+    train_df : pl.DataFrame
+        Training split for computing scalar fill values.
+    col : str
+        Column name.
+    cp : ColumnProfile
+        Column profile from Phase 1.
+    config : NumericImputationConfig
+        Imputation configuration.
+    missingness : ColumnMissingnessProfile or None
+        Missingness profile for the column.
+    n_rows : int
+        Number of rows in the training split.
+    n_features : int
+        Total number of numeric columns being imputed.
+    multi_mar : bool
+        True when ≥2 numeric columns are MARSuspect.
+    signals : list[str]
+        Signal list to append routing decisions to.
+
+    Returns
+    -------
+    ColumnImputationRecord
+        Routing record with strategy, fill value, and signals populated.
+    """
+    stats = cp.stats if isinstance(cp.stats, NumericStats) else None
+    snap_min = stats.min if stats is not None else None
+    snap_max = stats.max if stats is not None else None
+
+    def _mode_record() -> ColumnImputationRecord:
+        return ColumnImputationRecord(
+            column=col, semantic_type=SemanticType.Numeric,
+            strategy=ImputationStrategy.Mode,
+            fill_value=_compute_mode(train_df, col),
+            indicator_added=False, signals=signals,
+        )
+
+    def _snap_scalar(val: float) -> float:
+        if snap_min is not None and snap_max is not None:
+            return float(max(snap_min, min(snap_max, round(val))))
+        return val
+
+    def _bounds() -> Optional[tuple[float, float]]:
+        if snap_min is not None and snap_max is not None:
+            return (snap_min, snap_max)
+        return None
+
+    # 1. Unpredictable → Mode (terminal; model-based uplift unavailable)
+    if stats is not None and stats.nonlinearity_tag == NonlinearityTag.Unpredictable:
+        signals.append("bounded_discrete: unpredictable_guard → mode")
+        return _mode_record()
+
+    # 2. NearConstant → Mode (terminal; fitting cost wasted when 90%+ share the same value)
+    if stats is not None and stats.has_flag(NumericFlag.NearConstant):
+        signals.append("bounded_discrete: near_constant → mode")
+        return _mode_record()
+
+    # 3. Bimodal → falls through (future scope; no special handling)
+
+    # 4. MARSuspect → domain-snapped MAR sub-chain (Mode replaces Median as terminal)
+    if missingness is not None and missingness.has_flag(MissingnessFlag.MARSuspect):
+        corrs = missingness.correlated_with
+        signals.append(f"bounded_discrete: mar_suspect: correlated missingness with {corrs}")
+        strategy, signal = _mar_strategy(
+            severity=missingness.severity,
+            corrs=corrs,
+            config=config,
+            n_rows=n_rows,
+            n_features=n_features,
+            multi_mar=multi_mar,
+        )
+        signals.append(signal)
+        if strategy == ImputationStrategy.Median:
+            signals.append("bounded_discrete: terminal → mode (median not valid domain member)")
+            return _mode_record()
+        signals.append(f"bounded_discrete: domain_snap_bounds=({snap_min}, {snap_max})")
+        return ColumnImputationRecord(
+            column=col, semantic_type=SemanticType.Numeric,
+            strategy=strategy, fill_value=None,
+            indicator_added=False, signals=signals,
+            domain_snap_bounds=_bounds(),
+        )
+
+    # 5. MCAR by severity — same routing as non-BoundedDiscrete; Mode replaces Median as terminal
+    severity = missingness.severity if missingness is not None else None
+    skew_sev = stats.skewness_severity if stats is not None else None
+
+    if severity in (MissingSeverity.High, MissingSeverity.Severe):
+        strategy, signal = _mcar_model_strategy(
+            severity=severity, config=config, n_rows=n_rows, n_features=n_features,
+        )
+        signals.append(signal)
+        if strategy == ImputationStrategy.Median:
+            signals.append("bounded_discrete: terminal → mode (median not valid domain member)")
+            return _mode_record()
+        signals.append(f"bounded_discrete: domain_snap_bounds=({snap_min}, {snap_max})")
+        return ColumnImputationRecord(
+            column=col, semantic_type=SemanticType.Numeric,
+            strategy=strategy, fill_value=None,
+            indicator_added=False, signals=signals,
+            domain_snap_bounds=_bounds(),
+        )
+
+    # Minor + Normal skew → Mean snapped to valid domain member at fit time
+    if severity == MissingSeverity.Minor and skew_sev in (None, SkewSeverity.Normal):
+        snapped = _snap_scalar(_compute_mean(train_df, col))
+        signals.append(
+            f"bounded_discrete: mcar minor + normal skew → mean snapped to {snapped}"
+        )
+        return ColumnImputationRecord(
+            column=col, semantic_type=SemanticType.Numeric,
+            strategy=ImputationStrategy.Mean,
+            fill_value=snapped,
+            indicator_added=False, signals=signals,
+        )
+
+    # Terminal fallback → Mode (replaces Median for all remaining cases)
+    signals.append(
+        f"bounded_discrete: terminal → mode (severity={severity}, skew={skew_sev})"
+    )
+    return _mode_record()
 
 
 def _mar_strategy(
@@ -296,46 +502,194 @@ def _fit_regression(
     train_df: pl.DataFrame,
     col: str,
     feat_cols: list[str],
-    models: dict[str, Any],
-    model_cols: dict[str, list[str]],
-    records: list[ColumnImputationRecord],
-) -> None:
-    model_key = f"regression:{col}"
+    tag: NonlinearityTag,
+    n_rows: int,
+    config: NumericImputationConfig,
+    stats: Optional[NumericStats] = None,
+) -> FittedRegression | None:
+    """Fit a single-column IterativeImputer for regression-based imputation.
 
+    Returns ``None`` when fitting cannot proceed: no feature columns, the
+    ``Unpredictable`` tag routes the factory to return ``None``, or the
+    target column has fewer than two non-null observations.  The caller is
+    responsible for routing a ``None`` return to ``_fallback_to_median``.
+
+    Parameters
+    ----------
+    train_df : pl.DataFrame
+        Training split.
+    col : str
+        Target column to impute.
+    feat_cols : list[str]
+        Predictor columns.
+    tag : NonlinearityTag
+        Nonlinearity classification for ``col`` from Phase 1.
+    n_rows : int
+        Number of rows in ``train_df``.
+    config : NumericImputationConfig
+        Imputation configuration supplying estimator thresholds and
+        ``regression_base_max_iter``.
+    stats : NumericStats, optional
+        Phase 1 numeric statistics for ``col``.  Used to derive IQR-relative
+        ``tol`` and the R² gap signal for ``max_iter`` computation.
+
+    Returns
+    -------
+    FittedRegression or None
+        Fitted regression bundle on success; ``None`` to signal fallback.
+    """
     if not feat_cols:
-        _fallback_to_median(train_df, col, records, "no feature columns available")
-        return
+        return None
 
-    arr = _df_to_numpy(train_df, [col] + feat_cols)
-    complete_mask = ~np.isnan(arr).any(axis=1)
+    if len(train_df[col].drop_nulls()) < 2:
+        return None
 
-    if complete_mask.sum() < 2:
-        _fallback_to_median(train_df, col, records, "insufficient complete rows for regression")
-        return
+    estimator = RegressionEstimatorFactory.build(tag, n_rows, config)
+    if estimator is None:
+        return None
 
-    X_train = arr[complete_mask, 1:]
-    y_train = arr[complete_mask, 0]
-    feat_means = np.nanmean(arr[:, 1:], axis=0)
+    all_cols = [col] + feat_cols
+    assert all_cols[0] == col, (
+        f"Expected target column '{col}' at index 0 of the joint array, "
+        f"got '{all_cols[0]}'. Column order was modified before array construction."
+    )
 
-    reg = BayesianRidge()
-    reg.fit(X_train, y_train)
+    arr = _df_to_numpy(train_df, all_cols)
+    max_iter = _compute_max_iter(tag, feat_cols, arr, stats, config)
+    tol = _compute_tol(tag, stats)
 
-    models[model_key] = (reg, feat_means)
-    model_cols[model_key] = list(feat_cols)
+    imputer = IterativeImputer(
+        estimator=estimator,
+        max_iter=max_iter,
+        tol=tol,
+        random_state=0,
+    )
+    imputer.fit(arr)
+
+    if isinstance(estimator, Pipeline):
+        estimator_name = "Pipeline(StandardScaler+BayesianRidge)"
+    else:
+        estimator_name = type(estimator).__name__
+
+    signals: list[str] = [
+        f"regression_estimator: {estimator_name} (tag={tag})"
+    ]
+    if imputer.n_iter_ == max_iter:
+        signals.append(
+            f"convergence_warning: max_iter={max_iter} reached; "
+            f"consider increasing via NumericImputationConfig"
+        )
+
+    return FittedRegression(
+        model=imputer,
+        target_idx=0,
+        all_cols=all_cols,
+        signals=signals,
+    )
 
 
 def _fallback_to_median(
     train_df: pl.DataFrame,
     col: str,
-    records: list[ColumnImputationRecord],
+    record: ColumnImputationRecord,
     reason: str,
-) -> None:
-    for rec in records:
-        if rec.column == col:
-            rec.strategy = ImputationStrategy.Median
-            rec.fill_value = _compute_median(train_df, col)
-            rec.signals.append(f"fallback_to_median: {reason}")
-            break
+) -> ColumnImputationRecord:
+    """Return a copy of ``record`` updated to Median strategy.
+
+    Parameters
+    ----------
+    train_df : pl.DataFrame
+        Training split used to compute the median fill value.
+    col : str
+        Column name; used to look up values in ``train_df``.
+    record : ColumnImputationRecord
+        Original record for the column.  Not mutated.
+    reason : str
+        Human-readable explanation appended to ``signals`` as
+        ``"fallback_to_median: <reason>"``.
+
+    Returns
+    -------
+    ColumnImputationRecord
+        New record with ``strategy=Median``, a computed ``fill_value``, and
+        ``reason`` appended to ``signals``.
+    """
+    from dataclasses import replace
+    signals = list(record.signals) + [f"fallback_to_median: {reason}"]
+    return replace(
+        record,
+        strategy=ImputationStrategy.Median,
+        fill_value=_compute_median(train_df, col),
+        signals=signals,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Dynamic IterativeImputer parameter helpers
+# ---------------------------------------------------------------------------
+
+
+def _compute_max_iter(
+    tag: NonlinearityTag,
+    feat_cols: list[str],
+    arr: np.ndarray,
+    stats: Optional[NumericStats],
+    config: NumericImputationConfig,
+) -> int:
+    base = config.regression_base_max_iter
+
+    # Signal 1: ComplexNonlinear → more iterations required
+    if tag == NonlinearityTag.ComplexNonlinear:
+        base += 5
+
+    # Signal 2: count of feature columns with missing values
+    feat_arr = arr[:, 1:]
+    n_missing_feat_cols = int(np.isnan(feat_arr).any(axis=0).sum())
+    base += n_missing_feat_cols * 2
+
+    # Signal 3: low R² gap indicates a near-linear relationship → fewer iterations
+    if stats is not None and stats.r2_gap is not None and stats.r2_gap < 0.05:
+        base = max(1, base - 3)
+
+    # Signal 4: high pairwise correlation among missing-feature columns → more iterations
+    if feat_arr.shape[1] >= 2:
+        missing_feat_mask = np.isnan(feat_arr).any(axis=0)
+        missing_feat_arr = feat_arr[:, missing_feat_mask]
+        if missing_feat_arr.shape[1] >= 2:
+            try:
+                n_mf = missing_feat_arr.shape[1]
+                corr_sum, n_pairs = 0.0, 0
+                for i in range(n_mf):
+                    for j in range(i + 1, n_mf):
+                        valid = ~(np.isnan(missing_feat_arr[:, i]) | np.isnan(missing_feat_arr[:, j]))
+                        if valid.sum() >= 2:
+                            c = np.corrcoef(missing_feat_arr[valid, i], missing_feat_arr[valid, j])[0, 1]
+                            if np.isfinite(c):
+                                corr_sum += abs(c)
+                                n_pairs += 1
+                if n_pairs > 0 and (corr_sum / n_pairs) >= 0.7:
+                    base += 3
+            except Exception:  # noqa: BLE001
+                pass
+
+    # Signal 5: low complete-row fraction → more iterations needed
+    complete_fraction = (~np.isnan(arr).any(axis=1)).sum() / len(arr)
+    if complete_fraction < 0.2:
+        base += 5
+    elif complete_fraction < 0.5:
+        base += 3
+
+    return max(1, base)
+
+
+def _compute_tol(
+    tag: NonlinearityTag,
+    stats: Optional[NumericStats],
+) -> float:
+    if stats is not None and stats.iqr is not None and stats.iqr > 0:
+        scaling_factor = 5e-5 if tag == NonlinearityTag.ComplexNonlinear else 1e-4
+        return max(1e-7, stats.iqr * scaling_factor)
+    return 1e-3
 
 
 # ---------------------------------------------------------------------------

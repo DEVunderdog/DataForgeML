@@ -17,6 +17,8 @@ from ..config import SemanticType
 
 
 class ImputationStrategy(StrEnum):
+    """Imputation strategy assigned to a column after Phase 2 fitting."""
+
     Mean = "mean"
     Median = "median"
     Mode = "mode"
@@ -44,28 +46,64 @@ class NumericImputationConfig:
         Minimum number of rows required to fit a stable Regression model.
     mnar_constant_fill : float
         Constant value used to fill MNAR-declared numeric columns.
+    gradient_boost_min_rows : int
+        Row count threshold above which ``GradientBoostingRegressor`` is preferred
+        over ``RandomForestRegressor`` for ``ComplexNonlinear`` columns. Below this
+        threshold the cheaper ``RandomForestRegressor`` is used instead.
+    regression_base_max_iter : int
+        Base number of ``IterativeImputer`` iterations before dynamic signal
+        adjustments are applied.  Increase this value for columns that exhibit
+        convergence warnings in ``ColumnImputationRecord.signals``.
     """
 
     knn_max_rows: int = 50_000
     knn_max_features: int = 50
     regression_min_rows: int = 500
     mnar_constant_fill: float = -1
+    gradient_boost_min_rows: int = 10_000
+    regression_base_max_iter: int = 10
 
     def to_dict(self) -> dict:
+        """
+        Serialise the config to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            All field values keyed by field name.
+        """
         return {
             "knn_max_rows": self.knn_max_rows,
             "knn_max_features": self.knn_max_features,
             "regression_min_rows": self.regression_min_rows,
             "mnar_constant_fill": self.mnar_constant_fill,
+            "gradient_boost_min_rows": self.gradient_boost_min_rows,
+            "regression_base_max_iter": self.regression_base_max_iter,
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> NumericImputationConfig:
+        """
+        Construct a ``NumericImputationConfig`` from a plain dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            Mapping produced by ``to_dict()``. Missing keys fall back to field
+            defaults.
+
+        Returns
+        -------
+        NumericImputationConfig
+            Reconstructed config instance.
+        """
         return cls(
             knn_max_rows=int(data.get("knn_max_rows", 50_000)),
             knn_max_features=int(data.get("knn_max_features", 50)),
             regression_min_rows=int(data.get("regression_min_rows", 500)),
             mnar_constant_fill=float(data.get("mnar_constant_fill", -1)),
+            gradient_boost_min_rows=int(data.get("gradient_boost_min_rows", 10_000)),
+            regression_base_max_iter=int(data.get("regression_base_max_iter", 10)),
         )
 
 
@@ -92,6 +130,14 @@ class ImputationConfig:
     add_indicator_columns: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
+        """
+        Serialise the config to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            All field values keyed by field name, with ``numeric`` nested.
+        """
         return {
             "numeric": self.numeric.to_dict(),
             "mnar_columns": list(self.mnar_columns),
@@ -100,6 +146,20 @@ class ImputationConfig:
 
     @classmethod
     def from_dict(cls, data: dict) -> ImputationConfig:
+        """
+        Construct an ``ImputationConfig`` from a plain dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            Mapping produced by ``to_dict()``. Missing keys fall back to field
+            defaults.
+
+        Returns
+        -------
+        ImputationConfig
+            Reconstructed config instance.
+        """
         return cls(
             numeric=NumericImputationConfig.from_dict(data.get("numeric", {})),
             mnar_columns=list(data.get("mnar_columns", [])),
@@ -126,6 +186,9 @@ class ColumnImputationRecord:
         Whether a binary missingness indicator column was appended.
     signals : list[str]
         Human-readable reasons that drove the strategy decision.
+    domain_snap_bounds : tuple[float, float], optional
+        ``(min, max)`` bounds applied to snap model-based predictions for
+        BoundedDiscrete columns.  ``None`` for all other columns.
     """
 
     column: str
@@ -134,8 +197,17 @@ class ColumnImputationRecord:
     fill_value: Optional[Any] = None
     indicator_added: bool = False
     signals: list[str] = field(default_factory=list)
+    domain_snap_bounds: Optional[tuple[float, float]] = None
 
     def to_dict(self) -> dict:
+        """
+        Serialise the audit record to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            All field values keyed by field name.
+        """
         return {
             "column": self.column,
             "semantic_type": str(self.semantic_type),
@@ -143,6 +215,7 @@ class ColumnImputationRecord:
             "fill_value": self.fill_value,
             "indicator_added": self.indicator_added,
             "signals": list(self.signals),
+            "domain_snap_bounds": list(self.domain_snap_bounds) if self.domain_snap_bounds is not None else None,
         }
 
 

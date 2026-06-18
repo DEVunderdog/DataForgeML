@@ -612,10 +612,145 @@ def test_deserialized_imputer_fills_no_nulls():
     assert result.dataframe["a"].null_count() == 0
 
 
-def test_regression_model_stored_as_tuple_with_feature_means():
-    _, df = _make_fitted_imputer_with_regression()
+def test_regression_model_stored_as_fitted_regression():
+    """Regression entry is now a FittedRegression with an IterativeImputer."""
     fi, _ = _make_fitted_imputer_with_regression()
+    from dataforge_ml.imputation._numeric_imputer import FittedRegression
+    from sklearn.impute import IterativeImputer
     assert "regression:a" in fi.models
-    reg, feat_means = fi.models["regression:a"]
-    assert hasattr(reg, "predict")
-    assert isinstance(feat_means, np.ndarray)
+    fitted_reg = fi.models["regression:a"]
+    assert isinstance(fitted_reg, FittedRegression)
+    assert isinstance(fitted_reg.model, IterativeImputer)
+    assert fitted_reg.target_idx == 0
+    assert fitted_reg.all_cols[0] == "a"
+    assert "b" in fitted_reg.all_cols
+
+
+def test_regression_model_cols_stores_full_all_cols():
+    """model_cols['regression:col'] stores [col] + feat_cols, not just feat_cols."""
+    fi, _ = _make_fitted_imputer_with_regression()
+    all_cols = fi.model_cols["regression:a"]
+    assert all_cols[0] == "a"
+    assert "b" in all_cols
+
+
+def test_regression_new_format_round_trip_fills_nulls():
+    """Serialising and deserialising a new-format regression entry produces no nulls."""
+    fi, df = _make_fitted_imputer_with_regression()
+    restored = FittedImputer.from_dict(fi.to_dict())
+    result = restored.transform(df)
+    assert result.dataframe["a"].null_count() == 0
+    assert result.dataframe["a"].is_nan().sum() == 0
+
+
+# ---------------------------------------------------------------------------
+# Domain-snap at transform time for BoundedDiscrete columns
+# ---------------------------------------------------------------------------
+
+
+def test_domain_snap_applied_after_knn_for_bounded_discrete():
+    """KNN predictions for a BoundedDiscrete column are clipped and rounded to [min, max]."""
+    rng = np.random.default_rng(42)
+    n = 200
+    # Rating scale 1–5
+    raw = rng.integers(1, 6, size=n).tolist()
+    null_mask = [i % 10 == 0 for i in range(n)]
+    col_vals = [None if null_mask[i] else float(raw[i]) for i in range(n)]
+    feat_vals = rng.standard_normal(n).tolist()
+
+    df = pl.DataFrame({
+        "rating": pl.Series(col_vals, dtype=pl.Float64),
+        "feat": pl.Series(feat_vals, dtype=pl.Float64),
+    })
+
+    profile = _make_profile(
+        ("rating", ColumnProfile(
+            name="rating",
+            semantic_type=SemanticType.Numeric,
+            numeric_kind=NumericKind.BoundedDiscrete,
+            missingness=ColumnMissingnessProfile(
+                column="rating",
+                total_rows=n,
+                effective_null_count=n // 10,
+                effective_null_ratio=0.1,
+                severity=MissingSeverity.High,
+                flags=[],
+                correlated_with=[],
+            ),
+            stats=NumericStats(min=1.0, max=5.0),
+        )),
+        ("feat", _numeric_cp("feat", null_count=0, severity=MissingSeverity.High,
+                              numeric_kind=NumericKind.Continuous)),
+    )
+
+    bundle = _fit(df, ["rating", "feat"], profile)
+    rec = next(r for r in bundle.records if r.column == "rating")
+    assert rec.strategy == ImputationStrategy.KNN
+    assert rec.domain_snap_bounds == (1.0, 5.0)
+
+    fi = FittedImputer(
+        records={r.column: r for r in bundle.records},
+        models=bundle.models,
+        model_cols=bundle.model_cols,
+    )
+    result = fi.transform(df)
+    rating_col = result.dataframe["rating"]
+
+    assert rating_col.null_count() == 0
+    vals = rating_col.drop_nulls().to_list()
+    assert all(1.0 <= v <= 5.0 for v in vals), f"Values out of [1,5]: {vals}"
+    assert all(v == round(v) for v in vals), f"Non-integer values after snap: {vals}"
+
+
+def test_domain_snap_applied_after_regression_for_bounded_discrete():
+    """Regression predictions for a BoundedDiscrete column are clipped and rounded to [min, max]."""
+    rng = np.random.default_rng(7)
+    n = 600
+    raw = rng.integers(1, 6, size=n).tolist()
+    null_mask = [i % 10 == 0 for i in range(n)]
+    col_vals = [None if null_mask[i] else float(raw[i]) for i in range(n)]
+    feat_vals = rng.standard_normal(n).tolist()
+
+    df = pl.DataFrame({
+        "rating": pl.Series(col_vals, dtype=pl.Float64),
+        "feat": pl.Series(feat_vals, dtype=pl.Float64),
+    })
+
+    profile = _make_profile(
+        ("rating", ColumnProfile(
+            name="rating",
+            semantic_type=SemanticType.Numeric,
+            numeric_kind=NumericKind.BoundedDiscrete,
+            missingness=ColumnMissingnessProfile(
+                column="rating",
+                total_rows=n,
+                effective_null_count=n // 10,
+                effective_null_ratio=0.1,
+                severity=MissingSeverity.High,
+                flags=[],
+                correlated_with=[],
+            ),
+            stats=NumericStats(min=1.0, max=5.0),
+        )),
+        ("feat", _numeric_cp("feat", null_count=0, severity=MissingSeverity.High,
+                              numeric_kind=NumericKind.Continuous)),
+    )
+
+    config = NumericImputationConfig(knn_max_rows=100, regression_min_rows=500)
+    bundle = _fit(df, ["rating", "feat"], profile, config=config)
+    rec = next(r for r in bundle.records if r.column == "rating")
+    assert rec.strategy == ImputationStrategy.Regression
+    assert rec.domain_snap_bounds == (1.0, 5.0)
+
+    fi = FittedImputer(
+        records={r.column: r for r in bundle.records},
+        models=bundle.models,
+        model_cols=bundle.model_cols,
+    )
+    result = fi.transform(df)
+    rating_col = result.dataframe["rating"]
+
+    assert rating_col.null_count() == 0
+    vals = rating_col.drop_nulls().to_list()
+    assert all(1.0 <= v <= 5.0 for v in vals), f"Values out of [1,5]: {vals}"
+    assert all(v == round(v) for v in vals), f"Non-integer values after snap: {vals}"

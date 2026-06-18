@@ -21,6 +21,7 @@ from ._config import (
     ImputationResult,
     ImputationStrategy,
 )
+from ._numeric_imputer import FittedRegression
 from ..models._data_types import _INT_DTYPES, _FLOAT_DTYPES
 from ..utils._null_normalization import _resolve_effective_nulls
 from ._utils import _df_to_numpy, _numpy_to_df
@@ -78,8 +79,7 @@ class FittedColumnAbsentError(Exception):
 
 @dataclass
 class FittedImputer:
-    """
-    Stores per-column imputation records and fitted models; applies them to any DataFrame.
+    """Stores per-column imputation records and fitted models; applies them to any DataFrame.
 
     Parameters
     ----------
@@ -87,11 +87,15 @@ class FittedImputer:
         One record per column processed during fit().
     models : dict[str, Any]
         Fitted sklearn model objects keyed by model name.
-        - "knn"           : KNNImputer for KNN-assigned columns
-        - "mice"          : IterativeImputer for MICE-assigned columns
-        - "regression:{col}" : (BayesianRidge, feat_means ndarray) tuple per column
+
+        - ``"knn"``           : ``KNNImputer`` for KNN-assigned columns.
+        - ``"mice"``          : ``IterativeImputer`` for MICE-assigned columns.
+        - ``"regression:{col}"`` : ``FittedRegression`` containing a fitted
+        ``IterativeImputer``.
     model_cols : dict[str, list[str]]
-        Ordered column lists for each model entry in models.
+        Ordered column lists for each model entry in models.  Regression
+        entries store the full ``[col] + feat_cols`` list (including the
+        target at index 0).
     """
 
     records: dict[str, ColumnImputationRecord] = field(default_factory=dict)
@@ -283,19 +287,30 @@ class FittedImputer:
         if fill_exprs:
             result_df = result_df.with_columns(fill_exprs)
 
-        # --- Apply model-based strategies (MICE → KNN → Regression) ---
+        # --- Apply model-based strategies (MICE → KNN → Regression) with domain-snap ---
         if self.models:
             result_df = _apply_block_model(
                 result_df, "mice", self.models, self.model_cols
             )
+            result_df = _apply_domain_snap(
+                result_df, self.model_cols.get("mice", []), self.records
+            )
             result_df = _apply_block_model(
                 result_df, "knn", self.models, self.model_cols
+            )
+            result_df = _apply_domain_snap(
+                result_df, self.model_cols.get("knn", []), self.records
             )
             for col, rec in self.records.items():
                 if rec.strategy == ImputationStrategy.Regression:
                     result_df = _apply_regression(
                         result_df, col, self.models, self.model_cols
                     )
+                    if rec.domain_snap_bounds is not None:
+                        lo, hi = rec.domain_snap_bounds
+                        result_df = result_df.with_columns(
+                            pl.col(col).round(0).clip(lo, hi).alias(col)
+                        )
 
         return ImputationResult(
             dataframe=result_df,
@@ -305,6 +320,14 @@ class FittedImputer:
         )
 
     def to_dict(self) -> dict:
+        """Serialize the FittedImputer instance to a dictionary.
+
+        Returns
+        -------
+        dict
+            Dictionary containing serialized records, models (as base64-encoded
+            joblib bytes), and model column lists.
+        """
         import base64
         import io
         import joblib
@@ -323,6 +346,18 @@ class FittedImputer:
 
     @classmethod
     def from_dict(cls, data: dict) -> FittedImputer:
+        """Deserialize a dictionary back into a FittedImputer instance.
+
+        Parameters
+        ----------
+        data : dict
+            Dictionary containing serialized FittedImputer state.
+
+        Returns
+        -------
+        FittedImputer
+            The deserialized FittedImputer instance.
+        """
         import base64
         import io
         import joblib
@@ -330,6 +365,8 @@ class FittedImputer:
 
         records: dict[str, ColumnImputationRecord] = {}
         for col, rec_data in data.get("records", {}).items():
+            raw_bounds = rec_data.get("domain_snap_bounds")
+            snap_bounds = tuple(raw_bounds) if raw_bounds is not None else None
             records[col] = ColumnImputationRecord(
                 column=rec_data["column"],
                 semantic_type=SemanticType(rec_data["semantic_type"]),
@@ -337,16 +374,17 @@ class FittedImputer:
                 fill_value=rec_data.get("fill_value"),
                 indicator_added=bool(rec_data.get("indicator_added", False)),
                 signals=list(rec_data.get("signals", [])),
+                domain_snap_bounds=snap_bounds,
             )
+
+        model_cols: dict[str, list[str]] = {
+            k: list(v) for k, v in data.get("model_cols", {}).items()
+        }
 
         models: dict[str, Any] = {}
         for key, b64str in data.get("models", {}).items():
             buf = io.BytesIO(base64.b64decode(b64str))
             models[key] = joblib.load(buf)
-
-        model_cols: dict[str, list[str]] = {
-            k: list(v) for k, v in data.get("model_cols", {}).items()
-        }
 
         return cls(records=records, models=models, model_cols=model_cols)
 
@@ -380,34 +418,77 @@ def _apply_regression(
     models: dict[str, Any],
     model_cols: dict[str, list[str]],
 ) -> pl.DataFrame:
-    """Apply a per-column BayesianRidge model to fill nulls in col."""
+    """Apply a per-column IterativeImputer to fill nulls in col.
+
+    Parameters
+    ----------
+    df : pl.DataFrame
+        Input DataFrame.
+    col : str
+        Target column name.
+    models : dict[str, Any]
+        Fitted models dictionary.
+    model_cols : dict[str, list[str]]
+        Ordered column lists for each model.
+
+    Returns
+    -------
+    pl.DataFrame
+        DataFrame with imputed values in col.
+    """
     model_key = f"regression:{col}"
     if model_key not in models or col not in df.columns:
         return df
 
-    reg, feat_means = models[model_key]
-    feat_cols = [c for c in model_cols.get(model_key, []) if c in df.columns]
+    fitted_reg: FittedRegression = models[model_key]
+    all_cols = model_cols.get(model_key, [])
 
-    target_arr = _df_to_numpy(df, [col]).ravel().copy()
-    null_mask = np.isnan(target_arr)
-    if not null_mask.any():
+    target_arr = _df_to_numpy(df, [col]).ravel()
+    if not np.isnan(target_arr).any():
         return df
 
-    if feat_cols:
-        X_full = _df_to_numpy(df, feat_cols)
-        nan_in_X = np.isnan(X_full)
-        if nan_in_X.any():
-            X_full = X_full.copy()
-            for j in range(X_full.shape[1]):
-                col_nans = nan_in_X[:, j]
-                if col_nans.any():
-                    fill = float(feat_means[j]) if j < len(feat_means) else 0.0
-                    X_full[col_nans, j] = fill
-        y_pred = reg.predict(X_full[null_mask])
-    else:
-        y_pred = np.zeros(null_mask.sum())
+    # Build the joint array ([col] + feat_cols); absent columns stay NaN.
+    n_df_rows = len(df)
+    arr = np.full((n_df_rows, len(all_cols)), np.nan, dtype=np.float64)
+    for j, c in enumerate(all_cols):
+        if c in df.columns:
+            arr[:, j] = _df_to_numpy(df, [c]).ravel()
 
-    target_arr[null_mask] = y_pred
-    return _numpy_to_df(df, [col], target_arr.reshape(-1, 1))
+    arr_filled = fitted_reg.model.transform(arr)
+    target_filled = arr_filled[:, fitted_reg.target_idx]
+    return _numpy_to_df(df, [col], target_filled.reshape(-1, 1))
+
+
+def _apply_domain_snap(
+    df: pl.DataFrame,
+    cols: list[str],
+    records: dict[str, ColumnImputationRecord],
+) -> pl.DataFrame:
+    """Apply clip(round(p), lo, hi) after model inference for BoundedDiscrete columns.
+
+    Parameters
+    ----------
+    df : pl.DataFrame
+        DataFrame after model inference.
+    cols : list[str]
+        Columns processed by the preceding model block.
+    records : dict[str, ColumnImputationRecord]
+        Per-column imputation records; only columns with ``domain_snap_bounds`` set are snapped.
+
+    Returns
+    -------
+    pl.DataFrame
+        DataFrame with snapped values for any column that has ``domain_snap_bounds``.
+    """
+    snap_exprs = []
+    for col in cols:
+        rec = records.get(col)
+        if rec is None or rec.domain_snap_bounds is None:
+            continue
+        lo, hi = rec.domain_snap_bounds
+        snap_exprs.append(pl.col(col).round(0).clip(lo, hi).alias(col))
+    if snap_exprs:
+        df = df.with_columns(snap_exprs)
+    return df
 
 

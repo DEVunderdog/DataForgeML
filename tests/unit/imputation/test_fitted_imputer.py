@@ -982,3 +982,153 @@ def test_new_error_classes_exported_from_package():
     from dataforge_ml.imputation import UnseenColumnError as UCE
     assert UCE is UnseenColumnError
     assert FCE is FittedColumnAbsentError
+
+
+# ---------------------------------------------------------------------------
+# Regression Overhaul Tests (Issue #142)
+# ---------------------------------------------------------------------------
+
+
+def test_regression_new_format_round_trip():
+    """Verify that a FittedImputer with a new-format FittedRegression model
+    can be serialized, deserialized, and used for transform successfully.
+    """
+    from sklearn.impute import IterativeImputer
+    from sklearn.linear_model import BayesianRidge
+    from dataforge_ml.imputation._numeric_imputer import FittedRegression
+    import numpy as np
+
+    # Create dummy data and fit an IterativeImputer
+    arr = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [np.nan, 8.0]])
+    imputer = IterativeImputer(estimator=BayesianRidge(), random_state=0)
+    imputer.fit(arr)
+
+    # Build FittedRegression
+    fitted_reg = FittedRegression(
+        model=imputer,
+        target_idx=0,
+        all_cols=["y", "x"],
+    )
+
+    fi = FittedImputer(
+        records={
+            "y": _record("y", ImputationStrategy.Regression),
+            "x": _record("x", ImputationStrategy.Passthrough),
+        },
+        models={"regression:y": fitted_reg},
+        model_cols={"regression:y": ["y", "x"]},
+    )
+
+    # Round-trip
+    restored = FittedImputer.from_dict(fi.to_dict())
+
+    # Verify model format
+    assert isinstance(restored.models["regression:y"], FittedRegression)
+    assert restored.model_cols["regression:y"] == ["y", "x"]
+
+    # Transform
+    df = pl.DataFrame({
+        "y": pl.Series([1.0, None, 5.0], dtype=pl.Float64),
+        "x": pl.Series([2.0, 4.0, 6.0], dtype=pl.Float64),
+    })
+    res = restored.transform(df)
+    assert res.dataframe["y"].null_count() == 0
+    assert res.dataframe["y"][1] is not None
+
+
+def test_regression_target_vs_feature_identification():
+    """Verify that inference correctly distinguishes between target and feature columns
+    using target_idx, even when a feature has a distinctive value pattern.
+    """
+    from sklearn.impute import IterativeImputer
+    from sklearn.linear_model import BayesianRidge
+    from dataforge_ml.imputation._numeric_imputer import FittedRegression
+    import numpy as np
+
+    # We want to verify that when target_idx = 1, it fills the column at index 1.
+    # Let's say all_cols is ["x", "y"]. The target is "y" (at index 1).
+    # Feature "x" has a distinctive pattern (always 999.0).
+    arr = np.array([
+        [999.0, 1.0],
+        [999.0, 2.0],
+        [999.0, 3.0],
+        [999.0, np.nan],
+    ])
+    imputer = IterativeImputer(estimator=BayesianRidge(), random_state=0)
+    imputer.fit(arr)
+
+    fitted_reg = FittedRegression(
+        model=imputer,
+        target_idx=1,  # target is index 1 ("y")
+        all_cols=["x", "y"],
+    )
+
+    fi = FittedImputer(
+        records={
+            "x": _record("x", ImputationStrategy.Passthrough),
+            "y": _record("y", ImputationStrategy.Regression),
+        },
+        models={"regression:y": fitted_reg},
+        model_cols={"regression:y": ["x", "y"]},
+    )
+
+    df = pl.DataFrame({
+        "x": pl.Series([999.0, 999.0, 999.0], dtype=pl.Float64),
+        "y": pl.Series([1.0, None, 3.0], dtype=pl.Float64),
+    })
+
+    res = fi.transform(df)
+    # The imputed value for "y" should be close to 2.0 (based on training)
+    # and definitely NOT 999.0 (the feature value).
+    imputed_val = res.dataframe["y"][1]
+    assert imputed_val is not None
+    assert abs(imputed_val - 2.0) < 0.5
+    assert imputed_val != 999.0
+
+
+def test_regression_inference_time_feature_nans():
+    """Verify that regression imputation handles feature columns with missing values
+    at inference time without errors and without resorting to a feat_means patching loop
+    in the apply path.
+    """
+    from sklearn.impute import IterativeImputer
+    from sklearn.linear_model import BayesianRidge
+    from dataforge_ml.imputation._numeric_imputer import FittedRegression
+    import numpy as np
+
+    # Train imputer with some missing values in features to support it
+    arr = np.array([
+        [1.0, 2.0],
+        [3.0, 4.0],
+        [5.0, np.nan],
+        [7.0, 8.0],
+    ])
+    imputer = IterativeImputer(estimator=BayesianRidge(), random_state=0)
+    imputer.fit(arr)
+
+    fitted_reg = FittedRegression(
+        model=imputer,
+        target_idx=0,
+        all_cols=["y", "x"],
+    )
+
+    fi = FittedImputer(
+        records={
+            "y": _record("y", ImputationStrategy.Regression),
+            "x": _record("x", ImputationStrategy.Regression),
+        },
+        models={"regression:y": fitted_reg},
+        model_cols={"regression:y": ["y", "x"]},
+    )
+
+    # During transform, both the target 'y' and the feature 'x' have NaNs
+    df = pl.DataFrame({
+        "y": pl.Series([1.0, None, 5.0], dtype=pl.Float64),
+        "x": pl.Series([2.0, np.nan, 6.0], dtype=pl.Float64),
+    })
+
+    # This should run without throwing any exceptions
+    res = fi.transform(df)
+    assert res.dataframe["y"].null_count() == 0
+    assert res.dataframe["y"][1] is not None
+

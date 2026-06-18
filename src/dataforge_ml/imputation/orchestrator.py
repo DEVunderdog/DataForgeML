@@ -155,8 +155,22 @@ class ImputationOrchestrator:
         train_df: pl.DataFrame,
         profile: StructuralProfileResult,
     ) -> ImputationResult:
-        """Convenience: fit on train_df, then transform train_df."""
+        """Fit the imputer on train_df and transform it in one step.
+
+        Parameters
+        ----------
+        train_df : pl.DataFrame
+            Training split.
+        profile : StructuralProfileResult
+            Full-dataset profile from Phase 1.
+
+        Returns
+        -------
+        ImputationResult
+            The imputation result containing the imputed DataFrame and audit records.
+        """
         return self.fit(train_df, profile).transform(train_df)
+
 
 
 # ---------------------------------------------------------------------------

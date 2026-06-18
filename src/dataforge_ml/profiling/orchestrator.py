@@ -15,6 +15,9 @@ Execution order inside profile(df):
        a. profile_features()  → dataset.feature_correlation  (computed once)
        b. profile_target()    → dataset.target_correlations[target]
                                 (once per declared target column)
+  9. Nonlinearity          → if compute_nonlinearity=True:
+       NonlinearityProfiler  → NumericStats.nonlinearity_tag + four signal fields
+       Reuses Pearson/Spearman matrices from step 8 when compute_correlation=True.
 """
 
 from __future__ import annotations
@@ -34,6 +37,7 @@ from ._text_profiler import TextProfiler
 from ._missingness_profiler import MissingnessProfiler
 from ._target_profiler import TargetProfiler
 from ._correlation_profiler import CorrelationProfiler
+from ._nonlinearity_profiler import NonlinearityProfiler
 from ._type_detector import TypeDetector
 from ..config import PipelineConfig, PipelinePhase, SemanticType, Modality
 from ._config import (
@@ -285,6 +289,45 @@ class StructuralProfiler:
                         data, feature_corr, numeric_cols, categorical_cols, target
                     )
                 )
+
+        # ── 9. Nonlinearity ──────────────────────────────────────────────
+        if self.config.profiling.compute_nonlinearity:
+            numeric_cols_nl = [
+                c
+                for c in active_cols
+                if result.columns.get(c)
+                and result.columns[c].semantic_type == SemanticType.Numeric
+            ]
+            if len(numeric_cols_nl) >= 2:
+                p_mat = (
+                    result.dataset.feature_correlation.pearson_matrix
+                    if result.dataset.feature_correlation is not None
+                    else None
+                )
+                s_mat = (
+                    result.dataset.feature_correlation.spearman_matrix
+                    if result.dataset.feature_correlation is not None
+                    else None
+                )
+                nl_result = NonlinearityProfiler(
+                    numeric_columns=numeric_cols_nl,
+                    config=self.config.profiling.nonlinearity,
+                ).profile(data, pearson_matrix=p_mat, spearman_matrix=s_mat)
+
+                from ._numeric_config import NumericStats as _NumericStats
+
+                for col_name, signals in nl_result.columns.items():
+                    cp = result.columns.get(col_name)
+                    if cp is not None and isinstance(cp.stats, _NumericStats):
+                        cp.stats.nonlinearity_tag = signals.tag
+                        cp.stats.spearman_pearson_discrepancy = (
+                            signals.spearman_pearson_discrepancy
+                        )
+                        cp.stats.mean_mutual_information = signals.mean_mutual_information
+                        cp.stats.r2_gap = signals.r2_gap
+                        cp.stats.heteroscedasticity_p_value = (
+                            signals.heteroscedasticity_p_value
+                        )
 
         # ── Soft-excluded placeholders ───────────────────────────────────────
         # Columns soft-excluded for Profiling are not profiled but must still

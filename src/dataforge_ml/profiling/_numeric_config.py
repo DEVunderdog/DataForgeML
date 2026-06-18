@@ -48,6 +48,15 @@ class KurtosisTag(StrEnum):
     Leptokurtic = "leptokurtic"
 
 
+class NonlinearityTag(StrEnum):
+    """Characterises the dominant relationship between a numeric column and its predictors."""
+
+    Linear = "linear"
+    MonotonicNonlinear = "monotonic_nonlinear"
+    ComplexNonlinear = "complex_nonlinear"
+    Unpredictable = "unpredictable"
+
+
 class NumericFlag(StrEnum):
     ScaleAnomaly = "scale_anomaly"
     NearConstant = "near_constant"
@@ -79,6 +88,56 @@ class HistogramBin:
 
 @dataclass
 class NumericStats:
+    """Computed statistics and flags for a numeric column.
+
+    Parameters
+    ----------
+    mean : float, optional
+        Arithmetic mean of the non-null values.
+    median : float, optional
+        Median value of the non-null values.
+    mean_median_ratio : float, optional
+        Ratio of the mean to the median, indicating skew or asymmetry.
+    mode : float, optional
+        Most frequent value in the column.
+    mode_frequency : float, default 0.0
+        Proportion of rows matching the mode value (range [0, 1]).
+    top_values : list of NumericTopValueEntry, default factory=list
+        Frequent value entries sorted by frequency.
+    histogram : list of HistogramBin, default factory=list
+        Equi-width histogram bins.
+    std : float, optional
+        Standard deviation of the non-null values.
+    variance : float, optional
+        Variance of the non-null values.
+    min : float, optional
+        Minimum value in the column.
+    max : float, optional
+        Maximum value in the column.
+    percentiles : PercentileSnapshot, default factory=PercentileSnapshot
+        Snapshot of values at key percentiles.
+    skewness : float, optional
+        Fisher-Pearson standardized skewness coefficient.
+    kurtosis : float, optional
+        Excess kurtosis of the non-null values.
+    skewness_severity : SkewSeverity, optional
+        Categorized classification of the skewness severity.
+    kurtosis_tag : KurtosisTag, optional
+        Categorized tag for the kurtosis shape.
+    flags : list of NumericFlag, default factory=list
+        Flags identifying anomalies like NearConstant or ScaleAnomaly.
+    nonlinearity_tag : NonlinearityTag, optional
+        Detected relationship tag between this column and its predictors.
+    spearman_pearson_discrepancy : float, optional
+        Max Spearman-Pearson correlation difference across predictors.
+    mean_mutual_information : float, optional
+        Mean mutual information across all predictor columns.
+    r2_gap : float, optional
+        Difference between RandomForest and Linear Regression cross-validated R2.
+    heteroscedasticity_p_value : float, optional
+        P-value for Breusch-Pagan heteroscedasticity test on linear residuals.
+    """
+
     mean: Optional[float] = None
     median: Optional[float] = None
     mean_median_ratio: Optional[float] = None
@@ -96,15 +155,46 @@ class NumericStats:
     skewness_severity: Optional[SkewSeverity] = None
     kurtosis_tag: Optional[KurtosisTag] = None
     flags: List[NumericFlag] = field(default_factory=list)
+    nonlinearity_tag: Optional[NonlinearityTag] = None
+    spearman_pearson_discrepancy: Optional[float] = None
+    mean_mutual_information: Optional[float] = None
+    r2_gap: Optional[float] = None
+    heteroscedasticity_p_value: Optional[float] = None
 
     @property
     def iqr(self) -> Optional[float]:
+        """Compute the interquartile range (IQR) for the column.
+
+        Returns
+        -------
+        float or None
+            Difference between the 75th and 25th percentiles, or None if unset.
+        """
         return self.percentiles.iqr
 
     def has_flag(self, flag: NumericFlag) -> bool:
+        """Check if a specific numeric anomaly flag is present.
+
+        Parameters
+        ----------
+        flag : NumericFlag
+            The anomaly flag to check.
+
+        Returns
+        -------
+        bool
+            True if the flag is present, False otherwise.
+        """
         return flag in self.flags
 
     def to_dict(self) -> dict:
+        """Serialise the numeric statistics to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            All field values serialized to plain types or nested dicts.
+        """
         return {
             "mean": self.mean,
             "median": self.median,
@@ -123,10 +213,178 @@ class NumericStats:
             "skewness_severity": str(self.skewness_severity) if self.skewness_severity else None,
             "kurtosis_tag": str(self.kurtosis_tag) if self.kurtosis_tag else None,
             "flags": [str(f) for f in self.flags],
+            "nonlinearity_tag": str(self.nonlinearity_tag) if self.nonlinearity_tag else None,
+            "spearman_pearson_discrepancy": self.spearman_pearson_discrepancy,
+            "mean_mutual_information": self.mean_mutual_information,
+            "r2_gap": self.r2_gap,
+            "heteroscedasticity_p_value": self.heteroscedasticity_p_value,
         }
 
 
 ColumnNumericProfile = NumericStats
+
+
+# ---------------------------------------------------------------------------
+# Nonlinearity sub-config and result types
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class NonlinearityProfileConfig:
+    """
+    Threshold configuration for the NonlinearityProfiler sub-processor.
+
+    Defaults are calibrated for typical tabular datasets (hundreds to thousands
+    of rows):
+
+    - A Spearman/Pearson discrepancy ≥ 0.10 reliably separates monotonic
+      non-linear relationships from linear ones across common real-world data.
+    - p < 0.05 is the standard significance level for the Breusch-Pagan test.
+    - An R² gap ≥ 0.10 represents a meaningful improvement of a non-linear model
+      over a linear baseline (calibrated against held-out evaluation).
+    - R²_RF < 0.05 (cross-validated on a bootstrap sample) indicates the column
+      is not meaningfully predictable from its numeric co-variates.
+
+    Parameters
+    ----------
+    spearman_pearson_discrepancy_threshold : float
+        Minimum max-over-predictors ``|Spearman_r − Pearson_r|`` that triggers
+        the monotonic-nonlinear signal.  Values in [0, 1]; default 0.10.
+    mutual_information_threshold : float
+        Minimum mean mutual information (nats) across predictors that contributes
+        to a ``ComplexNonlinear`` classification.  Default 0.05.
+    r2_gap_threshold : float
+        Minimum ``R²_RF − R²_linear`` (both cross-validated on a bootstrap
+        sample) to classify a column as ``ComplexNonlinear`` rather than
+        ``MonotonicNonlinear``.  Default 0.10.
+    heteroscedasticity_p_value_threshold : float
+        Breusch-Pagan p-value below which heteroscedasticity is detected,
+        contributing to a ``MonotonicNonlinear`` classification.  Default 0.05.
+    r2_rf_unpredictable_threshold : float
+        Cross-validated ``R²_RF`` below which a column is tagged
+        ``Unpredictable``.  Default 0.05.
+    min_rows : int
+        Minimum number of complete (non-null) rows required across the target
+        column and all its predictors to run the profiler for that column.
+        Default 20.
+    bootstrap_sample_size : int
+        Maximum number of rows sampled for the R² gap and Breusch-Pagan
+        computations.  Larger datasets are down-sampled uniformly at random.
+        Default 500.
+    random_state : int
+        Random seed used for row sampling and ``RandomForestRegressor``.
+        Default 42.
+    """
+
+    spearman_pearson_discrepancy_threshold: float = 0.10
+    mutual_information_threshold: float = 0.05
+    r2_gap_threshold: float = 0.10
+    heteroscedasticity_p_value_threshold: float = 0.05
+    r2_rf_unpredictable_threshold: float = 0.05
+    min_rows: int = 20
+    bootstrap_sample_size: int = 500
+    random_state: int = 42
+
+    def to_dict(self) -> dict:
+        """
+        Serialise the config to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            All field values keyed by field name.
+        """
+        return {
+            "spearman_pearson_discrepancy_threshold": self.spearman_pearson_discrepancy_threshold,
+            "mutual_information_threshold": self.mutual_information_threshold,
+            "r2_gap_threshold": self.r2_gap_threshold,
+            "heteroscedasticity_p_value_threshold": self.heteroscedasticity_p_value_threshold,
+            "r2_rf_unpredictable_threshold": self.r2_rf_unpredictable_threshold,
+            "min_rows": self.min_rows,
+            "bootstrap_sample_size": self.bootstrap_sample_size,
+            "random_state": self.random_state,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "NonlinearityProfileConfig":
+        """
+        Construct a ``NonlinearityProfileConfig`` from a plain dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            Mapping produced by ``to_dict()``. Missing keys fall back to field
+            defaults.
+
+        Returns
+        -------
+        NonlinearityProfileConfig
+            Reconstructed config instance.
+        """
+        return cls(
+            spearman_pearson_discrepancy_threshold=float(
+                data.get("spearman_pearson_discrepancy_threshold", 0.10)
+            ),
+            mutual_information_threshold=float(
+                data.get("mutual_information_threshold", 0.05)
+            ),
+            r2_gap_threshold=float(data.get("r2_gap_threshold", 0.10)),
+            heteroscedasticity_p_value_threshold=float(
+                data.get("heteroscedasticity_p_value_threshold", 0.05)
+            ),
+            r2_rf_unpredictable_threshold=float(
+                data.get("r2_rf_unpredictable_threshold", 0.05)
+            ),
+            min_rows=int(data.get("min_rows", 20)),
+            bootstrap_sample_size=int(data.get("bootstrap_sample_size", 500)),
+            random_state=int(data.get("random_state", 42)),
+        )
+
+
+@dataclass
+class NonlinearitySignals:
+    """
+    Raw nonlinearity signal values and assigned tag for one numeric column.
+
+    Returned inside ``NonlinearityProfileResult`` and consumed by
+    ``StructuralProfiler`` to populate ``NumericStats`` nonlinearity fields.
+
+    Attributes
+    ----------
+    tag : NonlinearityTag
+        Assigned nonlinearity classification.
+    spearman_pearson_discrepancy : float
+        Max ``|Spearman_r − Pearson_r|`` over all predictors.
+    mean_mutual_information : float
+        Mean ``mutual_info_regression`` score across all predictors.
+    r2_gap : float
+        Cross-validated ``R²_RF − R²_linear`` on a bootstrap sample.
+    heteroscedasticity_p_value : float
+        Breusch-Pagan p-value from the linear model residuals.
+    """
+
+    tag: NonlinearityTag
+    spearman_pearson_discrepancy: float
+    mean_mutual_information: float
+    r2_gap: float
+    heteroscedasticity_p_value: float
+
+
+@dataclass
+class NonlinearityProfileResult:
+    """
+    Per-column nonlinearity signals returned by ``NonlinearityProfiler``.
+
+    Attributes
+    ----------
+    columns : dict[str, NonlinearitySignals]
+        Signal values and tag for each profiled column.
+    analysed_columns : list[str]
+        Columns for which signals were successfully computed.
+    """
+
+    columns: dict[str, NonlinearitySignals] = field(default_factory=dict)
+    analysed_columns: list[str] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

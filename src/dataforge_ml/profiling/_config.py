@@ -28,6 +28,7 @@ from ._categorical_config import (
 from ._numeric_config import (
     NumericStats,
     NumericProfileConfig,
+    NonlinearityProfileConfig,
 )
 from ._datetime_config import (
     DatetimeStats,
@@ -282,6 +283,10 @@ def _default_datetime_config() -> DatetimeProfileConfig:
     return DatetimeProfileConfig()
 
 
+def _default_nonlinearity_config() -> NonlinearityProfileConfig:
+    return NonlinearityProfileConfig()
+
+
 @dataclass
 class ProfileConfig:
     """
@@ -316,6 +321,14 @@ class ProfileConfig:
         Threshold configuration for the correlation sub-processor.
     datetime_ : DatetimeProfileConfig
         Threshold configuration for the datetime sub-processor.
+    compute_nonlinearity : bool
+        Whether to run ``NonlinearityProfiler`` and populate the four
+        nonlinearity signal fields on ``NumericStats``.  When ``True`` and
+        ``compute_correlation`` is also ``True``, Pearson and Spearman matrices
+        are reused from the correlation step rather than recomputed.
+        Default ``False``.
+    nonlinearity : NonlinearityProfileConfig
+        Threshold configuration for the nonlinearity sub-processor.
     """
 
     modality: Modality = Modality.Tabular
@@ -339,6 +352,10 @@ class ProfileConfig:
         default_factory=_default_correlation_config
     )
     datetime_: DatetimeProfileConfig = field(default_factory=_default_datetime_config)
+    compute_nonlinearity: bool = False
+    nonlinearity: NonlinearityProfileConfig = field(
+        default_factory=_default_nonlinearity_config
+    )
 
     def to_dict(self) -> dict:
         """
@@ -363,6 +380,8 @@ class ProfileConfig:
             "categorical": self.categorical.to_dict(),
             "correlation": self.correlation.to_dict(),
             "datetime_": self.datetime_.to_dict(),
+            "compute_nonlinearity": self.compute_nonlinearity,
+            "nonlinearity": self.nonlinearity.to_dict(),
         }
 
     @classmethod
@@ -403,6 +422,10 @@ class ProfileConfig:
                 data.get("correlation", {})
             ),
             datetime_=DatetimeProfileConfig.from_dict(data.get("datetime_", {})),
+            compute_nonlinearity=bool(data.get("compute_nonlinearity", False)),
+            nonlinearity=NonlinearityProfileConfig.from_dict(
+                data.get("nonlinearity", {})
+            ),
         )
 
     def to_json(self) -> str:

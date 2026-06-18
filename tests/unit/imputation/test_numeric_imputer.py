@@ -6,12 +6,21 @@ assert the correct ImputationStrategy and fill_value type in the returned record
 All tests construct minimal StructuralProfileResult stubs — no real profiler run.
 """
 
+import numpy as np
 import polars as pl
 import pytest
 
 from dataforge_ml.config import SemanticType
-from dataforge_ml.imputation._config import ImputationStrategy, NumericImputationConfig
-from dataforge_ml.imputation._numeric_imputer import NumericImputer
+from dataforge_ml.imputation._config import (
+    ColumnImputationRecord,
+    ImputationStrategy,
+    NumericImputationConfig,
+)
+from dataforge_ml.imputation._numeric_imputer import (
+    FittedRegression,
+    NumericImputer,
+    _fallback_to_median,
+)
 from dataforge_ml.profiling._config import (
     ColumnProfile,
     NumericKind,
@@ -22,7 +31,7 @@ from dataforge_ml.profiling._missingness_config import (
     MissingnessFlag,
     MissingSeverity,
 )
-from dataforge_ml.profiling._numeric_config import NumericStats, SkewSeverity
+from dataforge_ml.profiling._numeric_config import NonlinearityTag, NumericStats, SkewSeverity
 
 
 # ---------------------------------------------------------------------------
@@ -205,7 +214,8 @@ def test_mar_suspect_signal_mentions_mar():
 # ---------------------------------------------------------------------------
 
 
-def test_discrete_column_gets_mode_strategy():
+def test_discrete_column_minor_normal_gets_mean_strategy():
+    """BoundedDiscrete + Minor + Normal skew → Mean (sub-chain step 5)."""
     values = [1, 2, 1, 1, None, 3, 1]
     df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
     cp = _numeric_cp(
@@ -213,12 +223,12 @@ def test_discrete_column_gets_mode_strategy():
         numeric_kind=NumericKind.BoundedDiscrete,
     )
     rec = _fit_one(df, cp)
-    assert rec.strategy == ImputationStrategy.Mode
-    assert rec.fill_value == pytest.approx(1.0)
+    assert rec.strategy == ImputationStrategy.Mean
+    assert rec.fill_value == pytest.approx(9 / 6)
 
 
-def test_discrete_mode_computed_on_training_data():
-    """Mode is the most frequent value in train_df, ignoring nulls."""
+def test_discrete_mean_computed_on_training_data():
+    """Mean fill value is computed from non-null training values for BoundedDiscrete."""
     values = [5, 5, 5, 1, 1, None]
     df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
     cp = _numeric_cp(
@@ -226,7 +236,8 @@ def test_discrete_mode_computed_on_training_data():
         numeric_kind=NumericKind.BoundedDiscrete,
     )
     rec = _fit_one(df, cp)
-    assert rec.fill_value == pytest.approx(5.0)
+    assert rec.strategy == ImputationStrategy.Mean
+    assert rec.fill_value == pytest.approx(17 / 5)
 
 
 # ---------------------------------------------------------------------------
@@ -368,12 +379,12 @@ def test_record_semantic_type_is_numeric():
 
 
 # ---------------------------------------------------------------------------
-# BoundedDiscrete routing — Priority 3, unconditional Mode
+# BoundedDiscrete routing — Priority 3, model-aware sub-chain with domain-snap
 # ---------------------------------------------------------------------------
 
 
-def test_bounded_discrete_gets_mode_strategy():
-    """BoundedDiscrete column → Mode regardless of severity."""
+def test_bounded_discrete_minor_normal_skew_gets_mean():
+    """BoundedDiscrete + Minor + Normal skew → Mean (sub-chain step 5)."""
     values = [1, 2, 1, 1, None, 3, 1]
     df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
     cp = _numeric_cp(
@@ -381,11 +392,11 @@ def test_bounded_discrete_gets_mode_strategy():
         numeric_kind=NumericKind.BoundedDiscrete,
     )
     rec = _fit_one(df, cp)
-    assert rec.strategy == ImputationStrategy.Mode
+    assert rec.strategy == ImputationStrategy.Mean
 
 
-def test_bounded_discrete_high_severity_still_gets_mode():
-    """Priority 3 fires before MCAR chain — High severity does not escalate."""
+def test_bounded_discrete_high_severity_gets_knn():
+    """BoundedDiscrete + High severity → KNN via domain-snapped MCAR sub-chain."""
     values = [1, 2, 3, 4, 5, None, None, None]
     df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
     cp = _numeric_cp(
@@ -393,11 +404,11 @@ def test_bounded_discrete_high_severity_still_gets_mode():
         numeric_kind=NumericKind.BoundedDiscrete,
     )
     rec = _fit_one(df, cp)
-    assert rec.strategy == ImputationStrategy.Mode
+    assert rec.strategy == ImputationStrategy.KNN
 
 
-def test_bounded_discrete_mar_suspect_still_gets_mode():
-    """Priority 3 fires before MAR routing — MARSuspect does not override Mode."""
+def test_bounded_discrete_mar_suspect_low_severity_no_corrs_gets_mode():
+    """BoundedDiscrete + MARSuspect + Minor + no correlations → Mode (terminal replaces Median)."""
     values = [1, 2, 3, 4, 5, None, None]
     df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
     cp = _numeric_cp(
@@ -407,6 +418,131 @@ def test_bounded_discrete_mar_suspect_still_gets_mode():
     )
     rec = _fit_one(df, cp)
     assert rec.strategy == ImputationStrategy.Mode
+
+
+# BoundedDiscrete sub-chain coverage
+# ---------------------------------------------------------------------------
+
+
+def test_bounded_discrete_unpredictable_routes_to_mode_with_signal():
+    """BoundedDiscrete + Unpredictable → Mode; unpredictable_guard signal recorded."""
+    from dataforge_ml.profiling._numeric_config import NumericFlag
+    values = [1, 2, 3, 1, None, 2, 1]
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
+    cp = _numeric_cp(
+        null_count=1, total_rows=7, severity=MissingSeverity.High,
+        numeric_kind=NumericKind.BoundedDiscrete,
+    )
+    cp.stats = NumericStats(nonlinearity_tag=NonlinearityTag.Unpredictable)
+    rec = _fit_one(df, cp)
+    assert rec.strategy == ImputationStrategy.Mode
+    assert any("unpredictable_guard" in s for s in rec.signals)
+
+
+def test_bounded_discrete_near_constant_routes_to_mode_with_signal():
+    """BoundedDiscrete + NearConstant → Mode; near_constant signal recorded."""
+    from dataforge_ml.profiling._numeric_config import NumericFlag
+    values = [1, 1, 1, 1, None, 1, 1]
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
+    cp = _numeric_cp(
+        null_count=1, total_rows=7, severity=MissingSeverity.Minor,
+        numeric_kind=NumericKind.BoundedDiscrete,
+    )
+    cp.stats = NumericStats(flags=[NumericFlag.NearConstant])
+    rec = _fit_one(df, cp)
+    assert rec.strategy == ImputationStrategy.Mode
+    assert any("near_constant" in s for s in rec.signals)
+
+
+def test_bounded_discrete_mar_suspect_severe_routes_to_mice_with_snap():
+    """BoundedDiscrete + MARSuspect + Severe → MICE with domain_snap_bounds set."""
+    values = [1, 2, 3, 4, 5, None, None, None, None, None]
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
+    cp = _numeric_cp(
+        null_count=5, total_rows=10, severity=MissingSeverity.Severe,
+        flags=[MissingnessFlag.MARSuspect], correlated_with=["other"],
+        numeric_kind=NumericKind.BoundedDiscrete,
+    )
+    cp.stats = NumericStats(min=1.0, max=5.0)
+    rec = _fit_one(df, cp)
+    assert rec.strategy == ImputationStrategy.MICE
+    assert rec.domain_snap_bounds == (1.0, 5.0)
+    assert any("domain_snap_bounds" in s for s in rec.signals)
+
+
+def test_bounded_discrete_mar_suspect_high_with_corrs_routes_to_regression():
+    """BoundedDiscrete + MARSuspect + High + large enough dataset → Regression with snap."""
+    rng = np.random.default_rng(0)
+    n = 600
+    values = [int(v % 5) + 1 if i % 10 != 0 else None for i, v in enumerate(range(n))]
+    feat_vals = rng.standard_normal(n).tolist()
+    df = pl.DataFrame({
+        _COL: pl.Series(values, dtype=pl.Int64),
+        "feat": pl.Series(feat_vals, dtype=pl.Float64),
+    })
+    profile = _make_profile(_COL, _numeric_cp(
+        null_count=60, total_rows=n, severity=MissingSeverity.High,
+        flags=[MissingnessFlag.MARSuspect], correlated_with=["feat"],
+        numeric_kind=NumericKind.BoundedDiscrete,
+    ))
+    profile.columns[_COL].stats = NumericStats(min=1.0, max=5.0)
+    profile.columns["feat"] = ColumnProfile(
+        name="feat", semantic_type=SemanticType.Numeric,
+        numeric_kind=NumericKind.Continuous, missingness=None, stats=NumericStats(),
+    )
+    config = NumericImputationConfig(regression_min_rows=500)
+    bundle = NumericImputer().fit(
+        train_df=df, columns=[_COL, "feat"],
+        profile=profile, config=config, mnar_columns=set(),
+    )
+    rec = next(r for r in bundle.records if r.column == _COL)
+    assert rec.strategy == ImputationStrategy.Regression
+    assert rec.domain_snap_bounds == (1.0, 5.0)
+
+
+def test_bounded_discrete_mcar_high_routes_to_knn_with_snap():
+    """BoundedDiscrete + MCAR High + size guards met → KNN with domain_snap_bounds."""
+    values = [1, 2, 3, 4, 5, None, None, 3]
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
+    cp = _numeric_cp(
+        null_count=2, total_rows=8, severity=MissingSeverity.High,
+        numeric_kind=NumericKind.BoundedDiscrete,
+    )
+    cp.stats = NumericStats(min=1.0, max=5.0)
+    rec = _fit_one(df, cp)
+    assert rec.strategy == ImputationStrategy.KNN
+    assert rec.domain_snap_bounds == (1.0, 5.0)
+    assert any("domain_snap_bounds" in s for s in rec.signals)
+
+
+def test_bounded_discrete_mcar_minor_normal_skew_mean_is_snapped():
+    """BoundedDiscrete + MCAR Minor + Normal skew → Mean snapped to [min, max]."""
+    values = [1, 5, 1, 5, None, 3]
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
+    cp = _numeric_cp(
+        null_count=1, total_rows=6, severity=MissingSeverity.Minor,
+        numeric_kind=NumericKind.BoundedDiscrete,
+    )
+    cp.stats = NumericStats(min=1.0, max=5.0, skewness_severity=None)
+    rec = _fit_one(df, cp)
+    assert rec.strategy == ImputationStrategy.Mean
+    assert rec.fill_value is not None
+    assert 1.0 <= rec.fill_value <= 5.0
+    assert any("snapped" in s for s in rec.signals)
+
+
+def test_bounded_discrete_all_size_guards_fail_routes_to_mode():
+    """BoundedDiscrete + Minor + Moderate skew → Mode (terminal, not Median)."""
+    values = [1, 2, 1, 1, None, 1, 1]
+    df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
+    cp = _numeric_cp(
+        null_count=1, total_rows=7, severity=MissingSeverity.Minor,
+        numeric_kind=NumericKind.BoundedDiscrete,
+        skewness_severity=SkewSeverity.Moderate,
+    )
+    rec = _fit_one(df, cp)
+    assert rec.strategy == ImputationStrategy.Mode
+    assert any("terminal" in s for s in rec.signals)
 
 
 def test_continuous_integer_with_gaps_falls_to_mcar_chain():
@@ -456,8 +592,8 @@ def test_record_signals_are_non_empty_for_all_strategies():
 # ---------------------------------------------------------------------------
 
 
-def test_override_forced_bounded_discrete_gets_mode():
-    """A column forced to BoundedDiscrete via override → Mode strategy."""
+def test_override_forced_bounded_discrete_gets_mean_on_minor_normal():
+    """A column forced to BoundedDiscrete via override + Minor + Normal skew → Mean."""
     values = [25, 32, 45, 28, None, 39]
     df = pl.DataFrame({_COL: pl.Series(values, dtype=pl.Int64)})
     cp = _numeric_cp(
@@ -465,7 +601,7 @@ def test_override_forced_bounded_discrete_gets_mode():
         numeric_kind=NumericKind.BoundedDiscrete,
     )
     rec = _fit_one(df, cp)
-    assert rec.strategy == ImputationStrategy.Mode
+    assert rec.strategy == ImputationStrategy.Mean
 
 
 def test_override_forced_continuous_falls_to_mcar_chain():
@@ -479,3 +615,368 @@ def test_override_forced_continuous_falls_to_mcar_chain():
     )
     rec = _fit_one(df, cp)
     assert rec.strategy != ImputationStrategy.Mode
+
+
+# ---------------------------------------------------------------------------
+# FittedRegression dataclass — structural tests (Issue #138)
+# ---------------------------------------------------------------------------
+
+
+def test_fitted_regression_has_model_field():
+    fr = FittedRegression(model=object(), target_idx=0, all_cols=["y", "x1", "x2"])
+    assert fr.model is not None
+
+
+def test_fitted_regression_stores_target_idx():
+    fr = FittedRegression(model=None, target_idx=0, all_cols=["y", "x"])
+    assert fr.target_idx == 0
+
+
+def test_fitted_regression_stores_all_cols():
+    cols = ["y", "x1", "x2"]
+    fr = FittedRegression(model=None, target_idx=0, all_cols=cols)
+    assert fr.all_cols == ["y", "x1", "x2"]
+
+
+def test_fitted_regression_all_cols_includes_target_at_index_zero():
+    cols = ["target_col", "feat_a", "feat_b"]
+    fr = FittedRegression(model=None, target_idx=0, all_cols=cols)
+    assert fr.all_cols[fr.target_idx] == "target_col"
+
+
+def test_fitted_regression_has_signals_field():
+    fr = FittedRegression(model=None, target_idx=0, all_cols=["y", "x"])
+    assert isinstance(fr.signals, list)
+
+
+def test_fitted_regression_signals_default_empty():
+    fr = FittedRegression(model=None, target_idx=0, all_cols=["y", "x"])
+    assert fr.signals == []
+
+
+# ---------------------------------------------------------------------------
+# Regression overhaul — Issue #141 (Scope 0 + 12 combined)
+# ---------------------------------------------------------------------------
+
+
+def _regression_profile(col: str, n: int, feat_cols: list[str]) -> StructuralProfileResult:
+    """Build a minimal StructuralProfileResult that routes col to Regression."""
+    cp = ColumnProfile(
+        name=col,
+        semantic_type=SemanticType.Numeric,
+        numeric_kind=NumericKind.Continuous,
+        missingness=ColumnMissingnessProfile(
+            column=col,
+            total_rows=n,
+            effective_null_count=n // 10,
+            effective_null_ratio=0.1,
+            severity=MissingSeverity.High,
+            flags=[MissingnessFlag.MARSuspect],
+            correlated_with=feat_cols,
+        ),
+        stats=NumericStats(),
+    )
+    result = StructuralProfileResult()
+    result.columns[col] = cp
+    for fc in feat_cols:
+        result.columns[fc] = ColumnProfile(
+            name=fc,
+            semantic_type=SemanticType.Numeric,
+            numeric_kind=NumericKind.Continuous,
+            missingness=None,
+            stats=NumericStats(),
+        )
+    return result
+
+
+def test_rows_with_missing_features_are_imputed_not_dropped():
+    """IterativeImputer does not drop rows where feature columns have NaN."""
+    rng = np.random.default_rng(42)
+    n = 600
+    # target missing on even rows, feature missing on odd rows → zero complete rows
+    col_vals = [None if i % 2 == 0 else rng.standard_normal() for i in range(n)]
+    feat_vals = [None if i % 2 == 1 else rng.standard_normal() for i in range(n)]
+    df = pl.DataFrame({
+        "target": pl.Series(col_vals, dtype=pl.Float64),
+        "feat": pl.Series(feat_vals, dtype=pl.Float64),
+    })
+    profile = _regression_profile("target", n, ["feat"])
+    config = NumericImputationConfig(knn_max_rows=100, regression_min_rows=500)
+    bundle = NumericImputer().fit(
+        train_df=df, columns=["target", "feat"],
+        profile=profile, config=config, mnar_columns=set(),
+    )
+    rec = next(r for r in bundle.records if r.column == "target")
+    assert rec.strategy == ImputationStrategy.Regression
+
+
+def test_unpredictable_tag_routes_to_median_with_signal():
+    """NonlinearityTag.Unpredictable forces Median fallback with a recorded signal."""
+    rng = np.random.default_rng(0)
+    n = 600
+    col_vals = [None if i % 10 == 0 else rng.standard_normal() for i in range(n)]
+    feat_vals = rng.standard_normal(n).tolist()
+    df = pl.DataFrame({
+        "target": pl.Series(col_vals, dtype=pl.Float64),
+        "feat": pl.Series(feat_vals, dtype=pl.Float64),
+    })
+    profile = _regression_profile("target", n, ["feat"])
+    profile.columns["target"].stats = NumericStats(
+        nonlinearity_tag=NonlinearityTag.Unpredictable
+    )
+    config = NumericImputationConfig(knn_max_rows=100, regression_min_rows=500)
+    bundle = NumericImputer().fit(
+        train_df=df, columns=["target", "feat"],
+        profile=profile, config=config, mnar_columns=set(),
+    )
+    rec = next(r for r in bundle.records if r.column == "target")
+    assert rec.strategy == ImputationStrategy.Median
+    assert any("Unpredictable" in s for s in rec.signals)
+
+
+def test_unpredictable_guard_fires_before_mar_routing():
+    """Priority 4 Unpredictable guard routes to Median before MARSuspect routing is reached."""
+    rng = np.random.default_rng(0)
+    n = 600
+    col_vals = [None if i % 10 == 0 else rng.standard_normal() for i in range(n)]
+    feat_vals = rng.standard_normal(n).tolist()
+    df = pl.DataFrame({
+        "target": pl.Series(col_vals, dtype=pl.Float64),
+        "feat": pl.Series(feat_vals, dtype=pl.Float64),
+    })
+    # MARSuspect + Unpredictable: Priority 4 must fire before Priority 5 (MARSuspect)
+    profile = _regression_profile("target", n, ["feat"])
+    profile.columns["target"].stats = NumericStats(
+        nonlinearity_tag=NonlinearityTag.Unpredictable
+    )
+    config = NumericImputationConfig(regression_min_rows=500)
+    bundle = NumericImputer().fit(
+        train_df=df, columns=["target", "feat"],
+        profile=profile, config=config, mnar_columns=set(),
+    )
+    rec = next(r for r in bundle.records if r.column == "target")
+    assert rec.strategy == ImputationStrategy.Median
+    assert any("unpredictable_guard" in s for s in rec.signals)
+    # MAR routing must not have fired
+    assert not any("mar_suspect" in s for s in rec.signals)
+    assert not any(s in ("MICE", "Regression", "KNN") for s in
+                   [r.strategy for r in bundle.records if r.column == "target"])
+
+
+def test_estimator_choice_recorded_in_signals():
+    """A signal naming the estimator and tag is appended after successful regression fit."""
+    rng = np.random.default_rng(1)
+    n = 600
+    col_vals = [None if i % 10 == 0 else rng.standard_normal() for i in range(n)]
+    feat_vals = rng.standard_normal(n).tolist()
+    df = pl.DataFrame({
+        "target": pl.Series(col_vals, dtype=pl.Float64),
+        "feat": pl.Series(feat_vals, dtype=pl.Float64),
+    })
+    profile = _regression_profile("target", n, ["feat"])
+    profile.columns["target"].stats = NumericStats(
+        nonlinearity_tag=NonlinearityTag.Linear
+    )
+    config = NumericImputationConfig(knn_max_rows=100, regression_min_rows=500)
+    bundle = NumericImputer().fit(
+        train_df=df, columns=["target", "feat"],
+        profile=profile, config=config, mnar_columns=set(),
+    )
+    rec = next(r for r in bundle.records if r.column == "target")
+    assert rec.strategy == ImputationStrategy.Regression
+    assert any("regression_estimator" in s for s in rec.signals)
+
+
+def test_convergence_warning_appears_when_max_iter_reached():
+    """convergence_warning signal is recorded when n_iter_ == max_iter."""
+    rng = np.random.default_rng(2)
+    n = 600
+    col_vals = [None if i % 10 == 0 else rng.standard_normal() for i in range(n)]
+    feat_vals = rng.standard_normal(n).tolist()
+    df = pl.DataFrame({
+        "target": pl.Series(col_vals, dtype=pl.Float64),
+        "feat": pl.Series(feat_vals, dtype=pl.Float64),
+    })
+    profile = _regression_profile("target", n, ["feat"])
+    profile.columns["target"].stats = NumericStats(
+        nonlinearity_tag=NonlinearityTag.Linear
+    )
+    # base_max_iter=1 means IterativeImputer stops after 1 iteration — almost never converged
+    config = NumericImputationConfig(
+        knn_max_rows=100, regression_min_rows=500, regression_base_max_iter=1,
+    )
+    bundle = NumericImputer().fit(
+        train_df=df, columns=["target", "feat"],
+        profile=profile, config=config, mnar_columns=set(),
+    )
+    rec = next(r for r in bundle.records if r.column == "target")
+    assert rec.strategy == ImputationStrategy.Regression
+    assert any("convergence_warning" in s for s in rec.signals)
+
+
+def test_duplicate_regression_column_raises_runtime_error():
+    """Passing the same column twice in the column list raises RuntimeError naming it."""
+    rng = np.random.default_rng(3)
+    n = 600
+    col_vals = [None if i % 10 == 0 else rng.standard_normal() for i in range(n)]
+    feat_vals = rng.standard_normal(n).tolist()
+    df = pl.DataFrame({
+        "target": pl.Series(col_vals, dtype=pl.Float64),
+        "feat": pl.Series(feat_vals, dtype=pl.Float64),
+    })
+    profile = _regression_profile("target", n, ["feat"])
+    config = NumericImputationConfig(knn_max_rows=100, regression_min_rows=500)
+    with pytest.raises(RuntimeError, match="target"):
+        NumericImputer().fit(
+            train_df=df,
+            columns=["target", "feat", "target"],  # duplicate triggers guard
+            profile=profile,
+            config=config,
+            mnar_columns=set(),
+        )
+
+
+def test_fallback_to_median_no_feature_columns():
+    """Regression column with no features falls back to Median with signal."""
+    rng = np.random.default_rng(4)
+    n = 600
+    col_vals = [None if i % 10 == 0 else rng.standard_normal() for i in range(n)]
+    df = pl.DataFrame({"target": pl.Series(col_vals, dtype=pl.Float64)})
+    # Profile with no feature columns
+    result = StructuralProfileResult()
+    result.columns["target"] = ColumnProfile(
+        name="target",
+        semantic_type=SemanticType.Numeric,
+        numeric_kind=NumericKind.Continuous,
+        missingness=ColumnMissingnessProfile(
+            column="target",
+            total_rows=n,
+            effective_null_count=60,
+            effective_null_ratio=0.1,
+            severity=MissingSeverity.High,
+            flags=[MissingnessFlag.MARSuspect],
+            correlated_with=["other"],
+        ),
+        stats=NumericStats(),
+    )
+    config = NumericImputationConfig(knn_max_rows=100, regression_min_rows=500)
+    bundle = NumericImputer().fit(
+        train_df=df, columns=["target"],
+        profile=result, config=config, mnar_columns=set(),
+    )
+    rec = bundle.records[0]
+    assert rec.strategy == ImputationStrategy.Median
+    assert any("no feature" in s.lower() or "fallback" in s.lower() for s in rec.signals)
+
+
+def test_fallback_to_median_insufficient_target_observations():
+    """Target column with fewer than 2 non-null values falls back to Median."""
+    # target has only 1 non-null value; feat is complete
+    df = pl.DataFrame({
+        "target": pl.Series([1.0, None, None, None, None], dtype=pl.Float64),
+        "feat": pl.Series([1.0, 2.0, 3.0, 4.0, 5.0], dtype=pl.Float64),
+    })
+    n = 5
+    result = StructuralProfileResult()
+    result.columns["target"] = ColumnProfile(
+        name="target",
+        semantic_type=SemanticType.Numeric,
+        numeric_kind=NumericKind.Continuous,
+        missingness=ColumnMissingnessProfile(
+            column="target",
+            total_rows=n,
+            effective_null_count=4,
+            effective_null_ratio=0.8,
+            severity=MissingSeverity.High,
+            flags=[MissingnessFlag.MARSuspect],
+            correlated_with=["feat"],
+        ),
+        stats=NumericStats(),
+    )
+    result.columns["feat"] = ColumnProfile(
+        name="feat",
+        semantic_type=SemanticType.Numeric,
+        numeric_kind=NumericKind.Continuous,
+        missingness=None,
+        stats=NumericStats(),
+    )
+    config = NumericImputationConfig(knn_max_rows=1, regression_min_rows=1)
+    bundle = NumericImputer().fit(
+        train_df=df, columns=["target", "feat"],
+        profile=result, config=config, mnar_columns=set(),
+    )
+    rec = next(r for r in bundle.records if r.column == "target")
+    assert rec.strategy == ImputationStrategy.Median
+    assert any("fallback" in s.lower() for s in rec.signals)
+
+
+# ---------------------------------------------------------------------------
+# _fallback_to_median pure function unit tests
+# ---------------------------------------------------------------------------
+
+
+def test_fallback_to_median_pure_returns_updated_record():
+    """_fallback_to_median returns a new record with Median strategy."""
+    df = pl.DataFrame({"col": pl.Series([1.0, 3.0, 5.0], dtype=pl.Float64)})
+    record = ColumnImputationRecord(
+        column="col",
+        semantic_type=SemanticType.Numeric,
+        strategy=ImputationStrategy.Regression,
+        fill_value=None,
+        indicator_added=False,
+        signals=["existing_signal"],
+    )
+    updated = _fallback_to_median(df, "col", record, "test reason")
+    assert updated.strategy == ImputationStrategy.Median
+    assert updated.fill_value == pytest.approx(3.0)
+    assert any("fallback_to_median" in s for s in updated.signals)
+    assert any("test reason" in s for s in updated.signals)
+
+
+def test_fallback_to_median_pure_does_not_mutate_input():
+    """_fallback_to_median must not modify the original record."""
+    df = pl.DataFrame({"col": pl.Series([1.0, 3.0, 5.0], dtype=pl.Float64)})
+    record = ColumnImputationRecord(
+        column="col",
+        semantic_type=SemanticType.Numeric,
+        strategy=ImputationStrategy.Regression,
+        fill_value=None,
+        indicator_added=False,
+        signals=["original"],
+    )
+    original_strategy = record.strategy
+    original_signals = list(record.signals)
+    _fallback_to_median(df, "col", record, "some reason")
+    assert record.strategy == original_strategy
+    assert record.signals == original_signals
+
+
+def test_fallback_to_median_pure_preserves_existing_signals():
+    """Existing signals on the record are preserved in the returned record."""
+    df = pl.DataFrame({"col": pl.Series([2.0, 4.0, 6.0], dtype=pl.Float64)})
+    record = ColumnImputationRecord(
+        column="col",
+        semantic_type=SemanticType.Numeric,
+        strategy=ImputationStrategy.Regression,
+        fill_value=None,
+        indicator_added=False,
+        signals=["first_signal", "second_signal"],
+    )
+    updated = _fallback_to_median(df, "col", record, "a reason")
+    assert "first_signal" in updated.signals
+    assert "second_signal" in updated.signals
+
+
+def test_fallback_to_median_pure_fill_value_from_training_data():
+    """Fill value is the median of the non-null training data values."""
+    df = pl.DataFrame({"col": pl.Series([10.0, 20.0, 30.0, None], dtype=pl.Float64)})
+    record = ColumnImputationRecord(
+        column="col",
+        semantic_type=SemanticType.Numeric,
+        strategy=ImputationStrategy.Regression,
+        fill_value=None,
+        indicator_added=False,
+        signals=[],
+    )
+    updated = _fallback_to_median(df, "col", record, "reason")
+    assert updated.fill_value == pytest.approx(20.0)
