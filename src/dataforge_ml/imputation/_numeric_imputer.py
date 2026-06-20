@@ -369,13 +369,22 @@ def _fit_one(
     # Priority 2: MNAR declared by user
     if col in mnar_columns:
         signals.append("declared MNAR by user configuration")
+        mnar_stats = cp.stats if isinstance(cp.stats, NumericStats) else None
+        skew_sev = mnar_stats.skewness_severity if mnar_stats is not None else None
+        if skew_sev == SkewSeverity.Normal:
+            fill_value = _compute_mean(train_df, col)
+            fill_stat = "mean"
+        else:
+            fill_value = _compute_median(train_df, col)
+            fill_stat = "median"
+        if train_df[col].dtype.is_integer():
+            fill_value = float(round(fill_value))
+        signals.append(f"mnar_fill: {fill_stat} (skew={skew_sev or 'unknown'})")
         return ColumnImputationRecord(
-            column=col,
-            semantic_type=SemanticType.Numeric,
-            strategy=ImputationStrategy.Constant,
-            fill_value=float(config.mnar_constant_fill),
-            indicator_added=True,
-            signals=signals,
+            column=col, semantic_type=SemanticType.Numeric,
+            strategy=ImputationStrategy.MNAR,
+            fill_value=fill_value,
+            indicator_added=True, signals=signals,
         )
 
     # No effective missingness → Passthrough

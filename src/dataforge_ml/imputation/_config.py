@@ -25,7 +25,8 @@ class ImputationStrategy(StrEnum):
     KNN = "knn"
     Regression = "regression"
     MICE = "mice"
-    Constant = "constant"
+    MNAR = "mnar"
+    Constant = "constant"  # deprecated — kept only for from_dict() migration shim
     Dropped = "dropped"
     Passthrough = "passthrough"
     Indicator = "indicator"
@@ -44,8 +45,6 @@ class NumericImputationConfig:
         Maximum number of features before KNN is skipped in favour of Regression.
     regression_min_rows : int
         Minimum number of rows required to fit a stable Regression model.
-    mnar_constant_fill : float
-        Constant value used to fill MNAR-declared numeric columns.
     gradient_boost_min_rows : int
         Row count threshold above which ``GradientBoostingRegressor`` is preferred
         over ``RandomForestRegressor`` for ``ComplexNonlinear`` columns. Below this
@@ -87,7 +86,6 @@ class NumericImputationConfig:
     knn_max_rows: int = 50_000
     knn_max_features: int = 50
     regression_min_rows: int = 500
-    mnar_constant_fill: float = -1
     gradient_boost_min_rows: int = 10_000
     base_max_iter: int = 10
     knn_min_neighbors: int = 5
@@ -111,7 +109,6 @@ class NumericImputationConfig:
             "knn_max_rows": self.knn_max_rows,
             "knn_max_features": self.knn_max_features,
             "regression_min_rows": self.regression_min_rows,
-            "mnar_constant_fill": self.mnar_constant_fill,
             "gradient_boost_min_rows": self.gradient_boost_min_rows,
             "base_max_iter": self.base_max_iter,
             "knn_min_neighbors": self.knn_min_neighbors,
@@ -143,7 +140,6 @@ class NumericImputationConfig:
             knn_max_rows=int(data.get("knn_max_rows", 50_000)),
             knn_max_features=int(data.get("knn_max_features", 50)),
             regression_min_rows=int(data.get("regression_min_rows", 500)),
-            mnar_constant_fill=float(data.get("mnar_constant_fill", -1)),
             gradient_boost_min_rows=int(data.get("gradient_boost_min_rows", 10_000)),
             base_max_iter=int(data.get("base_max_iter", 10)),
             knn_min_neighbors=int(data.get("knn_min_neighbors", 5)),
@@ -175,8 +171,8 @@ class ImputationConfig:
         Thresholds and fill values for numeric imputation.
     mnar_columns : list[str]
         Columns declared by the user as Missing Not At Random.
-        These receive Constant fill + a missingness indicator regardless
-        of the signals detected in Phase 1.
+        These receive a data-derived fill (observed mean or median, skew-driven)
+        plus a binary missingness indicator, regardless of Phase 1 signals.
     add_indicator_columns : list[str]
         Columns for which a binary missingness indicator should be added
         even when they are not MNAR.

@@ -424,12 +424,21 @@ class FittedImputer:
         Parameters
         ----------
         data : dict
-            Dictionary containing serialized FittedImputer state.
+            Mapping produced by ``to_dict()``.  Legacy payloads serialised
+            before Scope 8 may contain ``"constant"`` as a strategy value;
+            those records are migrated transparently (see Notes).
 
         Returns
         -------
         FittedImputer
             The deserialized FittedImputer instance.
+
+        Notes
+        -----
+        Strategy ``"constant"`` is silently remapped to ``"mnar"`` for
+        backward compatibility with ``FittedImputer`` objects serialised before
+        Scope 8 (issue #97), when MNAR columns were filled with a sentinel
+        constant and recorded as ``ImputationStrategy.Constant``.
         """
         import base64
         import io
@@ -440,10 +449,13 @@ class FittedImputer:
         for col, rec_data in data.get("records", {}).items():
             raw_bounds = rec_data.get("domain_snap_bounds")
             snap_bounds = tuple(raw_bounds) if raw_bounds is not None else None
+            strategy_str = rec_data["strategy"]
+            if strategy_str == "constant":
+                strategy_str = "mnar"
             records[col] = ColumnImputationRecord(
                 column=rec_data["column"],
                 semantic_type=SemanticType(rec_data["semantic_type"]),
-                strategy=ImputationStrategy(rec_data["strategy"]),
+                strategy=ImputationStrategy(strategy_str),
                 fill_value=rec_data.get("fill_value"),
                 indicator_added=bool(rec_data.get("indicator_added", False)),
                 signals=list(rec_data.get("signals", [])),

@@ -113,29 +113,16 @@ def test_drop_candidate_signal_describes_missingness():
 
 
 # ---------------------------------------------------------------------------
-# Strategy: Constant (MNAR)
+# Strategy: MNAR
 # ---------------------------------------------------------------------------
 
 
-def test_mnar_declared_column_gets_constant_strategy():
+def test_mnar_declared_column_gets_mnar_strategy():
     df = pl.DataFrame({_COL: pl.Series([1.0, None, 3.0, None], dtype=pl.Float64)})
     cp = _numeric_cp(null_count=2, total_rows=4, severity=MissingSeverity.Moderate)
     rec = _fit_one(df, cp, mnar={_COL})
-    assert rec.strategy == ImputationStrategy.Constant
-    assert rec.fill_value == float(_DEFAULT_CONFIG.mnar_constant_fill)
+    assert rec.strategy == ImputationStrategy.MNAR
     assert rec.indicator_added is True
-
-
-def test_mnar_constant_fill_uses_config_value():
-    df = pl.DataFrame({_COL: pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
-    cp = _numeric_cp(null_count=1, total_rows=3, severity=MissingSeverity.Minor)
-    config = NumericImputationConfig(mnar_constant_fill=-999)
-    profile = _make_profile(_COL, cp)
-    bundle = NumericImputer().fit(
-        train_df=df, columns=[_COL], profile=profile,
-        config=config, mnar_columns={_COL},
-    )
-    assert bundle.records[0].fill_value == -999.0
 
 
 def test_mnar_takes_priority_over_mar_flag():
@@ -146,7 +133,59 @@ def test_mnar_takes_priority_over_mar_flag():
         flags=[MissingnessFlag.MARSuspect], correlated_with=["other_col"],
     )
     rec = _fit_one(df, cp, mnar={_COL})
-    assert rec.strategy == ImputationStrategy.Constant
+    assert rec.strategy == ImputationStrategy.MNAR
+
+
+def test_mnar_normal_skew_fill_equals_observed_mean():
+    # Non-missing: [10, 20, 40, 50] → mean = 30.0
+    df = pl.DataFrame({_COL: pl.Series([10.0, 20.0, None, 40.0, 50.0], dtype=pl.Float64)})
+    cp = _numeric_cp(null_count=1, total_rows=5, severity=MissingSeverity.Minor,
+                     skewness_severity=SkewSeverity.Normal)
+    rec = _fit_one(df, cp, mnar={_COL})
+    assert rec.strategy == ImputationStrategy.MNAR
+    assert rec.fill_value == pytest.approx(30.0)
+    assert rec.indicator_added is True
+
+
+def test_mnar_moderate_skew_fill_equals_observed_median():
+    # Non-missing: [10, 20, 40, 50] → median = 30.0
+    df = pl.DataFrame({_COL: pl.Series([10.0, 20.0, None, 40.0, 50.0], dtype=pl.Float64)})
+    cp = _numeric_cp(null_count=1, total_rows=5, severity=MissingSeverity.Minor,
+                     skewness_severity=SkewSeverity.Moderate)
+    rec = _fit_one(df, cp, mnar={_COL})
+    assert rec.strategy == ImputationStrategy.MNAR
+    assert rec.fill_value == pytest.approx(30.0)
+    assert rec.indicator_added is True
+
+
+def test_mnar_absent_stats_falls_back_to_median():
+    # Non-missing: [10, 20, 40, 50] → median = 30.0
+    df = pl.DataFrame({_COL: pl.Series([10.0, 20.0, None, 40.0, 50.0], dtype=pl.Float64)})
+    cp = _numeric_cp(null_count=1, total_rows=5, severity=MissingSeverity.Minor)
+    cp.stats = None
+    rec = _fit_one(df, cp, mnar={_COL})
+    assert rec.strategy == ImputationStrategy.MNAR
+    assert rec.fill_value == pytest.approx(30.0)
+    assert rec.indicator_added is True
+
+
+def test_mnar_signals_contain_declaration_and_fill_entries():
+    df = pl.DataFrame({_COL: pl.Series([10.0, 20.0, None, 40.0], dtype=pl.Float64)})
+    cp = _numeric_cp(null_count=1, total_rows=4, severity=MissingSeverity.Minor,
+                     skewness_severity=SkewSeverity.Normal)
+    rec = _fit_one(df, cp, mnar={_COL})
+    assert any("declared MNAR" in s for s in rec.signals)
+    assert any("mnar_fill:" in s for s in rec.signals)
+
+
+def test_mnar_integer_column_fill_value_is_rounded():
+    # Non-missing: [10, 30, 40] → mean = 26.666... → rounded to 27.0
+    df = pl.DataFrame({_COL: pl.Series([10, None, 30, 40], dtype=pl.Int64)})
+    cp = _numeric_cp(null_count=1, total_rows=4, severity=MissingSeverity.Minor,
+                     skewness_severity=SkewSeverity.Normal)
+    rec = _fit_one(df, cp, mnar={_COL})
+    assert rec.strategy == ImputationStrategy.MNAR
+    assert rec.fill_value == float(round(rec.fill_value))
 
 
 # ---------------------------------------------------------------------------

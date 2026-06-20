@@ -158,25 +158,25 @@ def test_transform_with_no_dropped_columns_gives_empty_list():
 
 
 # ---------------------------------------------------------------------------
-# transform() — MNAR constant fill + indicator
+# transform() — MNAR data-derived fill + indicator
 # ---------------------------------------------------------------------------
 
 
-def test_mnar_constant_fill_applied():
+def test_mnar_fill_applied():
     imputer = FittedImputer(records={
-        "income": _record("income", ImputationStrategy.Constant,
-                          fill_value=-1.0, indicator_added=True),
+        "income": _record("income", ImputationStrategy.MNAR,
+                          fill_value=62500.0, indicator_added=True),
     })
     df = pl.DataFrame({"income": pl.Series([50000.0, None, 75000.0], dtype=pl.Float64)})
     result = imputer.transform(df)
     assert result.dataframe["income"].null_count() == 0
-    assert result.dataframe["income"][1] == pytest.approx(-1.0)
+    assert result.dataframe["income"][1] == pytest.approx(62500.0)
 
 
 def test_mnar_indicator_column_appended():
     imputer = FittedImputer(records={
-        "income": _record("income", ImputationStrategy.Constant,
-                          fill_value=-1.0, indicator_added=True),
+        "income": _record("income", ImputationStrategy.MNAR,
+                          fill_value=62500.0, indicator_added=True),
     })
     df = pl.DataFrame({"income": pl.Series([50000.0, None, 75000.0], dtype=pl.Float64)})
     result = imputer.transform(df)
@@ -185,8 +185,8 @@ def test_mnar_indicator_column_appended():
 
 def test_mnar_indicator_marks_originally_null_rows():
     imputer = FittedImputer(records={
-        "income": _record("income", ImputationStrategy.Constant,
-                          fill_value=-1.0, indicator_added=True),
+        "income": _record("income", ImputationStrategy.MNAR,
+                          fill_value=62500.0, indicator_added=True),
     })
     df = pl.DataFrame({"income": pl.Series([50000.0, None, 75000.0], dtype=pl.Float64)})
     result = imputer.transform(df)
@@ -199,12 +199,12 @@ def test_mnar_indicator_marks_originally_null_rows():
 def test_indicator_reflects_pre_fill_nullness():
     """Indicator must be based on original nullness, not on post-fill values."""
     imputer = FittedImputer(records={
-        "v": _record("v", ImputationStrategy.Constant,
-                     fill_value=-1.0, indicator_added=True),
+        "v": _record("v", ImputationStrategy.MNAR,
+                     fill_value=2.0, indicator_added=True),
     })
-    df = pl.DataFrame({"v": pl.Series([-1.0, None, 3.0], dtype=pl.Float64)})
+    df = pl.DataFrame({"v": pl.Series([2.0, None, 3.0], dtype=pl.Float64)})
     result = imputer.transform(df)
-    # Only the original None should be marked, not the pre-existing -1.0
+    # Only the original None should be marked, not the pre-existing 2.0
     assert result.dataframe["v_missing"][0] == 0
     assert result.dataframe["v_missing"][1] == 1
 
@@ -551,8 +551,8 @@ def test_round_trip_preserves_fill_value():
 
 def test_round_trip_preserves_indicator_added():
     imputer = FittedImputer(records={
-        "mnar_col": _record("mnar_col", ImputationStrategy.Constant,
-                            fill_value=-1.0, indicator_added=True),
+        "mnar_col": _record("mnar_col", ImputationStrategy.MNAR,
+                            fill_value=50000.0, indicator_added=True),
     })
     restored = FittedImputer.from_dict(imputer.to_dict())
     assert restored.records["mnar_col"].indicator_added is True
@@ -567,11 +567,154 @@ def test_round_trip_preserves_signals():
     assert restored.records["z"].signals == ["discrete numeric"]
 
 
+def test_mnar_round_trip_preserves_strategy_and_fill_value():
+    """to_dict/from_dict round-trip for a MNAR column preserves strategy and fill_value."""
+    imputer = FittedImputer(records={
+        "salary": _record("salary", ImputationStrategy.MNAR,
+                          fill_value=62500.0, indicator_added=True),
+    })
+    restored = FittedImputer.from_dict(imputer.to_dict())
+    assert restored.records["salary"].strategy == ImputationStrategy.MNAR
+    assert restored.records["salary"].fill_value == pytest.approx(62500.0)
+    assert restored.records["salary"].indicator_added is True
+
+
+# ---------------------------------------------------------------------------
+# from_dict() — "constant" → "mnar" migration shim (issue #166)
+# ---------------------------------------------------------------------------
+
+
+def test_from_dict_remaps_constant_strategy_to_mnar():
+    """Legacy 'constant' strategy deserialises as ImputationStrategy.MNAR."""
+    payload = {
+        "records": {
+            "income": {
+                "column": "income",
+                "semantic_type": "numeric",
+                "strategy": "constant",
+                "fill_value": -1.0,
+                "indicator_added": True,
+                "signals": ["declared MNAR by user configuration"],
+                "domain_snap_bounds": None,
+            }
+        },
+        "models": {},
+        "model_cols": {},
+    }
+    restored = FittedImputer.from_dict(payload)
+    assert restored.records["income"].strategy == ImputationStrategy.MNAR
+
+
+def test_from_dict_mnar_strategy_string_still_deserialises_correctly():
+    """Post-Scope 8 'mnar' strategy string deserialises without error."""
+    payload = {
+        "records": {
+            "salary": {
+                "column": "salary",
+                "semantic_type": "numeric",
+                "strategy": "mnar",
+                "fill_value": 55000.0,
+                "indicator_added": True,
+                "signals": [],
+                "domain_snap_bounds": None,
+            }
+        },
+        "models": {},
+        "model_cols": {},
+    }
+    restored = FittedImputer.from_dict(payload)
+    assert restored.records["salary"].strategy == ImputationStrategy.MNAR
+    assert restored.records["salary"].fill_value == pytest.approx(55000.0)
+
+
+def test_from_dict_constant_migration_preserves_fill_value_and_indicator():
+    """fill_value and indicator_added survive the 'constant' → 'mnar' migration."""
+    payload = {
+        "records": {
+            "age": {
+                "column": "age",
+                "semantic_type": "numeric",
+                "strategy": "constant",
+                "fill_value": 38.0,
+                "indicator_added": True,
+                "signals": [],
+                "domain_snap_bounds": None,
+            }
+        },
+        "models": {},
+        "model_cols": {},
+    }
+    restored = FittedImputer.from_dict(payload)
+    assert restored.records["age"].strategy == ImputationStrategy.MNAR
+    assert restored.records["age"].fill_value == pytest.approx(38.0)
+    assert restored.records["age"].indicator_added is True
+
+
+def test_from_dict_migration_does_not_affect_other_strategies():
+    """Only 'constant' is remapped; all other strategy strings are unaffected."""
+    payload = {
+        "records": {
+            "a": {
+                "column": "a", "semantic_type": "numeric",
+                "strategy": "mean", "fill_value": 3.0,
+                "indicator_added": False, "signals": [], "domain_snap_bounds": None,
+            },
+            "b": {
+                "column": "b", "semantic_type": "numeric",
+                "strategy": "median", "fill_value": 2.0,
+                "indicator_added": False, "signals": [], "domain_snap_bounds": None,
+            },
+            "c": {
+                "column": "c", "semantic_type": "numeric",
+                "strategy": "dropped", "fill_value": None,
+                "indicator_added": False, "signals": [], "domain_snap_bounds": None,
+            },
+            "d": {
+                "column": "d", "semantic_type": "numeric",
+                "strategy": "passthrough", "fill_value": None,
+                "indicator_added": False, "signals": [], "domain_snap_bounds": None,
+            },
+        },
+        "models": {},
+        "model_cols": {},
+    }
+    restored = FittedImputer.from_dict(payload)
+    assert restored.records["a"].strategy == ImputationStrategy.Mean
+    assert restored.records["b"].strategy == ImputationStrategy.Median
+    assert restored.records["c"].strategy == ImputationStrategy.Dropped
+    assert restored.records["d"].strategy == ImputationStrategy.Passthrough
+
+
+def test_from_dict_legacy_constant_transform_produces_no_nulls():
+    """A FittedImputer loaded from a legacy 'constant' payload fills nulls correctly."""
+    payload = {
+        "records": {
+            "income": {
+                "column": "income",
+                "semantic_type": "numeric",
+                "strategy": "constant",
+                "fill_value": 50000.0,
+                "indicator_added": True,
+                "signals": [],
+                "domain_snap_bounds": None,
+            }
+        },
+        "models": {},
+        "model_cols": {},
+    }
+    restored = FittedImputer.from_dict(payload)
+    df = pl.DataFrame({"income": pl.Series([80000.0, None, 120000.0], dtype=pl.Float64)})
+    result = restored.transform(df)
+    assert result.dataframe["income"].null_count() == 0
+    assert result.dataframe["income"][1] == pytest.approx(50000.0)
+    assert "income_missing" in result.dataframe.columns
+
+
 def test_deserialised_imputer_produces_identical_output():
     """Serialised and deserialised FittedImputer must produce identical transform output."""
     imputer = FittedImputer(records={
         "a": _record("a", ImputationStrategy.Mean, fill_value=5.0),
-        "b": _record("b", ImputationStrategy.Constant, fill_value=-1.0, indicator_added=True),
+        "b": _record("b", ImputationStrategy.MNAR, fill_value=20.0, indicator_added=True),
     })
     restored = FittedImputer.from_dict(imputer.to_dict())
 
