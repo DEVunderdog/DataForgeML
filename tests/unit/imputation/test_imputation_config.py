@@ -16,15 +16,14 @@ from dataforge_ml.imputation import (
     NumericImputationConfig,
 )
 
-
 # ---------------------------------------------------------------------------
 # Importability
 # ---------------------------------------------------------------------------
 
 
 def test_all_types_importable_from_imputation_module():
-    from dataforge_ml.imputation import (  # noqa: F401
-        ColumnImputationRecord,
+    from dataforge_ml.imputation import (
+        ColumnImputationRecord,  # noqa: F401
         ImputationConfig,
         ImputationResult,
         ImputationStrategy,
@@ -88,11 +87,14 @@ def test_numeric_config_to_dict_contains_all_keys():
         "regression_min_rows",
         "mnar_constant_fill",
         "gradient_boost_min_rows",
-        "regression_base_max_iter",
+        "base_max_iter",
         "knn_min_neighbors",
         "knn_max_neighbors",
         "knn_distance_weight_max_null_ratio",
         "knn_distance_weight_max_features",
+        "mice_n_nearest_features_min_cols",
+        "mice_max_nearest_features",
+        "mice_correlation_threshold",
     }
 
 
@@ -104,7 +106,7 @@ def test_numeric_config_round_trip_default_values():
     assert restored.regression_min_rows == original.regression_min_rows
     assert restored.mnar_constant_fill == original.mnar_constant_fill
     assert restored.gradient_boost_min_rows == original.gradient_boost_min_rows
-    assert restored.regression_base_max_iter == original.regression_base_max_iter
+    assert restored.base_max_iter == original.base_max_iter
 
 
 def test_numeric_config_round_trip_non_default_values():
@@ -114,7 +116,7 @@ def test_numeric_config_round_trip_non_default_values():
         regression_min_rows=1_000,
         mnar_constant_fill=-999,
         gradient_boost_min_rows=25_000,
-        regression_base_max_iter=20,
+        base_max_iter=20,
     )
     restored = NumericImputationConfig.from_dict(original.to_dict())
     assert restored.knn_max_rows == 10_000
@@ -122,7 +124,7 @@ def test_numeric_config_round_trip_non_default_values():
     assert restored.regression_min_rows == 1_000
     assert restored.mnar_constant_fill == -999
     assert restored.gradient_boost_min_rows == 25_000
-    assert restored.regression_base_max_iter == 20
+    assert restored.base_max_iter == 20
 
 
 def test_numeric_config_from_dict_empty_uses_defaults():
@@ -132,17 +134,17 @@ def test_numeric_config_from_dict_empty_uses_defaults():
     assert cfg.regression_min_rows == 500
     assert cfg.mnar_constant_fill == -1
     assert cfg.gradient_boost_min_rows == 10_000
-    assert cfg.regression_base_max_iter == 10
+    assert cfg.base_max_iter == 10
 
 
 def test_numeric_config_default_regression_base_max_iter():
     cfg = NumericImputationConfig()
-    assert cfg.regression_base_max_iter == 10
+    assert cfg.base_max_iter == 10
 
 
 def test_numeric_config_custom_regression_base_max_iter():
-    cfg = NumericImputationConfig(regression_base_max_iter=20)
-    assert cfg.regression_base_max_iter == 20
+    cfg = NumericImputationConfig(base_max_iter=20)
+    assert cfg.base_max_iter == 20
 
 
 # ---------------------------------------------------------------------------
@@ -189,8 +191,14 @@ def test_numeric_config_knn_tuning_fields_round_trip_default():
     restored = NumericImputationConfig.from_dict(original.to_dict())
     assert restored.knn_min_neighbors == original.knn_min_neighbors
     assert restored.knn_max_neighbors == original.knn_max_neighbors
-    assert restored.knn_distance_weight_max_null_ratio == original.knn_distance_weight_max_null_ratio
-    assert restored.knn_distance_weight_max_features == original.knn_distance_weight_max_features
+    assert (
+        restored.knn_distance_weight_max_null_ratio
+        == original.knn_distance_weight_max_null_ratio
+    )
+    assert (
+        restored.knn_distance_weight_max_features
+        == original.knn_distance_weight_max_features
+    )
 
 
 def test_numeric_config_knn_tuning_fields_round_trip_non_default():
@@ -213,6 +221,69 @@ def test_numeric_config_knn_tuning_fields_from_dict_empty_uses_defaults():
     assert cfg.knn_max_neighbors == 25
     assert cfg.knn_distance_weight_max_null_ratio == 0.15
     assert cfg.knn_distance_weight_max_features == 30
+
+
+# ---------------------------------------------------------------------------
+# NumericImputationConfig — MICE n_nearest_features fields (defaults)
+# ---------------------------------------------------------------------------
+
+
+def test_numeric_config_default_mice_n_nearest_features_min_cols():
+    cfg = NumericImputationConfig()
+    assert cfg.mice_n_nearest_features_min_cols == 10
+
+
+def test_numeric_config_default_mice_max_nearest_features():
+    cfg = NumericImputationConfig()
+    assert cfg.mice_max_nearest_features == 20
+
+
+def test_numeric_config_default_mice_correlation_threshold():
+    cfg = NumericImputationConfig()
+    assert cfg.mice_correlation_threshold == 0.1
+
+
+# ---------------------------------------------------------------------------
+# NumericImputationConfig — MICE n_nearest_features fields round-trip
+# ---------------------------------------------------------------------------
+
+
+def test_numeric_config_mice_fields_in_to_dict():
+    cfg = NumericImputationConfig()
+    d = cfg.to_dict()
+    assert d["mice_n_nearest_features_min_cols"] == 10
+    assert d["mice_max_nearest_features"] == 20
+    assert d["mice_correlation_threshold"] == 0.1
+
+
+def test_numeric_config_mice_fields_round_trip_default():
+    original = NumericImputationConfig()
+    restored = NumericImputationConfig.from_dict(original.to_dict())
+    assert (
+        restored.mice_n_nearest_features_min_cols
+        == original.mice_n_nearest_features_min_cols
+    )
+    assert restored.mice_max_nearest_features == original.mice_max_nearest_features
+    assert restored.mice_correlation_threshold == original.mice_correlation_threshold
+
+
+def test_numeric_config_mice_fields_round_trip_non_default():
+    original = NumericImputationConfig(
+        mice_n_nearest_features_min_cols=5,
+        mice_max_nearest_features=15,
+        mice_correlation_threshold=0.25,
+    )
+    restored = NumericImputationConfig.from_dict(original.to_dict())
+    assert restored.mice_n_nearest_features_min_cols == 5
+    assert restored.mice_max_nearest_features == 15
+    assert restored.mice_correlation_threshold == 0.25
+
+
+def test_numeric_config_mice_fields_from_dict_empty_uses_defaults():
+    cfg = NumericImputationConfig.from_dict({})
+    assert cfg.mice_n_nearest_features_min_cols == 10
+    assert cfg.mice_max_nearest_features == 20
+    assert cfg.mice_correlation_threshold == 0.1
 
 
 # ---------------------------------------------------------------------------

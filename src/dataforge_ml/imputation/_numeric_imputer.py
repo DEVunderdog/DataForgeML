@@ -20,12 +20,13 @@ from sklearn.pipeline import Pipeline
 from ..config import SemanticType
 from ..profiling._config import NumericKind
 from ..profiling._missingness_config import MissingnessFlag, MissingSeverity
-from ..profiling._numeric_config import NonlinearityTag, NumericFlag, NumericStats, SkewSeverity
-from ._config import (
-    ColumnImputationRecord,
-    ImputationStrategy,
-    NumericImputationConfig,
+from ..profiling._numeric_config import (
+    NonlinearityTag,
+    NumericFlag,
+    NumericStats,
+    SkewSeverity,
 )
+from ._config import ColumnImputationRecord, ImputationStrategy, NumericImputationConfig
 from ._regression_estimator_factory import RegressionEstimatorFactory
 from ._utils import _df_to_numpy
 
@@ -104,25 +105,122 @@ class NumericImputer:
                 continue
             records.append(
                 _fit_one(
-                    train_df, col, cp, config, mnar_columns,
-                    n_rows=n_rows, n_features=n_features, multi_mar=multi_mar,
+                    train_df,
+                    col,
+                    cp,
+                    config,
+                    mnar_columns,
+                    n_rows=n_rows,
+                    n_features=n_features,
+                    multi_mar=multi_mar,
                 )
             )
 
         # Second pass: fit model-based strategies
         mice_cols = [r.column for r in records if r.strategy == ImputationStrategy.MICE]
         knn_cols = [r.column for r in records if r.strategy == ImputationStrategy.KNN]
-        reg_cols = [r.column for r in records if r.strategy == ImputationStrategy.Regression]
+        reg_cols = [
+            r.column for r in records if r.strategy == ImputationStrategy.Regression
+        ]
 
         models: dict[str, Any] = {}
         model_cols: dict[str, list[str]] = {}
 
         if mice_cols:
             arr = _df_to_numpy(train_df, mice_cols)
-            mice_model = IterativeImputer(random_state=0, max_iter=10)
-            mice_model.fit(arr)
-            models["mice"] = mice_model
-            model_cols["mice"] = list(mice_cols)
+
+            # Collect NonlinearityTag and NumericStats for each MICE column; default to Linear when absent
+            mice_tags: list[NonlinearityTag] = []
+            mice_stats: list[Optional[NumericStats]] = []
+            for col in mice_cols:
+                cp = profile.columns.get(col)
+                stats = (
+                    cp.stats
+                    if cp is not None and isinstance(cp.stats, NumericStats)
+                    else None
+                )
+                tag = (
+                    stats.nonlinearity_tag
+                    if stats is not None and stats.nonlinearity_tag is not None
+                    else NonlinearityTag.Linear
+                )
+                mice_tags.append(tag)
+                mice_stats.append(stats)
+
+            winning_tag = _mice_winning_tag(mice_tags)
+
+            # All-Unpredictable → skip MICE; fall back each column to Median individually
+            if winning_tag == NonlinearityTag.Unpredictable:
+                mice_col_set = set(mice_cols)
+                for i, rec in enumerate(records):
+                    if rec.column in mice_col_set:
+                        records[i] = _fallback_to_median(
+                            train_df,
+                            rec.column,
+                            rec,
+                            "mice: all MICE columns Unpredictable; regression unsuitable",
+                        )
+            else:
+                estimator = RegressionEstimatorFactory.build(
+                    winning_tag, n_rows, config
+                )
+                if isinstance(estimator, Pipeline):
+                    estimator_name = "Pipeline(StandardScaler+BayesianRidge)"
+                else:
+                    estimator_name = type(estimator).__name__
+
+                max_iter = _compute_mice_max_iter(
+                    winning_tag, arr, mice_stats, profile, mice_cols, config
+                )
+                tol = _compute_mice_tol(winning_tag, mice_stats)
+                initial_strategy = _mice_initial_strategy(mice_stats)
+                n_nearest_features, n_nearest_signal = _compute_mice_n_nearest_features(
+                    arr, profile, mice_cols, config
+                )
+
+                mice_model = IterativeImputer(
+                    estimator=estimator,
+                    random_state=0,
+                    max_iter=max_iter,
+                    tol=tol,
+                    initial_strategy=initial_strategy,
+                    n_nearest_features=n_nearest_features,
+                )
+                mice_model.fit(arr)
+                models["mice"] = mice_model
+                model_cols["mice"] = list(mice_cols)
+
+                estimator_signal = (
+                    f"mice_estimator: {estimator_name} (tag={winning_tag})"
+                )
+                if initial_strategy == "median":
+                    initial_strategy_signal = (
+                        "mice_initial_strategy: median (skewed column detected)"
+                    )
+                else:
+                    initial_strategy_signal = (
+                        "mice_initial_strategy: mean (all columns normal-skew)"
+                    )
+                mice_col_set = set(mice_cols)
+                for rec in records:
+                    if rec.column in mice_col_set:
+                        rec.signals.append(estimator_signal)
+                        rec.signals.append(initial_strategy_signal)
+                        rec.signals.append(n_nearest_signal)
+
+                if mice_model.n_iter_ == max_iter:
+                    convergence_signal = (
+                        f"mice_convergence_warning: max_iter={max_iter} reached; "
+                        f"consider increasing base_max_iter"
+                    )
+                else:
+                    convergence_signal = (
+                        f"mice_converged: {mice_model.n_iter_} iterations "
+                        f"(max_iter={max_iter})"
+                    )
+                for rec in records:
+                    if rec.column in mice_col_set:
+                        rec.signals.append(convergence_signal)
 
         if knn_cols:
             from ._fitted_imputer import _FittedKNN
@@ -133,7 +231,9 @@ class NumericImputer:
 
             # --- Signal computation ---
             total_cells = arr.size
-            miss_frac = float(np.isnan(arr).sum() / total_cells) if total_cells > 0 else 0.0
+            miss_frac = (
+                float(np.isnan(arr).sum() / total_cells) if total_cells > 0 else 0.0
+            )
             complete_rows = int((~np.isnan(arr).any(axis=1)).sum())
             complete_frac = complete_rows / n_rows if n_rows > 0 else 0.0
 
@@ -190,7 +290,11 @@ class NumericImputer:
         for col in reg_cols:
             feat_cols = [c for c in columns if c != col]
             cp = profile.columns.get(col)
-            stats = cp.stats if cp is not None and isinstance(cp.stats, NumericStats) else None
+            stats = (
+                cp.stats
+                if cp is not None and isinstance(cp.stats, NumericStats)
+                else None
+            )
             tag = (
                 stats.nonlinearity_tag
                 if stats is not None and stats.nonlinearity_tag is not None
@@ -200,7 +304,9 @@ class NumericImputer:
             rec_idx = next(i for i, r in enumerate(records) if r.column == col)
             record = records[rec_idx]
 
-            fitted = _fit_regression(train_df, col, feat_cols, tag, n_rows, config, stats)
+            fitted = _fit_regression(
+                train_df, col, feat_cols, tag, n_rows, config, stats
+            )
 
             if fitted is None:
                 if not feat_cols:
@@ -252,34 +358,50 @@ def _fit_one(
             f"drop_candidate: {missingness.effective_null_ratio:.1%} effective missing"
         )
         return ColumnImputationRecord(
-            column=col, semantic_type=SemanticType.Numeric,
-            strategy=ImputationStrategy.Dropped, fill_value=None,
-            indicator_added=False, signals=signals,
+            column=col,
+            semantic_type=SemanticType.Numeric,
+            strategy=ImputationStrategy.Dropped,
+            fill_value=None,
+            indicator_added=False,
+            signals=signals,
         )
 
     # Priority 2: MNAR declared by user
     if col in mnar_columns:
         signals.append("declared MNAR by user configuration")
         return ColumnImputationRecord(
-            column=col, semantic_type=SemanticType.Numeric,
+            column=col,
+            semantic_type=SemanticType.Numeric,
             strategy=ImputationStrategy.Constant,
             fill_value=float(config.mnar_constant_fill),
-            indicator_added=True, signals=signals,
+            indicator_added=True,
+            signals=signals,
         )
 
     # No effective missingness → Passthrough
     if missingness is None or missingness.effective_null_count == 0:
         signals.append("no missing values in full-dataset profile")
         return ColumnImputationRecord(
-            column=col, semantic_type=SemanticType.Numeric,
-            strategy=ImputationStrategy.Passthrough, fill_value=None,
-            indicator_added=False, signals=signals,
+            column=col,
+            semantic_type=SemanticType.Numeric,
+            strategy=ImputationStrategy.Passthrough,
+            fill_value=None,
+            indicator_added=False,
+            signals=signals,
         )
 
     # Priority 3: BoundedDiscrete gate — model-aware sub-chain with domain-snap; exits here
     if cp.numeric_kind == NumericKind.BoundedDiscrete:
         return _fit_bounded_discrete(
-            train_df, col, cp, config, missingness, n_rows, n_features, multi_mar, signals,
+            train_df,
+            col,
+            cp,
+            config,
+            missingness,
+            n_rows,
+            n_features,
+            multi_mar,
+            signals,
         )
 
     stats = cp.stats if isinstance(cp.stats, NumericStats) else None
@@ -288,10 +410,12 @@ def _fit_one(
     if stats is not None and stats.nonlinearity_tag == NonlinearityTag.Unpredictable:
         signals.append("unpredictable_guard: nonlinearity_tag=Unpredictable")
         return ColumnImputationRecord(
-            column=col, semantic_type=SemanticType.Numeric,
+            column=col,
+            semantic_type=SemanticType.Numeric,
             strategy=ImputationStrategy.Median,
             fill_value=_compute_median(train_df, col),
-            indicator_added=False, signals=signals,
+            indicator_added=False,
+            signals=signals,
         )
 
     # Priority 5: MARSuspect — full fallback chain
@@ -307,11 +431,18 @@ def _fit_one(
             multi_mar=multi_mar,
         )
         signals.append(signal)
-        fill_value = _compute_median(train_df, col) if strategy == ImputationStrategy.Median else None
+        fill_value = (
+            _compute_median(train_df, col)
+            if strategy == ImputationStrategy.Median
+            else None
+        )
         return ColumnImputationRecord(
-            column=col, semantic_type=SemanticType.Numeric,
-            strategy=strategy, fill_value=fill_value,
-            indicator_added=False, signals=signals,
+            column=col,
+            semantic_type=SemanticType.Numeric,
+            strategy=strategy,
+            fill_value=fill_value,
+            indicator_added=False,
+            signals=signals,
         )
 
     # Priority 6: MCAR routing by severity and skew
@@ -320,33 +451,47 @@ def _fit_one(
 
     if severity in (MissingSeverity.High, MissingSeverity.Severe):
         strategy, signal = _mcar_model_strategy(
-            severity=severity, config=config, n_rows=n_rows, n_features=n_features,
+            severity=severity,
+            config=config,
+            n_rows=n_rows,
+            n_features=n_features,
         )
         signals.append(signal)
-        fill_value = _compute_median(train_df, col) if strategy == ImputationStrategy.Median else None
+        fill_value = (
+            _compute_median(train_df, col)
+            if strategy == ImputationStrategy.Median
+            else None
+        )
         return ColumnImputationRecord(
-            column=col, semantic_type=SemanticType.Numeric,
-            strategy=strategy, fill_value=fill_value,
-            indicator_added=False, signals=signals,
+            column=col,
+            semantic_type=SemanticType.Numeric,
+            strategy=strategy,
+            fill_value=fill_value,
+            indicator_added=False,
+            signals=signals,
         )
 
     # Minor + Normal skew → Mean
     if severity == MissingSeverity.Minor and skew_sev in (None, SkewSeverity.Normal):
         signals.append(f"mcar minor + skew={skew_sev or 'normal'}: mean imputation")
         return ColumnImputationRecord(
-            column=col, semantic_type=SemanticType.Numeric,
+            column=col,
+            semantic_type=SemanticType.Numeric,
             strategy=ImputationStrategy.Mean,
             fill_value=_compute_mean(train_df, col),
-            indicator_added=False, signals=signals,
+            indicator_added=False,
+            signals=signals,
         )
 
     # Minor/Moderate + skew >= Moderate → Median
     signals.append(f"mcar {severity} + skew={skew_sev or 'unknown'}: median imputation")
     return ColumnImputationRecord(
-        column=col, semantic_type=SemanticType.Numeric,
+        column=col,
+        semantic_type=SemanticType.Numeric,
         strategy=ImputationStrategy.Median,
         fill_value=_compute_median(train_df, col),
-        indicator_added=False, signals=signals,
+        indicator_added=False,
+        signals=signals,
     )
 
 
@@ -395,10 +540,12 @@ def _fit_bounded_discrete(
 
     def _mode_record() -> ColumnImputationRecord:
         return ColumnImputationRecord(
-            column=col, semantic_type=SemanticType.Numeric,
+            column=col,
+            semantic_type=SemanticType.Numeric,
             strategy=ImputationStrategy.Mode,
             fill_value=_compute_mode(train_df, col),
-            indicator_added=False, signals=signals,
+            indicator_added=False,
+            signals=signals,
         )
 
     def _snap_scalar(val: float) -> float:
@@ -426,7 +573,9 @@ def _fit_bounded_discrete(
     # 4. MARSuspect → domain-snapped MAR sub-chain (Mode replaces Median as terminal)
     if missingness is not None and missingness.has_flag(MissingnessFlag.MARSuspect):
         corrs = missingness.correlated_with
-        signals.append(f"bounded_discrete: mar_suspect: correlated missingness with {corrs}")
+        signals.append(
+            f"bounded_discrete: mar_suspect: correlated missingness with {corrs}"
+        )
         strategy, signal = _mar_strategy(
             severity=missingness.severity,
             corrs=corrs,
@@ -437,13 +586,18 @@ def _fit_bounded_discrete(
         )
         signals.append(signal)
         if strategy == ImputationStrategy.Median:
-            signals.append("bounded_discrete: terminal → mode (median not valid domain member)")
+            signals.append(
+                "bounded_discrete: terminal → mode (median not valid domain member)"
+            )
             return _mode_record()
         signals.append(f"bounded_discrete: domain_snap_bounds=({snap_min}, {snap_max})")
         return ColumnImputationRecord(
-            column=col, semantic_type=SemanticType.Numeric,
-            strategy=strategy, fill_value=None,
-            indicator_added=False, signals=signals,
+            column=col,
+            semantic_type=SemanticType.Numeric,
+            strategy=strategy,
+            fill_value=None,
+            indicator_added=False,
+            signals=signals,
             domain_snap_bounds=_bounds(),
         )
 
@@ -453,17 +607,25 @@ def _fit_bounded_discrete(
 
     if severity in (MissingSeverity.High, MissingSeverity.Severe):
         strategy, signal = _mcar_model_strategy(
-            severity=severity, config=config, n_rows=n_rows, n_features=n_features,
+            severity=severity,
+            config=config,
+            n_rows=n_rows,
+            n_features=n_features,
         )
         signals.append(signal)
         if strategy == ImputationStrategy.Median:
-            signals.append("bounded_discrete: terminal → mode (median not valid domain member)")
+            signals.append(
+                "bounded_discrete: terminal → mode (median not valid domain member)"
+            )
             return _mode_record()
         signals.append(f"bounded_discrete: domain_snap_bounds=({snap_min}, {snap_max})")
         return ColumnImputationRecord(
-            column=col, semantic_type=SemanticType.Numeric,
-            strategy=strategy, fill_value=None,
-            indicator_added=False, signals=signals,
+            column=col,
+            semantic_type=SemanticType.Numeric,
+            strategy=strategy,
+            fill_value=None,
+            indicator_added=False,
+            signals=signals,
             domain_snap_bounds=_bounds(),
         )
 
@@ -474,10 +636,12 @@ def _fit_bounded_discrete(
             f"bounded_discrete: mcar minor + normal skew → mean snapped to {snapped}"
         )
         return ColumnImputationRecord(
-            column=col, semantic_type=SemanticType.Numeric,
+            column=col,
+            semantic_type=SemanticType.Numeric,
             strategy=ImputationStrategy.Mean,
             fill_value=snapped,
-            indicator_added=False, signals=signals,
+            indicator_added=False,
+            signals=signals,
         )
 
     # Terminal fallback → Mode (replaces Median for all remaining cases)
@@ -519,7 +683,10 @@ def _mar_strategy(
             f"median: all size guards failed (rows={n_rows:,}, features={n_features})",
         )
 
-    return ImputationStrategy.Median, "median: MAR-suspect fallback (low severity or no correlations)"
+    return (
+        ImputationStrategy.Median,
+        "median: MAR-suspect fallback (low severity or no correlations)",
+    )
 
 
 def _mcar_model_strategy(
@@ -584,7 +751,7 @@ def _fit_regression(
         Number of rows in ``train_df``.
     config : NumericImputationConfig
         Imputation configuration supplying estimator thresholds and
-        ``regression_base_max_iter``.
+        ``base_max_iter``.
     stats : NumericStats, optional
         Phase 1 numeric statistics for ``col``.  Used to derive IQR-relative
         ``tol`` and the R² gap signal for ``max_iter`` computation.
@@ -627,9 +794,7 @@ def _fit_regression(
     else:
         estimator_name = type(estimator).__name__
 
-    signals: list[str] = [
-        f"regression_estimator: {estimator_name} (tag={tag})"
-    ]
+    signals: list[str] = [f"regression_estimator: {estimator_name} (tag={tag})"]
     if imputer.n_iter_ == max_iter:
         signals.append(
             f"convergence_warning: max_iter={max_iter} reached; "
@@ -671,6 +836,7 @@ def _fallback_to_median(
         ``reason`` appended to ``signals``.
     """
     from dataclasses import replace
+
     signals = list(record.signals) + [f"fallback_to_median: {reason}"]
     return replace(
         record,
@@ -684,6 +850,17 @@ def _fallback_to_median(
 # Dynamic IterativeImputer parameter helpers
 # ---------------------------------------------------------------------------
 
+_MICE_TAG_PRECEDENCE: dict[NonlinearityTag, int] = {
+    NonlinearityTag.Unpredictable: 0,
+    NonlinearityTag.Linear: 1,
+    NonlinearityTag.MonotonicNonlinear: 2,
+    NonlinearityTag.ComplexNonlinear: 3,
+}
+
+
+def _mice_winning_tag(tags: list[NonlinearityTag]) -> NonlinearityTag:
+    return max(tags, key=lambda t: _MICE_TAG_PRECEDENCE.get(t, 0))
+
 
 def _compute_max_iter(
     tag: NonlinearityTag,
@@ -692,7 +869,7 @@ def _compute_max_iter(
     stats: Optional[NumericStats],
     config: NumericImputationConfig,
 ) -> int:
-    base = config.regression_base_max_iter
+    base = config.base_max_iter
 
     # Signal 1: ComplexNonlinear → more iterations required
     if tag == NonlinearityTag.ComplexNonlinear:
@@ -717,9 +894,14 @@ def _compute_max_iter(
                 corr_sum, n_pairs = 0.0, 0
                 for i in range(n_mf):
                     for j in range(i + 1, n_mf):
-                        valid = ~(np.isnan(missing_feat_arr[:, i]) | np.isnan(missing_feat_arr[:, j]))
+                        valid = ~(
+                            np.isnan(missing_feat_arr[:, i])
+                            | np.isnan(missing_feat_arr[:, j])
+                        )
                         if valid.sum() >= 2:
-                            c = np.corrcoef(missing_feat_arr[valid, i], missing_feat_arr[valid, j])[0, 1]
+                            c = np.corrcoef(
+                                missing_feat_arr[valid, i], missing_feat_arr[valid, j]
+                            )[0, 1]
                             if np.isfinite(c):
                                 corr_sum += abs(c)
                                 n_pairs += 1
@@ -746,6 +928,266 @@ def _compute_tol(
         scaling_factor = 5e-5 if tag == NonlinearityTag.ComplexNonlinear else 1e-4
         return max(1e-7, stats.iqr * scaling_factor)
     return 1e-3
+
+
+def _compute_mice_max_iter(
+    winning_tag: NonlinearityTag,
+    arr: np.ndarray,
+    mice_stats: list[Optional[NumericStats]],
+    profile: StructuralProfileResult,
+    mice_cols: list[str],
+    config: NumericImputationConfig,
+) -> int:
+    """Compute ``max_iter`` for the MICE ``IterativeImputer`` from seven data signals.
+
+    Mirrors ``_compute_max_iter`` for the single-column Regression strategy but
+    uses MICE-specific aggregation: minimum R² gap across the block (worst-case
+    convergence speed), maximum pairwise inter-column Pearson ``|r|`` (strongest
+    coupling driver), and full-matrix missingness fraction.
+
+    Parameters
+    ----------
+    winning_tag : NonlinearityTag
+        Most-complex nonlinearity tag across all MICE columns.
+    arr : np.ndarray
+        Numeric array of the full MICE column matrix, shape ``(n_rows, n_mice_cols)``.
+        NaN values mark missing cells.
+    mice_stats : list[NumericStats or None]
+        Phase 1 statistics for each MICE column in the same order as columns in
+        ``arr``.  Entries may be ``None`` when stats were not computed.
+    profile : StructuralProfileResult
+        Full Phase 1 result.  Used to read pre-computed Pearson correlations from
+        ``feature_correlation`` when available.
+    mice_cols : list[str]
+        Column names corresponding to columns of ``arr``.
+    config : NumericImputationConfig
+        Imputation configuration supplying ``base_max_iter``.
+
+    Returns
+    -------
+    int
+        Computed ``max_iter`` value, always at least ``1``.
+    """
+    base = config.base_max_iter
+
+    # Signal 1: ComplexNonlinear → more iterations required
+    if winning_tag == NonlinearityTag.ComplexNonlinear:
+        base += 5
+
+    # Signal 2: full MICE matrix missingness fraction
+    total_cells = arr.size
+    miss_frac = float(np.isnan(arr).sum() / total_cells) if total_cells > 0 else 0.0
+    if miss_frac >= 0.4:
+        base += 5
+    elif miss_frac >= 0.2:
+        base += 3
+    elif miss_frac >= 0.1:
+        base += 2
+
+    # Signal 3: minimum r2_gap across MICE columns; small gap means near-linear → fewer iterations
+    r2_gaps = [s.r2_gap for s in mice_stats if s is not None and s.r2_gap is not None]
+    if r2_gaps and min(r2_gaps) < 0.05:
+        base = max(1, base - 3)
+
+    # Signal 4: maximum pairwise Pearson |r| among MICE columns; high correlation → more iterations
+    max_pearson = _mice_max_inter_correlation(arr, profile, mice_cols)
+    if max_pearson is not None and max_pearson >= 0.7:
+        base += 3
+
+    # Signal 5: low complete-row fraction → more iterations needed
+    complete_fraction = float((~np.isnan(arr).any(axis=1)).sum()) / len(arr)
+    if complete_fraction < 0.2:
+        base += 5
+    elif complete_fraction < 0.5:
+        base += 3
+
+    return max(1, base)
+
+
+def _compute_mice_tol(
+    winning_tag: NonlinearityTag,
+    mice_stats: list[Optional[NumericStats]],
+) -> float:
+    """Compute the convergence tolerance for the MICE ``IterativeImputer``.
+
+    Uses the minimum IQR across all MICE columns so that tolerance is
+    calibrated to the narrowest-range column in the block.  Applies tighter
+    scaling when the block contains complex non-linear structure.
+
+    Parameters
+    ----------
+    winning_tag : NonlinearityTag
+        Most-complex nonlinearity tag across all MICE columns.
+    mice_stats : list[NumericStats or None]
+        Phase 1 statistics for each MICE column.  Entries may be ``None``
+        when stats were not computed.
+
+    Returns
+    -------
+    float
+        Convergence tolerance, always at least ``1e-7``.  Falls back to
+        ``1e-3`` when no IQR is available.
+    """
+    iqrs = [
+        s.iqr for s in mice_stats if s is not None and s.iqr is not None and s.iqr > 0
+    ]
+    if iqrs:
+        min_iqr = min(iqrs)
+        scaling_factor = (
+            5e-5 if winning_tag == NonlinearityTag.ComplexNonlinear else 1e-4
+        )
+        return max(1e-7, min_iqr * scaling_factor)
+    return 1e-3
+
+
+_MICE_SKEW_TRIGGERS_MEDIAN: frozenset[SkewSeverity] = frozenset(
+    {
+        SkewSeverity.Moderate,
+        SkewSeverity.High,
+        SkewSeverity.Severe,
+    }
+)
+
+
+def _mice_initial_strategy(mice_stats: list[Optional[NumericStats]]) -> str:
+    """Determine the ``initial_strategy`` for the MICE ``IterativeImputer``.
+
+    Returns ``"median"`` when any MICE column has ``SkewSeverity >= Moderate``;
+    otherwise returns ``"mean"``.
+
+    Parameters
+    ----------
+    mice_stats : list[NumericStats or None]
+        Phase 1 statistics for each MICE column.  Entries may be ``None``
+        when stats were not computed.
+
+    Returns
+    -------
+    str
+        Either ``"median"`` or ``"mean"``.
+    """
+    for stats in mice_stats:
+        if stats is not None and stats.skewness_severity in _MICE_SKEW_TRIGGERS_MEDIAN:
+            return "median"
+    return "mean"
+
+
+def _mice_max_inter_correlation(
+    arr: np.ndarray,
+    profile: StructuralProfileResult,
+    mice_cols: list[str],
+) -> Optional[float]:
+    feature_corr = profile.dataset.feature_correlation
+    if feature_corr is not None and len(mice_cols) >= 2:
+        values = []
+        for i in range(len(mice_cols)):
+            for j in range(i + 1, len(mice_cols)):
+                r = feature_corr.get_pearson(mice_cols[i], mice_cols[j])
+                if r is not None:
+                    values.append(abs(r))
+        if values:
+            return max(values)
+
+    if arr.shape[1] >= 2:
+        try:
+            n_cols = arr.shape[1]
+            max_r = 0.0
+            found = False
+            for i in range(n_cols):
+                for j in range(i + 1, n_cols):
+                    valid = ~(np.isnan(arr[:, i]) | np.isnan(arr[:, j]))
+                    if valid.sum() >= 2:
+                        c = np.corrcoef(arr[valid, i], arr[valid, j])[0, 1]
+                        if np.isfinite(c):
+                            max_r = max(max_r, abs(c))
+                            found = True
+            if found:
+                return max_r
+        except Exception:  # noqa: BLE001
+            pass
+    return None
+
+
+def _compute_mice_n_nearest_features(
+    arr: np.ndarray,
+    profile: "StructuralProfileResult",
+    mice_cols: list[str],
+    config: NumericImputationConfig,
+) -> tuple[Optional[int], str]:
+    """Compute ``n_nearest_features`` for the MICE ``IterativeImputer``.
+
+    For blocks at or below ``mice_n_nearest_features_min_cols`` columns all
+    predictors are used (``n_nearest_features=None``). For larger blocks, the
+    number of informative predictors per column is counted using value-level
+    Pearson correlations and the median count across columns is returned,
+    capped at ``mice_max_nearest_features``.
+
+    Correlations are read from ``CorrelationProfiler`` output stored in
+    ``profile.dataset.feature_correlation`` when available; otherwise they are
+    computed directly from ``arr``.
+
+    Parameters
+    ----------
+    arr : np.ndarray
+        Numeric array of the full MICE column matrix, shape
+        ``(n_rows, n_mice_cols)``. NaN values mark missing cells.
+    profile : StructuralProfileResult
+        Full Phase 1 result. Used to read pre-computed Pearson correlations
+        from ``feature_correlation`` when available.
+    mice_cols : list[str]
+        Column names corresponding to columns of ``arr``.
+    config : NumericImputationConfig
+        Imputation configuration supplying ``mice_n_nearest_features_min_cols``,
+        ``mice_max_nearest_features``, and ``mice_correlation_threshold``.
+
+    Returns
+    -------
+    tuple[int or None, str]
+        Computed ``n_nearest_features`` value (``None`` for small blocks) and
+        a human-readable signal string recording the decision.
+    """
+    n_cols = len(mice_cols)
+    if n_cols <= config.mice_n_nearest_features_min_cols:
+        return None, (
+            f"mice_n_nearest_features: all predictors used "
+            f"— block ({n_cols} cols) at or below min_cols threshold "
+            f"({config.mice_n_nearest_features_min_cols})"
+        )
+
+    threshold = config.mice_correlation_threshold
+    feature_corr = profile.dataset.feature_correlation
+    counts: list[int] = []
+
+    for i, col_i in enumerate(mice_cols):
+        count = 0
+        for j, col_j in enumerate(mice_cols):
+            if i == j:
+                continue
+            r: Optional[float] = None
+            if feature_corr is not None:
+                r = feature_corr.get_pearson(col_i, col_j)
+            if r is None:
+                valid = ~(np.isnan(arr[:, i]) | np.isnan(arr[:, j]))
+                if valid.sum() >= 2:
+                    try:
+                        c = np.corrcoef(arr[valid, i], arr[valid, j])[0, 1]
+                        if np.isfinite(c):
+                            r = float(c)
+                    except Exception:  # noqa: BLE001
+                        pass
+            if r is not None and abs(r) > threshold:
+                count += 1
+        counts.append(count)
+
+    median_count = int(np.median(counts)) if counts else 0
+    n_nearest = min(max(1, median_count), config.mice_max_nearest_features)
+
+    return n_nearest, (
+        f"mice_n_nearest_features: {n_nearest} "
+        f"(median informative predictors={median_count}, "
+        f"capped at mice_max_nearest_features={config.mice_max_nearest_features}, "
+        f"threshold={threshold})"
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -50,7 +50,7 @@ class NumericImputationConfig:
         Row count threshold above which ``GradientBoostingRegressor`` is preferred
         over ``RandomForestRegressor`` for ``ComplexNonlinear`` columns. Below this
         threshold the cheaper ``RandomForestRegressor`` is used instead.
-    regression_base_max_iter : int
+    base_max_iter : int
         Base number of ``IterativeImputer`` iterations before dynamic signal
         adjustments are applied.  Increase this value for columns that exhibit
         convergence warnings in ``ColumnImputationRecord.signals``.
@@ -68,6 +68,20 @@ class NumericImputationConfig:
         Dimensionality threshold below which distance weighting is considered
         reliable. When the number of KNN feature columns exceeds this value,
         ``weights`` is forced to ``"uniform"``.
+    mice_n_nearest_features_min_cols : int
+        MICE block size at or below which ``n_nearest_features`` is left unset,
+        meaning all columns in the block are used as predictors for every
+        imputation target. Above this threshold, ``n_nearest_features`` is
+        derived from value-level Pearson correlations.
+    mice_max_nearest_features : int
+        Upper cap on the ``n_nearest_features`` value computed for large MICE
+        blocks. The correlation-derived count is clamped to this maximum before
+        being passed to ``IterativeImputer``.
+    mice_correlation_threshold : float
+        Minimum absolute Pearson correlation ``|r|`` required for another MICE
+        column to be counted as an informative predictor when computing
+        ``n_nearest_features``. Columns below this threshold are excluded from
+        the count.
     """
 
     knn_max_rows: int = 50_000
@@ -75,11 +89,14 @@ class NumericImputationConfig:
     regression_min_rows: int = 500
     mnar_constant_fill: float = -1
     gradient_boost_min_rows: int = 10_000
-    regression_base_max_iter: int = 10
+    base_max_iter: int = 10
     knn_min_neighbors: int = 5
     knn_max_neighbors: int = 25
     knn_distance_weight_max_null_ratio: float = 0.15
     knn_distance_weight_max_features: int = 30
+    mice_n_nearest_features_min_cols: int = 10
+    mice_max_nearest_features: int = 20
+    mice_correlation_threshold: float = 0.1
 
     def to_dict(self) -> dict:
         """
@@ -96,11 +113,14 @@ class NumericImputationConfig:
             "regression_min_rows": self.regression_min_rows,
             "mnar_constant_fill": self.mnar_constant_fill,
             "gradient_boost_min_rows": self.gradient_boost_min_rows,
-            "regression_base_max_iter": self.regression_base_max_iter,
+            "base_max_iter": self.base_max_iter,
             "knn_min_neighbors": self.knn_min_neighbors,
             "knn_max_neighbors": self.knn_max_neighbors,
             "knn_distance_weight_max_null_ratio": self.knn_distance_weight_max_null_ratio,
             "knn_distance_weight_max_features": self.knn_distance_weight_max_features,
+            "mice_n_nearest_features_min_cols": self.mice_n_nearest_features_min_cols,
+            "mice_max_nearest_features": self.mice_max_nearest_features,
+            "mice_correlation_threshold": self.mice_correlation_threshold,
         }
 
     @classmethod
@@ -125,11 +145,22 @@ class NumericImputationConfig:
             regression_min_rows=int(data.get("regression_min_rows", 500)),
             mnar_constant_fill=float(data.get("mnar_constant_fill", -1)),
             gradient_boost_min_rows=int(data.get("gradient_boost_min_rows", 10_000)),
-            regression_base_max_iter=int(data.get("regression_base_max_iter", 10)),
+            base_max_iter=int(data.get("base_max_iter", 10)),
             knn_min_neighbors=int(data.get("knn_min_neighbors", 5)),
             knn_max_neighbors=int(data.get("knn_max_neighbors", 25)),
-            knn_distance_weight_max_null_ratio=float(data.get("knn_distance_weight_max_null_ratio", 0.15)),
-            knn_distance_weight_max_features=int(data.get("knn_distance_weight_max_features", 30)),
+            knn_distance_weight_max_null_ratio=float(
+                data.get("knn_distance_weight_max_null_ratio", 0.15)
+            ),
+            knn_distance_weight_max_features=int(
+                data.get("knn_distance_weight_max_features", 30)
+            ),
+            mice_n_nearest_features_min_cols=int(
+                data.get("mice_n_nearest_features_min_cols", 10)
+            ),
+            mice_max_nearest_features=int(data.get("mice_max_nearest_features", 20)),
+            mice_correlation_threshold=float(
+                data.get("mice_correlation_threshold", 0.1)
+            ),
         )
 
 
@@ -241,7 +272,11 @@ class ColumnImputationRecord:
             "fill_value": self.fill_value,
             "indicator_added": self.indicator_added,
             "signals": list(self.signals),
-            "domain_snap_bounds": list(self.domain_snap_bounds) if self.domain_snap_bounds is not None else None,
+            "domain_snap_bounds": (
+                list(self.domain_snap_bounds)
+                if self.domain_snap_bounds is not None
+                else None
+            ),
         }
 
 

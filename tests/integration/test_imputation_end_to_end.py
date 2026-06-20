@@ -521,3 +521,106 @@ def test_knn_adaptive_end_to_end_mixed_scale():
             f"small-scale magnitudes (expected > 100 for a [0, 1000] column)"
         )
 
+
+# ---------------------------------------------------------------------------
+# Issue #162 — adaptive MICE end-to-end with non-linear MAR-suspect dataset
+# ---------------------------------------------------------------------------
+
+
+def test_mice_adaptive_end_to_end_nonlinear_dataset():
+    """End-to-end adaptive MICE with a non-linear MAR-suspect dataset.
+
+    Creates three correlated columns (quadratic, linear, cubic relationships to
+    a shared base signal) with a shared missingness mask to trigger multi-MAR
+    detection and MICE routing.  Asserts:
+    - Final imputed output contains no nulls.
+    - Every MICE column's ``ColumnImputationRecord.signals`` contains a
+      ``mice_estimator:`` entry.
+    - Every MICE column's ``ColumnImputationRecord.signals`` contains a
+      convergence-status entry (either ``mice_convergence_warning:`` or
+      ``mice_converged:``).
+    """
+    import numpy as np
+    from dataforge_ml.config import PipelineConfig
+    from dataforge_ml.imputation import (
+        ImputationConfig,
+        ImputationOrchestrator,
+        ImputationStrategy,
+        NumericImputationConfig,
+    )
+    from dataforge_ml.profiling._config import ProfileConfig
+    from dataforge_ml.profiling.orchestrator import StructuralProfiler
+
+    rng = np.random.default_rng(162)
+    n = 600
+
+    base = rng.uniform(0.0, 3.0, n)
+    col_a = base ** 2 + rng.normal(0, 0.1, n)      # quadratic — non-linear
+    col_b = base + rng.normal(0, 0.2, n)             # linear
+    col_c = base ** 3 + rng.normal(0, 0.2, n)       # cubic — non-linear
+
+    # Shared missingness mask: same ~15% of rows missing in all three columns
+    # → Pearson correlation between null indicators ≈ 1.0 → MARSuspect on all
+    shared_mask = rng.random(n) < 0.15
+
+    data = {
+        "a": pl.Series(
+            [None if shared_mask[i] else float(col_a[i]) for i in range(n)],
+            dtype=pl.Float64,
+        ),
+        "b": pl.Series(
+            [None if shared_mask[i] else float(col_b[i]) for i in range(n)],
+            dtype=pl.Float64,
+        ),
+        "c": pl.Series(
+            [None if shared_mask[i] else float(col_c[i]) for i in range(n)],
+            dtype=pl.Float64,
+        ),
+    }
+    df = pl.DataFrame(data)
+
+    config = PipelineConfig(
+        profiling=ProfileConfig(
+            compute_nonlinearity=True,
+            compute_correlation=True,
+        ),
+        imputation=ImputationConfig(
+            numeric=NumericImputationConfig(
+                knn_max_rows=0,  # force MICE routing (disable KNN size guard)
+            )
+        ),
+    )
+
+    profile = StructuralProfiler(config).profile(df)
+    orch = ImputationOrchestrator(config=config)
+    fi = orch.fit(df, profile)
+
+    mice_cols = [col for col, rec in fi.records.items() if rec.strategy == ImputationStrategy.MICE]
+    if not mice_cols:
+        pytest.skip("No columns routed to MICE under current profile; check missingness thresholds.")
+
+    # 1. No nulls in the final imputed output.
+    result = fi.transform(df)
+    for col in mice_cols:
+        assert result.dataframe[col].null_count() == 0, (
+            f"Column '{col}' still has nulls after adaptive MICE imputation"
+        )
+
+    # 2. Every MICE column record has a mice_estimator: signal.
+    for col in mice_cols:
+        signals = fi.records[col].signals
+        assert any("mice_estimator:" in s for s in signals), (
+            f"Column '{col}' missing mice_estimator signal; got: {signals}"
+        )
+
+    # 3. Every MICE column record has a convergence-status signal.
+    for col in mice_cols:
+        signals = fi.records[col].signals
+        has_status = any(
+            "mice_convergence_warning:" in s or "mice_converged:" in s
+            for s in signals
+        )
+        assert has_status, (
+            f"Column '{col}' missing convergence-status signal; got: {signals}"
+        )
+
