@@ -1205,6 +1205,143 @@ def test_fitted_knn_to_dict_from_dict_round_trip():
     np.testing.assert_array_almost_equal(out_original, out_restored)
 
 
+# ---------------------------------------------------------------------------
+# Issue #162 — MICE-backed FittedImputer with non-default estimator variants
+# ---------------------------------------------------------------------------
+
+
+def test_mice_random_forest_backed_transform_produces_no_nulls():
+    """FittedImputer with IterativeImputer(RandomForestRegressor) must produce no nulls."""
+    import numpy as np
+    from sklearn.ensemble import RandomForestRegressor
+    from sklearn.impute import IterativeImputer
+
+    train = np.array([
+        [1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, np.nan], [np.nan, 10.0],
+    ])
+    mice = IterativeImputer(
+        estimator=RandomForestRegressor(n_estimators=10, random_state=0),
+        random_state=0,
+    )
+    mice.fit(train)
+
+    fi = FittedImputer(
+        records={
+            "a": _record("a", ImputationStrategy.MICE),
+            "b": _record("b", ImputationStrategy.MICE),
+        },
+        models={"mice": mice},
+        model_cols={"mice": ["a", "b"]},
+    )
+    df = pl.DataFrame({
+        "a": pl.Series([1.0, None, 5.0, 7.0, None], dtype=pl.Float64),
+        "b": pl.Series([2.0, 4.0, None, None, 10.0], dtype=pl.Float64),
+    })
+    result = fi.transform(df)
+    assert result.dataframe["a"].null_count() == 0
+    assert result.dataframe["b"].null_count() == 0
+
+
+def test_mice_gradient_boosting_backed_transform_produces_no_nulls():
+    """FittedImputer with IterativeImputer(GradientBoostingRegressor) must produce no nulls."""
+    import numpy as np
+    from sklearn.ensemble import GradientBoostingRegressor
+    from sklearn.impute import IterativeImputer
+
+    train = np.array([
+        [1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, np.nan], [np.nan, 10.0],
+    ])
+    mice = IterativeImputer(
+        estimator=GradientBoostingRegressor(n_estimators=10, random_state=0),
+        random_state=0,
+    )
+    mice.fit(train)
+
+    fi = FittedImputer(
+        records={
+            "a": _record("a", ImputationStrategy.MICE),
+            "b": _record("b", ImputationStrategy.MICE),
+        },
+        models={"mice": mice},
+        model_cols={"mice": ["a", "b"]},
+    )
+    df = pl.DataFrame({
+        "a": pl.Series([1.0, None, 5.0, 7.0, None], dtype=pl.Float64),
+        "b": pl.Series([2.0, 4.0, None, None, 10.0], dtype=pl.Float64),
+    })
+    result = fi.transform(df)
+    assert result.dataframe["a"].null_count() == 0
+    assert result.dataframe["b"].null_count() == 0
+
+
+def test_mice_random_forest_backed_round_trip():
+    """to_dict/from_dict round-trip preserves a RandomForestRegressor-backed IterativeImputer."""
+    import numpy as np
+    from sklearn.ensemble import RandomForestRegressor
+    from sklearn.impute import IterativeImputer
+
+    train = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, np.nan]])
+    mice = IterativeImputer(
+        estimator=RandomForestRegressor(n_estimators=5, random_state=0),
+        random_state=0,
+    )
+    mice.fit(train)
+
+    fi = FittedImputer(
+        records={
+            "a": _record("a", ImputationStrategy.MICE),
+            "b": _record("b", ImputationStrategy.MICE),
+        },
+        models={"mice": mice},
+        model_cols={"mice": ["a", "b"]},
+    )
+    restored = FittedImputer.from_dict(fi.to_dict())
+
+    df = pl.DataFrame({
+        "a": pl.Series([1.0, None, 5.0], dtype=pl.Float64),
+        "b": pl.Series([2.0, 4.0, None], dtype=pl.Float64),
+    })
+    r1 = fi.transform(df)
+    r2 = restored.transform(df)
+    assert r1.dataframe.equals(r2.dataframe)
+    assert r2.dataframe["a"].null_count() == 0
+    assert r2.dataframe["b"].null_count() == 0
+
+
+def test_mice_gradient_boosting_backed_round_trip():
+    """to_dict/from_dict round-trip preserves a GradientBoostingRegressor-backed IterativeImputer."""
+    import numpy as np
+    from sklearn.ensemble import GradientBoostingRegressor
+    from sklearn.impute import IterativeImputer
+
+    train = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, np.nan]])
+    mice = IterativeImputer(
+        estimator=GradientBoostingRegressor(n_estimators=5, random_state=0),
+        random_state=0,
+    )
+    mice.fit(train)
+
+    fi = FittedImputer(
+        records={
+            "a": _record("a", ImputationStrategy.MICE),
+            "b": _record("b", ImputationStrategy.MICE),
+        },
+        models={"mice": mice},
+        model_cols={"mice": ["a", "b"]},
+    )
+    restored = FittedImputer.from_dict(fi.to_dict())
+
+    df = pl.DataFrame({
+        "a": pl.Series([1.0, None, 5.0], dtype=pl.Float64),
+        "b": pl.Series([2.0, 4.0, None], dtype=pl.Float64),
+    })
+    r1 = fi.transform(df)
+    r2 = restored.transform(df)
+    assert r1.dataframe.equals(r2.dataframe)
+    assert r2.dataframe["a"].null_count() == 0
+    assert r2.dataframe["b"].null_count() == 0
+
+
 def test_regression_inference_time_feature_nans():
     """Verify that regression imputation handles feature columns with missing values
     at inference time without errors and without resorting to a feat_means patching loop

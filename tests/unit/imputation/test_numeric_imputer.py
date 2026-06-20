@@ -11,28 +11,18 @@ import polars as pl
 import pytest
 
 from dataforge_ml.config import SemanticType
-from dataforge_ml.imputation._config import (
-    ColumnImputationRecord,
-    ImputationStrategy,
-    NumericImputationConfig,
-)
-from dataforge_ml.imputation._numeric_imputer import (
-    FittedRegression,
-    NumericImputer,
-    _fallback_to_median,
-)
-from dataforge_ml.profiling._config import (
-    ColumnProfile,
-    NumericKind,
-    StructuralProfileResult,
-)
+from dataforge_ml.imputation._config import (ColumnImputationRecord,
+                                             ImputationStrategy,
+                                             NumericImputationConfig)
+from dataforge_ml.imputation._numeric_imputer import (FittedRegression,
+                                                      NumericImputer,
+                                                      _fallback_to_median)
+from dataforge_ml.profiling._config import (ColumnProfile, NumericKind,
+                                            StructuralProfileResult)
 from dataforge_ml.profiling._missingness_config import (
-    ColumnMissingnessProfile,
-    MissingnessFlag,
-    MissingSeverity,
-)
-from dataforge_ml.profiling._numeric_config import NonlinearityTag, NumericStats, SkewSeverity
-
+    ColumnMissingnessProfile, MissingnessFlag, MissingSeverity)
+from dataforge_ml.profiling._numeric_config import (NonlinearityTag,
+                                                    NumericStats, SkewSeverity)
 
 # ---------------------------------------------------------------------------
 # Helpers — build minimal stubs
@@ -803,7 +793,7 @@ def test_convergence_warning_appears_when_max_iter_reached():
     )
     # base_max_iter=1 means IterativeImputer stops after 1 iteration — almost never converged
     config = NumericImputationConfig(
-        knn_max_rows=100, regression_min_rows=500, regression_base_max_iter=1,
+        knn_max_rows=100, regression_min_rows=500, base_max_iter=1,
     )
     bundle = NumericImputer().fit(
         train_df=df, columns=["target", "feat"],
@@ -978,5 +968,7 @@ def test_fallback_to_median_pure_fill_value_from_training_data():
         indicator_added=False,
         signals=[],
     )
+    updated = _fallback_to_median(df, "col", record, "reason")
+    assert updated.fill_value == pytest.approx(20.0)
     updated = _fallback_to_median(df, "col", record, "reason")
     assert updated.fill_value == pytest.approx(20.0)

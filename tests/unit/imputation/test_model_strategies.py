@@ -25,8 +25,11 @@ from dataforge_ml.profiling._missingness_config import (
     MissingnessFlag,
     MissingSeverity,
 )
-from dataforge_ml.profiling._numeric_config import NumericStats
-
+from dataforge_ml.profiling._numeric_config import (
+    NonlinearityTag,
+    NumericStats,
+    SkewSeverity,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -106,15 +109,23 @@ def test_mar_severe_gets_mice():
     vals = rng.normal(0, 1, n).tolist()
     for i in range(0, n, 5):
         vals[i] = None  # ~20% missing → Severe
-    df = pl.DataFrame({
-        "a": pl.Series(vals, dtype=pl.Float64),
-        "b": pl.Series(rng.normal(0, 1, n).tolist(), dtype=pl.Float64),
-    })
-    cp_a = _numeric_cp("a", null_count=40, total_rows=n,
-                        severity=MissingSeverity.Severe,
-                        flags=[MissingnessFlag.MARSuspect], correlated_with=["b"])
-    cp_b = _numeric_cp("b", null_count=0, total_rows=n,
-                        severity=MissingSeverity.Minor, flags=[])
+    df = pl.DataFrame(
+        {
+            "a": pl.Series(vals, dtype=pl.Float64),
+            "b": pl.Series(rng.normal(0, 1, n).tolist(), dtype=pl.Float64),
+        }
+    )
+    cp_a = _numeric_cp(
+        "a",
+        null_count=40,
+        total_rows=n,
+        severity=MissingSeverity.Severe,
+        flags=[MissingnessFlag.MARSuspect],
+        correlated_with=["b"],
+    )
+    cp_b = _numeric_cp(
+        "b", null_count=0, total_rows=n, severity=MissingSeverity.Minor, flags=[]
+    )
     cp_b.missingness = None
     profile = _make_profile(("a", cp_a), ("b", cp_b))
     bundle = _fit(df, ["a", "b"], profile)
@@ -130,13 +141,20 @@ def test_mar_high_with_corrs_and_large_dataset_gets_regression():
     vals = rng.normal(0, 1, n).tolist()
     for i in range(0, n, 10):
         vals[i] = None
-    df = pl.DataFrame({
-        "a": pl.Series(vals, dtype=pl.Float64),
-        "b": pl.Series(rng.normal(0, 1, n).tolist(), dtype=pl.Float64),
-    })
-    cp_a = _numeric_cp("a", null_count=200, total_rows=n,
-                        severity=MissingSeverity.High,
-                        flags=[MissingnessFlag.MARSuspect], correlated_with=["b"])
+    df = pl.DataFrame(
+        {
+            "a": pl.Series(vals, dtype=pl.Float64),
+            "b": pl.Series(rng.normal(0, 1, n).tolist(), dtype=pl.Float64),
+        }
+    )
+    cp_a = _numeric_cp(
+        "a",
+        null_count=200,
+        total_rows=n,
+        severity=MissingSeverity.High,
+        flags=[MissingnessFlag.MARSuspect],
+        correlated_with=["b"],
+    )
     cp_b = _numeric_cp("b", null_count=0, total_rows=n, flags=[])
     cp_b.missingness = None
     profile = _make_profile(("a", cp_a), ("b", cp_b))
@@ -157,13 +175,20 @@ def test_mar_high_with_corrs_and_small_dataset_gets_knn():
     vals = rng.normal(0, 1, n).tolist()
     for i in range(0, n, 10):
         vals[i] = None
-    df = pl.DataFrame({
-        "a": pl.Series(vals, dtype=pl.Float64),
-        "b": pl.Series(rng.normal(0, 1, n).tolist(), dtype=pl.Float64),
-    })
-    cp_a = _numeric_cp("a", null_count=10, total_rows=n,
-                        severity=MissingSeverity.High,
-                        flags=[MissingnessFlag.MARSuspect], correlated_with=["b"])
+    df = pl.DataFrame(
+        {
+            "a": pl.Series(vals, dtype=pl.Float64),
+            "b": pl.Series(rng.normal(0, 1, n).tolist(), dtype=pl.Float64),
+        }
+    )
+    cp_a = _numeric_cp(
+        "a",
+        null_count=10,
+        total_rows=n,
+        severity=MissingSeverity.High,
+        flags=[MissingnessFlag.MARSuspect],
+        correlated_with=["b"],
+    )
     cp_b = _numeric_cp("b", null_count=0, total_rows=n, flags=[])
     cp_b.missingness = None
     profile = _make_profile(("a", cp_a), ("b", cp_b))
@@ -184,13 +209,18 @@ def test_mar_high_falls_back_to_median_when_all_guards_fail():
     for i in range(0, n, 10):
         vals[i] = None
     df = pl.DataFrame({"a": pl.Series(vals, dtype=pl.Float64)})
-    cp_a = _numeric_cp("a", null_count=10, total_rows=n,
-                        severity=MissingSeverity.High,
-                        flags=[MissingnessFlag.MARSuspect], correlated_with=["b"])
+    cp_a = _numeric_cp(
+        "a",
+        null_count=10,
+        total_rows=n,
+        severity=MissingSeverity.High,
+        flags=[MissingnessFlag.MARSuspect],
+        correlated_with=["b"],
+    )
     profile = _make_profile(("a", cp_a))
     config = NumericImputationConfig(
-        knn_max_rows=10,          # fail
-        knn_max_features=0,       # fail
+        knn_max_rows=10,  # fail
+        knn_max_features=0,  # fail
         regression_min_rows=10_000,  # fail
     )
     bundle = _fit(df, ["a"], profile, config=config)
@@ -207,15 +237,35 @@ def test_mar_high_falls_back_to_median_when_all_guards_fail():
 def test_multi_mar_all_assigned_mice():
     rng = np.random.default_rng(5)
     n = 300
-    df = pl.DataFrame({
-        "a": pl.Series([None if i % 10 == 0 else rng.normal() for i in range(n)], dtype=pl.Float64),
-        "b": pl.Series([None if i % 10 == 1 else rng.normal() for i in range(n)], dtype=pl.Float64),
-        "c": pl.Series(rng.normal(0, 1, n).tolist(), dtype=pl.Float64),
-    })
-    cp_a = _numeric_cp("a", null_count=30, total_rows=n, severity=MissingSeverity.Moderate,
-                        flags=[MissingnessFlag.MARSuspect], correlated_with=["b"])
-    cp_b = _numeric_cp("b", null_count=30, total_rows=n, severity=MissingSeverity.Moderate,
-                        flags=[MissingnessFlag.MARSuspect], correlated_with=["a"])
+    df = pl.DataFrame(
+        {
+            "a": pl.Series(
+                [None if i % 10 == 0 else rng.normal() for i in range(n)],
+                dtype=pl.Float64,
+            ),
+            "b": pl.Series(
+                [None if i % 10 == 1 else rng.normal() for i in range(n)],
+                dtype=pl.Float64,
+            ),
+            "c": pl.Series(rng.normal(0, 1, n).tolist(), dtype=pl.Float64),
+        }
+    )
+    cp_a = _numeric_cp(
+        "a",
+        null_count=30,
+        total_rows=n,
+        severity=MissingSeverity.Moderate,
+        flags=[MissingnessFlag.MARSuspect],
+        correlated_with=["b"],
+    )
+    cp_b = _numeric_cp(
+        "b",
+        null_count=30,
+        total_rows=n,
+        severity=MissingSeverity.Moderate,
+        flags=[MissingnessFlag.MARSuspect],
+        correlated_with=["a"],
+    )
     cp_c = _numeric_cp("c", null_count=0, total_rows=n)
     cp_c.missingness = None
     profile = _make_profile(("a", cp_a), ("b", cp_b), ("c", cp_c))
@@ -232,18 +282,40 @@ def test_multi_mar_all_assigned_mice():
 def test_multi_mar_signal_mentions_multi_mar():
     rng = np.random.default_rng(6)
     n = 200
-    df = pl.DataFrame({
-        "a": pl.Series([None if i % 10 == 0 else rng.normal() for i in range(n)], dtype=pl.Float64),
-        "b": pl.Series([None if i % 10 == 1 else rng.normal() for i in range(n)], dtype=pl.Float64),
-    })
-    cp_a = _numeric_cp("a", null_count=20, total_rows=n, severity=MissingSeverity.Moderate,
-                        flags=[MissingnessFlag.MARSuspect], correlated_with=["b"])
-    cp_b = _numeric_cp("b", null_count=20, total_rows=n, severity=MissingSeverity.Moderate,
-                        flags=[MissingnessFlag.MARSuspect], correlated_with=["a"])
+    df = pl.DataFrame(
+        {
+            "a": pl.Series(
+                [None if i % 10 == 0 else rng.normal() for i in range(n)],
+                dtype=pl.Float64,
+            ),
+            "b": pl.Series(
+                [None if i % 10 == 1 else rng.normal() for i in range(n)],
+                dtype=pl.Float64,
+            ),
+        }
+    )
+    cp_a = _numeric_cp(
+        "a",
+        null_count=20,
+        total_rows=n,
+        severity=MissingSeverity.Moderate,
+        flags=[MissingnessFlag.MARSuspect],
+        correlated_with=["b"],
+    )
+    cp_b = _numeric_cp(
+        "b",
+        null_count=20,
+        total_rows=n,
+        severity=MissingSeverity.Moderate,
+        flags=[MissingnessFlag.MARSuspect],
+        correlated_with=["a"],
+    )
     profile = _make_profile(("a", cp_a), ("b", cp_b))
     bundle = _fit(df, ["a", "b"], profile)
     rec_a = next(r for r in bundle.records if r.column == "a")
-    assert any("multi-MAR" in s or "multi_mar" in s.lower() or "≥2" in s for s in rec_a.signals)
+    assert any(
+        "multi-MAR" in s or "multi_mar" in s.lower() or "≥2" in s for s in rec_a.signals
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -257,10 +329,12 @@ def test_mcar_high_gets_knn():
     vals = rng.normal(0, 1, n).tolist()
     for i in range(0, n, 7):
         vals[i] = None
-    df = pl.DataFrame({
-        "a": pl.Series(vals, dtype=pl.Float64),
-        "b": pl.Series(rng.normal(0, 1, n).tolist(), dtype=pl.Float64),
-    })
+    df = pl.DataFrame(
+        {
+            "a": pl.Series(vals, dtype=pl.Float64),
+            "b": pl.Series(rng.normal(0, 1, n).tolist(), dtype=pl.Float64),
+        }
+    )
     cp_a = _numeric_cp("a", null_count=28, total_rows=n, severity=MissingSeverity.High)
     cp_b = _numeric_cp("b", null_count=0, total_rows=n)
     cp_b.missingness = None
@@ -277,17 +351,19 @@ def test_mcar_high_gets_regression_when_knn_guard_fails():
     vals = rng.normal(0, 1, n).tolist()
     for i in range(0, n, 7):
         vals[i] = None
-    df = pl.DataFrame({
-        "a": pl.Series(vals, dtype=pl.Float64),
-        "b": pl.Series(rng.normal(0, 1, n).tolist(), dtype=pl.Float64),
-    })
+    df = pl.DataFrame(
+        {
+            "a": pl.Series(vals, dtype=pl.Float64),
+            "b": pl.Series(rng.normal(0, 1, n).tolist(), dtype=pl.Float64),
+        }
+    )
     cp_a = _numeric_cp("a", null_count=140, total_rows=n, severity=MissingSeverity.High)
     cp_b = _numeric_cp("b", null_count=0, total_rows=n)
     cp_b.missingness = None
     profile = _make_profile(("a", cp_a), ("b", cp_b))
     config = NumericImputationConfig(
-        knn_max_rows=100,          # knn guard: fail (1000 > 100)
-        regression_min_rows=500,   # regression guard: pass (1000 >= 500)
+        knn_max_rows=100,  # knn guard: fail (1000 > 100)
+        regression_min_rows=500,  # regression guard: pass (1000 >= 500)
     )
     bundle = _fit(df, ["a", "b"], profile, config=config)
     rec_a = next(r for r in bundle.records if r.column == "a")
@@ -301,11 +377,15 @@ def test_mcar_severe_gets_mice():
     vals = rng.normal(0, 1, n).tolist()
     for i in range(0, n, 4):
         vals[i] = None  # 25% missing → Severe
-    df = pl.DataFrame({
-        "a": pl.Series(vals, dtype=pl.Float64),
-        "b": pl.Series(rng.normal(0, 1, n).tolist(), dtype=pl.Float64),
-    })
-    cp_a = _numeric_cp("a", null_count=50, total_rows=n, severity=MissingSeverity.Severe)
+    df = pl.DataFrame(
+        {
+            "a": pl.Series(vals, dtype=pl.Float64),
+            "b": pl.Series(rng.normal(0, 1, n).tolist(), dtype=pl.Float64),
+        }
+    )
+    cp_a = _numeric_cp(
+        "a", null_count=50, total_rows=n, severity=MissingSeverity.Severe
+    )
     cp_b = _numeric_cp("b", null_count=0, total_rows=n)
     cp_b.missingness = None
     profile = _make_profile(("a", cp_a), ("b", cp_b))
@@ -323,13 +403,19 @@ def test_mcar_severe_gets_mice():
 def test_signals_record_size_guard_on_knn_to_median_fallback():
     rng = np.random.default_rng(10)
     n = 100
-    df = pl.DataFrame({"a": pl.Series(
-        [None if i % 7 == 0 else float(i) for i in range(n)], dtype=pl.Float64
-    )})
+    df = pl.DataFrame(
+        {
+            "a": pl.Series(
+                [None if i % 7 == 0 else float(i) for i in range(n)], dtype=pl.Float64
+            )
+        }
+    )
     cp_a = _numeric_cp("a", null_count=14, total_rows=n, severity=MissingSeverity.High)
     profile = _make_profile(("a", cp_a))
     config = NumericImputationConfig(
-        knn_max_rows=10, knn_max_features=0, regression_min_rows=100_000,
+        knn_max_rows=10,
+        knn_max_features=0,
+        regression_min_rows=100_000,
     )
     bundle = _fit(df, ["a"], profile, config=config)
     rec = bundle.records[0]
@@ -347,14 +433,16 @@ def test_signals_record_regression_fallback_to_median_when_no_features():
     cp_a = _numeric_cp("a", null_count=140, total_rows=n, severity=MissingSeverity.High)
     profile = _make_profile(("a", cp_a))
     config = NumericImputationConfig(
-        knn_max_rows=100,          # knn guard: fail
-        regression_min_rows=500,   # regression guard: pass → Regression selected
+        knn_max_rows=100,  # knn guard: fail
+        regression_min_rows=500,  # regression guard: pass → Regression selected
     )
     bundle = _fit(df, ["a"], profile, config=config)
     rec = bundle.records[0]
     # Regression was selected by routing but fit failed (no feature cols) → Median
     assert rec.strategy == ImputationStrategy.Median
-    assert any("fallback" in s.lower() or "no feature" in s.lower() for s in rec.signals)
+    assert any(
+        "fallback" in s.lower() or "no feature" in s.lower() for s in rec.signals
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -368,10 +456,12 @@ def test_knn_transform_fills_nulls():
     vals_a = rng.normal(0, 1, n).tolist()
     for i in range(0, n, 10):
         vals_a[i] = None
-    df = pl.DataFrame({
-        "a": pl.Series(vals_a, dtype=pl.Float64),
-        "b": pl.Series(rng.normal(0, 1, n).tolist(), dtype=pl.Float64),
-    })
+    df = pl.DataFrame(
+        {
+            "a": pl.Series(vals_a, dtype=pl.Float64),
+            "b": pl.Series(rng.normal(0, 1, n).tolist(), dtype=pl.Float64),
+        }
+    )
     cp_a = _numeric_cp("a", null_count=30, total_rows=n, severity=MissingSeverity.High)
     cp_b = _numeric_cp("b", null_count=0, total_rows=n)
     cp_b.missingness = None
@@ -392,12 +482,18 @@ def test_mice_transform_fills_nulls():
     n = 300
     vals_a = [None if i % 5 == 0 else float(rng.normal()) for i in range(n)]
     vals_b = [None if i % 7 == 0 else float(rng.normal()) for i in range(n)]
-    df = pl.DataFrame({
-        "a": pl.Series(vals_a, dtype=pl.Float64),
-        "b": pl.Series(vals_b, dtype=pl.Float64),
-    })
-    cp_a = _numeric_cp("a", null_count=60, total_rows=n, severity=MissingSeverity.Severe)
-    cp_b = _numeric_cp("b", null_count=42, total_rows=n, severity=MissingSeverity.Severe)
+    df = pl.DataFrame(
+        {
+            "a": pl.Series(vals_a, dtype=pl.Float64),
+            "b": pl.Series(vals_b, dtype=pl.Float64),
+        }
+    )
+    cp_a = _numeric_cp(
+        "a", null_count=60, total_rows=n, severity=MissingSeverity.Severe
+    )
+    cp_b = _numeric_cp(
+        "b", null_count=42, total_rows=n, severity=MissingSeverity.Severe
+    )
     profile = _make_profile(("a", cp_a), ("b", cp_b))
     bundle = _fit(df, ["a", "b"], profile)
     assert any(r.strategy == ImputationStrategy.MICE for r in bundle.records)
@@ -418,16 +514,18 @@ def test_regression_transform_fills_nulls():
     a_vals = (2.0 * b_vals + rng.normal(0, 0.1, n)).tolist()
     for i in range(0, n, 10):
         a_vals[i] = None
-    df = pl.DataFrame({
-        "a": pl.Series(a_vals, dtype=pl.Float64),
-        "b": pl.Series(b_vals.tolist(), dtype=pl.Float64),
-    })
+    df = pl.DataFrame(
+        {
+            "a": pl.Series(a_vals, dtype=pl.Float64),
+            "b": pl.Series(b_vals.tolist(), dtype=pl.Float64),
+        }
+    )
     cp_a = _numeric_cp("a", null_count=100, total_rows=n, severity=MissingSeverity.High)
     cp_b = _numeric_cp("b", null_count=0, total_rows=n)
     cp_b.missingness = None
     profile = _make_profile(("a", cp_a), ("b", cp_b))
     config = NumericImputationConfig(
-        knn_max_rows=100,         # knn guard: fail
+        knn_max_rows=100,  # knn guard: fail
         regression_min_rows=500,  # regression guard: pass
     )
     bundle = _fit(df, ["a", "b"], profile, config=config)
@@ -451,17 +549,21 @@ def test_model_transform_applies_train_time_parameters():
     a_train = (3.0 * b_train + rng.normal(0, 0.1, n)).tolist()
     for i in range(0, n, 10):
         a_train[i] = None
-    train_df = pl.DataFrame({
-        "a": pl.Series(a_train, dtype=pl.Float64),
-        "b": pl.Series(b_train.tolist(), dtype=pl.Float64),
-    })
+    train_df = pl.DataFrame(
+        {
+            "a": pl.Series(a_train, dtype=pl.Float64),
+            "b": pl.Series(b_train.tolist(), dtype=pl.Float64),
+        }
+    )
     # Entirely different test data
     b_test = rng.normal(10, 1, 100)
     a_test = [None] * 100
-    test_df = pl.DataFrame({
-        "a": pl.Series(a_test, dtype=pl.Float64),
-        "b": pl.Series(b_test.tolist(), dtype=pl.Float64),
-    })
+    test_df = pl.DataFrame(
+        {
+            "a": pl.Series(a_test, dtype=pl.Float64),
+            "b": pl.Series(b_test.tolist(), dtype=pl.Float64),
+        }
+    )
     cp_a = _numeric_cp("a", null_count=50, total_rows=n, severity=MissingSeverity.High)
     cp_b = _numeric_cp("b", null_count=0, total_rows=n)
     cp_b.missingness = None
@@ -488,10 +590,12 @@ def _make_fitted_imputer_with_knn() -> tuple[FittedImputer, pl.DataFrame]:
     rng = np.random.default_rng(20)
     n = 300
     vals_a = [None if i % 10 == 0 else float(rng.normal()) for i in range(n)]
-    df = pl.DataFrame({
-        "a": pl.Series(vals_a, dtype=pl.Float64),
-        "b": pl.Series(rng.normal(0, 1, n).tolist(), dtype=pl.Float64),
-    })
+    df = pl.DataFrame(
+        {
+            "a": pl.Series(vals_a, dtype=pl.Float64),
+            "b": pl.Series(rng.normal(0, 1, n).tolist(), dtype=pl.Float64),
+        }
+    )
     cp_a = _numeric_cp("a", null_count=30, total_rows=n, severity=MissingSeverity.High)
     cp_b = _numeric_cp("b", null_count=0, total_rows=n)
     cp_b.missingness = None
@@ -512,10 +616,12 @@ def _make_fitted_imputer_with_regression() -> tuple[FittedImputer, pl.DataFrame]
     a = (2.0 * b + rng.normal(0, 0.1, n)).tolist()
     for i in range(0, n, 10):
         a[i] = None
-    df = pl.DataFrame({
-        "a": pl.Series(a, dtype=pl.Float64),
-        "b": pl.Series(b.tolist(), dtype=pl.Float64),
-    })
+    df = pl.DataFrame(
+        {
+            "a": pl.Series(a, dtype=pl.Float64),
+            "b": pl.Series(b.tolist(), dtype=pl.Float64),
+        }
+    )
     cp_a = _numeric_cp("a", null_count=100, total_rows=n, severity=MissingSeverity.High)
     cp_b = _numeric_cp("b", null_count=0, total_rows=n)
     cp_b.missingness = None
@@ -535,12 +641,18 @@ def _make_fitted_imputer_with_mice() -> tuple[FittedImputer, pl.DataFrame]:
     n = 300
     vals_a = [None if i % 4 == 0 else float(rng.normal()) for i in range(n)]
     vals_b = [None if i % 5 == 0 else float(rng.normal()) for i in range(n)]
-    df = pl.DataFrame({
-        "a": pl.Series(vals_a, dtype=pl.Float64),
-        "b": pl.Series(vals_b, dtype=pl.Float64),
-    })
-    cp_a = _numeric_cp("a", null_count=75, total_rows=n, severity=MissingSeverity.Severe)
-    cp_b = _numeric_cp("b", null_count=60, total_rows=n, severity=MissingSeverity.Severe)
+    df = pl.DataFrame(
+        {
+            "a": pl.Series(vals_a, dtype=pl.Float64),
+            "b": pl.Series(vals_b, dtype=pl.Float64),
+        }
+    )
+    cp_a = _numeric_cp(
+        "a", null_count=75, total_rows=n, severity=MissingSeverity.Severe
+    )
+    cp_b = _numeric_cp(
+        "b", null_count=60, total_rows=n, severity=MissingSeverity.Severe
+    )
     profile = _make_profile(("a", cp_a), ("b", cp_b))
     bundle = _fit(df, ["a", "b"], profile)
     fi = FittedImputer(
@@ -584,6 +696,7 @@ def test_to_dict_stores_models_as_base64_strings():
     assert isinstance(b64str, str)
     # Valid base64 — should decode without error
     import base64
+
     decoded = base64.b64decode(b64str)
     assert len(decoded) > 0
 
@@ -598,6 +711,7 @@ def test_to_dict_stores_model_cols():
 
 def test_from_dict_restores_live_sklearn_objects():
     from dataforge_ml.imputation._fitted_imputer import _FittedKNN
+
     fi, df = _make_fitted_imputer_with_knn()
     d = fi.to_dict()
     restored = FittedImputer.from_dict(d)
@@ -617,8 +731,10 @@ def test_deserialized_imputer_fills_no_nulls():
 def test_regression_model_stored_as_fitted_regression():
     """Regression entry is now a FittedRegression with an IterativeImputer."""
     fi, _ = _make_fitted_imputer_with_regression()
-    from dataforge_ml.imputation._numeric_imputer import FittedRegression
     from sklearn.impute import IterativeImputer
+
+    from dataforge_ml.imputation._numeric_imputer import FittedRegression
+
     assert "regression:a" in fi.models
     fitted_reg = fi.models["regression:a"]
     assert isinstance(fitted_reg, FittedRegression)
@@ -660,29 +776,41 @@ def test_domain_snap_applied_after_knn_for_bounded_discrete():
     col_vals = [None if null_mask[i] else float(raw[i]) for i in range(n)]
     feat_vals = rng.standard_normal(n).tolist()
 
-    df = pl.DataFrame({
-        "rating": pl.Series(col_vals, dtype=pl.Float64),
-        "feat": pl.Series(feat_vals, dtype=pl.Float64),
-    })
+    df = pl.DataFrame(
+        {
+            "rating": pl.Series(col_vals, dtype=pl.Float64),
+            "feat": pl.Series(feat_vals, dtype=pl.Float64),
+        }
+    )
 
     profile = _make_profile(
-        ("rating", ColumnProfile(
-            name="rating",
-            semantic_type=SemanticType.Numeric,
-            numeric_kind=NumericKind.BoundedDiscrete,
-            missingness=ColumnMissingnessProfile(
-                column="rating",
-                total_rows=n,
-                effective_null_count=n // 10,
-                effective_null_ratio=0.1,
-                severity=MissingSeverity.High,
-                flags=[],
-                correlated_with=[],
+        (
+            "rating",
+            ColumnProfile(
+                name="rating",
+                semantic_type=SemanticType.Numeric,
+                numeric_kind=NumericKind.BoundedDiscrete,
+                missingness=ColumnMissingnessProfile(
+                    column="rating",
+                    total_rows=n,
+                    effective_null_count=n // 10,
+                    effective_null_ratio=0.1,
+                    severity=MissingSeverity.High,
+                    flags=[],
+                    correlated_with=[],
+                ),
+                stats=NumericStats(min=1.0, max=5.0),
             ),
-            stats=NumericStats(min=1.0, max=5.0),
-        )),
-        ("feat", _numeric_cp("feat", null_count=0, severity=MissingSeverity.High,
-                              numeric_kind=NumericKind.Continuous)),
+        ),
+        (
+            "feat",
+            _numeric_cp(
+                "feat",
+                null_count=0,
+                severity=MissingSeverity.High,
+                numeric_kind=NumericKind.Continuous,
+            ),
+        ),
     )
 
     bundle = _fit(df, ["rating", "feat"], profile)
@@ -713,29 +841,41 @@ def test_domain_snap_applied_after_regression_for_bounded_discrete():
     col_vals = [None if null_mask[i] else float(raw[i]) for i in range(n)]
     feat_vals = rng.standard_normal(n).tolist()
 
-    df = pl.DataFrame({
-        "rating": pl.Series(col_vals, dtype=pl.Float64),
-        "feat": pl.Series(feat_vals, dtype=pl.Float64),
-    })
+    df = pl.DataFrame(
+        {
+            "rating": pl.Series(col_vals, dtype=pl.Float64),
+            "feat": pl.Series(feat_vals, dtype=pl.Float64),
+        }
+    )
 
     profile = _make_profile(
-        ("rating", ColumnProfile(
-            name="rating",
-            semantic_type=SemanticType.Numeric,
-            numeric_kind=NumericKind.BoundedDiscrete,
-            missingness=ColumnMissingnessProfile(
-                column="rating",
-                total_rows=n,
-                effective_null_count=n // 10,
-                effective_null_ratio=0.1,
-                severity=MissingSeverity.High,
-                flags=[],
-                correlated_with=[],
+        (
+            "rating",
+            ColumnProfile(
+                name="rating",
+                semantic_type=SemanticType.Numeric,
+                numeric_kind=NumericKind.BoundedDiscrete,
+                missingness=ColumnMissingnessProfile(
+                    column="rating",
+                    total_rows=n,
+                    effective_null_count=n // 10,
+                    effective_null_ratio=0.1,
+                    severity=MissingSeverity.High,
+                    flags=[],
+                    correlated_with=[],
+                ),
+                stats=NumericStats(min=1.0, max=5.0),
             ),
-            stats=NumericStats(min=1.0, max=5.0),
-        )),
-        ("feat", _numeric_cp("feat", null_count=0, severity=MissingSeverity.High,
-                              numeric_kind=NumericKind.Continuous)),
+        ),
+        (
+            "feat",
+            _numeric_cp(
+                "feat",
+                null_count=0,
+                severity=MissingSeverity.High,
+                numeric_kind=NumericKind.Continuous,
+            ),
+        ),
     )
 
     config = NumericImputationConfig(knn_max_rows=100, regression_min_rows=500)
@@ -781,7 +921,9 @@ def _has_weights(signals: list[str], expected_weights: str) -> bool:
     return False
 
 
-def _make_knn_df_and_profile(n: int, n_cols: int, miss_frac: float, rng: np.random.Generator):
+def _make_knn_df_and_profile(
+    n: int, n_cols: int, miss_frac: float, rng: np.random.Generator
+):
     """Build a DataFrame and profile with KNN strategy forced for all columns.
 
     All columns are MCAR High so they route to KNN (given small n and few features).
@@ -800,7 +942,9 @@ def _make_knn_df_and_profile(n: int, n_cols: int, miss_frac: float, rng: np.rand
     items = []
     for col in data:
         null_count = int(n * miss_frac)
-        cp = _numeric_cp(col, null_count=null_count, total_rows=n, severity=MissingSeverity.High)
+        cp = _numeric_cp(
+            col, null_count=null_count, total_rows=n, severity=MissingSeverity.High
+        )
         if null_count == 0:
             cp.missingness = None
         items.append((col, cp))
@@ -817,21 +961,27 @@ def test_knn_high_dim_produces_larger_n_neighbors_than_low_dim():
     miss = 0.05  # same missingness for both cases
 
     # Low-dim: 2 KNN features
-    df_low, prof_low, cols_low = _make_knn_df_and_profile(n=500, n_cols=2, miss_frac=miss, rng=rng)
+    df_low, prof_low, cols_low = _make_knn_df_and_profile(
+        n=500, n_cols=2, miss_frac=miss, rng=rng
+    )
     bundle_low = _fit(df_low, cols_low, prof_low)
-    rec_low = next(r for r in bundle_low.records if r.strategy == ImputationStrategy.KNN)
+    rec_low = next(
+        r for r in bundle_low.records if r.strategy == ImputationStrategy.KNN
+    )
     k_low = _parse_knn_n_neighbors(rec_low.signals)
 
     # High-dim: 25 KNN features (sqrt(25)=5 > sqrt(2)≈1)
     rng2 = np.random.default_rng(201)
-    df_high, prof_high, cols_high = _make_knn_df_and_profile(n=500, n_cols=25, miss_frac=miss, rng=rng2)
+    df_high, prof_high, cols_high = _make_knn_df_and_profile(
+        n=500, n_cols=25, miss_frac=miss, rng=rng2
+    )
     bundle_high = _fit(df_high, cols_high, prof_high)
-    rec_high = next(r for r in bundle_high.records if r.strategy == ImputationStrategy.KNN)
+    rec_high = next(
+        r for r in bundle_high.records if r.strategy == ImputationStrategy.KNN
+    )
     k_high = _parse_knn_n_neighbors(rec_high.signals)
 
-    assert k_high >= k_low, (
-        f"Expected high-dim k ({k_high}) >= low-dim k ({k_low})"
-    )
+    assert k_high >= k_low, f"Expected high-dim k ({k_high}) >= low-dim k ({k_low})"
 
 
 def test_knn_high_miss_frac_produces_larger_n_neighbors_than_low_miss_frac():
@@ -839,28 +989,38 @@ def test_knn_high_miss_frac_produces_larger_n_neighbors_than_low_miss_frac():
     rng = np.random.default_rng(202)
 
     # Low missingness: 5%
-    df_low, prof_low, cols_low = _make_knn_df_and_profile(n=500, n_cols=4, miss_frac=0.05, rng=rng)
+    df_low, prof_low, cols_low = _make_knn_df_and_profile(
+        n=500, n_cols=4, miss_frac=0.05, rng=rng
+    )
     bundle_low = _fit(df_low, cols_low, prof_low)
-    rec_low = next(r for r in bundle_low.records if r.strategy == ImputationStrategy.KNN)
+    rec_low = next(
+        r for r in bundle_low.records if r.strategy == ImputationStrategy.KNN
+    )
     k_low = _parse_knn_n_neighbors(rec_low.signals)
 
     # High missingness: 40%
     rng2 = np.random.default_rng(203)
-    df_high, prof_high, cols_high = _make_knn_df_and_profile(n=500, n_cols=4, miss_frac=0.40, rng=rng2)
+    df_high, prof_high, cols_high = _make_knn_df_and_profile(
+        n=500, n_cols=4, miss_frac=0.40, rng=rng2
+    )
     bundle_high = _fit(df_high, cols_high, prof_high)
-    rec_high = next(r for r in bundle_high.records if r.strategy == ImputationStrategy.KNN)
+    rec_high = next(
+        r for r in bundle_high.records if r.strategy == ImputationStrategy.KNN
+    )
     k_high = _parse_knn_n_neighbors(rec_high.signals)
 
-    assert k_high >= k_low, (
-        f"Expected high miss_frac k ({k_high}) >= low miss_frac k ({k_low})"
-    )
+    assert (
+        k_high >= k_low
+    ), f"Expected high miss_frac k ({k_high}) >= low miss_frac k ({k_low})"
 
 
 def test_knn_low_miss_frac_few_features_gives_distance_weights():
     """Low miss_frac + few features → weights=distance in knn_params signal."""
     rng = np.random.default_rng(204)
     # miss_frac < 0.15 and n_features <= 30 → reliability_high=True → distance
-    df, profile, cols = _make_knn_df_and_profile(n=500, n_cols=3, miss_frac=0.05, rng=rng)
+    df, profile, cols = _make_knn_df_and_profile(
+        n=500, n_cols=3, miss_frac=0.05, rng=rng
+    )
     config = NumericImputationConfig(
         knn_distance_weight_max_null_ratio=0.15,
         knn_distance_weight_max_features=30,
@@ -869,16 +1029,18 @@ def test_knn_low_miss_frac_few_features_gives_distance_weights():
     knn_recs = [r for r in bundle.records if r.strategy == ImputationStrategy.KNN]
     assert knn_recs, "Expected at least one KNN column"
     for rec in knn_recs:
-        assert _has_weights(rec.signals, "distance"), (
-            f"Expected weights=distance in signals; got: {rec.signals}"
-        )
+        assert _has_weights(
+            rec.signals, "distance"
+        ), f"Expected weights=distance in signals; got: {rec.signals}"
 
 
 def test_knn_high_miss_frac_gives_uniform_weights():
     """High miss_frac (above threshold) → weights=uniform in knn_params signal."""
     rng = np.random.default_rng(205)
     # miss_frac >= 0.15 → reliability_high=False → uniform
-    df, profile, cols = _make_knn_df_and_profile(n=500, n_cols=3, miss_frac=0.40, rng=rng)
+    df, profile, cols = _make_knn_df_and_profile(
+        n=500, n_cols=3, miss_frac=0.40, rng=rng
+    )
     config = NumericImputationConfig(
         knn_distance_weight_max_null_ratio=0.15,
         knn_distance_weight_max_features=30,
@@ -887,16 +1049,18 @@ def test_knn_high_miss_frac_gives_uniform_weights():
     knn_recs = [r for r in bundle.records if r.strategy == ImputationStrategy.KNN]
     assert knn_recs, "Expected at least one KNN column"
     for rec in knn_recs:
-        assert _has_weights(rec.signals, "uniform"), (
-            f"Expected weights=uniform in signals; got: {rec.signals}"
-        )
+        assert _has_weights(
+            rec.signals, "uniform"
+        ), f"Expected weights=uniform in signals; got: {rec.signals}"
 
 
 def test_knn_many_features_gives_uniform_weights():
     """Many features (above knn_distance_weight_max_features) → weights=uniform even with low miss_frac."""
     rng = np.random.default_rng(206)
     # n_features > knn_distance_weight_max_features=5 → reliability_high=False → uniform
-    df, profile, cols = _make_knn_df_and_profile(n=500, n_cols=10, miss_frac=0.05, rng=rng)
+    df, profile, cols = _make_knn_df_and_profile(
+        n=500, n_cols=10, miss_frac=0.05, rng=rng
+    )
     config = NumericImputationConfig(
         knn_distance_weight_max_null_ratio=0.15,
         knn_distance_weight_max_features=5,  # threshold below 10 features
@@ -905,29 +1069,34 @@ def test_knn_many_features_gives_uniform_weights():
     knn_recs = [r for r in bundle.records if r.strategy == ImputationStrategy.KNN]
     assert knn_recs, "Expected at least one KNN column"
     for rec in knn_recs:
-        assert _has_weights(rec.signals, "uniform"), (
-            f"Expected weights=uniform in signals; got: {rec.signals}"
-        )
+        assert _has_weights(
+            rec.signals, "uniform"
+        ), f"Expected weights=uniform in signals; got: {rec.signals}"
 
 
 def test_knn_signals_contain_knn_scaling_entry():
     """Every KNN-routed column must have a knn_scaling signal entry."""
     rng = np.random.default_rng(207)
-    df, profile, cols = _make_knn_df_and_profile(n=400, n_cols=3, miss_frac=0.10, rng=rng)
+    df, profile, cols = _make_knn_df_and_profile(
+        n=400, n_cols=3, miss_frac=0.10, rng=rng
+    )
     bundle = _fit(df, cols, profile)
     knn_recs = [r for r in bundle.records if r.strategy == ImputationStrategy.KNN]
     assert knn_recs, "Expected at least one KNN column"
     for rec in knn_recs:
-        assert any("knn_scaling: applied" in s for s in rec.signals), (
-            f"Expected knn_scaling signal; got: {rec.signals}"
-        )
+        assert any(
+            "knn_scaling: applied" in s for s in rec.signals
+        ), f"Expected knn_scaling signal; got: {rec.signals}"
 
 
 def test_knn_model_stored_as_fitted_knn_instance():
     """models['knn'] must be a _FittedKNN with model, col_means, col_stds."""
     from dataforge_ml.imputation._fitted_imputer import _FittedKNN
+
     rng = np.random.default_rng(208)
-    df, profile, cols = _make_knn_df_and_profile(n=300, n_cols=2, miss_frac=0.10, rng=rng)
+    df, profile, cols = _make_knn_df_and_profile(
+        n=300, n_cols=2, miss_frac=0.10, rng=rng
+    )
     bundle = _fit(df, cols, profile)
     assert "knn" in bundle.models
     fitted = bundle.models["knn"]
@@ -957,54 +1126,68 @@ def test_knn_both_signals_present_on_every_column_multi_col():
     globally (i.e., all four records must carry their own signal entries).
     """
     rng = np.random.default_rng(210)
-    df, profile, cols = _make_knn_df_and_profile(n=400, n_cols=4, miss_frac=0.10, rng=rng)
+    df, profile, cols = _make_knn_df_and_profile(
+        n=400, n_cols=4, miss_frac=0.10, rng=rng
+    )
     bundle = _fit(df, cols, profile)
     knn_recs = [r for r in bundle.records if r.strategy == ImputationStrategy.KNN]
     assert len(knn_recs) >= 2, f"Expected ≥2 KNN columns; got {len(knn_recs)}"
     for rec in knn_recs:
-        assert _find_signal(rec.signals, "knn_params:") is not None, (
-            f"Column '{rec.column}' missing knn_params signal; got: {rec.signals}"
-        )
-        assert _find_signal(rec.signals, "knn_scaling:") is not None, (
-            f"Column '{rec.column}' missing knn_scaling signal; got: {rec.signals}"
-        )
+        assert (
+            _find_signal(rec.signals, "knn_params:") is not None
+        ), f"Column '{rec.column}' missing knn_params signal; got: {rec.signals}"
+        assert (
+            _find_signal(rec.signals, "knn_scaling:") is not None
+        ), f"Column '{rec.column}' missing knn_scaling signal; got: {rec.signals}"
 
 
 def test_knn_params_signal_contains_required_keys():
     """knn_params signal must contain n_neighbors, weights, n_features, miss_frac, complete_frac."""
     rng = np.random.default_rng(211)
-    df, profile, cols = _make_knn_df_and_profile(n=400, n_cols=3, miss_frac=0.10, rng=rng)
+    df, profile, cols = _make_knn_df_and_profile(
+        n=400, n_cols=3, miss_frac=0.10, rng=rng
+    )
     bundle = _fit(df, cols, profile)
     knn_recs = [r for r in bundle.records if r.strategy == ImputationStrategy.KNN]
     assert knn_recs, "Expected at least one KNN column"
     for rec in knn_recs:
         sig = _find_signal(rec.signals, "knn_params:")
         assert sig is not None, f"No knn_params signal on '{rec.column}'"
-        for key in ("n_neighbors=", "weights=", "n_features=", "miss_frac=", "complete_frac="):
-            assert key in sig, (
-                f"Key '{key}' missing from knn_params signal on '{rec.column}': {sig}"
-            )
+        for key in (
+            "n_neighbors=",
+            "weights=",
+            "n_features=",
+            "miss_frac=",
+            "complete_frac=",
+        ):
+            assert (
+                key in sig
+            ), f"Key '{key}' missing from knn_params signal on '{rec.column}': {sig}"
 
 
 def test_knn_params_signal_weights_value_is_valid():
     """weights value in knn_params signal must be either 'distance' or 'uniform'."""
     rng = np.random.default_rng(212)
-    df, profile, cols = _make_knn_df_and_profile(n=400, n_cols=3, miss_frac=0.10, rng=rng)
+    df, profile, cols = _make_knn_df_and_profile(
+        n=400, n_cols=3, miss_frac=0.10, rng=rng
+    )
     bundle = _fit(df, cols, profile)
     knn_recs = [r for r in bundle.records if r.strategy == ImputationStrategy.KNN]
     assert knn_recs, "Expected at least one KNN column"
     for rec in knn_recs:
         sig = _find_signal(rec.signals, "knn_params:")
         assert sig is not None
-        assert "weights=distance" in sig or "weights=uniform" in sig, (
-            f"weights value is neither 'distance' nor 'uniform' in: {sig}"
-        )
+        assert (
+            "weights=distance" in sig or "weights=uniform" in sig
+        ), f"weights value is neither 'distance' nor 'uniform' in: {sig}"
 
 
 def test_knn_params_signal_n_neighbors_is_positive_integer():
     """n_neighbors in knn_params signal must parse as a positive integer."""
     rng = np.random.default_rng(213)
-    df, profile, cols = _make_knn_df_and_profile(n=400, n_cols=3, miss_frac=0.10, rng=rng)
+    df, profile, cols = _make_knn_df_and_profile(
+        n=400, n_cols=3, miss_frac=0.10, rng=rng
+    )
     bundle = _fit(df, cols, profile)
     knn_recs = [r for r in bundle.records if r.strategy == ImputationStrategy.KNN]
     assert knn_recs, "Expected at least one KNN column"
@@ -1016,9 +1199,12 @@ def test_knn_params_signal_n_neighbors_is_positive_integer():
 def test_knn_scaling_signal_exact_format():
     """knn_scaling signal must match the exact format defined in Issue #90."""
     import re
+
     rng = np.random.default_rng(214)
     n_cols = 3
-    df, profile, cols = _make_knn_df_and_profile(n=400, n_cols=n_cols, miss_frac=0.10, rng=rng)
+    df, profile, cols = _make_knn_df_and_profile(
+        n=400, n_cols=n_cols, miss_frac=0.10, rng=rng
+    )
     bundle = _fit(df, cols, profile)
     knn_recs = [r for r in bundle.records if r.strategy == ImputationStrategy.KNN]
     assert knn_recs, "Expected at least one KNN column"
@@ -1028,6 +1214,389 @@ def test_knn_scaling_signal_exact_format():
     for rec in knn_recs:
         sig = _find_signal(rec.signals, "knn_scaling:")
         assert sig is not None, f"No knn_scaling signal on '{rec.column}'"
-        assert pattern.match(sig), (
-            f"knn_scaling signal format mismatch on '{rec.column}': {sig!r}"
+        assert pattern.match(
+            sig
+        ), f"knn_scaling signal format mismatch on '{rec.column}': {sig!r}"
+
+
+# ---------------------------------------------------------------------------
+# Issue #158 — MICE adaptive estimator selection
+# ---------------------------------------------------------------------------
+
+
+def _make_mice_df_and_profile(
+    n: int,
+    n_cols: int,
+    rng: np.random.Generator,
+    nonlinearity_tags: list[NonlinearityTag] | None = None,
+    skewness_severities: list[SkewSeverity | None] | None = None,
+) -> tuple[pl.DataFrame, StructuralProfileResult, list[str]]:
+    """Build a multi-MAR dataset and profile that routes all columns to MICE.
+
+    With ≥2 MARSuspect columns, multi-MAR detection fires and routes every
+    MARSuspect column to MICE (unless Priority 4 catches them first).
+    ``nonlinearity_tags[i]`` sets the ``NonlinearityTag`` for column ``i``.
+    ``skewness_severities[i]`` sets the ``SkewSeverity`` for column ``i``.
+    """
+    cols = [f"m{i}" for i in range(n_cols)]
+    data: dict[str, list] = {}
+    for i, col in enumerate(cols):
+        vals = rng.normal(0, 1, n).tolist()
+        for j in range(0, n, 5 + i):
+            vals[j] = None
+        data[col] = vals
+    df = pl.DataFrame({k: pl.Series(v, dtype=pl.Float64) for k, v in data.items()})
+
+    items = []
+    for i, col in enumerate(cols):
+        null_count = sum(1 for v in data[col] if v is None)
+        tag = nonlinearity_tags[i] if nonlinearity_tags is not None else None
+        skew = skewness_severities[i] if skewness_severities is not None else None
+        cp = ColumnProfile(
+            name=col,
+            semantic_type=SemanticType.Numeric,
+            numeric_kind=NumericKind.Continuous,
+            missingness=ColumnMissingnessProfile(
+                column=col,
+                total_rows=n,
+                effective_null_count=null_count,
+                effective_null_ratio=null_count / n,
+                severity=MissingSeverity.Moderate,
+                flags=[MissingnessFlag.MARSuspect],
+                correlated_with=[c for c in cols if c != col],
+            ),
+            stats=NumericStats(nonlinearity_tag=tag, skewness_severity=skew),
         )
+        items.append((col, cp))
+    return df, _make_profile(*items), cols
+
+
+def test_mice_complex_nonlinear_block_produces_nonlinear_estimator_signal_on_all_columns():
+    """MICE block with at least one ComplexNonlinear column → non-linear estimator signal on all records."""
+    rng = np.random.default_rng(300)
+    n = 200
+    tags = [NonlinearityTag.ComplexNonlinear, NonlinearityTag.Linear]
+    df, profile, cols = _make_mice_df_and_profile(n, 2, rng, tags)
+    bundle = _fit(df, cols, profile)
+
+    mice_recs = [r for r in bundle.records if r.strategy == ImputationStrategy.MICE]
+    assert len(mice_recs) == 2, f"Expected 2 MICE records; got {len(mice_recs)}"
+    assert "mice" in bundle.models
+
+    for rec in mice_recs:
+        sig = _find_signal(rec.signals, "mice_estimator:")
+        assert (
+            sig is not None
+        ), f"Column '{rec.column}' missing mice_estimator signal; got: {rec.signals}"
+        # ComplexNonlinear → RandomForest or GradientBoosting, never BayesianRidge
+        assert (
+            "BayesianRidge" not in sig and "Pipeline" not in sig
+        ), f"Expected non-linear estimator for ComplexNonlinear block; got: {sig}"
+        assert (
+            str(NonlinearityTag.ComplexNonlinear) in sig
+        ), f"Expected ComplexNonlinear tag in signal; got: {sig}"
+
+
+def test_mice_all_unpredictable_produces_no_mice_model_and_median_per_column():
+    """Columns with NonlinearityTag.Unpredictable must not produce a MICE model.
+
+    Priority 4 routes Unpredictable columns to Median before they can enter
+    the MICE block; the MICE second-pass guard provides defence if that ever
+    changes. Either way the observable contract is: no MICE model stored and
+    every column has Median strategy with an unpredictable signal.
+    """
+    rng = np.random.default_rng(301)
+    n = 200
+    tags = [NonlinearityTag.Unpredictable, NonlinearityTag.Unpredictable]
+    df, profile, cols = _make_mice_df_and_profile(n, 2, rng, tags)
+    bundle = _fit(df, cols, profile)
+
+    assert (
+        "mice" not in bundle.models
+    ), "Expected no MICE model when all MICE candidates are Unpredictable"
+    for col in cols:
+        rec = next(r for r in bundle.records if r.column == col)
+        assert (
+            rec.strategy == ImputationStrategy.Median
+        ), f"Column '{col}' expected Median; got {rec.strategy}"
+        assert (
+            rec.fill_value is not None
+        ), f"Column '{col}' Median fallback must have a fill_value"
+        assert any(
+            "unpredictable" in s.lower() for s in rec.signals
+        ), f"Column '{col}' missing unpredictable signal; got: {rec.signals}"
+
+
+def test_mice_linear_block_uses_bayesian_ridge_pipeline():
+    """MICE block where all columns are Linear → Pipeline(StandardScaler+BayesianRidge) estimator signal."""
+    rng = np.random.default_rng(302)
+    n = 200
+    tags = [NonlinearityTag.Linear, NonlinearityTag.Linear]
+    df, profile, cols = _make_mice_df_and_profile(n, 2, rng, tags)
+    bundle = _fit(df, cols, profile)
+
+    mice_recs = [r for r in bundle.records if r.strategy == ImputationStrategy.MICE]
+    assert mice_recs, "Expected at least one MICE record"
+    for rec in mice_recs:
+        sig = _find_signal(rec.signals, "mice_estimator:")
+        assert (
+            sig is not None
+        ), f"Column '{rec.column}' missing mice_estimator signal; got: {rec.signals}"
+        assert (
+            "Pipeline" in sig and "linear" in sig.lower()
+        ), f"Expected Pipeline/linear estimator for Linear block; got: {sig}"
+
+
+def test_mice_estimator_signal_present_on_every_column_in_block():
+    """mice_estimator signal must appear on every column in the MICE block, not just one."""
+    rng = np.random.default_rng(303)
+    n = 200
+    n_cols = 3
+    tags = [NonlinearityTag.MonotonicNonlinear] * n_cols
+    df, profile, cols = _make_mice_df_and_profile(n, n_cols, rng, tags)
+    bundle = _fit(df, cols, profile)
+
+    mice_recs = [r for r in bundle.records if r.strategy == ImputationStrategy.MICE]
+    assert (
+        len(mice_recs) == n_cols
+    ), f"Expected {n_cols} MICE records; got {len(mice_recs)}"
+    for rec in mice_recs:
+        assert (
+            _find_signal(rec.signals, "mice_estimator:") is not None
+        ), f"Column '{rec.column}' missing mice_estimator signal; got: {rec.signals}"
+
+
+# ---------------------------------------------------------------------------
+# Issue #159 — dynamic max_iter / tol and convergence monitoring
+# ---------------------------------------------------------------------------
+
+
+def test_mice_convergence_warning_appears_on_all_columns_when_max_iter_reached():
+    """A MICE block forced to max_iter=1 must produce a convergence warning on every column.
+
+    With base_max_iter=1, Linear tags, r2_gap=0.01 (< 0.05 so signal 3
+    applies: max(1, 1-3) = 1), and miss_frac < 0.1 (signal 2 silent), the computed
+    max_iter is exactly 1.  sklearn's IterativeImputer skips the convergence check on
+    the first and only iteration, so n_iter_=1=max_iter always fires the warning.
+    """
+    rng = np.random.default_rng(400)
+    n = 200
+    n_cols = 2
+    cols = [f"m{i}" for i in range(n_cols)]
+    data: dict[str, list] = {}
+    for col in cols:
+        vals = rng.normal(0, 1, n).tolist()
+        for j in range(0, n, 20):  # ~5% NaN → miss_frac < 0.1
+            vals[j] = None
+        data[col] = vals
+    df = pl.DataFrame({k: pl.Series(v, dtype=pl.Float64) for k, v in data.items()})
+
+    items = []
+    for col in cols:
+        null_count = sum(1 for v in data[col] if v is None)
+        from dataforge_ml.profiling._config import ColumnProfile, NumericKind
+
+        cp = ColumnProfile(
+            name=col,
+            semantic_type=SemanticType.Numeric,
+            numeric_kind=NumericKind.Continuous,
+            missingness=ColumnMissingnessProfile(
+                column=col,
+                total_rows=n,
+                effective_null_count=null_count,
+                effective_null_ratio=null_count / n,
+                severity=MissingSeverity.Moderate,
+                flags=[MissingnessFlag.MARSuspect],
+                correlated_with=[c for c in cols if c != col],
+            ),
+            stats=NumericStats(nonlinearity_tag=NonlinearityTag.Linear, r2_gap=0.01),
+        )
+        items.append((col, cp))
+    profile = _make_profile(*items)
+
+    config = NumericImputationConfig(base_max_iter=1)
+    bundle = _fit(df, cols, profile, config=config)
+
+    mice_recs = [r for r in bundle.records if r.strategy == ImputationStrategy.MICE]
+    assert (
+        len(mice_recs) == n_cols
+    ), f"Expected {n_cols} MICE records; got {len(mice_recs)}"
+    for rec in mice_recs:
+        assert any(
+            "mice_convergence_warning" in s for s in rec.signals
+        ), f"Column '{rec.column}' missing convergence warning; got: {rec.signals}"
+
+
+def test_mice_no_convergence_warning_when_block_converges_early():
+    """A well-conditioned MICE block with a large max_iter ceiling must not produce a warning.
+
+    Two highly correlated columns with base_max_iter=50 give a computed
+    max_iter >= 50.  IterativeImputer converges in a few iterations, so n_iter_ << max_iter
+    and no warning is emitted.
+    """
+    rng = np.random.default_rng(401)
+    n = 200
+    base_vals = rng.normal(0, 1, n)
+    vals_a = base_vals.copy().tolist()
+    vals_b = (base_vals + rng.normal(0, 0.01, n)).tolist()
+    for i in range(0, n, 10):
+        vals_a[i] = None
+    for i in range(1, n, 10):
+        vals_b[i] = None
+
+    df = pl.DataFrame(
+        {
+            "a": pl.Series(vals_a, dtype=pl.Float64),
+            "b": pl.Series(vals_b, dtype=pl.Float64),
+        }
+    )
+    cp_a = _numeric_cp(
+        "a",
+        null_count=20,
+        total_rows=n,
+        severity=MissingSeverity.Severe,
+        flags=[MissingnessFlag.MARSuspect],
+        correlated_with=["b"],
+    )
+    cp_b = _numeric_cp(
+        "b",
+        null_count=20,
+        total_rows=n,
+        severity=MissingSeverity.Severe,
+        flags=[MissingnessFlag.MARSuspect],
+        correlated_with=["a"],
+    )
+    profile = _make_profile(("a", cp_a), ("b", cp_b))
+
+    config = NumericImputationConfig(base_max_iter=50)
+    bundle = _fit(df, ["a", "b"], profile, config=config)
+
+    mice_recs = [r for r in bundle.records if r.strategy == ImputationStrategy.MICE]
+    assert mice_recs, "Expected at least one MICE record"
+    for rec in mice_recs:
+        assert not any(
+            "mice_convergence_warning" in s for s in rec.signals
+        ), f"Unexpected convergence warning on '{rec.column}'; signals: {rec.signals}"
+
+
+# ---------------------------------------------------------------------------
+# Issue #160 — skew-driven initial_strategy for MICE IterativeImputer
+# ---------------------------------------------------------------------------
+
+
+def test_mice_skewed_block_produces_median_initial_strategy_on_all_columns():
+    """A MICE block with at least one Moderate-skew column must record initial_strategy=median
+    on every MICE column's signals.
+    """
+    rng = np.random.default_rng(500)
+    n = 200
+    n_cols = 2
+    tags = [NonlinearityTag.Linear, NonlinearityTag.Linear]
+    skews = [SkewSeverity.Moderate, SkewSeverity.Normal]
+    df, profile, cols = _make_mice_df_and_profile(n, n_cols, rng, tags, skews)
+    bundle = _fit(df, cols, profile)
+
+    mice_recs = [r for r in bundle.records if r.strategy == ImputationStrategy.MICE]
+    assert (
+        len(mice_recs) == n_cols
+    ), f"Expected {n_cols} MICE records; got {len(mice_recs)}"
+    for rec in mice_recs:
+        sig = _find_signal(rec.signals, "mice_initial_strategy:")
+        assert (
+            sig is not None
+        ), f"Column '{rec.column}' missing mice_initial_strategy signal; got: {rec.signals}"
+        assert (
+            "median" in sig
+        ), f"Expected 'median' in initial_strategy signal for skewed block; got: {sig}"
+
+
+def test_mice_normal_skew_block_produces_mean_initial_strategy_signal():
+    """A MICE block where all columns have Normal skew must record initial_strategy=mean
+    on every MICE column's signals.
+    """
+    rng = np.random.default_rng(501)
+    n = 200
+    n_cols = 2
+    tags = [NonlinearityTag.Linear, NonlinearityTag.Linear]
+    skews = [SkewSeverity.Normal, SkewSeverity.Normal]
+    df, profile, cols = _make_mice_df_and_profile(n, n_cols, rng, tags, skews)
+    bundle = _fit(df, cols, profile)
+
+    mice_recs = [r for r in bundle.records if r.strategy == ImputationStrategy.MICE]
+    assert (
+        len(mice_recs) == n_cols
+    ), f"Expected {n_cols} MICE records; got {len(mice_recs)}"
+    for rec in mice_recs:
+        sig = _find_signal(rec.signals, "mice_initial_strategy:")
+        assert (
+            sig is not None
+        ), f"Column '{rec.column}' missing mice_initial_strategy signal; got: {rec.signals}"
+        assert (
+            "mean" in sig
+        ), f"Expected 'mean' in initial_strategy signal for normal-skew block; got: {sig}"
+
+
+# ---------------------------------------------------------------------------
+# Issue #161 — n_nearest_features selection for large MICE blocks
+# ---------------------------------------------------------------------------
+
+
+def test_mice_large_block_produces_n_nearest_features_signal_on_all_columns():
+    """MICE block exceeding mice_n_nearest_features_min_cols produces a numeric
+    n_nearest_features signal on every MICE column record.
+    """
+    rng = np.random.default_rng(600)
+    n = 200
+    n_cols = 3
+    tags = [NonlinearityTag.Linear] * n_cols
+    df, profile, cols = _make_mice_df_and_profile(n, n_cols, rng, tags)
+    # Set min_cols=2 so a 3-column block is treated as large.
+    config = NumericImputationConfig(mice_n_nearest_features_min_cols=2)
+    bundle = _fit(df, cols, profile, config=config)
+
+    mice_recs = [r for r in bundle.records if r.strategy == ImputationStrategy.MICE]
+    assert (
+        len(mice_recs) == n_cols
+    ), f"Expected {n_cols} MICE records; got {len(mice_recs)}"
+    for rec in mice_recs:
+        sig = _find_signal(rec.signals, "mice_n_nearest_features:")
+        assert (
+            sig is not None
+        ), f"Column '{rec.column}' missing mice_n_nearest_features signal; got: {rec.signals}"
+        assert (
+            "all predictors" not in sig
+        ), f"Expected numeric n_nearest_features for large block, got 'all predictors': {sig}"
+
+
+def test_mice_small_block_uses_all_predictors_and_n_nearest_features_is_none():
+    """MICE block at or below mice_n_nearest_features_min_cols records 'all predictors'
+    and passes n_nearest_features=None to IterativeImputer.
+    """
+    rng = np.random.default_rng(601)
+    n = 200
+    n_cols = 2
+    tags = [NonlinearityTag.Linear] * n_cols
+    df, profile, cols = _make_mice_df_and_profile(n, n_cols, rng, tags)
+    # Default mice_n_nearest_features_min_cols=10; 2-col block is below threshold.
+    bundle = _fit(df, cols, profile)
+
+    mice_recs = [r for r in bundle.records if r.strategy == ImputationStrategy.MICE]
+    assert mice_recs, "Expected at least one MICE record"
+    for rec in mice_recs:
+        sig = _find_signal(rec.signals, "mice_n_nearest_features:")
+        assert (
+            sig is not None
+        ), f"Column '{rec.column}' missing mice_n_nearest_features signal; got: {rec.signals}"
+        assert (
+            "all predictors" in sig
+        ), f"Expected 'all predictors' for small block; got: {sig}"
+
+    assert "mice" in bundle.models
+    assert bundle.models["mice"].n_nearest_features is None, (
+        f"Expected n_nearest_features=None for small block; "
+        f"got: {bundle.models['mice'].n_nearest_features}"
+    )
+    assert bundle.models["mice"].n_nearest_features is None, (
+        f"Expected n_nearest_features=None for small block; "
+        f"got: {bundle.models['mice'].n_nearest_features}"
+    )
