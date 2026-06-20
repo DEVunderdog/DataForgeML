@@ -128,7 +128,7 @@ def test_fitted_imputer_serialisation_round_trip(fitted_imputer, imputation_spli
     assert r1.dataframe.equals(r2.dataframe)
 
 
-def test_mnar_column_receives_constant_fill_and_indicator():
+def test_mnar_column_receives_data_derived_fill_and_indicator():
     """Dedicated test: MNAR-declared column gets constant fill + indicator column."""
     from dataforge_ml.imputation import ImputationConfig, NumericImputationConfig
 
@@ -141,7 +141,6 @@ def test_mnar_column_receives_constant_fill_and_indicator():
     })
     config = PipelineConfig(
         imputation=ImputationConfig(
-            numeric=NumericImputationConfig(mnar_constant_fill=-9999),
             mnar_columns=["salary"],
         )
     )
@@ -151,7 +150,6 @@ def test_mnar_column_receives_constant_fill_and_indicator():
 
     assert result.dataframe["salary"].null_count() == 0
     assert "salary_missing" in result.dataframe.columns
-    assert (result.dataframe["salary"] == -9999.0).sum() > 0
 
 
 def test_orchestrator_stateless_across_multiple_fits(imputation_df, imputation_profile):

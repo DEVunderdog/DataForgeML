@@ -137,17 +137,24 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
             # Spread — Polars returns null for std with ddof=1 on a single row
             std_val = batch[f"{col}__std"]
             profile.std = float(std_val) if std_val is not None else 0.0
-            profile.variance = profile.std ** 2
+            profile.variance = profile.std**2
 
             # Percentiles
             q_vals = [batch[f"{col}__q{q}"] for q in _QUANTILE_LEVELS]
             profile.percentiles = PercentileSnapshot(
-                p1=q_vals[0], p5=q_vals[1], p25=q_vals[2], p50=q_vals[3],
-                p75=q_vals[4], p95=q_vals[5], p99=q_vals[6],
+                p1=q_vals[0],
+                p5=q_vals[1],
+                p25=q_vals[2],
+                p50=q_vals[3],
+                p75=q_vals[4],
+                p95=q_vals[5],
+                p99=q_vals[6],
             )
 
             # Frequency / distribution stays per-column (returns a frame, not a scalar)
-            self._compute_frequency_and_distribution(series, clean, profile, n_rows, self._config)
+            self._compute_frequency_and_distribution(
+                series, clean, profile, n_rows, self._config
+            )
 
             # Shape stays per-column (delegates to scipy on a numpy array)
             self._compute_shape(clean, profile, self._config)

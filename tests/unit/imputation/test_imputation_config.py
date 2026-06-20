@@ -38,6 +38,7 @@ def test_imputation_strategy_has_expected_values():
     assert ImputationStrategy.KNN == "knn"
     assert ImputationStrategy.Regression == "regression"
     assert ImputationStrategy.MICE == "mice"
+    assert ImputationStrategy.MNAR == "mnar"
     assert ImputationStrategy.Constant == "constant"
     assert ImputationStrategy.Dropped == "dropped"
     assert ImputationStrategy.Passthrough == "passthrough"
@@ -63,9 +64,9 @@ def test_numeric_imputation_config_default_regression_min_rows():
     assert cfg.regression_min_rows == 500
 
 
-def test_numeric_imputation_config_default_mnar_constant_fill():
-    cfg = NumericImputationConfig()
-    assert cfg.mnar_constant_fill == -1
+def test_numeric_imputation_config_mnar_constant_fill_removed():
+    with pytest.raises(TypeError):
+        NumericImputationConfig(mnar_constant_fill=-1)
 
 
 def test_numeric_imputation_config_default_gradient_boost_min_rows():
@@ -85,7 +86,6 @@ def test_numeric_config_to_dict_contains_all_keys():
         "knn_max_rows",
         "knn_max_features",
         "regression_min_rows",
-        "mnar_constant_fill",
         "gradient_boost_min_rows",
         "base_max_iter",
         "knn_min_neighbors",
@@ -104,7 +104,6 @@ def test_numeric_config_round_trip_default_values():
     assert restored.knn_max_rows == original.knn_max_rows
     assert restored.knn_max_features == original.knn_max_features
     assert restored.regression_min_rows == original.regression_min_rows
-    assert restored.mnar_constant_fill == original.mnar_constant_fill
     assert restored.gradient_boost_min_rows == original.gradient_boost_min_rows
     assert restored.base_max_iter == original.base_max_iter
 
@@ -114,7 +113,6 @@ def test_numeric_config_round_trip_non_default_values():
         knn_max_rows=10_000,
         knn_max_features=20,
         regression_min_rows=1_000,
-        mnar_constant_fill=-999,
         gradient_boost_min_rows=25_000,
         base_max_iter=20,
     )
@@ -122,7 +120,6 @@ def test_numeric_config_round_trip_non_default_values():
     assert restored.knn_max_rows == 10_000
     assert restored.knn_max_features == 20
     assert restored.regression_min_rows == 1_000
-    assert restored.mnar_constant_fill == -999
     assert restored.gradient_boost_min_rows == 25_000
     assert restored.base_max_iter == 20
 
@@ -132,9 +129,13 @@ def test_numeric_config_from_dict_empty_uses_defaults():
     assert cfg.knn_max_rows == 50_000
     assert cfg.knn_max_features == 50
     assert cfg.regression_min_rows == 500
-    assert cfg.mnar_constant_fill == -1
     assert cfg.gradient_boost_min_rows == 10_000
     assert cfg.base_max_iter == 10
+
+
+def test_numeric_config_from_dict_ignores_legacy_mnar_constant_fill():
+    cfg = NumericImputationConfig.from_dict({"mnar_constant_fill": -9999, "knn_max_rows": 1_000})
+    assert cfg.knn_max_rows == 1_000
 
 
 def test_numeric_config_default_regression_base_max_iter():
@@ -380,7 +381,6 @@ def test_pipeline_config_imputation_default_has_correct_thresholds():
     assert cfg.imputation.numeric.knn_max_rows == 50_000
     assert cfg.imputation.numeric.knn_max_features == 50
     assert cfg.imputation.numeric.regression_min_rows == 500
-    assert cfg.imputation.numeric.mnar_constant_fill == -1
 
 
 def test_pipeline_config_two_instances_have_independent_imputation_configs():
@@ -463,7 +463,6 @@ def test_pipeline_config_round_trip_includes_imputation():
                 knn_max_rows=15_000,
                 knn_max_features=25,
                 regression_min_rows=300,
-                mnar_constant_fill=-99,
             ),
             mnar_columns=["salary", "age"],
             add_indicator_columns=["credit_score"],
@@ -476,7 +475,6 @@ def test_pipeline_config_round_trip_includes_imputation():
     assert restored.imputation.numeric.knn_max_rows == 15_000
     assert restored.imputation.numeric.knn_max_features == 25
     assert restored.imputation.numeric.regression_min_rows == 300
-    assert restored.imputation.numeric.mnar_constant_fill == -99
     assert restored.imputation.mnar_columns == ["salary", "age"]
     assert restored.imputation.add_indicator_columns == ["credit_score"]
 
