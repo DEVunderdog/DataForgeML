@@ -18,7 +18,7 @@ from ..profiling._boolean_config import BooleanStats
 from ..profiling._categorical_config import CategoricalStats
 from ..profiling._numeric_config import NumericStats, SkewSeverity
 from ._config import SplitConfig
-from dataforge_ml.utils._null_detection import _SENTINEL_STRINGS, _inf_eligible, _sentinel_eligible
+from ..utils._null_normalization import _resolve_effective_nulls
 
 _BUCKET_LABELS = ["q1", "q2", "q3", "q4", "q5"]
 
@@ -37,8 +37,39 @@ def build_label_matrix(
     signals (smallest proportion of 1s) are retained. Returns shape (n_rows, 0)
     when no usable signals exist, signalling the caller to fall back to random
     splitting.
+
+    String/Utf8 effective-null detection uses **replace semantics** when
+    ``profile.string_sentinels`` contains an entry for the column: only the
+    declared values are matched (case-insensitive) and the hardcoded defaults
+    (``_SENTINEL_STRINGS``) are suppressed for that column.  Columns with no
+    declaration fall back to the hardcoded defaults unchanged.
+    Empty/whitespace strings are always included regardless of any declaration.
+
+    Parameters
+    ----------
+    df : pl.DataFrame
+        The DataFrame being split.
+    profile : StructuralProfileResult
+        Full Phase 1 result, including per-column missingness profiles and
+        declared string/numeric sentinels.
+    target : str, optional
+        Name of the target column to generate class-distribution signals for.
+        Pass ``None`` when there is no target.
+    config : SplitConfig, optional
+        Stratification thresholds.  Defaults to ``SplitConfig()`` when omitted.
+
+    Returns
+    -------
+    np.ndarray
+        Integer array of shape ``(n_rows, n_signals)`` with dtype int8.
+        Returns shape ``(n_rows, 0)`` when no usable signals exist.
     """
     _config = config if config is not None else SplitConfig()
+    df = _resolve_effective_nulls(
+        df,
+        numeric_sentinels=profile.numeric_sentinels,
+        string_sentinels=profile.string_sentinels,
+    )
     n = len(df)
     signals: list[np.ndarray] = []
 
@@ -48,20 +79,7 @@ def build_label_matrix(
             continue
         if col not in df.columns:
             continue
-        series = df[col]
-        dtype = series.dtype
-        std_null = series.is_null()
-        if _sentinel_eligible(dtype):
-            eff_null = (
-                std_null
-                | (series.str.strip_chars() == "")
-                | series.str.to_uppercase().is_in(list(_SENTINEL_STRINGS))
-            )
-        elif _inf_eligible(dtype):
-            eff_null = std_null | series.is_nan() | series.is_infinite()
-        else:
-            eff_null = std_null
-        s = eff_null.cast(pl.Int8).to_numpy()
+        s = df[col].is_null().cast(pl.Int8).to_numpy()
         signals.append(s)
 
     # --- 2. Joint MAR missingness (correlated pairs, each pair once) ---

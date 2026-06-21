@@ -171,11 +171,30 @@ class FittedImputer:
         Ordered column lists for each model entry in models.  Regression
         entries store the full ``[col] + feat_cols`` list (including the
         target at index 0).
+    numeric_sentinels : dict[str, list[float]]
+        Per-column numeric sentinel declarations copied from
+        ``StructuralProfileResult.numeric_sentinels``.  Keys are column names;
+        values are float-compatible sentinel values that are normalized to
+        Polars-native null before any imputation operation.  Defaults to an
+        empty dict — columns with no declaration are completely unaffected.
+        Survives ``to_dict()`` / ``from_dict()`` round-trips.
+    string_sentinels : dict[str, list[str]]
+        Per-column string sentinel declarations copied from
+        ``StructuralProfileResult.string_sentinels``.  Uses **replace
+        semantics**: when a column name is present, only the declared values
+        are matched (case-insensitive) and the hardcoded defaults
+        (``"NA"``, ``"NAN"``, ``"NULL"``, ``"NONE"``, ``"?"``) are suppressed
+        for that column.  Empty/whitespace strings are always treated as
+        effective null regardless of any declaration.  Defaults to an empty
+        dict — columns with no declaration continue to use the hardcoded
+        defaults.  Survives ``to_dict()`` / ``from_dict()`` round-trips.
     """
 
     records: dict[str, ColumnImputationRecord] = field(default_factory=dict)
     models: dict[str, Any] = field(default_factory=dict)
     model_cols: dict[str, list[str]] = field(default_factory=dict)
+    numeric_sentinels: dict[str, list[float]] = field(default_factory=dict)
+    string_sentinels: dict[str, list[str]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self._exclusions_applied: bool = False
@@ -281,7 +300,11 @@ class FittedImputer:
                 f"cannot be applied to absent columns."
             )
 
-        df = _resolve_effective_nulls(df)
+        df = _resolve_effective_nulls(
+            df,
+            numeric_sentinels=self.numeric_sentinels,
+            string_sentinels=self.string_sentinels,
+        )
 
         # --- Passthrough violation check ---
         violating_cols: list[str] = []
@@ -399,7 +422,8 @@ class FittedImputer:
         -------
         dict
             Dictionary containing serialized records, models (as base64-encoded
-            joblib bytes), and model column lists.
+            joblib bytes), model column lists, numeric sentinel declarations,
+            and string sentinel declarations.
         """
         import base64
         import io
@@ -415,6 +439,8 @@ class FittedImputer:
             "records": {col: rec.to_dict() for col, rec in self.records.items()},
             "models": serialized_models,
             "model_cols": {k: list(v) for k, v in self.model_cols.items()},
+            "numeric_sentinels": {k: list(v) for k, v in self.numeric_sentinels.items()},
+            "string_sentinels": {k: list(v) for k, v in self.string_sentinels.items()},
         }
 
     @classmethod
@@ -426,7 +452,12 @@ class FittedImputer:
         data : dict
             Mapping produced by ``to_dict()``.  Legacy payloads serialised
             before Scope 8 may contain ``"constant"`` as a strategy value;
-            those records are migrated transparently (see Notes).
+            those records are migrated transparently (see Notes).  Payloads
+            without a ``"numeric_sentinels"`` key (serialised before Scope 5 /
+            issue #94) default to an empty dict for backwards compatibility.
+            Payloads without a ``"string_sentinels"`` key (serialised before
+            issue #182) also default to an empty dict for backwards
+            compatibility.
 
         Returns
         -------
@@ -471,7 +502,23 @@ class FittedImputer:
             buf = io.BytesIO(base64.b64decode(b64str))
             models[key] = joblib.load(buf)
 
-        return cls(records=records, models=models, model_cols=model_cols)
+        numeric_sentinels: dict[str, list[float]] = {
+            k: [float(v) for v in vals]
+            for k, vals in data.get("numeric_sentinels", {}).items()
+        }
+
+        string_sentinels: dict[str, list[str]] = {
+            k: [str(v) for v in vals]
+            for k, vals in data.get("string_sentinels", {}).items()
+        }
+
+        return cls(
+            records=records,
+            models=models,
+            model_cols=model_cols,
+            numeric_sentinels=numeric_sentinels,
+            string_sentinels=string_sentinels,
+        )
 
 
 # ---------------------------------------------------------------------------

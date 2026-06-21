@@ -22,15 +22,51 @@ from ._missingness_config import (
     MissingnessProfileResult,
     MissingSeverity,
 )
-from ..utils._null_detection import _SENTINEL_STRINGS, _inf_eligible, _sentinel_eligible
+from ..utils._null_detection import (
+    _SENTINEL_STRINGS,
+    _inf_eligible,
+    _numeric_sentinel_eligible,
+    _sentinel_eligible,
+)
 
 
 class MissingnessProfiler(DatasetLevelProfiler[MissingnessProfileResult]):
-    """Missingness profiler for Polars DataFrames."""
+    """
+    Phase 1 sub-processor that computes per-column missingness profiles.
 
-    def __init__(self, config: MissingnessProfileConfig | None = None) -> None:
+    Detects effective nulls (native Polars nulls, string sentinels, Inf/NaN,
+    and user-declared numeric and string sentinels) and classifies each column
+    by severity, flags drop candidates and MAR suspects, and builds a binary
+    missingness indicator used for column-pair correlation analysis.
+
+    Parameters
+    ----------
+    config : MissingnessProfileConfig, optional
+        Threshold configuration for severity bands, drop threshold, and MAR
+        correlation threshold.  Defaults to ``MissingnessProfileConfig()``.
+    numeric_sentinels : dict[str, list[float]], optional
+        Per-column numeric sentinel declarations copied from
+        ``ProfileConfig.numeric_sentinels``.  Keys are column names; values are
+        float-compatible sentinel values treated as effective nulls.  Columns
+        absent from this mapping are not affected.  Defaults to ``{}``.
+    string_sentinels : dict[str, list[str]], optional
+        Per-column string sentinel declarations copied from
+        ``ProfileConfig.string_sentinels``.  When a column name is present,
+        only the declared values are matched (case-insensitive) and the
+        hardcoded defaults are suppressed for that column.  Empty/whitespace
+        detection always applies regardless.  Defaults to ``{}``.
+    """
+
+    def __init__(
+        self,
+        config: MissingnessProfileConfig | None = None,
+        numeric_sentinels: dict[str, list[float]] | None = None,
+        string_sentinels: dict[str, list[str]] | None = None,
+    ) -> None:
         super().__init__()
         self._config = config if config is not None else MissingnessProfileConfig()
+        self._numeric_sentinels: dict[str, list[float]] = numeric_sentinels or {}
+        self._string_sentinels: dict[str, list[str]] = string_sentinels or {}
 
     # ------------------------------------------------------------------
     # Public API
@@ -41,6 +77,23 @@ class MissingnessProfiler(DatasetLevelProfiler[MissingnessProfileResult]):
         data: pl.DataFrame,
         columns: list[str] | None = None,
     ) -> MissingnessProfileResult:
+        """
+        Profile missingness across the specified columns of a DataFrame.
+
+        Parameters
+        ----------
+        data : pl.DataFrame
+            DataFrame to profile.
+        columns : list[str], optional
+            Subset of columns to analyse.  When ``None``, all columns are used.
+
+        Returns
+        -------
+        MissingnessProfileResult
+            Per-column missingness profiles, severity classifications,
+            drop-candidate and MAR-suspect flags, and a pairwise missingness
+            correlation matrix for columns that have any effective nulls.
+        """
         return self._run(data, columns)
 
     # ------------------------------------------------------------------
@@ -67,6 +120,8 @@ class MissingnessProfiler(DatasetLevelProfiler[MissingnessProfileResult]):
                 col_name=col_name,
                 n_rows=n_rows,
                 config=self._config,
+                sentinels=self._numeric_sentinels.get(col_name),
+                string_sentinels=self._string_sentinels.get(col_name),
             )
             result.columns[col_name] = col_profile
             indicator_cols.append(indicator)
@@ -114,21 +169,42 @@ class MissingnessProfiler(DatasetLevelProfiler[MissingnessProfileResult]):
         col_name: str,
         n_rows: int,
         config: MissingnessProfileConfig,
+        sentinels: list[float] | None = None,
+        string_sentinels: list[str] | None = None,
     ) -> tuple[ColumnMissingnessProfile, pl.Series]:
         profile = ColumnMissingnessProfile(column=col_name, total_rows=n_rows)
         dtype = series.dtype
         std_null = series.is_null()
 
         if _sentinel_eligible(dtype):
-            eff_null = (
-                std_null
-                | (series.str.strip_chars() == "")
-                | series.str.to_uppercase().is_in(list(_SENTINEL_STRINGS))
-            )
+            if string_sentinels is not None:
+                # Replace semantics: only declared values (case-insensitive);
+                # hardcoded _SENTINEL_STRINGS suppressed for this column.
+                declared_upper = [s.upper() for s in string_sentinels]
+                eff_null = (
+                    std_null
+                    | (series.str.strip_chars() == "")
+                    | series.str.to_uppercase().is_in(declared_upper)
+                )
+            else:
+                eff_null = (
+                    std_null
+                    | (series.str.strip_chars() == "")
+                    | series.str.to_uppercase().is_in(list(_SENTINEL_STRINGS))
+                )
         elif _inf_eligible(dtype):
             eff_null = std_null | series.is_nan() | series.is_infinite()
+            if sentinels:
+                for v in sentinels:
+                    eff_null = eff_null | (series == v)
         else:
             eff_null = std_null
+            if sentinels and _numeric_sentinel_eligible(dtype):
+                # Cast to Float64 for a type-safe comparison that works for all
+                # integer dtypes without requiring a sentinel-value cast per dtype.
+                float_series = series.cast(pl.Float64)
+                for v in sentinels:
+                    eff_null = eff_null | (float_series == v)
 
         std_count = int(std_null.sum())
         eff_count = int(eff_null.sum())

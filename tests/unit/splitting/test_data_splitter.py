@@ -869,3 +869,120 @@ def test_pipeline_config_round_trip_default_split():
     cfg = PipelineConfig()
     restored = PipelineConfig.from_dict(cfg.to_dict())
     assert restored.split == SplitConfig()
+
+
+# ---------------------------------------------------------------------------
+# build_label_matrix — signal 1: string sentinel replace semantics
+# ---------------------------------------------------------------------------
+
+
+def test_signal_1_declared_sentinels_replace_hardcoded_defaults():
+    """Declared sentinels suppress hardcoded defaults for that column (replace semantics)."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+    from dataforge_ml.profiling._config import ProfileConfig
+
+    # "NA" is a hardcoded default; "MISSING" is the declared sentinel.
+    # With replace semantics, "NA" must NOT be marked; "MISSING" MUST.
+    data = ["apple", "MISSING", "NA", "banana", ""]
+    df = pl.DataFrame({"txt": pl.Series(data, dtype=pl.Utf8)})
+    pipeline_cfg = PipelineConfig(
+        profiling=ProfileConfig(string_sentinels={"txt": ["MISSING"]})
+    )
+    profile = StructuralProfiler(pipeline_cfg).profile(df)
+
+    mat = build_label_matrix(df, profile, target=None)
+
+    assert mat.shape[1] >= 1
+    signal = mat[:, 0]
+    assert signal[1] == 1, '"MISSING" (declared sentinel) should be marked'
+    assert signal[4] == 1, 'empty string should always be marked regardless of declaration'
+    assert signal[2] == 0, '"NA" (hardcoded default) must NOT be marked when replaced by declared sentinels'
+    assert signal[0] == 0
+    assert signal[3] == 0
+
+
+def test_signal_1_no_sentinel_declaration_falls_back_to_hardcoded_defaults():
+    """Columns with no string_sentinels declaration continue to use _SENTINEL_STRINGS."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+
+    data = ["apple", "NA", "banana", "NULL", "cherry"]
+    df = pl.DataFrame({"txt": pl.Series(data, dtype=pl.Utf8)})
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+
+    mat = build_label_matrix(df, profile, target=None)
+
+    assert mat.shape[1] >= 1
+    signal = mat[:, 0]
+    assert signal[1] == 1, '"NA" should be marked via hardcoded fallback'
+    assert signal[3] == 1, '"NULL" should be marked via hardcoded fallback'
+    assert signal[0] == 0
+    assert signal[2] == 0
+    assert signal[4] == 0
+
+
+def test_signal_1_whitespace_always_marked_with_declared_sentinels():
+    """Empty/whitespace strings are always effective null even when custom sentinels are declared."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+    from dataforge_ml.profiling._config import ProfileConfig
+
+    data = ["apple", "CUSTOM", "  ", "banana", "NA"]
+    df = pl.DataFrame({"txt": pl.Series(data, dtype=pl.Utf8)})
+    pipeline_cfg = PipelineConfig(
+        profiling=ProfileConfig(string_sentinels={"txt": ["CUSTOM"]})
+    )
+    profile = StructuralProfiler(pipeline_cfg).profile(df)
+
+    mat = build_label_matrix(df, profile, target=None)
+
+    assert mat.shape[1] >= 1
+    signal = mat[:, 0]
+    assert signal[1] == 1, '"CUSTOM" (declared sentinel) should be marked'
+    assert signal[2] == 1, 'whitespace-only string should always be marked regardless of declaration'
+    assert signal[4] == 0, '"NA" (hardcoded default) must NOT be marked when replaced by declared sentinels'
+    assert signal[0] == 0
+    assert signal[3] == 0
+
+
+def test_signal_1_declared_sentinels_matched_case_insensitively():
+    """Declared sentinels match column data case-insensitively."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+    from dataforge_ml.profiling._config import ProfileConfig
+
+    data = ["apple", "missing", "MISSING", "Missing", "banana"]
+    df = pl.DataFrame({"txt": pl.Series(data, dtype=pl.Utf8)})
+    pipeline_cfg = PipelineConfig(
+        profiling=ProfileConfig(string_sentinels={"txt": ["MISSING"]})
+    )
+    profile = StructuralProfiler(pipeline_cfg).profile(df)
+
+    mat = build_label_matrix(df, profile, target=None)
+
+    assert mat.shape[1] >= 1
+    signal = mat[:, 0]
+    assert signal[1] == 1, '"missing" (lowercase) should match "MISSING" declared sentinel'
+    assert signal[2] == 1, '"MISSING" (exact match) should be marked'
+    assert signal[3] == 1, '"Missing" (mixed-case) should match case-insensitively'
+    assert signal[0] == 0
+    assert signal[4] == 0
+
+
+def test_signal_1_declared_sentinels_do_not_affect_other_dtype_columns():
+    """string_sentinels declarations for a column do not bleed into non-string columns."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+    from dataforge_ml.profiling._config import ProfileConfig
+
+    df = pl.DataFrame({
+        "txt": pl.Series(["apple", "MISSING", "NA", "banana", ""], dtype=pl.Utf8),
+        "num": pl.Series([1.0, 2.0, None, 4.0, 5.0], dtype=pl.Float64),
+    })
+    pipeline_cfg = PipelineConfig(
+        profiling=ProfileConfig(string_sentinels={"txt": ["MISSING"]})
+    )
+    profile = StructuralProfiler(pipeline_cfg).profile(df)
+
+    mat = build_label_matrix(df, profile, target=None)
+
+    # Collect the num signal: standard null (row 2) should be the only null
+    num_profile = profile.columns["num"]
+    assert num_profile.missingness is not None
+    assert num_profile.missingness.effective_null_count > 0

@@ -6,6 +6,7 @@ import pytest
 from dataforge_ml.utils._null_detection import (
     _SENTINEL_STRINGS,
     _inf_eligible,
+    _numeric_sentinel_eligible,
     _sentinel_eligible,
 )
 
@@ -80,3 +81,37 @@ def test_sentinel_strings_contains_expected_values():
 
 def test_sentinel_strings_is_frozenset():
     assert isinstance(_SENTINEL_STRINGS, frozenset)
+
+
+# ---------------------------------------------------------------------------
+# _numeric_sentinel_eligible — integer and float dtypes
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "dtype",
+    [
+        pl.Int8, pl.Int16, pl.Int32, pl.Int64,
+        pl.UInt8, pl.UInt16, pl.UInt32, pl.UInt64,
+        pl.Float32, pl.Float64,
+    ],
+)
+def test_numeric_sentinel_eligible_true_for_numeric(dtype):
+    assert _numeric_sentinel_eligible(dtype) is True
+
+
+@pytest.mark.parametrize(
+    "dtype",
+    [
+        pl.String, pl.Utf8,
+        pl.Boolean,
+        pl.Date, pl.Datetime, pl.Duration, pl.Time,
+    ],
+)
+def test_numeric_sentinel_eligible_false_for_non_numeric(dtype):
+    assert _numeric_sentinel_eligible(dtype) is False
+
+
+def test_numeric_sentinel_eligible_accepts_only_dtype_parameter():
+    sig = inspect.signature(_numeric_sentinel_eligible)
+    assert list(sig.parameters.keys()) == ["dtype"]

@@ -46,6 +46,7 @@ from ._config import (
     RowMissingnessDistribution,
     TypeFlag,
 )
+from ..utils._null_normalization import _resolve_effective_nulls
 
 # ---------------------------------------------------------------------------
 # Registry: SemanticType → ColumnTypeProfiler class
@@ -142,7 +143,9 @@ class StructuralProfiler:
         # setdefault creates ColumnProfile entries; subsequent steps mutate
         # the same objects via the same setdefault pattern.
         missingness_result = MissingnessProfiler(
-            config=self.config.profiling.missingness
+            config=self.config.profiling.missingness,
+            numeric_sentinels=self.config.profiling.numeric_sentinels,
+            string_sentinels=self.config.profiling.string_sentinels,
         ).profile(data, columns=active_cols)
         for col_name in missingness_result.analysed_columns:
             cp = result.columns.setdefault(col_name, ColumnProfile(name=col_name))
@@ -157,6 +160,8 @@ class StructuralProfiler:
             cols=active_cols,
             n_rows=data.height,
             row_drop_threshold=self.config.profiling.row_drop_threshold,
+            numeric_sentinels=self.config.profiling.numeric_sentinels,
+            string_sentinels=self.config.profiling.string_sentinels,
         )
 
         # ── 4. Type detection ────────────────────────────────────────────
@@ -335,6 +340,11 @@ class StructuralProfiler:
         for col in soft_retained:
             result.columns.setdefault(col, ColumnProfile(name=col))
 
+        result.numeric_sentinels = dict(self.config.profiling.numeric_sentinels)
+        result.string_sentinels = {
+            k: list(v) for k, v in self.config.profiling.string_sentinels.items()
+        }
+
         return result
 
     # ------------------------------------------------------------------
@@ -347,41 +357,21 @@ class StructuralProfiler:
         cols: list[str],
         n_rows: int,
         row_drop_threshold: float = 0.50,
+        numeric_sentinels: dict[str, list[float]] | None = None,
+        string_sentinels: dict[str, list[str]] | None = None,
     ) -> RowMissingnessDistribution:
-        from ..utils._null_detection import (
-            _sentinel_eligible,
-            _inf_eligible,
-            _SENTINEL_STRINGS,
-        )
-
         dist = RowMissingnessDistribution()
         if n_rows == 0 or not cols:
             return dist
 
         n_cols = len(cols)
-        per_col_exprs = []
-
-        for col_name in cols:
-            dtype = df[col_name].dtype
-            null_e = pl.col(col_name).is_null()
-
-            if _sentinel_eligible(dtype):
-                eff = (
-                    null_e
-                    | (pl.col(col_name).str.strip_chars() == "")
-                    | pl.col(col_name).str.to_uppercase().is_in(list(_SENTINEL_STRINGS))
-                )
-            elif _inf_eligible(dtype):
-                eff = (
-                    null_e | pl.col(col_name).is_nan() | pl.col(col_name).is_infinite()
-                )
-            else:
-                eff = null_e
-
-            per_col_exprs.append(eff.cast(pl.Int8).alias(col_name))
-
-        row_missing: pl.Series = df.select(per_col_exprs).select(
-            pl.sum_horizontal(pl.all()).alias("row_missing")
+        subset = _resolve_effective_nulls(
+            df.select(cols),
+            numeric_sentinels=numeric_sentinels,
+            string_sentinels=string_sentinels,
+        )
+        row_missing: pl.Series = subset.select(
+            pl.sum_horizontal(pl.all().is_null()).alias("row_missing")
         )["row_missing"]
 
         half_threshold = math.ceil(n_cols * row_drop_threshold)

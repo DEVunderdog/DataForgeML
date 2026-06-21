@@ -75,7 +75,11 @@ class ImputationOrchestrator:
         FittedImputer
             Stateless imputer that can transform any DataFrame.
         """
-        train_df = _resolve_effective_nulls(train_df)
+        train_df = _resolve_effective_nulls(
+            train_df,
+            numeric_sentinels=profile.numeric_sentinels,
+            string_sentinels=profile.string_sentinels,
+        )
         _check_split_imbalance(train_df, profile)
 
         imp_cfg = self._config.imputation
@@ -148,6 +152,8 @@ class ImputationOrchestrator:
             records=all_records,
             models=all_models,
             model_cols=all_model_cols,
+            numeric_sentinels=dict(profile.numeric_sentinels),
+            string_sentinels=dict(profile.string_sentinels),
         )
 
     def fit_transform(
