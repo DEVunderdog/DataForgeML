@@ -346,3 +346,92 @@ def test_row_drop_threshold_override_via_profile_config():
         PipelineConfig(profiling=custom_profile)
     ).profile(df)
     assert result_custom.dataset.row_distribution.drop_candidate_row_count == 0
+
+
+# ---------------------------------------------------------------------------
+# numeric_sentinels propagation — ProfileConfig → StructuralProfileResult
+# ---------------------------------------------------------------------------
+
+
+def test_profiler_propagates_numeric_sentinels_to_result():
+    df = pl.DataFrame({
+        "age": pl.Series([25, -999, 30], dtype=pl.Int64),
+        "score": pl.Series([1.0, 2.0, 3.0], dtype=pl.Float64),
+    })
+    sentinels = {"age": [-999.0]}
+    config = PipelineConfig(profiling=ProfileConfig(numeric_sentinels=sentinels))
+    result = StructuralProfiler(config).profile(df)
+
+    assert result.numeric_sentinels == sentinels
+
+
+def test_profiler_numeric_sentinels_empty_when_none_declared():
+    df = pl.DataFrame({"x": pl.Series([1, 2, 3], dtype=pl.Int64)})
+    result = StructuralProfiler(PipelineConfig()).profile(df)
+
+    assert result.numeric_sentinels == {}
+
+
+def test_profiler_numeric_sentinels_multi_column_propagation():
+    df = pl.DataFrame({
+        "income": pl.Series([50000, -1, 75000], dtype=pl.Int64),
+        "age": pl.Series([25, 9999, 30], dtype=pl.Int64),
+    })
+    sentinels = {"income": [-1.0], "age": [9999.0]}
+    config = PipelineConfig(profiling=ProfileConfig(numeric_sentinels=sentinels))
+    result = StructuralProfiler(config).profile(df)
+
+    assert result.numeric_sentinels == sentinels
+
+
+# ---------------------------------------------------------------------------
+# string_sentinels propagation — ProfileConfig → StructuralProfileResult
+# ---------------------------------------------------------------------------
+
+
+def test_profiler_propagates_string_sentinels_to_result():
+    df = pl.DataFrame({
+        "status": pl.Series(["active", "N/A", "inactive"], dtype=pl.String),
+        "score": pl.Series([1.0, 2.0, 3.0], dtype=pl.Float64),
+    })
+    sentinels = {"status": ["N/A", "missing"]}
+    config = PipelineConfig(profiling=ProfileConfig(string_sentinels=sentinels))
+    result = StructuralProfiler(config).profile(df)
+
+    assert result.string_sentinels == sentinels
+
+
+def test_profiler_string_sentinels_empty_when_none_declared():
+    df = pl.DataFrame({"status": pl.Series(["active", "inactive"], dtype=pl.String)})
+    result = StructuralProfiler(PipelineConfig()).profile(df)
+
+    assert result.string_sentinels == {}
+
+
+def test_profiler_string_sentinels_multi_column_propagation():
+    df = pl.DataFrame({
+        "status": pl.Series(["active", "N/A", "inactive"], dtype=pl.String),
+        "grade": pl.Series(["A", "?", "B"], dtype=pl.String),
+    })
+    sentinels = {"status": ["N/A", "missing"], "grade": ["?"]}
+    config = PipelineConfig(profiling=ProfileConfig(string_sentinels=sentinels))
+    result = StructuralProfiler(config).profile(df)
+
+    assert result.string_sentinels == sentinels
+
+
+def test_profiler_numeric_and_string_sentinels_propagate_independently():
+    df = pl.DataFrame({
+        "age": pl.Series([25, -999, 30], dtype=pl.Int64),
+        "status": pl.Series(["active", "N/A", "inactive"], dtype=pl.String),
+    })
+    num_sentinels = {"age": [-999.0]}
+    str_sentinels = {"status": ["N/A"]}
+    config = PipelineConfig(profiling=ProfileConfig(
+        numeric_sentinels=num_sentinels,
+        string_sentinels=str_sentinels,
+    ))
+    result = StructuralProfiler(config).profile(df)
+
+    assert result.numeric_sentinels == num_sentinels
+    assert result.string_sentinels == str_sentinels

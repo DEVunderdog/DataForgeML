@@ -106,12 +106,13 @@ The distinction matters for ML: Categorical columns go through frequency profili
 
 ## Effective Null
 
-A value that counts as missing beyond a standard Polars `null`. Detection combines dtype-driven automatic rules and user-declared numeric sentinels:
+A value that counts as missing beyond a standard Polars `null`. Detection combines dtype-driven automatic rules and user-declared sentinels:
 
-- **String / Utf8 columns** — standard null + empty string + sentinel strings (`"NA"`, `"NAN"`, `"NULL"`, `"NONE"`, `"?"`)
-- **Float32 / Float64 columns** — standard null + `NaN` + `Inf`
-- **Numeric sentinel** — a user-declared value (e.g. `-999`, `9999`) for a specific column, treated as effective null for that column only. Declared per-column in `ProfileConfig`; surfaced in `StructuralProfileResult` so Phase 2 can apply the same sentinel rules without a separate config reference. Not auto-detected from data. Applies to any numeric dtype.
-- **All other dtypes** — standard null only (unless a numeric sentinel is declared)
+- **String / Utf8 columns** — standard null + empty/whitespace-only string (always, unconditional) + string sentinel matching (see **String sentinel** below).
+- **Float32 / Float64 columns** — standard null + `NaN` + `Inf`.
+- **Numeric sentinel** — a user-declared value (e.g. `-999`, `9999`) for a specific column, treated as effective null for that column only. Declared per-column in `ProfileConfig.numeric_sentinels`; surfaced in `StructuralProfileResult` so Phase 2 can apply the same rules without a config reference. Not auto-detected. Applies to any numeric dtype. User declarations supplement automatic float rules.
+- **String sentinel** — for String/Utf8 columns, sentinel string matching follows replace semantics: if the user has declared `ProfileConfig.string_sentinels` for a column, only those values are checked (case-insensitive); if no declaration exists, the hardcoded defaults (`"NA"`, `"NAN"`, `"NULL"`, `"NONE"`, `"?"`) apply. Empty/whitespace-only strings are always effective null regardless of declarations. Replace semantics exist because string null encoding is domain-specific with no universal standard — a user who knows their domain well enough to declare sentinels also knows better than the library what counts as null, and the hardcoded set should not be silently imposed on top of their declaration.
+- **All other dtypes** — standard null only (unless a numeric sentinel is declared).
 
 ## TypeFlag
 

@@ -442,3 +442,105 @@ def test_round_trip_empty_numeric_kind_overrides():
     cfg = PipelineConfig()
     restored = PipelineConfig.from_json(cfg.to_json())
     assert restored.numeric_kind_overrides == {}
+
+
+# ---------------------------------------------------------------------------
+# ProfileConfig.numeric_sentinels — field, serialisation, round-trip
+# ---------------------------------------------------------------------------
+
+
+def test_profile_config_numeric_sentinels_defaults_to_empty_dict():
+    cfg = ProfileConfig()
+    assert cfg.numeric_sentinels == {}
+
+
+def test_profile_config_to_dict_includes_numeric_sentinels():
+    cfg = ProfileConfig(numeric_sentinels={"age": [-999.0], "score": [-999.0, 9999.0]})
+    d = cfg.to_dict()
+    assert "numeric_sentinels" in d
+    assert d["numeric_sentinels"] == {"age": [-999.0], "score": [-999.0, 9999.0]}
+
+
+def test_profile_config_to_dict_numeric_sentinels_empty_when_unset():
+    cfg = ProfileConfig()
+    d = cfg.to_dict()
+    assert d["numeric_sentinels"] == {}
+
+
+def test_profile_config_from_dict_restores_numeric_sentinels():
+    d = {"numeric_sentinels": {"age": [-999.0], "score": [-999.0, 9999.0]}}
+    cfg = ProfileConfig.from_dict(d)
+    assert cfg.numeric_sentinels == {"age": [-999.0], "score": [-999.0, 9999.0]}
+
+
+def test_profile_config_from_dict_missing_key_defaults_to_empty_dict():
+    cfg = ProfileConfig.from_dict({})
+    assert cfg.numeric_sentinels == {}
+
+
+def test_profile_config_round_trip_with_sentinels():
+    original = ProfileConfig(numeric_sentinels={"income": [-1.0], "age": [-999.0, 9999.0]})
+    restored = ProfileConfig.from_dict(original.to_dict())
+    assert restored.numeric_sentinels == original.numeric_sentinels
+
+
+def test_profile_config_round_trip_no_sentinels_unchanged():
+    original = ProfileConfig()
+    restored = ProfileConfig.from_dict(original.to_dict())
+    assert restored.numeric_sentinels == {}
+
+
+# ---------------------------------------------------------------------------
+# ProfileConfig.string_sentinels — field, serialisation, round-trip
+# ---------------------------------------------------------------------------
+
+
+def test_profile_config_string_sentinels_defaults_to_empty_dict():
+    cfg = ProfileConfig()
+    assert cfg.string_sentinels == {}
+
+
+def test_profile_config_to_dict_includes_string_sentinels():
+    cfg = ProfileConfig(string_sentinels={"status": ["N/A", "missing"], "grade": ["?"]})
+    d = cfg.to_dict()
+    assert "string_sentinels" in d
+    assert d["string_sentinels"] == {"status": ["N/A", "missing"], "grade": ["?"]}
+
+
+def test_profile_config_to_dict_string_sentinels_empty_when_unset():
+    cfg = ProfileConfig()
+    d = cfg.to_dict()
+    assert d["string_sentinels"] == {}
+
+
+def test_profile_config_from_dict_restores_string_sentinels():
+    d = {"string_sentinels": {"status": ["N/A", "missing"], "grade": ["?"]}}
+    cfg = ProfileConfig.from_dict(d)
+    assert cfg.string_sentinels == {"status": ["N/A", "missing"], "grade": ["?"]}
+
+
+def test_profile_config_from_dict_missing_key_defaults_to_empty_dict():
+    cfg = ProfileConfig.from_dict({})
+    assert cfg.string_sentinels == {}
+
+
+def test_profile_config_round_trip_with_string_sentinels():
+    original = ProfileConfig(string_sentinels={"status": ["N/A", "missing"], "grade": ["?"]})
+    restored = ProfileConfig.from_dict(original.to_dict())
+    assert restored.string_sentinels == original.string_sentinels
+
+
+def test_profile_config_round_trip_no_string_sentinels_unchanged():
+    original = ProfileConfig()
+    restored = ProfileConfig.from_dict(original.to_dict())
+    assert restored.string_sentinels == {}
+
+
+def test_profile_config_numeric_and_string_sentinels_coexist():
+    cfg = ProfileConfig(
+        numeric_sentinels={"age": [-999.0]},
+        string_sentinels={"status": ["N/A"]},
+    )
+    restored = ProfileConfig.from_dict(cfg.to_dict())
+    assert restored.numeric_sentinels == {"age": [-999.0]}
+    assert restored.string_sentinels == {"status": ["N/A"]}

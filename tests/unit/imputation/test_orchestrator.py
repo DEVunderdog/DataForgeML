@@ -437,3 +437,31 @@ def test_indicator_record_round_trips_via_to_dict_from_dict():
     assert "income_missing" in restored.records
     assert restored.records["income_missing"].strategy == ImputationStrategy.Indicator
     assert restored.records["income_missing"].semantic_type == SemanticType.Boolean
+
+
+# ---------------------------------------------------------------------------
+# Issue #175 — numeric_sentinels threading through fit()
+# ---------------------------------------------------------------------------
+
+
+def test_fit_threads_numeric_sentinels_to_fitted_imputer():
+    """FittedImputer returned by fit() carries the sentinels declared on the profile."""
+    df = pl.DataFrame({
+        "age": pl.Series([25, -999, 30, -999, 40], dtype=pl.Int64),
+    })
+    profile = _make_profile({"age": _numeric_cp_with_nulls("age", null_count=2, total=5)})
+    profile.numeric_sentinels = {"age": [-999.0]}
+
+    fi = ImputationOrchestrator().fit(df, profile)
+
+    assert fi.numeric_sentinels == {"age": [-999.0]}
+
+
+def test_fit_numeric_sentinels_empty_when_profile_has_none():
+    """FittedImputer has an empty sentinels dict when the profile declares none."""
+    df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
+    profile = _make_profile({"a": _numeric_cp_with_nulls("a")})
+
+    fi = ImputationOrchestrator().fit(df, profile)
+
+    assert fi.numeric_sentinels == {}

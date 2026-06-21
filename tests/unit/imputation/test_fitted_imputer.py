@@ -1531,3 +1531,435 @@ def test_regression_inference_time_feature_nans():
     assert res.dataframe["y"].null_count() == 0
     assert res.dataframe["y"][1] is not None
 
+
+# ---------------------------------------------------------------------------
+# numeric_sentinels — field, transform wiring, serialisation (issue #174)
+# ---------------------------------------------------------------------------
+
+
+def test_numeric_sentinels_field_defaults_to_empty_dict():
+    imputer = FittedImputer(records={
+        "a": _record("a", ImputationStrategy.Mean, fill_value=5.0),
+    })
+    assert imputer.numeric_sentinels == {}
+
+
+def test_numeric_sentinels_field_accepts_declared_mapping():
+    imputer = FittedImputer(
+        records={"age": _record("age", ImputationStrategy.Mean, fill_value=30.0)},
+        numeric_sentinels={"age": [-999.0]},
+    )
+    assert imputer.numeric_sentinels == {"age": [-999.0]}
+
+
+def test_transform_normalises_int64_sentinel_before_fill():
+    imputer = FittedImputer(
+        records={"age": _record("age", ImputationStrategy.Mean, fill_value=30.0)},
+        numeric_sentinels={"age": [-999.0]},
+    )
+    df = pl.DataFrame({"age": pl.Series([-999, 25, None], dtype=pl.Int64)})
+    result = imputer.transform(df)
+    assert result.dataframe["age"].null_count() == 0
+    assert result.dataframe["age"][0] == 30
+    assert result.dataframe["age"][1] == 25
+
+
+def test_transform_normalises_float64_sentinel_before_fill():
+    imputer = FittedImputer(
+        records={"score": _record("score", ImputationStrategy.Median, fill_value=50.0)},
+        numeric_sentinels={"score": [-999.0]},
+    )
+    df = pl.DataFrame({"score": pl.Series([-999.0, 80.0, None], dtype=pl.Float64)})
+    result = imputer.transform(df)
+    assert result.dataframe["score"].null_count() == 0
+    assert result.dataframe["score"][0] == pytest.approx(50.0)
+    assert result.dataframe["score"][1] == pytest.approx(80.0)
+
+
+def test_transform_multiple_sentinels_all_normalised():
+    imputer = FittedImputer(
+        records={"x": _record("x", ImputationStrategy.Mean, fill_value=0.0)},
+        numeric_sentinels={"x": [-999.0, 9999.0]},
+    )
+    df = pl.DataFrame({"x": pl.Series([-999, 9999, 42], dtype=pl.Int32)})
+    result = imputer.transform(df)
+    assert result.dataframe["x"][0] == 0
+    assert result.dataframe["x"][1] == 0
+    assert result.dataframe["x"][2] == 42
+
+
+def test_transform_sentinel_only_affects_declared_column():
+    imputer = FittedImputer(
+        records={
+            "a": _record("a", ImputationStrategy.Mean, fill_value=0.0),
+            "b": _record("b", ImputationStrategy.Mean, fill_value=0.0),
+        },
+        numeric_sentinels={"a": [-999.0]},
+    )
+    df = pl.DataFrame({
+        "a": pl.Series([-999, 1], dtype=pl.Int64),
+        "b": pl.Series([-999, 1], dtype=pl.Int64),
+    })
+    result = imputer.transform(df)
+    assert result.dataframe["a"][0] == 0    # sentinel normalised then filled
+    assert result.dataframe["b"][0] == -999  # not declared — unchanged
+
+
+def test_transform_empty_sentinels_behaviour_unchanged():
+    imputer = FittedImputer(
+        records={"f": _record("f", ImputationStrategy.Mean, fill_value=9.0)},
+        numeric_sentinels={},
+    )
+    df = pl.DataFrame({"f": pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
+    result = imputer.transform(df)
+    assert result.dataframe["f"].null_count() == 0
+    assert result.dataframe["f"][1] == pytest.approx(9.0)
+
+
+def test_to_dict_includes_numeric_sentinels_key():
+    imputer = FittedImputer(
+        records={"age": _record("age", ImputationStrategy.Mean, fill_value=30.0)},
+        numeric_sentinels={"age": [-999.0]},
+    )
+    d = imputer.to_dict()
+    assert "numeric_sentinels" in d
+    assert d["numeric_sentinels"] == {"age": [-999.0]}
+
+
+def test_to_dict_numeric_sentinels_empty_when_not_set():
+    imputer = FittedImputer(records={
+        "a": _record("a", ImputationStrategy.Mean, fill_value=1.0),
+    })
+    d = imputer.to_dict()
+    assert "numeric_sentinels" in d
+    assert d["numeric_sentinels"] == {}
+
+
+def test_from_dict_restores_numeric_sentinels():
+    imputer = FittedImputer(
+        records={"age": _record("age", ImputationStrategy.Mean, fill_value=30.0)},
+        numeric_sentinels={"age": [-999.0, 9999.0]},
+    )
+    restored = FittedImputer.from_dict(imputer.to_dict())
+    assert restored.numeric_sentinels == {"age": [-999.0, 9999.0]}
+
+
+def test_from_dict_without_numeric_sentinels_key_defaults_to_empty_dict():
+    payload = {
+        "records": {
+            "age": {
+                "column": "age",
+                "semantic_type": "numeric",
+                "strategy": "mean",
+                "fill_value": 30.0,
+                "indicator_added": False,
+                "signals": [],
+                "domain_snap_bounds": None,
+            }
+        },
+        "models": {},
+        "model_cols": {},
+    }
+    restored = FittedImputer.from_dict(payload)
+    assert restored.numeric_sentinels == {}
+
+
+def test_round_trip_with_sentinels_produces_identical_transform_output():
+    imputer = FittedImputer(
+        records={"age": _record("age", ImputationStrategy.Mean, fill_value=30.0)},
+        numeric_sentinels={"age": [-999.0]},
+    )
+    restored = FittedImputer.from_dict(imputer.to_dict())
+
+    df = pl.DataFrame({"age": pl.Series([-999, 25, None], dtype=pl.Int64)})
+    r1 = imputer.transform(df)
+    r2 = restored.transform(df)
+    assert r1.dataframe.equals(r2.dataframe)
+
+
+def test_old_format_deserialised_imputer_transforms_identically_to_empty_sentinels():
+    payload_old = {
+        "records": {
+            "score": {
+                "column": "score",
+                "semantic_type": "numeric",
+                "strategy": "mean",
+                "fill_value": 5.0,
+                "indicator_added": False,
+                "signals": [],
+                "domain_snap_bounds": None,
+            }
+        },
+        "models": {},
+        "model_cols": {},
+    }
+    restored_old = FittedImputer.from_dict(payload_old)
+
+    empty_sentinels = FittedImputer(
+        records={"score": _record("score", ImputationStrategy.Mean, fill_value=5.0)},
+        numeric_sentinels={},
+    )
+
+    df = pl.DataFrame({"score": pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
+    r_old = restored_old.transform(df)
+    r_empty = empty_sentinels.transform(df)
+    assert r_old.dataframe.equals(r_empty.dataframe)
+
+
+# ---------------------------------------------------------------------------
+# string_sentinels — field, transform wiring, serialisation (issue #182)
+# ---------------------------------------------------------------------------
+
+
+def test_string_sentinels_field_defaults_to_empty_dict():
+    imputer = FittedImputer(records={
+        "cat": ColumnImputationRecord(
+            column="cat", semantic_type=SemanticType.Categorical,
+            strategy=ImputationStrategy.Constant, fill_value="unknown",
+            indicator_added=False, signals=[],
+        ),
+    })
+    assert imputer.string_sentinels == {}
+
+
+def test_string_sentinels_field_accepts_declared_mapping():
+    imputer = FittedImputer(
+        records={
+            "status": ColumnImputationRecord(
+                column="status", semantic_type=SemanticType.Categorical,
+                strategy=ImputationStrategy.Constant, fill_value="unknown",
+                indicator_added=False, signals=[],
+            ),
+        },
+        string_sentinels={"status": ["N/A", "missing"]},
+    )
+    assert imputer.string_sentinels == {"status": ["N/A", "missing"]}
+
+
+def test_transform_normalises_declared_string_sentinel_before_fill():
+    """Declared string sentinels are converted to null and then filled by the record strategy."""
+    imputer = FittedImputer(
+        records={
+            "status": ColumnImputationRecord(
+                column="status", semantic_type=SemanticType.Categorical,
+                strategy=ImputationStrategy.Constant, fill_value="unknown",
+                indicator_added=False, signals=[],
+            ),
+        },
+        string_sentinels={"status": ["N/A", "missing"]},
+    )
+    df = pl.DataFrame({"status": pl.Series(["active", "N/A", "missing"], dtype=pl.String)})
+    result = imputer.transform(df)
+    assert result.dataframe["status"].null_count() == 0
+    assert result.dataframe["status"][0] == "active"
+    assert result.dataframe["status"][1] == "unknown"
+    assert result.dataframe["status"][2] == "unknown"
+
+
+def test_transform_declared_sentinels_suppress_hardcoded_defaults():
+    """When a column has a string_sentinels declaration, hardcoded defaults like 'NA' are NOT treated as null."""
+    imputer = FittedImputer(
+        records={
+            "status": ColumnImputationRecord(
+                column="status", semantic_type=SemanticType.Categorical,
+                strategy=ImputationStrategy.Constant, fill_value="unknown",
+                indicator_added=False, signals=[],
+            ),
+        },
+        string_sentinels={"status": ["MISSING"]},
+    )
+    # "NA" is a hardcoded default; with replace semantics it must NOT be null-normalised.
+    df = pl.DataFrame({"status": pl.Series(["active", "NA", "MISSING"], dtype=pl.String)})
+    result = imputer.transform(df)
+    assert result.dataframe["status"][0] == "active"
+    assert result.dataframe["status"][1] == "NA", '"NA" must pass through unchanged when replaced by declared sentinels'
+    assert result.dataframe["status"][2] == "unknown"
+
+
+def test_transform_declared_sentinels_matched_case_insensitively():
+    """Declared string sentinels match data case-insensitively."""
+    imputer = FittedImputer(
+        records={
+            "cat": ColumnImputationRecord(
+                column="cat", semantic_type=SemanticType.Categorical,
+                strategy=ImputationStrategy.Constant, fill_value="filled",
+                indicator_added=False, signals=[],
+            ),
+        },
+        string_sentinels={"cat": ["MISSING"]},
+    )
+    df = pl.DataFrame({"cat": pl.Series(["x", "missing", "MISSING", "Missing"], dtype=pl.String)})
+    result = imputer.transform(df)
+    assert result.dataframe["cat"][0] == "x"
+    assert result.dataframe["cat"][1] == "filled"
+    assert result.dataframe["cat"][2] == "filled"
+    assert result.dataframe["cat"][3] == "filled"
+
+
+def test_transform_empty_string_sentinel_behaviour_unchanged():
+    """When string_sentinels is empty, hardcoded default behaviour is unchanged."""
+    imputer = FittedImputer(
+        records={
+            "cat": ColumnImputationRecord(
+                column="cat", semantic_type=SemanticType.Categorical,
+                strategy=ImputationStrategy.Constant, fill_value="unknown",
+                indicator_added=False, signals=[],
+            ),
+        },
+        string_sentinels={},
+    )
+    df = pl.DataFrame({"cat": pl.Series(["NA", "hello", "NULL"], dtype=pl.String)})
+    result = imputer.transform(df)
+    # Hardcoded defaults still apply: "NA" and "NULL" become null → filled
+    assert result.dataframe["cat"].null_count() == 0
+    assert result.dataframe["cat"][0] == "unknown"
+    assert result.dataframe["cat"][1] == "hello"
+    assert result.dataframe["cat"][2] == "unknown"
+
+
+def test_transform_string_sentinel_only_affects_declared_column():
+    """string_sentinels declarations for one column do not affect sibling columns."""
+    imputer = FittedImputer(
+        records={
+            "a": ColumnImputationRecord(
+                column="a", semantic_type=SemanticType.Categorical,
+                strategy=ImputationStrategy.Constant, fill_value="filled",
+                indicator_added=False, signals=[],
+            ),
+            "b": ColumnImputationRecord(
+                column="b", semantic_type=SemanticType.Categorical,
+                strategy=ImputationStrategy.Constant, fill_value="filled",
+                indicator_added=False, signals=[],
+            ),
+        },
+        string_sentinels={"a": ["CUSTOM"]},
+    )
+    # Column "a" has replace semantics: only "CUSTOM" is null, not "NA"
+    # Column "b" has no declaration: "NA" still uses hardcoded defaults
+    df = pl.DataFrame({
+        "a": pl.Series(["CUSTOM", "NA", "ok"], dtype=pl.String),
+        "b": pl.Series(["CUSTOM", "NA", "ok"], dtype=pl.String),
+    })
+    result = imputer.transform(df)
+    assert result.dataframe["a"][0] == "filled"   # CUSTOM matched (declared)
+    assert result.dataframe["a"][1] == "NA"        # NA not matched (replaced)
+    assert result.dataframe["b"][0] == "CUSTOM"    # CUSTOM not a hardcoded default
+    assert result.dataframe["b"][1] == "filled"    # NA matched (hardcoded default)
+
+
+def test_to_dict_includes_string_sentinels_key():
+    imputer = FittedImputer(
+        records={
+            "status": ColumnImputationRecord(
+                column="status", semantic_type=SemanticType.Categorical,
+                strategy=ImputationStrategy.Constant, fill_value="unknown",
+                indicator_added=False, signals=[],
+            ),
+        },
+        string_sentinels={"status": ["N/A", "missing"]},
+    )
+    d = imputer.to_dict()
+    assert "string_sentinels" in d
+    assert d["string_sentinels"] == {"status": ["N/A", "missing"]}
+
+
+def test_to_dict_string_sentinels_empty_when_not_set():
+    imputer = FittedImputer(records={
+        "a": _record("a", ImputationStrategy.Mean, fill_value=1.0),
+    })
+    d = imputer.to_dict()
+    assert "string_sentinels" in d
+    assert d["string_sentinels"] == {}
+
+
+def test_from_dict_restores_string_sentinels():
+    imputer = FittedImputer(
+        records={
+            "status": ColumnImputationRecord(
+                column="status", semantic_type=SemanticType.Categorical,
+                strategy=ImputationStrategy.Constant, fill_value="unknown",
+                indicator_added=False, signals=[],
+            ),
+        },
+        string_sentinels={"status": ["N/A", "missing"]},
+    )
+    restored = FittedImputer.from_dict(imputer.to_dict())
+    assert restored.string_sentinels == {"status": ["N/A", "missing"]}
+
+
+def test_from_dict_without_string_sentinels_key_defaults_to_empty_dict():
+    """Old-format payload without 'string_sentinels' key deserialises to empty dict."""
+    payload = {
+        "records": {
+            "status": {
+                "column": "status",
+                "semantic_type": "categorical",
+                "strategy": "constant",
+                "fill_value": "unknown",
+                "indicator_added": False,
+                "signals": [],
+                "domain_snap_bounds": None,
+            }
+        },
+        "models": {},
+        "model_cols": {},
+    }
+    restored = FittedImputer.from_dict(payload)
+    assert restored.string_sentinels == {}
+
+
+def test_round_trip_with_string_sentinels_produces_identical_transform_output():
+    """Serialized and deserialized FittedImputer with string_sentinels produces identical output."""
+    imputer = FittedImputer(
+        records={
+            "status": ColumnImputationRecord(
+                column="status", semantic_type=SemanticType.Categorical,
+                strategy=ImputationStrategy.Constant, fill_value="unknown",
+                indicator_added=False, signals=[],
+            ),
+        },
+        string_sentinels={"status": ["N/A", "missing"]},
+    )
+    restored = FittedImputer.from_dict(imputer.to_dict())
+
+    df = pl.DataFrame({"status": pl.Series(["active", "N/A", "missing"], dtype=pl.String)})
+    r1 = imputer.transform(df)
+    r2 = restored.transform(df)
+    assert r1.dataframe.equals(r2.dataframe)
+
+
+def test_old_format_deserialised_imputer_transforms_identically_to_empty_string_sentinels():
+    """An imputer loaded from an old-format dict behaves identically to one with string_sentinels={}."""
+    payload_old = {
+        "records": {
+            "cat": {
+                "column": "cat",
+                "semantic_type": "categorical",
+                "strategy": "constant",
+                "fill_value": "unknown",
+                "indicator_added": False,
+                "signals": [],
+                "domain_snap_bounds": None,
+            }
+        },
+        "models": {},
+        "model_cols": {},
+    }
+    restored_old = FittedImputer.from_dict(payload_old)
+
+    empty_str_sentinels = FittedImputer(
+        records={
+            "cat": ColumnImputationRecord(
+                column="cat", semantic_type=SemanticType.Categorical,
+                strategy=ImputationStrategy.MNAR, fill_value="unknown",
+                indicator_added=False, signals=[],
+            ),
+        },
+        string_sentinels={},
+    )
+
+    df = pl.DataFrame({"cat": pl.Series(["NA", "hello", "world"], dtype=pl.String)})
+    r_old = restored_old.transform(df)
+    r_empty = empty_str_sentinels.transform(df)
+    assert r_old.dataframe.equals(r_empty.dataframe)
+

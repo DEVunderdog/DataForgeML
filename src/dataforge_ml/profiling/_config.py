@@ -213,13 +213,17 @@ class StructuralProfileResult:
     """
     Top-level result returned by ``StructuralProfiler.profile()``.
 
-    Contains per-column profiles, dataset-level statistics, and any target
-    variable analyses requested via ``ProfileConfig.target_columns``.
+    Contains per-column profiles, dataset-level statistics, any target
+    variable analyses requested via ``ProfileConfig.target_columns``, and
+    the declared sentinel mappings copied from ``ProfileConfig`` so Phase 2
+    can consume them without holding a config reference.
     """
 
     columns: dict[str, ColumnProfile] = field(default_factory=dict)
     dataset: DatasetStats = field(default_factory=DatasetStats)
     targets: dict[str, TargetProfileResult] = field(default_factory=dict)
+    numeric_sentinels: dict[str, list[float]] = field(default_factory=dict)
+    string_sentinels: dict[str, list[str]] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         """
@@ -235,6 +239,8 @@ class StructuralProfileResult:
             "columns": {k: v.to_dict() for k, v in self.columns.items()},
             "dataset": self.dataset.to_dict(),
             "targets": {k: v.to_dict() for k, v in self.targets.items()},
+            "numeric_sentinels": dict(self.numeric_sentinels),
+            "string_sentinels": {k: list(v) for k, v in self.string_sentinels.items()},
         }
 
     def to_json(self, indent: int = 2) -> str:
@@ -329,6 +335,24 @@ class ProfileConfig:
         Default ``False``.
     nonlinearity : NonlinearityProfileConfig
         Threshold configuration for the nonlinearity sub-processor.
+    numeric_sentinels : dict[str, list[float]]
+        Per-column numeric sentinel declarations.  Keys are column names;
+        values are lists of float-compatible sentinel values that should be
+        treated as effective nulls (e.g. ``{"age": [-999.0, 9999.0]}``).
+        Applies to any column whose dtype passes ``_numeric_sentinel_eligible``
+        (all integer and float Polars dtypes).  Defaults to an empty dict —
+        columns with no declaration are completely unaffected.
+    string_sentinels : dict[str, list[str]]
+        Per-column user-declared string sentinel declarations.  Keys are column
+        names; values are lists of string values that should be treated as
+        effective nulls for that column (e.g.
+        ``{"status": ["N/A", "missing"]}``).  Uses **replace semantics**: when
+        a declaration exists for a column, only the declared values are matched
+        (case-insensitive); the hardcoded defaults (``"NA"``, ``"NAN"``,
+        ``"NULL"``, ``"NONE"``, ``"?"``) are not applied for that column.
+        Empty/whitespace-only strings are always effective null regardless of
+        any declaration.  Defaults to an empty dict — columns with no
+        declaration continue to use the hardcoded defaults unchanged.
     """
 
     modality: Modality = Modality.Tabular
@@ -356,6 +380,8 @@ class ProfileConfig:
     nonlinearity: NonlinearityProfileConfig = field(
         default_factory=_default_nonlinearity_config
     )
+    numeric_sentinels: dict[str, list[float]] = field(default_factory=dict)
+    string_sentinels: dict[str, list[str]] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         """
@@ -382,6 +408,8 @@ class ProfileConfig:
             "datetime_": self.datetime_.to_dict(),
             "compute_nonlinearity": self.compute_nonlinearity,
             "nonlinearity": self.nonlinearity.to_dict(),
+            "numeric_sentinels": {k: list(v) for k, v in self.numeric_sentinels.items()},
+            "string_sentinels": {k: list(v) for k, v in self.string_sentinels.items()},
         }
 
     @classmethod
@@ -426,6 +454,14 @@ class ProfileConfig:
             nonlinearity=NonlinearityProfileConfig.from_dict(
                 data.get("nonlinearity", {})
             ),
+            numeric_sentinels={
+                k: [float(v) for v in vals]
+                for k, vals in data.get("numeric_sentinels", {}).items()
+            },
+            string_sentinels={
+                k: [str(v) for v in vals]
+                for k, vals in data.get("string_sentinels", {}).items()
+            },
         )
 
     def to_json(self) -> str:

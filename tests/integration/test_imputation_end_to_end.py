@@ -622,3 +622,70 @@ def test_mice_adaptive_end_to_end_nonlinear_dataset():
             f"Column '{col}' missing convergence-status signal; got: {signals}"
         )
 
+
+# ---------------------------------------------------------------------------
+# Issue #175 — numeric sentinel end-to-end fit/transform
+# ---------------------------------------------------------------------------
+
+
+def test_numeric_sentinel_end_to_end_fit_transform():
+    """Full sentinel pipeline: -999 normalised before fit; fill derived from real values only.
+
+    Uses an Int64 column where some rows contain -999 (sentinel) and some are
+    native null.  ProfileConfig declares the sentinel.  After fit/transform:
+    - No -999 values remain in the output.
+    - The mean fill value used for imputation is derived from non-sentinel
+      observations only (i.e. does not include -999 in its computation).
+    """
+    import numpy as np
+
+    rng = np.random.default_rng(175)
+    n = 300
+
+    real_values = rng.integers(20, 80, n).tolist()  # real ages in [20, 80]
+    sentinel_mask = rng.random(n) < 0.10             # ~10% sentinel rows (-999)
+    native_null_mask = rng.random(n) < 0.05          # ~5% native null rows
+
+    age_vals = []
+    for i in range(n):
+        if sentinel_mask[i]:
+            age_vals.append(-999)
+        elif native_null_mask[i]:
+            age_vals.append(None)
+        else:
+            age_vals.append(real_values[i])
+
+    df = pl.DataFrame({"age": pl.Series(age_vals, dtype=pl.Int64)})
+
+    config = PipelineConfig(
+        profiling=ProfileConfig(numeric_sentinels={"age": [-999.0]}),
+    )
+    profile = StructuralProfiler(config).profile(df)
+
+    # Profile must carry the declared sentinels.
+    assert profile.numeric_sentinels == {"age": [-999.0]}
+
+    fi = ImputationOrchestrator(config).fit(df, profile)
+
+    # FittedImputer must carry the sentinels.
+    assert fi.numeric_sentinels == {"age": [-999.0]}
+
+    # Transform the full DataFrame; no -999 values must remain.
+    result = fi.transform(df)
+    output_vals = result.dataframe["age"].to_list()
+    assert -999 not in output_vals, "Sentinel value -999 remains in transform output."
+    assert result.dataframe["age"].null_count() == 0, "Null values remain after imputation."
+
+    # Fill value must be derived from real observations only (mean in [20, 80]).
+    fill_value = fi.records["age"].fill_value
+    if fill_value is not None:
+        assert 20 <= fill_value <= 80, (
+            f"Fill value {fill_value} is outside the real-value range [20, 80]; "
+            f"sentinel -999 may have contaminated the mean computation."
+        )
+
+    # Round-trip serialisation preserves sentinel behaviour.
+    restored = FittedImputer.from_dict(fi.to_dict())
+    r_restored = restored.transform(df)
+    assert result.dataframe.equals(r_restored.dataframe)
+
