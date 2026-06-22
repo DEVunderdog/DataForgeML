@@ -81,6 +81,14 @@ class NumericImputationConfig:
         column to be counted as an informative predictor when computing
         ``n_nearest_features``. Columns below this threshold are excluded from
         the count.
+    mcar_feature_predictability_threshold : float
+        Maximum absolute Pearson correlation ``|r|`` below which MCAR
+        model-based routing is skipped in favour of Median. When no numeric
+        predictor exceeds this threshold against the target column, KNN and
+        Regression are not attempted because the feature set contains no useful
+        predictive signal. Applies only to MCAR paths; MAR paths are not
+        affected. Default of ``0.2`` preserves existing behaviour (no check
+        applied today).
     """
 
     knn_max_rows: int = 50_000
@@ -95,6 +103,7 @@ class NumericImputationConfig:
     mice_n_nearest_features_min_cols: int = 10
     mice_max_nearest_features: int = 20
     mice_correlation_threshold: float = 0.1
+    mcar_feature_predictability_threshold: float = 0.2
 
     def to_dict(self) -> dict:
         """
@@ -118,6 +127,7 @@ class NumericImputationConfig:
             "mice_n_nearest_features_min_cols": self.mice_n_nearest_features_min_cols,
             "mice_max_nearest_features": self.mice_max_nearest_features,
             "mice_correlation_threshold": self.mice_correlation_threshold,
+            "mcar_feature_predictability_threshold": self.mcar_feature_predictability_threshold,
         }
 
     @classmethod
@@ -156,6 +166,9 @@ class NumericImputationConfig:
             mice_max_nearest_features=int(data.get("mice_max_nearest_features", 20)),
             mice_correlation_threshold=float(
                 data.get("mice_correlation_threshold", 0.1)
+            ),
+            mcar_feature_predictability_threshold=float(
+                data.get("mcar_feature_predictability_threshold", 0.2)
             ),
         )
 

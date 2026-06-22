@@ -28,7 +28,7 @@ Every model-based prediction produced inside the gate is post-processed as:
 int(clip(round(prediction), NumericStats.min, NumericStats.max))
 ```
 
-Scalar fills (Mean, Median) that appear inside the gate as intermediate or fallback fills are also snapped at fit time before being stored in `ColumnImputationRecord.fill_value`.
+Domain-snap applies **only to model-based predictions** (KNN, Regression, MICE). Scalar fills inside the gate are always Mode — no Mean or Median is used, so no snap is needed for scalar paths.
 
 ### Snap bound storage
 
@@ -40,9 +40,23 @@ domain_snap_bounds: Optional[tuple[float, float]] = None
 
 Set to `(NumericStats.min, NumericStats.max)` for BoundedDiscrete columns assigned a model-based strategy (KNN, Regression, MICE). `None` for all other columns. `to_dict()` serialises it as a two-element list or `null`; `from_dict()` reads it back. `transform()` reads this field and applies the snap after model inference.
 
-### Mode as terminal fallback
+### Mode as the only scalar fill
 
-For all branches where the normal routing would fall back to Median, BoundedDiscrete falls back to **Mode** instead. Median is not guaranteed to be a valid domain member (e.g. median of `{1,2,3,4,5}` on an even-row sample is `2.5`). Mode is always a valid member.
+Mode is the scalar fill for **all** routing outcomes inside the BoundedDiscrete gate where a model-based strategy is not used. This includes:
+
+- `NonlinearityTag.Unpredictable` and `NumericFlag.NearConstant` (unconditional)
+- All MAR and MCAR severity paths where model-based size guards are not met (terminal fallback)
+- MCAR Minor + Normal skew — previously routed to Mean; now Mode. Mean introduces no statistical advantage for a discrete bounded column, and eliminating it removes the special-case Mean-snapping logic from `_resolve_fill_value`.
+
+Median is never used inside the gate. Median is not guaranteed to be a valid domain member (e.g. median of `{1,2,3,4,5}` on an even-row sample is `2.5`), and the snapped alternative (`clip(round(median), min, max)`) offers no principled advantage over Mode for a discrete bounded column with no feature context.
+
+### MNAR BoundedDiscrete
+
+When a declared MNAR column has `NumericKind.BoundedDiscrete`, the fill computed in `_resolve_fill_value` is Mode (not the skew-driven mean/median used for all other MNAR columns). The `ImputationStrategy.MNAR` is preserved — the missingness indicator is still added. This is the only case where the BoundedDiscrete scalar-fill rule reaches inside Priority 2; the BoundedDiscrete gate at Priority 3 is never reached for MNAR columns.
+
+### Runtime model-based fallback (`_fallback_to_mode`)
+
+When a model-based fit fails at runtime (e.g. `_fit_regression` returns `None`), `_fallback_to_median` is the standard recovery path for non-BoundedDiscrete columns. For BoundedDiscrete columns, `_fallback_to_mode` is called instead. The call site detects BoundedDiscrete via `record.domain_snap_bounds is not None` — this field is set by `_resolve_domain_snap_bounds` for all BoundedDiscrete model-based columns and is `None` for all others.
 
 ### Unpredictable guard for non-BoundedDiscrete columns
 
@@ -60,8 +74,11 @@ Keep `BoundedDiscrete → Mode, unconditionally` (ADR-0018 as written). Rejected
 | Claim in ADR-0018 | Status |
 |---|---|
 | "Model-based strategies produce continuous predictions that are not valid members of the domain" | Still true — domain-snap is the fix, not a contradiction |
-| "Mode fires regardless of missingness severity or mechanism" | Amended: Mode fires only for Unpredictable, NearConstant, and as the terminal fallback when all size guards fail |
+| "Mode fires regardless of missingness severity or mechanism" | Amended: Mode is the scalar fill for all paths inside the gate; model-based strategies (KNN, Regression, MICE) are attempted where signal exists and size guards allow |
 | BoundedDiscrete at Priority 5 (after MARSuspect) | Amended: Priority 3 gate (before MARSuspect) |
+| Mean used for Minor + Normal skew inside the gate | Amended: Mode replaces Mean for all scalar fills inside the gate |
+| Scalar fills snapped at fit time | Amended: no scalar fills require snapping — all scalar fills inside the gate are Mode, which is always a valid domain member |
+| MNAR columns bypass the BoundedDiscrete gate | Still true — MNAR is Priority 2; BoundedDiscrete gate is Priority 3. MNAR BoundedDiscrete columns use Mode as fill value (amendment to Priority 2 MNAR behaviour) |
 
 ## Scope boundary
 
