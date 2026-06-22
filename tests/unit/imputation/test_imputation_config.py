@@ -606,18 +606,27 @@ def test_per_column_strategy_rejects_mnar_names_mnar_columns():
         )
 
 
-def test_per_column_strategy_rejects_constant_with_redirect_message():
+def test_per_column_strategy_constant_without_fill_raises():
     with pytest.raises(ValueError, match="per_column_constant_fill"):
         NumericImputationConfig(
             per_column_strategy={"tx_count": ImputationStrategy.Constant}
         )
 
 
-def test_per_column_strategy_rejects_constant_names_column():
+def test_per_column_strategy_constant_without_fill_names_column():
     with pytest.raises(ValueError, match="'tx_count'"):
         NumericImputationConfig(
             per_column_strategy={"tx_count": ImputationStrategy.Constant}
         )
+
+
+def test_per_column_strategy_constant_with_fill_constructs():
+    cfg = NumericImputationConfig(
+        per_column_strategy={"tx_count": ImputationStrategy.Constant},
+        per_column_constant_fill={"tx_count": -1.0},
+    )
+    assert cfg.per_column_strategy["tx_count"] == ImputationStrategy.Constant
+    assert cfg.per_column_constant_fill["tx_count"] == -1.0
 
 
 def test_per_column_constant_fill_alone_constructs():

@@ -168,6 +168,12 @@ class NumericImputationConfig:
                     f"Column '{col}': '{strategy}' is an internal-only strategy and cannot "
                     f"be used in per_column_strategy."
                 )
+            if strategy == ImputationStrategy.Constant:
+                if col not in self.per_column_constant_fill:
+                    raise ValueError(
+                        f"Column '{col}': strategy is 'Constant' but no fill value was provided. "
+                        f"Add an entry to per_column_constant_fill."
+                    )
 
     def to_dict(self) -> dict:
         """
