@@ -95,6 +95,7 @@ def test_numeric_config_to_dict_contains_all_keys():
         "mice_n_nearest_features_min_cols",
         "mice_max_nearest_features",
         "mice_correlation_threshold",
+        "mcar_feature_predictability_threshold",
     }
 
 
@@ -285,6 +286,33 @@ def test_numeric_config_mice_fields_from_dict_empty_uses_defaults():
     assert cfg.mice_n_nearest_features_min_cols == 10
     assert cfg.mice_max_nearest_features == 20
     assert cfg.mice_correlation_threshold == 0.1
+
+
+# ---------------------------------------------------------------------------
+# NumericImputationConfig — mcar_feature_predictability_threshold
+# ---------------------------------------------------------------------------
+
+
+def test_numeric_config_default_mcar_feature_predictability_threshold():
+    cfg = NumericImputationConfig()
+    assert cfg.mcar_feature_predictability_threshold == 0.2
+
+
+def test_numeric_config_mcar_feature_predictability_threshold_in_to_dict():
+    cfg = NumericImputationConfig()
+    d = cfg.to_dict()
+    assert d["mcar_feature_predictability_threshold"] == 0.2
+
+
+def test_numeric_config_mcar_feature_predictability_threshold_round_trip_non_default():
+    original = NumericImputationConfig(mcar_feature_predictability_threshold=0.35)
+    restored = NumericImputationConfig.from_dict(original.to_dict())
+    assert restored.mcar_feature_predictability_threshold == 0.35
+
+
+def test_numeric_config_mcar_feature_predictability_threshold_from_dict_empty_uses_default():
+    cfg = NumericImputationConfig.from_dict({})
+    assert cfg.mcar_feature_predictability_threshold == 0.2
 
 
 # ---------------------------------------------------------------------------
