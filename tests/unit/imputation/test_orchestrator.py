@@ -8,7 +8,7 @@ import polars as pl
 import pytest
 
 from dataforge_ml.config import PipelineConfig, SemanticType
-from dataforge_ml.imputation._config import ImputationStrategy
+from dataforge_ml.imputation._config import ImputationStrategy, NumericImputationConfig
 from dataforge_ml.imputation._fitted_imputer import FittedImputer
 from dataforge_ml.imputation.orchestrator import (
     ImputationOrchestrator,
@@ -465,3 +465,94 @@ def test_fit_numeric_sentinels_empty_when_profile_has_none():
     fi = ImputationOrchestrator().fit(df, profile)
 
     assert fi.numeric_sentinels == {}
+
+
+# ---------------------------------------------------------------------------
+# fit() — per_column_strategy size-guard validation (Seam 3)
+# ---------------------------------------------------------------------------
+
+
+def test_per_column_strategy_regression_size_guard_raises_below_min_rows():
+    df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
+    profile = _make_profile({"a": _numeric_cp_with_nulls("a", null_count=1, total=3)})
+    cfg = PipelineConfig()
+    cfg.imputation.numeric = NumericImputationConfig(
+        regression_min_rows=10,
+        per_column_strategy={"a": ImputationStrategy.Regression},
+    )
+    with pytest.raises(ValueError):
+        ImputationOrchestrator(cfg).fit(df, profile)
+
+
+def test_per_column_strategy_regression_size_guard_error_message_content():
+    n_rows, threshold = 3, 10
+    df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
+    profile = _make_profile({"a": _numeric_cp_with_nulls("a", null_count=1, total=n_rows)})
+    cfg = PipelineConfig()
+    cfg.imputation.numeric = NumericImputationConfig(
+        regression_min_rows=threshold,
+        per_column_strategy={"a": ImputationStrategy.Regression},
+    )
+    with pytest.raises(ValueError) as exc_info:
+        ImputationOrchestrator(cfg).fit(df, profile)
+    msg = str(exc_info.value)
+    assert "'a'" in msg
+    assert "Regression" in msg
+    assert "regression_min_rows" in msg
+    assert f"n_rows={n_rows}" in msg
+    assert f"regression_min_rows={threshold}" in msg
+
+
+def test_per_column_strategy_knn_size_guard_raises_above_max_rows():
+    df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0, 4.0, 5.0, 6.0], dtype=pl.Float64)})
+    profile = _make_profile({"a": _numeric_cp_with_nulls("a", null_count=1, total=6)})
+    cfg = PipelineConfig()
+    cfg.imputation.numeric = NumericImputationConfig(
+        knn_max_rows=3,
+        per_column_strategy={"a": ImputationStrategy.KNN},
+    )
+    with pytest.raises(ValueError):
+        ImputationOrchestrator(cfg).fit(df, profile)
+
+
+def test_per_column_strategy_knn_size_guard_error_message_content():
+    n_rows, threshold = 6, 3
+    df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0, 4.0, 5.0, 6.0], dtype=pl.Float64)})
+    profile = _make_profile({"a": _numeric_cp_with_nulls("a", null_count=1, total=n_rows)})
+    cfg = PipelineConfig()
+    cfg.imputation.numeric = NumericImputationConfig(
+        knn_max_rows=threshold,
+        per_column_strategy={"a": ImputationStrategy.KNN},
+    )
+    with pytest.raises(ValueError) as exc_info:
+        ImputationOrchestrator(cfg).fit(df, profile)
+    msg = str(exc_info.value)
+    assert "'a'" in msg
+    assert "KNN" in msg
+    assert "knn_max_rows" in msg
+    assert f"n_rows={n_rows}" in msg
+    assert f"knn_max_rows={threshold}" in msg
+
+
+def test_per_column_strategy_regression_no_error_when_size_guard_met():
+    df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0, 4.0, 5.0], dtype=pl.Float64)})
+    profile = _make_profile({"a": _numeric_cp_with_nulls("a", null_count=1, total=5)})
+    cfg = PipelineConfig()
+    cfg.imputation.numeric = NumericImputationConfig(
+        regression_min_rows=3,
+        per_column_strategy={"a": ImputationStrategy.Regression},
+    )
+    # n_rows=5 >= regression_min_rows=3 — guard passes, no ValueError
+    ImputationOrchestrator(cfg).fit(df, profile)
+
+
+def test_per_column_strategy_knn_no_error_when_size_guard_met():
+    df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
+    profile = _make_profile({"a": _numeric_cp_with_nulls("a", null_count=1, total=3)})
+    cfg = PipelineConfig()
+    cfg.imputation.numeric = NumericImputationConfig(
+        knn_max_rows=10,
+        per_column_strategy={"a": ImputationStrategy.KNN},
+    )
+    # n_rows=3 <= knn_max_rows=10 — guard passes, no ValueError
+    ImputationOrchestrator(cfg).fit(df, profile)

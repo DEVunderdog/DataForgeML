@@ -2094,3 +2094,278 @@ def test_router_size_guards_fail_falls_to_median():
     strategy, signals = _router_route(cp, n_rows=100, config=config)
     assert strategy == ImputationStrategy.Median
     assert any("all size guards failed" in s for s in signals)
+
+
+# ---------------------------------------------------------------------------
+# per_column_strategy — Priority 1.5 override (Scope 14)
+# ---------------------------------------------------------------------------
+
+
+def _fit_one_with_config(
+    df: pl.DataFrame,
+    cp: ColumnProfile,
+    config: NumericImputationConfig,
+    mnar: set[str] | None = None,
+) -> ColumnImputationRecord:
+    profile = _make_profile(_COL, cp)
+    bundle = NumericImputer().fit(
+        train_df=df,
+        columns=[_COL],
+        profile=profile,
+        config=config,
+        mnar_columns=mnar or _NO_MNAR,
+    )
+    assert len(bundle.records) == 1
+    return bundle.records[0]
+
+
+def test_per_column_strategy_overrides_mcar_minor_to_regression():
+    """MCAR Minor profile with per_column_strategy=Regression produces strategy=Regression."""
+    rng = np.random.default_rng(0)
+    n = 600
+    values = [None if i % 10 == 0 else rng.standard_normal() for i in range(n)]
+    feat_vals = rng.standard_normal(n).tolist()
+    df = pl.DataFrame({
+        _COL: pl.Series(values, dtype=pl.Float64),
+        "feat": pl.Series(feat_vals, dtype=pl.Float64),
+    })
+    cp = _numeric_cp(
+        null_count=60, total_rows=n, severity=MissingSeverity.Minor,
+        skewness_severity=SkewSeverity.Normal,
+    )
+    feat_cp = ColumnProfile(
+        name="feat",
+        semantic_type=SemanticType.Numeric,
+        numeric_kind=NumericKind.Continuous,
+        missingness=None,
+        stats=NumericStats(),
+    )
+    profile = StructuralProfileResult()
+    profile.columns[_COL] = cp
+    profile.columns["feat"] = feat_cp
+    config = NumericImputationConfig(
+        per_column_strategy={_COL: ImputationStrategy.Regression},
+        regression_min_rows=500,
+    )
+    bundle = NumericImputer().fit(
+        train_df=df, columns=[_COL, "feat"], profile=profile,
+        config=config, mnar_columns=set(),
+    )
+    rec = next(r for r in bundle.records if r.column == _COL)
+    assert rec.strategy == ImputationStrategy.Regression
+
+
+def test_per_column_strategy_fires_before_mnar():
+    """A column with per_column_strategy override is NOT treated as MNAR."""
+    df = pl.DataFrame({_COL: pl.Series([1.0, None, 3.0, None], dtype=pl.Float64)})
+    cp = _numeric_cp(null_count=2, total_rows=4, severity=MissingSeverity.Moderate)
+    config = NumericImputationConfig(
+        per_column_strategy={_COL: ImputationStrategy.Median},
+    )
+    # mnar_columns does NOT include _COL — so no MNAR conflict; just checking priority
+    rec = _fit_one_with_config(df, cp, config)
+    assert rec.strategy == ImputationStrategy.Median
+    assert not any("declared MNAR" in s for s in rec.signals)
+
+
+def test_per_column_strategy_drop_candidate_still_dropped():
+    """DropCandidate columns are dropped even when they appear in per_column_strategy."""
+    df = pl.DataFrame({_COL: pl.Series([None] * 60 + [1.0] * 40, dtype=pl.Float64)})
+    cp = _numeric_cp(
+        null_count=60, total_rows=100, severity=MissingSeverity.Severe,
+        flags=[MissingnessFlag.DropCandidate],
+    )
+    config = NumericImputationConfig(
+        per_column_strategy={_COL: ImputationStrategy.Median},
+    )
+    rec = _fit_one_with_config(df, cp, config)
+    assert rec.strategy == ImputationStrategy.Dropped
+
+
+def test_per_column_strategy_signal_is_recorded():
+    """per_column_strategy_override signal is appended to record.signals."""
+    df = pl.DataFrame({_COL: pl.Series([1.0, None, 3.0, 4.0], dtype=pl.Float64)})
+    cp = _numeric_cp(null_count=1, total_rows=4, severity=MissingSeverity.Minor)
+    config = NumericImputationConfig(
+        per_column_strategy={_COL: ImputationStrategy.Median},
+    )
+    rec = _fit_one_with_config(df, cp, config)
+    assert any("per_column_strategy_override" in s for s in rec.signals)
+    assert any("user forced strategy=median" in s for s in rec.signals)
+
+
+def test_per_column_constant_fill_alone_routes_to_constant():
+    """per_column_constant_fill alone (no Constant in per_column_strategy) routes to Constant."""
+    df = pl.DataFrame({_COL: pl.Series([1.0, None, 3.0, 4.0], dtype=pl.Float64)})
+    cp = _numeric_cp(null_count=1, total_rows=4, severity=MissingSeverity.Minor)
+    config = NumericImputationConfig(
+        per_column_constant_fill={_COL: 0.0},
+    )
+    rec = _fit_one_with_config(df, cp, config)
+    assert rec.strategy == ImputationStrategy.Constant
+    assert rec.fill_value == pytest.approx(0.0)
+
+
+def test_per_column_constant_fill_nonzero_value_stored_correctly():
+    """per_column_constant_fill with non-zero value is stored in fill_value."""
+    df = pl.DataFrame({_COL: pl.Series([1.0, None, 3.0, 4.0], dtype=pl.Float64)})
+    cp = _numeric_cp(null_count=1, total_rows=4, severity=MissingSeverity.Minor)
+    config = NumericImputationConfig(
+        per_column_constant_fill={_COL: -99.0},
+    )
+    rec = _fit_one_with_config(df, cp, config)
+    assert rec.strategy == ImputationStrategy.Constant
+    assert rec.fill_value == pytest.approx(-99.0)
+
+
+def test_per_column_constant_fill_signal_is_recorded():
+    """per_column_constant_fill_override signal is appended to record.signals."""
+    df = pl.DataFrame({_COL: pl.Series([1.0, None, 3.0, 4.0], dtype=pl.Float64)})
+    cp = _numeric_cp(null_count=1, total_rows=4, severity=MissingSeverity.Minor)
+    config = NumericImputationConfig(
+        per_column_constant_fill={_COL: 0.0},
+    )
+    rec = _fit_one_with_config(df, cp, config)
+    assert any("per_column_constant_fill_override" in s for s in rec.signals)
+
+
+def test_per_column_strategy_override_forced_median_is_mean_and_not_mnar():
+    """Column with per_column_strategy=Mean gets Mean strategy, not the auto-routed strategy."""
+    df = pl.DataFrame({_COL: pl.Series([10.0, 20.0, None, 40.0, 50.0], dtype=pl.Float64)})
+    cp = _numeric_cp(
+        null_count=1, total_rows=5, severity=MissingSeverity.Moderate,
+        skewness_severity=SkewSeverity.Severe,
+    )
+    config = NumericImputationConfig(
+        per_column_strategy={_COL: ImputationStrategy.Mean},
+    )
+    rec = _fit_one_with_config(df, cp, config)
+    assert rec.strategy == ImputationStrategy.Mean
+
+
+def test_per_column_strategy_non_overridden_column_unchanged():
+    """Columns not in per_column_strategy still route normally."""
+    df = pl.DataFrame({_COL: pl.Series([1.0, 2.0, 3.0, 4.0, None], dtype=pl.Float64)})
+    cp = _numeric_cp(
+        null_count=1, total_rows=5, severity=MissingSeverity.Minor,
+        skewness_severity=SkewSeverity.Normal,
+    )
+    config = NumericImputationConfig(
+        per_column_strategy={"other_col": ImputationStrategy.Median},
+    )
+    rec = _fit_one_with_config(df, cp, config)
+    # MCAR Minor + Normal skew auto-routes to Mean
+    assert rec.strategy == ImputationStrategy.Mean
+
+
+# ---------------------------------------------------------------------------
+# per_column_strategy — fit-time size-guard validation (Scope 14)
+# ---------------------------------------------------------------------------
+
+
+def test_per_column_strategy_regression_raises_when_too_few_rows():
+    """ValueError raised before fit when per_column_strategy=Regression and n_rows < regression_min_rows."""
+    df = pl.DataFrame({_COL: pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
+    cp = _numeric_cp(null_count=1, total_rows=3, severity=MissingSeverity.Minor)
+    config = NumericImputationConfig(
+        per_column_strategy={_COL: ImputationStrategy.Regression},
+        regression_min_rows=500,
+    )
+    with pytest.raises(ValueError, match="regression_min_rows"):
+        _fit_one_with_config(df, cp, config)
+
+
+def test_per_column_strategy_knn_raises_when_too_many_rows():
+    """ValueError raised before fit when per_column_strategy=KNN and n_rows > knn_max_rows."""
+    df = pl.DataFrame({_COL: pl.Series([float(i) for i in range(19)] + [None], dtype=pl.Float64)})
+    cp = _numeric_cp(null_count=1, total_rows=20, severity=MissingSeverity.Minor)
+    config = NumericImputationConfig(
+        per_column_strategy={_COL: ImputationStrategy.KNN},
+        knn_max_rows=10,
+    )
+    with pytest.raises(ValueError, match="knn_max_rows"):
+        _fit_one_with_config(df, cp, config)
+
+
+def test_per_column_strategy_knn_raises_when_too_many_features():
+    """ValueError raised before fit when per_column_strategy=KNN and n_features > knn_max_features."""
+    df = pl.DataFrame({
+        _COL: pl.Series([1.0, None, 3.0], dtype=pl.Float64),
+        "feat1": pl.Series([1.0, 2.0, 3.0], dtype=pl.Float64),
+        "feat2": pl.Series([4.0, 5.0, 6.0], dtype=pl.Float64),
+    })
+    profile = StructuralProfileResult()
+    profile.columns[_COL] = _numeric_cp(null_count=1, total_rows=3, severity=MissingSeverity.Minor)
+    profile.columns["feat1"] = ColumnProfile(
+        name="feat1", semantic_type=SemanticType.Numeric,
+        numeric_kind=NumericKind.Continuous, missingness=None, stats=NumericStats(),
+    )
+    profile.columns["feat2"] = ColumnProfile(
+        name="feat2", semantic_type=SemanticType.Numeric,
+        numeric_kind=NumericKind.Continuous, missingness=None, stats=NumericStats(),
+    )
+    config = NumericImputationConfig(
+        per_column_strategy={_COL: ImputationStrategy.KNN},
+        knn_max_features=2,  # 3 columns > 2 → guard fires
+    )
+    with pytest.raises(ValueError, match="knn_max_features"):
+        NumericImputer().fit(
+            train_df=df,
+            columns=[_COL, "feat1", "feat2"],
+            profile=profile,
+            config=config,
+            mnar_columns=set(),
+        )
+
+
+def test_per_column_strategy_size_guard_error_names_column_strategy_guard_and_values():
+    """Error message names the column, strategy, guard name, actual value, and threshold."""
+    df = pl.DataFrame({_COL: pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
+    cp = _numeric_cp(null_count=1, total_rows=3, severity=MissingSeverity.Minor)
+    config = NumericImputationConfig(
+        per_column_strategy={_COL: ImputationStrategy.Regression},
+        regression_min_rows=500,
+    )
+    with pytest.raises(ValueError) as exc_info:
+        _fit_one_with_config(df, cp, config)
+    err = str(exc_info.value)
+    assert _COL in err
+    assert "Regression" in err or "regression" in err
+    assert "regression_min_rows" in err
+    assert "500" in err
+    assert "3" in err
+
+
+def test_per_column_strategy_size_guards_pass_does_not_raise():
+    """No error raised when size guards pass for all model-based overrides."""
+    df = pl.DataFrame({_COL: pl.Series([1.0, None, 3.0, 4.0, 5.0], dtype=pl.Float64)})
+    cp = _numeric_cp(null_count=1, total_rows=5, severity=MissingSeverity.Minor)
+    config = NumericImputationConfig(
+        per_column_strategy={_COL: ImputationStrategy.KNN},
+        knn_max_rows=50_000,
+        knn_max_features=50,
+    )
+    _fit_one_with_config(df, cp, config)
+
+
+def test_per_column_strategy_scalar_overrides_not_checked_by_size_guard():
+    """Scalar-strategy overrides (Mean, Median, Mode) skip size-guard validation."""
+    df = pl.DataFrame({_COL: pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
+    cp = _numeric_cp(null_count=1, total_rows=3, severity=MissingSeverity.Minor)
+    for strategy in (ImputationStrategy.Mean, ImputationStrategy.Median, ImputationStrategy.Mode):
+        config = NumericImputationConfig(
+            per_column_strategy={_COL: strategy},
+            knn_max_rows=0,
+            knn_max_features=0,
+            regression_min_rows=999_999,
+        )
+        _fit_one_with_config(df, cp, config)
+
+    # Constant via per_column_constant_fill also skips size-guard validation
+    config_const = NumericImputationConfig(
+        per_column_constant_fill={_COL: 0.0},
+        knn_max_rows=0,
+        knn_max_features=0,
+        regression_min_rows=999_999,
+    )
+    _fit_one_with_config(df, cp, config_const)

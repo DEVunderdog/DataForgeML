@@ -17,7 +17,22 @@ from ..config import SemanticType
 
 
 class ImputationStrategy(StrEnum):
-    """Imputation strategy assigned to a column after Phase 2 fitting."""
+    """Imputation strategy assigned to a column after Phase 2 fitting.
+
+    Members fall into two categories:
+
+    **Input strategies** — may be declared in ``per_column_strategy`` to
+    override automatic routing: ``Mean``, ``Median``, ``Mode``, ``KNN``,
+    ``Regression``, ``MICE``.
+
+    **Output-only labels** — assigned by the engine after ``fit()`` and
+    recorded in ``ColumnImputationRecord.strategy``; declaring them in
+    ``per_column_strategy`` raises ``ValueError`` at construction time:
+    ``Constant``, ``MNAR``, ``Dropped``, ``Passthrough``, ``Indicator``.
+    ``Constant`` is produced when a column appears in
+    ``per_column_constant_fill``; use that field instead of declaring it in
+    ``per_column_strategy``.
+    """
 
     Mean = "mean"
     Median = "median"
@@ -26,10 +41,10 @@ class ImputationStrategy(StrEnum):
     Regression = "regression"
     MICE = "mice"
     MNAR = "mnar"
-    Constant = "constant"  # deprecated — kept only for from_dict() migration shim
+    Constant = "constant"
     Dropped = "dropped"
-    Passthrough = "passthrough"
-    Indicator = "indicator"
+    Passthrough = "passthrough"  # output-only: assigned to columns with no missing values in training; cannot be declared in per_column_strategy
+    Indicator = "indicator"  # output-only: assigned to {col}_missing columns appended by the MNAR mechanism; cannot be declared in per_column_strategy
 
 
 @dataclass
@@ -89,6 +104,29 @@ class NumericImputationConfig:
         predictive signal. Applies only to MCAR paths; MAR paths are not
         affected. Default of ``0.2`` preserves existing behaviour (no check
         applied today).
+    per_column_strategy : dict[str, ImputationStrategy]
+        Explicit per-column strategy overrides that fire at Priority 1.5 in the
+        routing chain — after ``DropCandidate`` but before MNAR routing.  A
+        column listed here bypasses all routing priorities 2–7.  Defaults to
+        empty dict (no overrides).  Allowed values: ``Mean``, ``Median``,
+        ``Mode``, ``KNN``, ``Regression``, ``MICE``.  To route a column to a
+        constant fill, use ``per_column_constant_fill``
+    per_column_constant_fill : dict[str, float]
+        Self-sufficient constant fill declarations.  Each column listed here
+        is routed to ``ImputationStrategy.Constant`` at Priority 1.5,
+        bypassing all routing priorities 2–7.  No companion entry in
+        ``per_column_strategy`` is required or allowed.  Keyed by column name.
+        Defaults to empty dict.
+
+    Raises
+    ------
+    ValueError
+        If any column in ``per_column_strategy`` is mapped to
+        ``Passthrough``, ``Indicator``, ``Dropped``, or ``MNAR``.  ``Constant``
+        columns should use ``per_column_constant_fill``; ``Dropped`` columns
+        should use ``PipelineConfig.exclude_columns``; ``MNAR`` columns should
+        use ``mnar_columns``; ``Passthrough`` and ``Indicator`` are
+        internal-only.
     """
 
     knn_max_rows: int = 50_000
@@ -104,6 +142,32 @@ class NumericImputationConfig:
     mice_max_nearest_features: int = 20
     mice_correlation_threshold: float = 0.1
     mcar_feature_predictability_threshold: float = 0.2
+    per_column_strategy: dict[str, ImputationStrategy] = field(default_factory=dict)
+    per_column_constant_fill: dict[str, float] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        _BLOCKED = {
+            ImputationStrategy.Passthrough,
+            ImputationStrategy.Indicator,
+            ImputationStrategy.Dropped,
+            ImputationStrategy.MNAR,
+        }
+        for col, strategy in self.per_column_strategy.items():
+            if strategy in _BLOCKED:
+                if strategy == ImputationStrategy.Dropped:
+                    raise ValueError(
+                        f"Column '{col}': 'Dropped' cannot be used in per_column_strategy. "
+                        f"To exclude a column, use PipelineConfig.exclude_columns."
+                    )
+                if strategy == ImputationStrategy.MNAR:
+                    raise ValueError(
+                        f"Column '{col}': 'MNAR' cannot be used in per_column_strategy. "
+                        f"To declare MNAR semantics, use mnar_columns."
+                    )
+                raise ValueError(
+                    f"Column '{col}': '{strategy}' is an internal-only strategy and cannot "
+                    f"be used in per_column_strategy."
+                )
 
     def to_dict(self) -> dict:
         """
@@ -128,6 +192,8 @@ class NumericImputationConfig:
             "mice_max_nearest_features": self.mice_max_nearest_features,
             "mice_correlation_threshold": self.mice_correlation_threshold,
             "mcar_feature_predictability_threshold": self.mcar_feature_predictability_threshold,
+            "per_column_strategy": {k: str(v) for k, v in self.per_column_strategy.items()},
+            "per_column_constant_fill": dict(self.per_column_constant_fill),
         }
 
     @classmethod
@@ -170,6 +236,14 @@ class NumericImputationConfig:
             mcar_feature_predictability_threshold=float(
                 data.get("mcar_feature_predictability_threshold", 0.2)
             ),
+            per_column_strategy={
+                k: ImputationStrategy(v)
+                for k, v in data.get("per_column_strategy", {}).items()
+            },
+            per_column_constant_fill={
+                k: float(v)
+                for k, v in data.get("per_column_constant_fill", {}).items()
+            },
         )
 
 
@@ -189,11 +263,35 @@ class ImputationConfig:
     add_indicator_columns : list[str]
         Columns for which a binary missingness indicator should be added
         even when they are not MNAR.
+
+    Raises
+    ------
+    ValueError
+        If any column appears in both ``mnar_columns`` and
+        ``numeric.per_column_strategy``.  These declarations are mutually
+        exclusive: ``mnar_columns`` applies a data-derived fill plus an
+        indicator; ``per_column_strategy`` directs the routing engine to a
+        user-specified strategy.  Declaring the same column in both is
+        contradictory and is caught at construction time before any data is
+        touched.
     """
 
     numeric: NumericImputationConfig = field(default_factory=NumericImputationConfig)
     mnar_columns: list[str] = field(default_factory=list)
     add_indicator_columns: list[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        conflicts = sorted(
+            set(self.mnar_columns) & set(self.numeric.per_column_strategy.keys())
+        )
+        if conflicts:
+            names = ", ".join(f"'{c}'" for c in conflicts)
+            raise ValueError(
+                f"Columns appear in both mnar_columns and numeric.per_column_strategy, "
+                f"which are mutually exclusive: {names}. "
+                f"Use mnar_columns for MNAR semantics (data-derived fill + indicator) "
+                f"or per_column_strategy for a user-specified strategy, not both."
+            )
 
     def to_dict(self) -> dict:
         """

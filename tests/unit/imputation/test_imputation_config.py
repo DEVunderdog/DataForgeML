@@ -96,6 +96,8 @@ def test_numeric_config_to_dict_contains_all_keys():
         "mice_max_nearest_features",
         "mice_correlation_threshold",
         "mcar_feature_predictability_threshold",
+        "per_column_strategy",
+        "per_column_constant_fill",
     }
 
 
@@ -137,6 +139,29 @@ def test_numeric_config_from_dict_empty_uses_defaults():
 def test_numeric_config_from_dict_ignores_legacy_mnar_constant_fill():
     cfg = NumericImputationConfig.from_dict({"mnar_constant_fill": -9999, "knn_max_rows": 1_000})
     assert cfg.knn_max_rows == 1_000
+
+
+def test_numeric_config_round_trip_per_column_strategy_non_empty():
+    original = NumericImputationConfig(
+        per_column_strategy={
+            "sensor": ImputationStrategy.Median,
+            "income": ImputationStrategy.Regression,
+        },
+    )
+    restored = NumericImputationConfig.from_dict(original.to_dict())
+    assert restored.per_column_strategy == {
+        "sensor": ImputationStrategy.Median,
+        "income": ImputationStrategy.Regression,
+    }
+
+
+def test_numeric_config_round_trip_per_column_constant_fill_non_empty():
+    original = NumericImputationConfig(
+        per_column_constant_fill={"tx_count": 0.0},
+    )
+    restored = NumericImputationConfig.from_dict(original.to_dict())
+    assert restored.per_column_constant_fill["tx_count"] == pytest.approx(0.0)
+    assert "tx_count" not in restored.per_column_strategy
 
 
 def test_numeric_config_default_regression_base_max_iter():
@@ -546,6 +571,154 @@ def test_column_imputation_record_domain_snap_bounds_none_by_default():
     )
     d = record.to_dict()
     assert d["domain_snap_bounds"] is None
+
+
+# ---------------------------------------------------------------------------
+# NumericImputationConfig — per_column_strategy construction-time validation
+# ---------------------------------------------------------------------------
+
+
+def test_per_column_strategy_rejects_passthrough():
+    with pytest.raises(ValueError, match="internal-only"):
+        NumericImputationConfig(
+            per_column_strategy={"col_a": ImputationStrategy.Passthrough}
+        )
+
+
+def test_per_column_strategy_rejects_indicator():
+    with pytest.raises(ValueError, match="internal-only"):
+        NumericImputationConfig(
+            per_column_strategy={"col_a": ImputationStrategy.Indicator}
+        )
+
+
+def test_per_column_strategy_rejects_dropped_names_exclude_columns():
+    with pytest.raises(ValueError, match="PipelineConfig.exclude_columns"):
+        NumericImputationConfig(
+            per_column_strategy={"col_a": ImputationStrategy.Dropped}
+        )
+
+
+def test_per_column_strategy_rejects_mnar_names_mnar_columns():
+    with pytest.raises(ValueError, match="mnar_columns"):
+        NumericImputationConfig(
+            per_column_strategy={"col_a": ImputationStrategy.MNAR}
+        )
+
+
+def test_per_column_strategy_rejects_constant_with_redirect_message():
+    with pytest.raises(ValueError, match="per_column_constant_fill"):
+        NumericImputationConfig(
+            per_column_strategy={"tx_count": ImputationStrategy.Constant}
+        )
+
+
+def test_per_column_strategy_rejects_constant_names_column():
+    with pytest.raises(ValueError, match="'tx_count'"):
+        NumericImputationConfig(
+            per_column_strategy={"tx_count": ImputationStrategy.Constant}
+        )
+
+
+def test_per_column_constant_fill_alone_constructs():
+    cfg = NumericImputationConfig(
+        per_column_constant_fill={"tx_count": 0.0},
+    )
+    assert cfg.per_column_constant_fill["tx_count"] == 0.0
+    assert "tx_count" not in cfg.per_column_strategy
+
+
+def test_per_column_strategy_all_allowed_strategies_construct():
+    allowed = {
+        "col_mean": ImputationStrategy.Mean,
+        "col_median": ImputationStrategy.Median,
+        "col_mode": ImputationStrategy.Mode,
+        "col_knn": ImputationStrategy.KNN,
+        "col_reg": ImputationStrategy.Regression,
+        "col_mice": ImputationStrategy.MICE,
+    }
+    cfg = NumericImputationConfig(per_column_strategy=allowed)
+    assert len(cfg.per_column_strategy) == 6
+
+
+def test_per_column_strategy_error_names_the_column():
+    with pytest.raises(ValueError, match="'income'"):
+        NumericImputationConfig(
+            per_column_strategy={"income": ImputationStrategy.Dropped}
+        )
+
+
+
+def test_per_column_strategy_empty_dict_default_constructs():
+    cfg = NumericImputationConfig()
+    assert cfg.per_column_strategy == {}
+    assert cfg.per_column_constant_fill == {}
+
+
+# ---------------------------------------------------------------------------
+# ImputationConfig — MNAR conflict check
+# ---------------------------------------------------------------------------
+
+
+def test_imputation_config_mnar_conflict_raises_when_column_in_both():
+    with pytest.raises(ValueError):
+        ImputationConfig(
+            mnar_columns=["income"],
+            numeric=NumericImputationConfig(
+                per_column_strategy={"income": ImputationStrategy.Median}
+            ),
+        )
+
+
+def test_imputation_config_mnar_conflict_message_names_all_conflicting_columns():
+    with pytest.raises(ValueError, match="'income'") as exc_info:
+        ImputationConfig(
+            mnar_columns=["income", "age"],
+            numeric=NumericImputationConfig(
+                per_column_strategy={
+                    "income": ImputationStrategy.Median,
+                    "age": ImputationStrategy.Mean,
+                }
+            ),
+        )
+    assert "'age'" in str(exc_info.value)
+
+
+def test_imputation_config_mnar_conflict_no_error_when_disjoint():
+    cfg = ImputationConfig(
+        mnar_columns=["income"],
+        numeric=NumericImputationConfig(
+            per_column_strategy={"sensor": ImputationStrategy.Median}
+        ),
+    )
+    assert cfg.mnar_columns == ["income"]
+
+
+def test_imputation_config_mnar_conflict_no_error_when_mnar_empty():
+    cfg = ImputationConfig(
+        mnar_columns=[],
+        numeric=NumericImputationConfig(
+            per_column_strategy={"sensor": ImputationStrategy.Median}
+        ),
+    )
+    assert cfg.numeric.per_column_strategy["sensor"] == ImputationStrategy.Median
+
+
+def test_imputation_config_mnar_conflict_no_error_when_per_column_strategy_empty():
+    cfg = ImputationConfig(
+        mnar_columns=["income"],
+        numeric=NumericImputationConfig(),
+    )
+    assert cfg.mnar_columns == ["income"]
+
+
+def test_imputation_config_mnar_conflict_no_error_when_both_empty():
+    cfg = ImputationConfig()
+    assert cfg.mnar_columns == []
+    assert cfg.numeric.per_column_strategy == {}
+
+
+# ---------------------------------------------------------------------------
 
 
 def test_column_imputation_record_missing_domain_snap_bounds_deserialises_to_none():
