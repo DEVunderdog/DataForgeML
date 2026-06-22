@@ -49,6 +49,8 @@ class _StrategyRouter:
         multi_mar: bool,
         mnar_columns: set[str],
         feature_correlation: "Optional[CorrelationProfileResult]" = None,
+        per_column_strategy: "Optional[dict[str, ImputationStrategy]]" = None,
+        per_column_constant_fill: "Optional[dict[str, float]]" = None,
     ) -> tuple[ImputationStrategy, list[str]]:
         """Route a single column to its imputation strategy.
 
@@ -72,6 +74,16 @@ class _StrategyRouter:
         feature_correlation : CorrelationProfileResult, optional
             Pre-computed Pearson correlation matrix from Phase 1.  Used only
             for the MCAR feature-predictability check.
+        per_column_strategy : dict[str, ImputationStrategy], optional
+            Explicit per-column strategy overrides.  When ``col`` is present,
+            the declared strategy is returned immediately at Priority 1.5,
+            bypassing all routing priorities 2–7.
+        per_column_constant_fill : dict[str, float], optional
+            User-declared constant fill values.  When ``col`` is present, the
+            column is routed to ``Constant`` at Priority 1.5, bypassing all
+            routing priorities 2–7.  Checked before ``per_column_strategy`` so
+            that a column in ``per_column_constant_fill`` always produces a
+            ``Constant`` record regardless of any other override.
 
         Returns
         -------
@@ -88,6 +100,17 @@ class _StrategyRouter:
                 f"drop_candidate: {missingness.effective_null_ratio:.1%} effective missing"
             )
             return ImputationStrategy.Dropped, signals
+
+        # Priority 1.5: per_column_constant_fill override — fires before per_column_strategy
+        if per_column_constant_fill and col in per_column_constant_fill:
+            signals.append("per_column_constant_fill_override: user declared constant fill")
+            return ImputationStrategy.Constant, signals
+
+        # Priority 1.5: per_column_strategy override — fires after DropCandidate, before MNAR
+        if per_column_strategy and col in per_column_strategy:
+            declared = per_column_strategy[col]
+            signals.append(f"per_column_strategy_override: user forced strategy={declared}")
+            return declared, signals
 
         # Priority 2: MNAR declared by user
         if col in mnar_columns:

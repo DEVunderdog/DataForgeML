@@ -85,6 +85,8 @@ class NumericImputer:
         n_rows = len(train_df)
         n_features = len(columns)
 
+        _validate_model_based_size_guards(config, n_rows, n_features)
+
         # Detect multi-MAR: ≥2 non-dropped, non-MNAR columns with MARSuspect flag
         mar_candidates: set[str] = set()
         for col in columns:
@@ -117,9 +119,13 @@ class NumericImputer:
                 multi_mar=multi_mar,
                 mnar_columns=mnar_columns,
                 feature_correlation=feature_correlation,
+                per_column_strategy=config.per_column_strategy or {},
+                per_column_constant_fill=config.per_column_constant_fill or {},
             )
 
-            fill_value = _resolve_fill_value(train_df, col, cp, strategy)
+            fill_value = _resolve_fill_value(
+                train_df, col, cp, strategy, config.per_column_constant_fill or {}
+            )
             indicator_added = strategy == ImputationStrategy.MNAR
             domain_snap_bounds = _resolve_domain_snap_bounds(cp, strategy)
 
@@ -362,6 +368,43 @@ class NumericImputer:
 
 
 # ---------------------------------------------------------------------------
+# Fit-time size-guard validation for per_column_strategy model-based overrides
+# ---------------------------------------------------------------------------
+
+
+def _validate_model_based_size_guards(
+    config: NumericImputationConfig,
+    n_rows: int,
+    n_features: int,
+) -> None:
+    for col, strategy in (config.per_column_strategy or {}).items():
+        if strategy == ImputationStrategy.Regression:
+            if n_rows < config.regression_min_rows:
+                raise ValueError(
+                    f"Column '{col}': per_column_strategy=Regression requires "
+                    f"n_rows >= regression_min_rows={config.regression_min_rows:,} "
+                    f"(got n_rows={n_rows:,}). "
+                    f"Increase the dataset size or lower regression_min_rows in NumericImputationConfig."
+                )
+        elif strategy == ImputationStrategy.KNN:
+            if n_rows > config.knn_max_rows:
+                raise ValueError(
+                    f"Column '{col}': per_column_strategy=KNN requires "
+                    f"n_rows <= knn_max_rows={config.knn_max_rows:,} "
+                    f"(got n_rows={n_rows:,}). "
+                    f"Raise knn_max_rows in NumericImputationConfig."
+                )
+            if n_features > config.knn_max_features:
+                raise ValueError(
+                    f"Column '{col}': per_column_strategy=KNN requires "
+                    f"n_features <= knn_max_features={config.knn_max_features} "
+                    f"(got n_features={n_features}). "
+                    f"Raise knn_max_features in NumericImputationConfig."
+                )
+        # MICE: same size guard as the Severe threshold path in _mcar_model_strategy — no guard applied
+
+
+# ---------------------------------------------------------------------------
 # Fill value and domain snap helpers (called by NumericImputer.fit after routing)
 # ---------------------------------------------------------------------------
 
@@ -371,6 +414,7 @@ def _resolve_fill_value(
     col: str,
     cp: "ColumnProfile",
     strategy: ImputationStrategy,
+    per_column_constant_fill: "Optional[dict[str, float]]" = None,
 ) -> Optional[float]:
     """Compute the scalar fill value for a column after strategy routing.
 
@@ -385,6 +429,10 @@ def _resolve_fill_value(
         BoundedDiscrete snapping.
     strategy : ImputationStrategy
         Strategy returned by ``_StrategyRouter.route()``.
+    per_column_constant_fill : dict[str, float], optional
+        User-declared constant fill values.  When ``strategy`` is ``Constant``
+        and ``col`` is present in this dict, the declared value is returned
+        directly without touching ``train_df``.
 
     Returns
     -------
@@ -392,6 +440,11 @@ def _resolve_fill_value(
         Computed fill value, or ``None`` for model-based and structural
         strategies that do not use a scalar fill.
     """
+    if strategy == ImputationStrategy.Constant:
+        if per_column_constant_fill is not None and col in per_column_constant_fill:
+            return per_column_constant_fill[col]
+        return None
+
     if strategy in (
         ImputationStrategy.Dropped,
         ImputationStrategy.Passthrough,

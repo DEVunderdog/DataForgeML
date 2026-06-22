@@ -580,12 +580,12 @@ def test_mnar_round_trip_preserves_strategy_and_fill_value():
 
 
 # ---------------------------------------------------------------------------
-# from_dict() — "constant" → "mnar" migration shim (issue #166)
+# from_dict() — "constant" strategy deserialisation
 # ---------------------------------------------------------------------------
 
 
-def test_from_dict_remaps_constant_strategy_to_mnar():
-    """Legacy 'constant' strategy deserialises as ImputationStrategy.MNAR."""
+def test_from_dict_constant_strategy_deserialises_as_constant():
+    """'constant' strategy string deserialises as ImputationStrategy.Constant."""
     payload = {
         "records": {
             "income": {
@@ -602,7 +602,7 @@ def test_from_dict_remaps_constant_strategy_to_mnar():
         "model_cols": {},
     }
     restored = FittedImputer.from_dict(payload)
-    assert restored.records["income"].strategy == ImputationStrategy.MNAR
+    assert restored.records["income"].strategy == ImputationStrategy.Constant
 
 
 def test_from_dict_mnar_strategy_string_still_deserialises_correctly():
@@ -627,8 +627,8 @@ def test_from_dict_mnar_strategy_string_still_deserialises_correctly():
     assert restored.records["salary"].fill_value == pytest.approx(55000.0)
 
 
-def test_from_dict_constant_migration_preserves_fill_value_and_indicator():
-    """fill_value and indicator_added survive the 'constant' → 'mnar' migration."""
+def test_from_dict_constant_strategy_preserves_fill_value_and_indicator():
+    """fill_value and indicator_added survive 'constant' strategy deserialisation."""
     payload = {
         "records": {
             "age": {
@@ -645,13 +645,39 @@ def test_from_dict_constant_migration_preserves_fill_value_and_indicator():
         "model_cols": {},
     }
     restored = FittedImputer.from_dict(payload)
-    assert restored.records["age"].strategy == ImputationStrategy.MNAR
+    assert restored.records["age"].strategy == ImputationStrategy.Constant
     assert restored.records["age"].fill_value == pytest.approx(38.0)
     assert restored.records["age"].indicator_added is True
 
 
+def test_constant_strategy_round_trips_via_to_dict_from_dict():
+    """FittedImputer with Constant-strategy column preserves strategy after to_dict/from_dict."""
+    imputer = FittedImputer(records={
+        "transaction_count": _record(
+            "transaction_count", ImputationStrategy.Constant, fill_value=0.0,
+        ),
+    })
+    restored = FittedImputer.from_dict(imputer.to_dict())
+    assert restored.records["transaction_count"].strategy == ImputationStrategy.Constant
+    assert restored.records["transaction_count"].fill_value == pytest.approx(0.0)
+
+
+def test_constant_strategy_round_trip_fill_value_applied_correctly():
+    """FittedImputer with Constant strategy applies fill_value correctly after round-trip."""
+    imputer = FittedImputer(records={
+        "transaction_count": _record(
+            "transaction_count", ImputationStrategy.Constant, fill_value=0.0,
+        ),
+    })
+    restored = FittedImputer.from_dict(imputer.to_dict())
+    df = pl.DataFrame({"transaction_count": pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
+    result = restored.transform(df)
+    assert result.dataframe["transaction_count"].null_count() == 0
+    assert result.dataframe["transaction_count"][1] == pytest.approx(0.0)
+
+
 def test_from_dict_migration_does_not_affect_other_strategies():
-    """Only 'constant' is remapped; all other strategy strings are unaffected."""
+    """'constant' remapping does not affect other strategy strings."""
     payload = {
         "records": {
             "a": {

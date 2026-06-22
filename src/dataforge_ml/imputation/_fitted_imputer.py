@@ -450,26 +450,19 @@ class FittedImputer:
         Parameters
         ----------
         data : dict
-            Mapping produced by ``to_dict()``.  Legacy payloads serialised
-            before Scope 8 may contain ``"constant"`` as a strategy value;
-            those records are migrated transparently (see Notes).  Payloads
-            without a ``"numeric_sentinels"`` key (serialised before Scope 5 /
-            issue #94) default to an empty dict for backwards compatibility.
-            Payloads without a ``"string_sentinels"`` key (serialised before
-            issue #182) also default to an empty dict for backwards
-            compatibility.
+            Mapping produced by ``to_dict()``.  Payloads without a
+            ``"numeric_sentinels"`` key (serialised before Scope 5 / issue #94)
+            default to an empty dict for backwards compatibility.  Payloads
+            without a ``"string_sentinels"`` key (serialised before issue #182)
+            also default to an empty dict for backwards compatibility.
+            Pre-Scope 8 payloads may contain ``"constant"`` as a strategy
+            value; those records deserialise as ``ImputationStrategy.Constant``
+            (audit label only — fill behaviour is unchanged).
 
         Returns
         -------
         FittedImputer
             The deserialized FittedImputer instance.
-
-        Notes
-        -----
-        Strategy ``"constant"`` is silently remapped to ``"mnar"`` for
-        backward compatibility with ``FittedImputer`` objects serialised before
-        Scope 8 (issue #97), when MNAR columns were filled with a sentinel
-        constant and recorded as ``ImputationStrategy.Constant``.
         """
         import base64
         import io
@@ -481,8 +474,6 @@ class FittedImputer:
             raw_bounds = rec_data.get("domain_snap_bounds")
             snap_bounds = tuple(raw_bounds) if raw_bounds is not None else None
             strategy_str = rec_data["strategy"]
-            if strategy_str == "constant":
-                strategy_str = "mnar"
             records[col] = ColumnImputationRecord(
                 column=rec_data["column"],
                 semantic_type=SemanticType(rec_data["semantic_type"]),
