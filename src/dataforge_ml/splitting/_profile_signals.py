@@ -38,6 +38,14 @@ def build_label_matrix(
     when no usable signals exist, signalling the caller to fall back to random
     splitting.
 
+    Effective-null resolution (via ``_resolve_effective_nulls``) is applied
+    to the full DataFrame once before any signal is computed. This means
+    **all** signals — including the per-column missingness signal (signal 1),
+    the Joint MAR pair signal (signal 2), and the compound row missingness
+    signal (signal 8) — use the same dtype-driven effective-null mask:
+    Float32/Float64 NaN/Inf values and String/Utf8 sentinel strings are treated
+    as missing for both columns in every MAR pair and in the row null count.
+
     String/Utf8 effective-null detection uses **replace semantics** when
     ``profile.string_sentinels`` contains an entry for the column: only the
     declared values are matched (case-insensitive) and the hardcoded defaults
@@ -175,6 +183,20 @@ def build_label_matrix(
             for cls in df[target].unique().to_list():
                 s = (df[target] == cls).fill_null(False).cast(pl.Int8).to_numpy()
                 signals.append(s)
+
+    # --- 8. Compound row missingness signal ---
+    # Rows missing in more columns than the 90th-percentile per-row count are
+    # globally sparse and must be proportionally represented in both partitions.
+    # Signal is omitted when p90 == 0 (no meaningful multi-column sparsity).
+    p90 = profile.dataset.row_distribution.row_missingness_p90
+    if p90 > 0:
+        profile_cols = [c for c in profile.columns if c in df.columns]
+        if profile_cols:
+            row_null_count = df.select(profile_cols).select(
+                pl.sum_horizontal(pl.all().is_null()).alias("n")
+            )["n"]
+            s = (row_null_count > p90).cast(pl.Int8).to_numpy()
+            signals.append(s)
 
     if not signals:
         return np.empty((n, 0), dtype=np.int8)

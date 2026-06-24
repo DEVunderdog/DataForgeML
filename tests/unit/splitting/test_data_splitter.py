@@ -647,6 +647,45 @@ def test_signal_1_integer_column_uses_standard_null_only():
 
 
 # ---------------------------------------------------------------------------
+# build_label_matrix — signal 2: Joint MAR pair effective null mask
+# ---------------------------------------------------------------------------
+
+
+def test_signal_2_joint_mar_string_sentinel_receives_label_one():
+    """A row with a string sentinel in a MAR-correlated column receives label 1 in the joint signal."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+
+    # Rows 0–69: valid values in both columns.
+    # Rows 70–99: string sentinels in both columns simultaneously → Pearson r = 1.0
+    # between effective-null indicators → MAR pair detected → joint signal column added.
+    col_a = ["valid"] * 70 + ["NA"] * 30
+    col_b = ["good"] * 70 + ["NULL"] * 30
+    df = pl.DataFrame(
+        {
+            "col_a": pl.Series(col_a, dtype=pl.Utf8),
+            "col_b": pl.Series(col_b, dtype=pl.Utf8),
+        }
+    )
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+
+    # Precondition: MAR correlation detected between the pair.
+    mp_a = profile.columns["col_a"].missingness
+    assert mp_a is not None and "col_b" in mp_a.correlated_with
+
+    mat = build_label_matrix(df, profile, target=None)
+
+    # Three signals: per-col_a missingness, per-col_b missingness, joint MAR.
+    assert mat.shape[1] >= 3
+
+    # Every sentinel row (70–99) must be marked (label 1) in at least one signal.
+    assert (mat[70:, :].sum(axis=1) > 0).all(), (
+        "Rows with string sentinels in a MAR-correlated pair must receive label 1"
+    )
+    # Valid rows (0–69) must not be marked in any signal.
+    assert mat[:70, :].sum() == 0
+
+
+# ---------------------------------------------------------------------------
 # build_label_matrix — signal 5: rare categorical from profile
 # ---------------------------------------------------------------------------
 
@@ -986,3 +1025,83 @@ def test_signal_1_declared_sentinels_do_not_affect_other_dtype_columns():
     num_profile = profile.columns["num"]
     assert num_profile.missingness is not None
     assert num_profile.missingness.effective_null_count > 0
+
+
+# ---------------------------------------------------------------------------
+# build_label_matrix — signal 8: compound row missingness
+# ---------------------------------------------------------------------------
+
+
+def test_signal_8_absent_when_p90_is_zero():
+    """No compound row signal when dataset has no effective nulls (p90 == 0)."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+
+    df = pl.DataFrame({
+        "a": pl.Series([1, 2, 3, 4, 5], dtype=pl.Int64),
+        "b": pl.Series([10, 20, 30, 40, 50], dtype=pl.Int64),
+    })
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+
+    assert profile.dataset.row_distribution.row_missingness_p90 == 0
+    mat = build_label_matrix(df, profile, target=None)
+    assert mat.shape[1] == 0
+
+
+def _make_compound_df() -> pl.DataFrame:
+    """10 rows, 5 columns. Rows 0-8: one null each. Row 9: four nulls.
+    Per-row null counts: [1]*9 + [4]. p90 = 1, so row 9 (count 4) gets label 1.
+    """
+    return pl.DataFrame({
+        "a": pl.Series([None, None, None, None, None, None, None, None, None, 1], dtype=pl.Int64),
+        "b": pl.Series([1, 2, 3, 4, 5, 6, 7, 8, 9, None], dtype=pl.Int64),
+        "c": pl.Series([1, 2, 3, 4, 5, 6, 7, 8, 9, None], dtype=pl.Int64),
+        "d": pl.Series([1, 2, 3, 4, 5, 6, 7, 8, 9, None], dtype=pl.Int64),
+        "e": pl.Series([1, 2, 3, 4, 5, 6, 7, 8, 9, None], dtype=pl.Int64),
+    })
+
+
+def test_signal_8_present_when_p90_is_positive():
+    """Compound row signal column is present and non-zero when p90 > 0."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+    import numpy as np
+
+    df = _make_compound_df()
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+
+    p90 = profile.dataset.row_distribution.row_missingness_p90
+    assert p90 > 0, f"precondition: p90 must be positive, got {p90}"
+
+    mat = build_label_matrix(df, profile, target=None)
+    # The compound signal marks row 9 (count 4 > p90); it must be non-zero,
+    # so it survives the zero-proportion filter.
+    assert mat.shape[1] >= 1
+    # At least one column has a 1 in row 9.
+    assert mat[9, :].sum() > 0, "row 9 (globally sparse) should be marked in some signal"
+
+
+def test_signal_8_rows_above_p90_receive_label_one():
+    """Rows with effective-null count > p90 receive label 1; others receive 0."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+    import numpy as np
+
+    # 10 rows, 5 columns. Rows 0-8 have exactly 1 null (col "a").
+    # Row 9 has 4 nulls (cols b-e). Per-row counts: [1]*9 + [4].
+    # p90 = int(np.percentile([1]*9+[4], 90)) = 1 (linear interpolation gives 1.3 → 1).
+    # Compound signal: rows with count > 1 → only row 9.
+    df = _make_compound_df()
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+
+    p90 = profile.dataset.row_distribution.row_missingness_p90
+    assert p90 > 0, f"precondition: p90 must be positive, got {p90}"
+
+    mat = build_label_matrix(df, profile, target=None)
+
+    per_row_null = np.array([1, 1, 1, 1, 1, 1, 1, 1, 1, 4])
+    expected_compound = (per_row_null > p90).astype(np.int8)
+
+    # The compound signal must appear as one column in the matrix.
+    found = any(np.array_equal(mat[:, j], expected_compound) for j in range(mat.shape[1]))
+    assert found, (
+        f"compound signal column not found in matrix; p90={p90}, "
+        f"expected {expected_compound.tolist()}, matrix shape {mat.shape}"
+    )

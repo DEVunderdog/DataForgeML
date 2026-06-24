@@ -25,6 +25,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
+import numpy as np
 import polars as pl
 
 from ._base import ModalityProfiler, ColumnBatchProfiler
@@ -386,5 +387,6 @@ class StructuralProfiler:
         dist.pct_over_five = float((row_missing > 5).sum()) / n_rows
         dist.drop_candidate_row_count = int((row_missing >= half_threshold).sum())
         dist.pct_over_half_missing = dist.drop_candidate_row_count / n_rows
+        dist.row_missingness_p90 = int(np.percentile(row_missing.to_numpy(), 90))
 
         return dist

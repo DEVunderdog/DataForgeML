@@ -521,3 +521,55 @@ def test_string_sentinel_multiple_declared_values_all_counted():
     profile = profiler.profile(df, ["col"]).columns["col"]
 
     assert profile.effective_null_count == 3
+
+
+# ---------------------------------------------------------------------------
+# RowMissingnessDistribution — row_missingness_p90
+# ---------------------------------------------------------------------------
+
+
+def test_row_missingness_p90_is_zero_for_fully_populated_dataset():
+    """A dataset with no effective nulls produces p90 == 0."""
+    df = pl.DataFrame({
+        "a": pl.Series([1, 2, 3, 4, 5], dtype=pl.Int64),
+        "b": pl.Series([10, 20, 30, 40, 50], dtype=pl.Int64),
+    })
+    result = MissingnessProfiler().profile(df, ["a", "b"])
+    assert result.row_distribution.row_missingness_p90 == 0
+
+
+def test_row_missingness_p90_single_column_all_missing_is_one():
+    """A single fully-null column produces p90 == 1 (every row has 1 missing column)."""
+    df = pl.DataFrame({"x": pl.Series([None, None, None, None, None], dtype=pl.Int64)})
+    result = MissingnessProfiler().profile(df, ["x"])
+    assert result.row_distribution.row_missingness_p90 == 1
+
+
+def test_row_missingness_p90_reflects_actual_90th_percentile():
+    """p90 matches numpy's 90th percentile of per-row effective-null counts."""
+    import numpy as np
+
+    # 10 rows, 3 columns. Rows 0-5: no nulls. Rows 6-9: all 3 columns null.
+    # Per-row null count: [0, 0, 0, 0, 0, 0, 3, 3, 3, 3]
+    # 90th percentile: position 9 * 0.9 = 8.1 → between sorted[8]=3, sorted[9]=3 → 3
+    vals = [None] * 4
+    ok = [1, 2, 3, 4]
+    df = pl.DataFrame({
+        "a": pl.Series([1, 2, 3, 4, 5, 6, None, None, None, None], dtype=pl.Int64),
+        "b": pl.Series([1, 2, 3, 4, 5, 6, None, None, None, None], dtype=pl.Int64),
+        "c": pl.Series([1, 2, 3, 4, 5, 6, None, None, None, None], dtype=pl.Int64),
+    })
+    result = MissingnessProfiler().profile(df, ["a", "b", "c"])
+    per_row = np.array([0, 0, 0, 0, 0, 0, 3, 3, 3, 3])
+    expected_p90 = int(np.percentile(per_row, 90))
+    assert result.row_distribution.row_missingness_p90 == expected_p90
+
+
+def test_row_distribution_accessible_on_missingness_profile_result():
+    """row_distribution is present on MissingnessProfileResult after profile()."""
+    from dataforge_ml.profiling._missingness_config import RowMissingnessDistribution
+
+    df = pl.DataFrame({"x": pl.Series([1, None, 3], dtype=pl.Int64)})
+    result = MissingnessProfiler().profile(df, ["x"])
+    assert hasattr(result, "row_distribution")
+    assert isinstance(result.row_distribution, RowMissingnessDistribution)

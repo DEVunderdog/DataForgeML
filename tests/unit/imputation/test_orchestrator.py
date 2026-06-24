@@ -1,8 +1,6 @@
 """
-Unit tests for ImputationOrchestrator and SplitImbalanceWarning.
+Unit tests for ImputationOrchestrator.
 """
-
-import warnings
 
 import polars as pl
 import pytest
@@ -10,10 +8,7 @@ import pytest
 from dataforge_ml.config import PipelineConfig, SemanticType
 from dataforge_ml.imputation._config import ImputationStrategy, NumericImputationConfig
 from dataforge_ml.imputation._fitted_imputer import FittedImputer
-from dataforge_ml.imputation.orchestrator import (
-    ImputationOrchestrator,
-    SplitImbalanceWarning,
-)
+from dataforge_ml.imputation.orchestrator import ImputationOrchestrator
 from dataforge_ml.profiling._config import (
     ColumnProfile,
     NumericKind,
@@ -143,109 +138,6 @@ def test_identifier_columns_in_records_with_passthrough():
 
 
 # ---------------------------------------------------------------------------
-# SplitImbalanceWarning
-# ---------------------------------------------------------------------------
-
-
-def test_split_imbalance_warning_emitted_when_train_has_no_nulls():
-    """Profile reports missingness, train_df has none → warning."""
-    # Profile says 'a' has 5% missing, but we give a clean train_df
-    profile = _make_profile({"a": _numeric_cp_with_nulls("a", null_count=5, total=100)})
-    clean_train = pl.DataFrame({"a": pl.Series([float(i) for i in range(10)], dtype=pl.Float64)})
-
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        ImputationOrchestrator().fit(clean_train, profile)
-
-    split_warnings = [w for w in caught if issubclass(w.category, SplitImbalanceWarning)]
-    assert len(split_warnings) == 1
-    assert "a" in str(split_warnings[0].message)
-
-
-def test_split_imbalance_warning_names_all_imbalanced_columns_in_single_warning():
-    """All imbalanced columns must appear together in a single SplitImbalanceWarning."""
-    profile = _make_profile({
-        "a": _numeric_cp_with_nulls("a", null_count=5, total=100),
-        "b": _numeric_cp_with_nulls("b", null_count=3, total=100),
-    })
-    clean_train = pl.DataFrame({
-        "a": pl.Series([float(i) for i in range(10)], dtype=pl.Float64),
-        "b": pl.Series([float(i) for i in range(10)], dtype=pl.Float64),
-    })
-
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        ImputationOrchestrator().fit(clean_train, profile)
-
-    split_warnings = [w for w in caught if issubclass(w.category, SplitImbalanceWarning)]
-    assert len(split_warnings) == 1
-    msg = str(split_warnings[0].message)
-    assert "a" in msg
-    assert "b" in msg
-
-
-def test_no_split_imbalance_warning_when_train_has_nulls():
-    """If train_df has nulls matching profile, no warning should fire."""
-    profile = _make_profile({"a": _numeric_cp_with_nulls("a", null_count=5, total=100)})
-    train = pl.DataFrame({"a": pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
-
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        ImputationOrchestrator().fit(train, profile)
-
-    split_warnings = [w for w in caught if issubclass(w.category, SplitImbalanceWarning)]
-    assert len(split_warnings) == 0
-
-
-def test_no_split_imbalance_warning_when_training_has_inf():
-    """Inf is an effective null; after normalisation null_count > 0, so no imbalance fires."""
-    profile = _make_profile({"a": _numeric_cp_with_nulls("a", null_count=5, total=100)})
-    train = pl.DataFrame({"a": pl.Series([1.0, float("inf"), 3.0], dtype=pl.Float64)})
-
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        ImputationOrchestrator().fit(train, profile)
-
-    split_warnings = [w for w in caught if issubclass(w.category, SplitImbalanceWarning)]
-    assert len(split_warnings) == 0
-
-
-def test_no_split_imbalance_warning_when_training_has_string_sentinel():
-    """String sentinels are effective nulls; after normalisation they are detected as missing."""
-    s_cp = ColumnProfile(
-        name="s",
-        semantic_type=SemanticType.Text,
-        missingness=ColumnMissingnessProfile(
-            column="s", total_rows=100,
-            effective_null_count=5,
-            effective_null_ratio=0.05,
-            severity=MissingSeverity.Minor,
-        ),
-    )
-    profile = _make_profile({"s": s_cp})
-    train = pl.DataFrame({"s": pl.Series(["NA", "hello", "world"], dtype=pl.String)})
-
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        ImputationOrchestrator().fit(train, profile)
-
-    split_warnings = [w for w in caught if issubclass(w.category, SplitImbalanceWarning)]
-    assert len(split_warnings) == 0
-
-
-def test_no_split_imbalance_warning_when_profile_reports_no_missingness():
-    profile = _make_profile({"a": _clean_numeric_cp("a")})
-    train = pl.DataFrame({"a": pl.Series([1.0, 2.0, 3.0], dtype=pl.Float64)})
-
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        ImputationOrchestrator().fit(train, profile)
-
-    split_warnings = [w for w in caught if issubclass(w.category, SplitImbalanceWarning)]
-    assert len(split_warnings) == 0
-
-
-# ---------------------------------------------------------------------------
 # fit_transform() convenience
 # ---------------------------------------------------------------------------
 
@@ -256,7 +148,7 @@ def test_fit_transform_returns_imputation_result_with_no_nulls():
     df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0, None], dtype=pl.Float64)})
     profile = _make_profile({"a": _numeric_cp_with_nulls("a")})
 
-    result = ImputationOrchestrator().fit_transform(df, profile)
+    _fitted, result = ImputationOrchestrator().fit_transform(df, profile)
     assert isinstance(result, ImputationResult)
     assert result.dataframe["a"].null_count() == 0
 
@@ -266,9 +158,54 @@ def test_fit_transform_is_equivalent_to_fit_then_transform():
     profile = _make_profile({"a": _numeric_cp_with_nulls("a")})
 
     orch = ImputationOrchestrator()
-    r1 = orch.fit_transform(df, profile)
+    _fi, r1 = orch.fit_transform(df, profile)
     r2 = orch.fit(df, profile).transform(df)
     assert r1.dataframe.equals(r2.dataframe)
+
+
+# ---------------------------------------------------------------------------
+# fit_transform() — tuple return (ADR-0021)
+# ---------------------------------------------------------------------------
+
+
+def test_fit_transform_return_value_is_tuple_of_length_two():
+    df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
+    profile = _make_profile({"a": _numeric_cp_with_nulls("a")})
+
+    result = ImputationOrchestrator().fit_transform(df, profile)
+    assert isinstance(result, tuple)
+    assert len(result) == 2
+
+
+def test_fit_transform_first_element_is_fitted_imputer():
+    df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
+    profile = _make_profile({"a": _numeric_cp_with_nulls("a")})
+
+    fitted, _result = ImputationOrchestrator().fit_transform(df, profile)
+    assert isinstance(fitted, FittedImputer)
+
+
+def test_fit_transform_second_element_is_imputation_result():
+    from dataforge_ml.imputation._config import ImputationResult
+
+    df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
+    profile = _make_profile({"a": _numeric_cp_with_nulls("a")})
+
+    _fitted, result = ImputationOrchestrator().fit_transform(df, profile)
+    assert isinstance(result, ImputationResult)
+
+
+def test_fit_transform_fitted_imputer_consistent_with_standalone_fit():
+    """FittedImputer from fit_transform must produce the same fill values as standalone fit."""
+    df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0, None, 5.0], dtype=pl.Float64)})
+    profile = _make_profile({"a": _numeric_cp_with_nulls("a")})
+
+    orch = ImputationOrchestrator()
+    fi_from_fit_transform, _ = orch.fit_transform(df, profile)
+    fi_from_fit = orch.fit(df, profile)
+
+    assert fi_from_fit_transform.records["a"].fill_value == fi_from_fit.records["a"].fill_value
+    assert fi_from_fit_transform.records["a"].strategy == fi_from_fit.records["a"].strategy
 
 
 # ---------------------------------------------------------------------------
@@ -556,3 +493,5 @@ def test_per_column_strategy_knn_no_error_when_size_guard_met():
     )
     # n_rows=3 <= knn_max_rows=10 — guard passes, no ValueError
     ImputationOrchestrator(cfg).fit(df, profile)
+
+

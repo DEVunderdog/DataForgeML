@@ -16,6 +16,7 @@ from ..config import SemanticType, Modality
 from ._missingness_config import (
     ColumnMissingnessProfile,
     MissingnessProfileConfig,
+    RowMissingnessDistribution,
 )
 from ._correlation_config import (
     CorrelationProfileResult,
@@ -110,30 +111,6 @@ class ColumnProfile:
             "stats": self.stats.to_dict() if self.stats else None,
         }
 
-
-@dataclass
-class RowMissingnessDistribution:
-    """
-    Dataset-level summary of per-row missing-value counts.
-    Computed by StructuralProfiler over the full active column set.
-    """
-
-    pct_zero_missing: float = 0.0
-    pct_one_to_two: float = 0.0
-    pct_three_to_five: float = 0.0
-    pct_over_five: float = 0.0
-    pct_over_half_missing: float = 0.0
-    drop_candidate_row_count: int = 0
-
-    def to_dict(self) -> dict:
-        return {
-            "pct_zero_missing": self.pct_zero_missing,
-            "pct_one_to_two": self.pct_one_to_two,
-            "pct_three_to_five": self.pct_three_to_five,
-            "pct_over_five": self.pct_over_five,
-            "pct_over_half_missing": self.pct_over_half_missing,
-            "drop_candidate_row_count": self.drop_candidate_row_count,
-        }
 
 
 @dataclass

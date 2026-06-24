@@ -11,7 +11,7 @@ from ._fitted_imputer import (
     UnfittedColumnError,
     UnseenColumnError,
 )
-from .orchestrator import ImputationOrchestrator, SplitImbalanceWarning
+from .orchestrator import ImputationOrchestrator
 
 __all__ = [
     "ImputationStrategy",
@@ -24,5 +24,4 @@ __all__ = [
     "UnseenColumnError",
     "FittedColumnAbsentError",
     "ImputationOrchestrator",
-    "SplitImbalanceWarning",
 ]

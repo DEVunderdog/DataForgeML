@@ -12,6 +12,7 @@ Inf / NaN expansion        →  runs for every Float32/Float64 column unconditio
 from __future__ import annotations
 
 
+import numpy as np
 import polars as pl
 
 from ._base import DatasetLevelProfiler
@@ -21,6 +22,7 @@ from ._missingness_config import (
     MissingnessProfileConfig,
     MissingnessProfileResult,
     MissingSeverity,
+    RowMissingnessDistribution,
 )
 from ..utils._null_detection import (
     _SENTINEL_STRINGS,
@@ -156,6 +158,18 @@ class MissingnessProfiler(DatasetLevelProfiler[MissingnessProfileResult]):
                     result.columns[col_a].correlated_with = mar_peers
                     if MissingnessFlag.MARSuspect not in result.columns[col_a].flags:
                         result.columns[col_a].flags.append(MissingnessFlag.MARSuspect)
+
+        # ── Row missingness p90 ────────────────────────────────────────
+        if indicator_cols:
+            row_missing = (
+                pl.DataFrame({s.name: s for s in indicator_cols})
+                .select(pl.sum_horizontal(pl.all()).alias("n"))["n"]
+                .to_numpy()
+            )
+            p90 = int(np.percentile(row_missing, 90))
+        else:
+            p90 = 0
+        result.row_distribution = RowMissingnessDistribution(row_missingness_p90=p90)
 
         return result
 

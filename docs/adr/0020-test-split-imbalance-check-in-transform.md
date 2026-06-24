@@ -1,6 +1,6 @@
 # ADR 0020: TestSplitImbalanceWarning lives in FittedImputer.transform(), not DataSplitter
 
-**Status:** Accepted
+**Status:** Superseded by ADR-0036
 
 ## Context
 
