@@ -146,7 +146,7 @@ def test_mnar_column_receives_data_derived_fill_and_indicator():
     )
     profile = StructuralProfiler(PipelineConfig()).profile(data)
     orch = ImputationOrchestrator(config=config)
-    result = orch.fit_transform(data, profile)
+    _fitted, result = orch.fit_transform(data, profile)
 
     assert result.dataframe["salary"].null_count() == 0
     assert "salary_missing" in result.dataframe.columns

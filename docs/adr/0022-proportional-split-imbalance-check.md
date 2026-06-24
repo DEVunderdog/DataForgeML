@@ -1,6 +1,6 @@
 # ADR 0022: Split imbalance check is proportional, not binary
 
-**Status:** Accepted
+**Status:** Superseded by ADR-0036
 
 ## Context
 

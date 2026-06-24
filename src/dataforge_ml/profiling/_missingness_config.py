@@ -13,6 +13,70 @@ from typing import Optional
 
 
 # ---------------------------------------------------------------------------
+# Row-level distribution summary
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class RowMissingnessDistribution:
+    """
+    Dataset-level summary of per-row missing-value counts.
+
+    Computed by ``MissingnessProfiler`` using effective-null counts across all
+    profiled columns, and by ``StructuralProfiler`` over the full active column
+    set for the dataset-level ``DatasetStats.row_distribution``.
+
+    Attributes
+    ----------
+    row_missingness_p90 : int
+        90th-percentile count of missing columns per row across all profiled
+        columns.  Zero means fewer than 10 % of rows have any missing values,
+        so globally-sparse rows are not a concern.  Used by
+        ``build_label_matrix`` to emit the compound row missingness signal.
+    pct_zero_missing : float
+        Proportion of rows with zero effective-null columns.
+    pct_one_to_two : float
+        Proportion of rows missing in exactly one or two columns.
+    pct_three_to_five : float
+        Proportion of rows missing in three to five columns.
+    pct_over_five : float
+        Proportion of rows missing in more than five columns.
+    pct_over_half_missing : float
+        Proportion of rows where more than half the profiled columns are
+        effective null.
+    drop_candidate_row_count : int
+        Number of rows exceeding the ``row_drop_threshold`` fraction.
+    """
+
+    row_missingness_p90: int = 0
+    pct_zero_missing: float = 0.0
+    pct_one_to_two: float = 0.0
+    pct_three_to_five: float = 0.0
+    pct_over_five: float = 0.0
+    pct_over_half_missing: float = 0.0
+    drop_candidate_row_count: int = 0
+
+    def to_dict(self) -> dict:
+        """
+        Serialise the distribution to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            All field values keyed by field name.
+        """
+        return {
+            "row_missingness_p90": self.row_missingness_p90,
+            "pct_zero_missing": self.pct_zero_missing,
+            "pct_one_to_two": self.pct_one_to_two,
+            "pct_three_to_five": self.pct_three_to_five,
+            "pct_over_five": self.pct_over_five,
+            "pct_over_half_missing": self.pct_over_half_missing,
+            "drop_candidate_row_count": self.drop_candidate_row_count,
+        }
+
+
+# ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------
 
@@ -128,13 +192,18 @@ class MissingnessProfileResult:
         Only populated when ≥ 2 columns have at least one missing value.
         Stored as a nested dict: matrix[col_a][col_b] = correlation.
     row_distribution : RowMissingnessDistribution
-        Aggregate row-wise missingness summary.
+        Row-wise missingness summary including ``row_missingness_p90`` — the
+        90th-percentile count of missing columns per row.  Used by
+        ``build_label_matrix`` to emit the compound row signal.
     """
 
     columns: dict[str, ColumnMissingnessProfile] = field(default_factory=dict)
     analysed_columns: list[str] = field(default_factory=list)
     fully_null_columns: list[str] = field(default_factory=list)
     correlation_matrix: dict[str, dict[str, float]] = field(default_factory=dict)
+    row_distribution: RowMissingnessDistribution = field(
+        default_factory=RowMissingnessDistribution
+    )
 
     def __str__(self) -> str:  # pragma: no cover
         lines = ["=== Missingness Profile ==="]

@@ -1,13 +1,12 @@
 """
 ImputationOrchestrator — Phase 2 stateless entry point.
 
-fit(train_df, profile) routes columns to sub-processors via _IMPUTATION_REGISTRY,
-emits SplitImbalanceWarning for unsafe splits, and assembles a FittedImputer.
+fit(train_df, profile) routes columns to sub-processors via _IMPUTATION_REGISTRY
+and assembles a FittedImputer.
 """
 
 from __future__ import annotations
 
-import warnings
 from typing import TYPE_CHECKING
 
 import polars as pl
@@ -20,18 +19,6 @@ from ..utils._null_normalization import _resolve_effective_nulls
 
 if TYPE_CHECKING:
     from ..profiling._config import StructuralProfileResult
-
-
-class SplitImbalanceWarning(UserWarning):
-    """
-    Emitted when the training split has zero missing values for a column that
-    the full-dataset profile reports as having missingness.
-
-    This typically indicates a non-profile-stratified split was used, which
-    means fill values will be computed from a "clean" slice. Use
-    DataSplitter.profile_stratified_split() to ensure missing values appear
-    in the training partition.
-    """
 
 
 _IMPUTATION_REGISTRY: dict[SemanticType, type] = {
@@ -80,7 +67,6 @@ class ImputationOrchestrator:
             numeric_sentinels=profile.numeric_sentinels,
             string_sentinels=profile.string_sentinels,
         )
-        _check_split_imbalance(train_df, profile)
 
         imp_cfg = self._config.imputation
         mnar_columns = set(imp_cfg.mnar_columns)
@@ -160,52 +146,31 @@ class ImputationOrchestrator:
         self,
         train_df: pl.DataFrame,
         profile: StructuralProfileResult,
-    ) -> ImputationResult:
+    ) -> tuple[FittedImputer, ImputationResult]:
         """Fit the imputer on train_df and transform it in one step.
+
+        Returns both the fitted imputer and the imputed training result so that
+        callers are not forced to call ``fit()`` a second time to obtain the
+        imputer for test-set transformation.  The natural next step after
+        unpacking is ``fitted_imputer.transform(test_df)``.
 
         Parameters
         ----------
         train_df : pl.DataFrame
-            Training split.
+            Training split.  Fill parameters are computed exclusively here.
         profile : StructuralProfileResult
             Full-dataset profile from Phase 1.
 
         Returns
         -------
-        ImputationResult
-            The imputation result containing the imputed DataFrame and audit records.
+        tuple[FittedImputer, ImputationResult]
+            A two-element tuple ``(fitted_imputer, imputation_result)``.
+            ``fitted_imputer`` is identical to the object returned by a
+            standalone ``fit()`` call on the same inputs.
+            ``imputation_result`` contains the imputed DataFrame and audit
+            records for the training split.
         """
-        return self.fit(train_df, profile).transform(train_df)
+        fitted = self.fit(train_df, profile)
+        result = fitted.transform(train_df)
+        return fitted, result
 
-
-
-# ---------------------------------------------------------------------------
-# Internal helper
-# ---------------------------------------------------------------------------
-
-
-def _check_split_imbalance(
-    train_df: pl.DataFrame,
-    profile: StructuralProfileResult,
-) -> None:
-    imbalanced: list[str] = []
-    for col, cp in profile.columns.items():
-        if cp.missingness is None or cp.missingness.effective_null_count == 0:
-            continue
-        if col not in train_df.columns:
-            continue
-        if train_df[col].null_count() == 0:
-            imbalanced.append(col)
-
-    if imbalanced:
-        warnings.warn(
-            f"Training split has no missing values for {len(imbalanced)} column(s) "
-            f"that the full-dataset profile reports as having missingness: "
-            f"{imbalanced}. "
-            f"Fill values will still be computed but the split may not be "
-            f"representative. Consider using "
-            f"DataSplitter.profile_stratified_split() to ensure missing values "
-            f"appear in the training partition.",
-            SplitImbalanceWarning,
-            stacklevel=3,
-        )
