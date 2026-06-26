@@ -22,5 +22,5 @@ This made `records` structurally ambiguous as a schema manifest: a column absent
 ## Consequences
 
 - `records` grows to include Text, Identifier, Categorical, Boolean, and Datetime columns as Passthrough entries.
-- Callers that consume `records` downstream (e.g. `suggest_refit_config`) must guard against non-Numeric Passthrough records — these carry no diagnostic and no fill value.
+- Callers that consume `records` downstream must guard against non-Numeric Passthrough records — these carry no diagnostic and no fill value.
 - The invariant "no record = never seen" is enforceable in `transform()` and is the foundation for `UnseenColumnError` (see ADR 0026).

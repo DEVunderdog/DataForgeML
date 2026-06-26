@@ -8,6 +8,7 @@ from .profiling._config import (
 )
 from .splitting import DataSplitter, SplitResult, FoldResult
 from .utils.data_loader import DataLoader
+from .imputation._config import ImputationFitDiagnostic
 
 __all__ = [
     "PipelineConfig",
@@ -23,4 +24,5 @@ __all__ = [
     "SplitResult",
     "FoldResult",
     "DataLoader",
+    "ImputationFitDiagnostic",
 ]

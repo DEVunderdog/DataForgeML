@@ -117,6 +117,27 @@ class NumericImputationConfig:
         bypassing all routing priorities 2–7.  No companion entry in
         ``per_column_strategy`` is required or allowed.  Keyed by column name.
         Defaults to empty dict.
+    per_column_max_iter : dict[str, int]
+        Overrides the dynamically-computed ``max_iter`` for named Regression
+        columns only.  Keys are column names; values replace whatever
+        ``_compute_max_iter`` would produce.
+        Set manually.  Defaults to empty dict (no overrides).
+    knn_n_neighbors : int, optional
+        Overrides the dynamically-computed ``n_neighbors`` for the entire KNN
+        block. A single value governs all KNN columns.
+    mice_max_iter : int, optional
+        Overrides the dynamically-computed ``max_iter`` for the entire MICE
+        block. A single value governs all MICE columns.
+    refit_r2_min_complete_rows : int
+        Minimum number of complete rows required to attempt R² computation
+        during fit.  When fewer complete rows are available, ``r2_train`` on
+        ``ImputationFitDiagnostic`` is set to ``None``.  With k-fold CV
+        (``refit_r2_cv_folds=5``), each validation fold contains 1/k of the
+        complete rows; the floor of 50 ensures at least 10 rows per fold.
+        Default ``50``.
+    refit_r2_cv_folds : int
+        Number of folds for cross-validated R² computation.  Applied
+        uniformly across Regression, KNN, and MICE diagnostics.  Default ``5``.
 
     Raises
     ------
@@ -144,6 +165,11 @@ class NumericImputationConfig:
     mcar_feature_predictability_threshold: float = 0.2
     per_column_strategy: dict[str, ImputationStrategy] = field(default_factory=dict)
     per_column_constant_fill: dict[str, float] = field(default_factory=dict)
+    per_column_max_iter: dict[str, int] = field(default_factory=dict)
+    knn_n_neighbors: Optional[int] = None
+    mice_max_iter: Optional[int] = None
+    refit_r2_min_complete_rows: int = 50
+    refit_r2_cv_folds: int = 5
 
     def __post_init__(self) -> None:
         _BLOCKED = {
@@ -200,6 +226,11 @@ class NumericImputationConfig:
             "mcar_feature_predictability_threshold": self.mcar_feature_predictability_threshold,
             "per_column_strategy": {k: str(v) for k, v in self.per_column_strategy.items()},
             "per_column_constant_fill": dict(self.per_column_constant_fill),
+            "per_column_max_iter": dict(self.per_column_max_iter),
+            "knn_n_neighbors": self.knn_n_neighbors,
+            "mice_max_iter": self.mice_max_iter,
+            "refit_r2_min_complete_rows": self.refit_r2_min_complete_rows,
+            "refit_r2_cv_folds": self.refit_r2_cv_folds,
         }
 
     @classmethod
@@ -250,6 +281,18 @@ class NumericImputationConfig:
                 k: float(v)
                 for k, v in data.get("per_column_constant_fill", {}).items()
             },
+            per_column_max_iter={
+                k: int(v)
+                for k, v in data.get("per_column_max_iter", {}).items()
+            },
+            knn_n_neighbors=(
+                int(data["knn_n_neighbors"]) if data.get("knn_n_neighbors") is not None else None
+            ),
+            mice_max_iter=(
+                int(data["mice_max_iter"]) if data.get("mice_max_iter") is not None else None
+            ),
+            refit_r2_min_complete_rows=int(data.get("refit_r2_min_complete_rows", 50)),
+            refit_r2_cv_folds=int(data.get("refit_r2_cv_folds", 5)),
         )
 
 
@@ -338,6 +381,109 @@ class ImputationConfig:
 
 
 @dataclass
+class ImputationFitDiagnostic:
+    """Fit quality diagnostic attached to each model-based column after fit().
+
+    Present on ``ColumnImputationRecord.diagnostic`` for KNN, Regression, and
+    MICE columns.  ``None`` for Passthrough, Dropped, Constant, and all scalar
+    strategies (Mean, Median, Mode).
+
+    Parameters
+    ----------
+    r2_train : float, optional
+        Mean R² across k cross-validation folds on complete rows (k =
+        ``refit_r2_cv_folds``).  ``None`` when fewer than
+        ``refit_r2_min_complete_rows`` complete rows are available or when all
+        folds are skipped due to zero variance in ``y_true``.
+    converged : bool, optional
+        Whether ``IterativeImputer`` halted before reaching ``max_iter``.
+        ``None`` for KNN columns (convergence is not applicable).
+    n_iter : int, optional
+        Actual iteration count of ``IterativeImputer``.  ``None`` for KNN
+        columns.
+    imputed_mean : float
+        Mean of the values imputed for null rows during fit.
+    imputed_std : float
+        Standard deviation of the imputed values.
+    observed_mean : float
+        Mean of non-null training values for this column.
+    observed_std : float
+        Standard deviation of non-null training values for this column.
+    variance_ratio : float
+        ``imputed_std / observed_std``.  A value near zero indicates
+        distribution collapse — the model is predicting near-constant values.
+    n_neighbors_used : int, optional
+        Actual ``n_neighbors`` used by the KNN block.  ``None`` for Regression
+        and MICE columns.
+    k_capped : bool, optional
+        ``True`` when the adaptive k formula's raw output exceeded ``n_rows − 1``
+        and was forced to that bound (the model is averaging nearly all rows).
+        ``False`` when the formula ran within bounds.  ``None`` when
+        ``knn_n_neighbors`` override is active (adaptive formula was bypassed)
+        or strategy is not KNN.
+    """
+
+    r2_train: Optional[float]
+    converged: Optional[bool]
+    n_iter: Optional[int]
+    imputed_mean: float
+    imputed_std: float
+    observed_mean: float
+    observed_std: float
+    variance_ratio: float
+    n_neighbors_used: Optional[int] = None
+    k_capped: Optional[bool] = None
+
+    def to_dict(self) -> dict:
+        """Serialise the diagnostic to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            All ten field values keyed by field name.
+        """
+        return {
+            "r2_train": self.r2_train,
+            "converged": self.converged,
+            "n_iter": self.n_iter,
+            "imputed_mean": self.imputed_mean,
+            "imputed_std": self.imputed_std,
+            "observed_mean": self.observed_mean,
+            "observed_std": self.observed_std,
+            "variance_ratio": self.variance_ratio,
+            "n_neighbors_used": self.n_neighbors_used,
+            "k_capped": self.k_capped,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ImputationFitDiagnostic":
+        """Reconstruct an ``ImputationFitDiagnostic`` from a plain dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            Mapping produced by ``to_dict()``.
+
+        Returns
+        -------
+        ImputationFitDiagnostic
+            Reconstructed diagnostic instance.
+        """
+        return cls(
+            r2_train=data.get("r2_train"),
+            converged=data.get("converged"),
+            n_iter=data.get("n_iter"),
+            imputed_mean=float(data["imputed_mean"]),
+            imputed_std=float(data["imputed_std"]),
+            observed_mean=float(data["observed_mean"]),
+            observed_std=float(data["observed_std"]),
+            variance_ratio=float(data["variance_ratio"]),
+            n_neighbors_used=data.get("n_neighbors_used"),
+            k_capped=data.get("k_capped"),
+        )
+
+
+@dataclass
 class ColumnImputationRecord:
     """
     Per-column audit entry produced after fit().
@@ -359,6 +505,9 @@ class ColumnImputationRecord:
     domain_snap_bounds : tuple[float, float], optional
         ``(min, max)`` bounds applied to snap model-based predictions for
         BoundedDiscrete columns.  ``None`` for all other columns.
+    diagnostic : ImputationFitDiagnostic, optional
+        Fit quality metrics for KNN, Regression, and MICE columns.  ``None``
+        for Passthrough, Dropped, Constant, and all scalar strategies.
     """
 
     column: str
@@ -368,6 +517,7 @@ class ColumnImputationRecord:
     indicator_added: bool = False
     signals: list[str] = field(default_factory=list)
     domain_snap_bounds: Optional[tuple[float, float]] = None
+    diagnostic: Optional[ImputationFitDiagnostic] = None
 
     def to_dict(self) -> dict:
         """
@@ -389,6 +539,9 @@ class ColumnImputationRecord:
                 list(self.domain_snap_bounds)
                 if self.domain_snap_bounds is not None
                 else None
+            ),
+            "diagnostic": (
+                self.diagnostic.to_dict() if self.diagnostic is not None else None
             ),
         }
 

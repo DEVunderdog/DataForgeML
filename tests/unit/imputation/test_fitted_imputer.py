@@ -541,6 +541,102 @@ def test_round_trip_preserves_strategy():
     assert restored.records["c"].strategy == ImputationStrategy.Passthrough
 
 
+def test_round_trip_preserves_diagnostic_fields():
+    from dataforge_ml.imputation._config import ImputationFitDiagnostic
+
+    diag = ImputationFitDiagnostic(
+        r2_train=0.65,
+        converged=True,
+        n_iter=6,
+        imputed_mean=10.5,
+        imputed_std=2.0,
+        observed_mean=10.0,
+        observed_std=3.0,
+        variance_ratio=0.667,
+    )
+    record = ColumnImputationRecord(
+        column="score",
+        semantic_type=SemanticType.Numeric,
+        strategy=ImputationStrategy.Regression,
+        diagnostic=diag,
+    )
+    imputer = FittedImputer(records={"score": record})
+    restored = FittedImputer.from_dict(imputer.to_dict())
+
+    d = restored.records["score"].diagnostic
+    assert d is not None
+    assert d.r2_train == pytest.approx(0.65)
+    assert d.converged is True
+    assert d.n_iter == 6
+    assert d.variance_ratio == pytest.approx(0.667)
+    assert d.imputed_mean == pytest.approx(10.5)
+    assert d.imputed_std == pytest.approx(2.0)
+    assert d.observed_mean == pytest.approx(10.0)
+    assert d.observed_std == pytest.approx(3.0)
+
+
+def test_round_trip_preserves_none_diagnostic():
+    imputer = FittedImputer(records={
+        "age": _record("age", ImputationStrategy.Mean, fill_value=30.0),
+    })
+    restored = FittedImputer.from_dict(imputer.to_dict())
+    assert restored.records["age"].diagnostic is None
+
+
+def test_round_trip_payload_without_diagnostic_key_gives_none():
+    payload = {
+        "records": {
+            "age": {
+                "column": "age",
+                "semantic_type": "numeric",
+                "strategy": "knn",
+                "fill_value": None,
+                "indicator_added": False,
+                "signals": [],
+                "domain_snap_bounds": None,
+                # no "diagnostic" key — backward-compat path
+            }
+        },
+        "models": {},
+        "model_cols": {},
+    }
+    fi = FittedImputer.from_dict(payload)
+    assert fi.records["age"].diagnostic is None
+
+
+def test_to_dict_record_includes_diagnostic_key():
+    imputer = FittedImputer(records={
+        "a": _record("a", ImputationStrategy.Mean, fill_value=1.0),
+    })
+    d = imputer.to_dict()
+    assert "diagnostic" in d["records"]["a"]
+
+
+def test_deserialised_imputer_with_diagnostic_produces_identical_output():
+    from dataforge_ml.imputation._config import ImputationFitDiagnostic
+
+    diag = ImputationFitDiagnostic(
+        r2_train=0.8, converged=True, n_iter=4,
+        imputed_mean=5.0, imputed_std=1.0,
+        observed_mean=5.5, observed_std=2.0,
+        variance_ratio=0.5,
+    )
+    record = ColumnImputationRecord(
+        column="a",
+        semantic_type=SemanticType.Numeric,
+        strategy=ImputationStrategy.Mean,
+        fill_value=5.0,
+        diagnostic=diag,
+    )
+    imputer = FittedImputer(records={"a": record})
+    restored = FittedImputer.from_dict(imputer.to_dict())
+
+    df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
+    r1 = imputer.transform(df)
+    r2 = restored.transform(df)
+    assert r1.dataframe.equals(r2.dataframe)
+
+
 def test_round_trip_preserves_fill_value():
     imputer = FittedImputer(records={
         "x": _record("x", ImputationStrategy.Mean, fill_value=42.5),
