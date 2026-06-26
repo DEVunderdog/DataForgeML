@@ -767,6 +767,8 @@ def _make_diagnostic(**overrides):
 
     defaults = {
         "r2_train": 0.75,
+        "rmse": 1.5,
+        "mae": 1.0,
         "converged": True,
         "n_iter": 5,
         "imputed_mean": 42.0,
@@ -808,6 +810,8 @@ def test_imputation_fit_diagnostic_optional_fields_accept_none():
 
     diag = ImputationFitDiagnostic(
         r2_train=None,
+        rmse=None,
+        mae=None,
         converged=None,
         n_iter=None,
         imputed_mean=1.0,
@@ -817,15 +821,17 @@ def test_imputation_fit_diagnostic_optional_fields_accept_none():
         variance_ratio=0.0,
     )
     assert diag.r2_train is None
+    assert diag.rmse is None
+    assert diag.mae is None
     assert diag.converged is None
     assert diag.n_iter is None
 
 
-def test_imputation_fit_diagnostic_to_dict_has_all_ten_keys():
+def test_imputation_fit_diagnostic_to_dict_has_all_twelve_keys():
     diag = _make_diagnostic()
     d = diag.to_dict()
     assert set(d.keys()) == {
-        "r2_train", "converged", "n_iter",
+        "r2_train", "rmse", "mae", "converged", "n_iter",
         "imputed_mean", "imputed_std",
         "observed_mean", "observed_std",
         "variance_ratio",
@@ -856,6 +862,8 @@ def test_imputation_fit_diagnostic_from_dict_round_trip():
     diag = _make_diagnostic(r2_train=0.55, converged=False, n_iter=10, variance_ratio=0.2)
     restored = ImputationFitDiagnostic.from_dict(diag.to_dict())
     assert restored.r2_train == pytest.approx(0.55)
+    assert restored.rmse == pytest.approx(1.5)
+    assert restored.mae == pytest.approx(1.0)
     assert restored.converged is False
     assert restored.n_iter == 10
     assert restored.variance_ratio == pytest.approx(0.2)
@@ -870,6 +878,8 @@ def test_imputation_fit_diagnostic_from_dict_none_optional_fields():
 
     d = {
         "r2_train": None,
+        "rmse": None,
+        "mae": None,
         "converged": None,
         "n_iter": None,
         "imputed_mean": 5.0,
@@ -880,6 +890,8 @@ def test_imputation_fit_diagnostic_from_dict_none_optional_fields():
     }
     restored = ImputationFitDiagnostic.from_dict(d)
     assert restored.r2_train is None
+    assert restored.rmse is None
+    assert restored.mae is None
     assert restored.converged is None
     assert restored.n_iter is None
 
@@ -898,6 +910,8 @@ def test_imputation_fit_diagnostic_knn_fields_accept_values():
 
     diag = ImputationFitDiagnostic(
         r2_train=0.8,
+        rmse=2.0,
+        mae=1.5,
         converged=None,
         n_iter=None,
         imputed_mean=1.0,
@@ -1014,7 +1028,7 @@ def test_column_imputation_record_to_dict_diagnostic_is_nested_dict_when_set():
     d = record.to_dict()
     assert isinstance(d["diagnostic"], dict)
     assert set(d["diagnostic"].keys()) == {
-        "r2_train", "converged", "n_iter",
+        "r2_train", "rmse", "mae", "converged", "n_iter",
         "imputed_mean", "imputed_std",
         "observed_mean", "observed_std",
         "variance_ratio",
@@ -1032,6 +1046,8 @@ def test_column_imputation_record_to_dict_diagnostic_values_correct():
     )
     d = record.to_dict()
     assert d["diagnostic"]["r2_train"] == pytest.approx(0.8)
+    assert d["diagnostic"]["rmse"] == pytest.approx(1.5)
+    assert d["diagnostic"]["mae"] == pytest.approx(1.0)
     assert d["diagnostic"]["n_iter"] == 3
 
 
@@ -1051,6 +1067,8 @@ def test_fitted_imputer_from_dict_round_trips_diagnostic():
     restored_diag = restored.records["income"].diagnostic
     assert restored_diag is not None
     assert restored_diag.r2_train == pytest.approx(0.6)
+    assert restored_diag.rmse == pytest.approx(1.5)
+    assert restored_diag.mae == pytest.approx(1.0)
     assert restored_diag.converged is True
     assert restored_diag.n_iter == 8
     assert restored_diag.variance_ratio == pytest.approx(0.7)

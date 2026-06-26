@@ -424,6 +424,8 @@ class ImputationFitDiagnostic:
     """
 
     r2_train: Optional[float]
+    rmse: Optional[float]
+    mae: Optional[float]
     converged: Optional[bool]
     n_iter: Optional[int]
     imputed_mean: float
@@ -444,6 +446,8 @@ class ImputationFitDiagnostic:
         """
         return {
             "r2_train": self.r2_train,
+            "rmse": self.rmse,
+            "mae": self.mae,
             "converged": self.converged,
             "n_iter": self.n_iter,
             "imputed_mean": self.imputed_mean,
@@ -471,6 +475,8 @@ class ImputationFitDiagnostic:
         """
         return cls(
             r2_train=data.get("r2_train"),
+            rmse=data.get("rmse"),
+            mae=data.get("mae"),
             converged=data.get("converged"),
             n_iter=data.get("n_iter"),
             imputed_mean=float(data["imputed_mean"]),

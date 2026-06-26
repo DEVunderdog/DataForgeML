@@ -546,6 +546,8 @@ def test_round_trip_preserves_diagnostic_fields():
 
     diag = ImputationFitDiagnostic(
         r2_train=0.65,
+        rmse=1.5,
+        mae=1.0,
         converged=True,
         n_iter=6,
         imputed_mean=10.5,
@@ -566,6 +568,8 @@ def test_round_trip_preserves_diagnostic_fields():
     d = restored.records["score"].diagnostic
     assert d is not None
     assert d.r2_train == pytest.approx(0.65)
+    assert d.rmse == pytest.approx(1.5)
+    assert d.mae == pytest.approx(1.0)
     assert d.converged is True
     assert d.n_iter == 6
     assert d.variance_ratio == pytest.approx(0.667)
@@ -616,7 +620,7 @@ def test_deserialised_imputer_with_diagnostic_produces_identical_output():
     from dataforge_ml.imputation._config import ImputationFitDiagnostic
 
     diag = ImputationFitDiagnostic(
-        r2_train=0.8, converged=True, n_iter=4,
+        r2_train=0.8, rmse=2.0, mae=1.5, converged=True, n_iter=4,
         imputed_mean=5.0, imputed_std=1.0,
         observed_mean=5.5, observed_std=2.0,
         variance_ratio=0.5,
