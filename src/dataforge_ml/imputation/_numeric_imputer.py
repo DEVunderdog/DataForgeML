@@ -1162,7 +1162,6 @@ def _compute_regression_diagnostic(
     ImputationFitDiagnostic
         Populated diagnostic instance.
     """
-    from sklearn.metrics import r2_score as _r2_score
 
     all_cols = [col] + feat_cols
     arr = _df_to_numpy(train_df, all_cols)
@@ -1178,6 +1177,8 @@ def _compute_regression_diagnostic(
     n_complete = int(complete_mask.sum())
 
     r2_train: Optional[float] = None
+    rmse: Optional[float] = None
+    mae: Optional[float] = None
     if n_complete >= config.refit_r2_min_complete_rows:
         arr_complete = arr[np.where(complete_mask)[0]]
         n_folds = config.refit_r2_cv_folds
@@ -1188,6 +1189,8 @@ def _compute_regression_diagnostic(
 
         fold_size = n_complete // n_folds
         fold_r2s: list[float] = []
+        fold_rmses: list[float] = []
+        fold_maes: list[float] = []
 
         for fold_idx in range(n_folds):
             val_start = fold_idx * fold_size
@@ -1224,12 +1227,17 @@ def _compute_regression_diagnostic(
 
             y_pred = arr_val_filled[:, 0]
             try:
-                fold_r2s.append(float(_r2_score(y_true, y_pred)))
+                r2_fold, rmse_fold, mae_fold = _compute_fold_metrics(y_true, y_pred)
+                fold_r2s.append(r2_fold)
+                fold_rmses.append(rmse_fold)
+                fold_maes.append(mae_fold)
             except Exception:  # noqa: BLE001
                 pass
 
         if fold_r2s:
             r2_train = float(np.mean(fold_r2s))
+            rmse = float(np.mean(fold_rmses))
+            mae = float(np.mean(fold_maes))
 
     # Imputed values: apply final model to the full training array
     null_mask = np.isnan(target_arr)
@@ -1247,6 +1255,8 @@ def _compute_regression_diagnostic(
 
     return ImputationFitDiagnostic(
         r2_train=r2_train,
+        rmse=rmse,
+        mae=mae,
         converged=converged,
         n_iter=n_iter,
         imputed_mean=imputed_mean,
@@ -1302,7 +1312,6 @@ def _compute_knn_diagnostics(
         One entry per column in ``knn_cols``.  ``converged`` and ``n_iter``
         are always ``None`` (not applicable to KNN).
     """
-    from sklearn.metrics import r2_score as _r2_score
 
     col_means: np.ndarray = fitted_knn.col_means
     col_stds: np.ndarray = fitted_knn.col_stds
@@ -1313,6 +1322,8 @@ def _compute_knn_diagnostics(
     n_complete = int(complete_mask.sum())
 
     knn_r2: dict[str, Optional[float]] = {col: None for col in knn_cols}
+    knn_rmse: dict[str, Optional[float]] = {col: None for col in knn_cols}
+    knn_mae: dict[str, Optional[float]] = {col: None for col in knn_cols}
 
     if n_complete >= config.refit_r2_min_complete_rows:
         arr_complete_scaled = arr_scaled[np.where(complete_mask)[0]]
@@ -1324,6 +1335,8 @@ def _compute_knn_diagnostics(
 
         fold_size = n_complete // n_folds
         col_fold_r2s: dict[str, list[float]] = {col: [] for col in knn_cols}
+        col_fold_rmses: dict[str, list[float]] = {col: [] for col in knn_cols}
+        col_fold_maes: dict[str, list[float]] = {col: [] for col in knn_cols}
 
         for fold_idx in range(n_folds):
             val_start = fold_idx * fold_size
@@ -1347,14 +1360,21 @@ def _compute_knn_diagnostics(
                 arr_val_filled = temp_knn.transform(arr_val_masked)
 
                 y_pred = arr_val_filled[:, k]
+                y_pred_inv = y_pred * col_stds[k] + col_means[k]
+                y_true_inv = y_true * col_stds[k] + col_means[k]
                 try:
-                    col_fold_r2s[col_k].append(float(_r2_score(y_true, y_pred)))
+                    r2_fold, rmse_fold, mae_fold = _compute_fold_metrics(y_true_inv, y_pred_inv)
+                    col_fold_r2s[col_k].append(r2_fold)
+                    col_fold_rmses[col_k].append(rmse_fold)
+                    col_fold_maes[col_k].append(mae_fold)
                 except Exception:  # noqa: BLE001
                     pass
 
         for col_k in knn_cols:
             if col_fold_r2s[col_k]:
                 knn_r2[col_k] = float(np.mean(col_fold_r2s[col_k]))
+                knn_rmse[col_k] = float(np.mean(col_fold_rmses[col_k]))
+                knn_mae[col_k] = float(np.mean(col_fold_maes[col_k]))
 
     # Apply final model to full matrix to obtain imputed values for null rows
     arr_scaled_filled = fitted_knn.model.transform(arr_scaled)
@@ -1380,6 +1400,8 @@ def _compute_knn_diagnostics(
 
         diagnostics[col_k] = ImputationFitDiagnostic(
             r2_train=knn_r2[col_k],
+            rmse=knn_rmse[col_k],
+            mae=knn_mae[col_k],
             converged=None,
             n_iter=None,
             imputed_mean=imputed_mean,
@@ -1405,12 +1427,13 @@ def _compute_mice_diagnostics(
     initial_strategy: str,
     n_nearest_features: Optional[int],
 ) -> dict[str, ImputationFitDiagnostic]:
-    from sklearn.metrics import r2_score as _r2_score
 
     complete_mask = ~np.isnan(arr).any(axis=1)
     n_complete = int(complete_mask.sum())
 
     mice_r2: dict[str, Optional[float]] = {col: None for col in mice_cols}
+    mice_rmse: dict[str, Optional[float]] = {col: None for col in mice_cols}
+    mice_mae: dict[str, Optional[float]] = {col: None for col in mice_cols}
 
     if n_complete >= config.refit_r2_min_complete_rows:
         arr_complete = arr[np.where(complete_mask)[0]]
@@ -1422,6 +1445,8 @@ def _compute_mice_diagnostics(
 
         fold_size = n_complete // n_folds
         col_fold_r2s: dict[str, list[float]] = {col: [] for col in mice_cols}
+        col_fold_rmses: dict[str, list[float]] = {col: [] for col in mice_cols}
+        col_fold_maes: dict[str, list[float]] = {col: [] for col in mice_cols}
 
         for fold_idx in range(n_folds):
             val_start = fold_idx * fold_size
@@ -1453,13 +1478,18 @@ def _compute_mice_diagnostics(
 
                 y_pred = arr_val_filled[:, k]
                 try:
-                    col_fold_r2s[col_k].append(float(_r2_score(y_true, y_pred)))
+                    r2_fold, rmse_fold, mae_fold = _compute_fold_metrics(y_true, y_pred)
+                    col_fold_r2s[col_k].append(r2_fold)
+                    col_fold_rmses[col_k].append(rmse_fold)
+                    col_fold_maes[col_k].append(mae_fold)
                 except Exception:  # noqa: BLE001
                     pass
 
         for col_k in mice_cols:
             if col_fold_r2s[col_k]:
                 mice_r2[col_k] = float(np.mean(col_fold_r2s[col_k]))
+                mice_rmse[col_k] = float(np.mean(col_fold_rmses[col_k]))
+                mice_mae[col_k] = float(np.mean(col_fold_maes[col_k]))
 
     arr_filled = mice_model.transform(arr)
     converged = mice_model.n_iter_ < max_iter
@@ -1485,6 +1515,8 @@ def _compute_mice_diagnostics(
 
         diagnostics[col_k] = ImputationFitDiagnostic(
             r2_train=mice_r2[col_k],
+            rmse=mice_rmse[col_k],
+            mae=mice_mae[col_k],
             converged=converged,
             n_iter=n_iter,
             imputed_mean=imputed_mean,
@@ -1495,3 +1527,34 @@ def _compute_mice_diagnostics(
         )
 
     return diagnostics
+
+
+def _compute_fold_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> tuple[float, float, float]:
+    """Compute R2, RMSE, and MAE for a single validation fold.
+
+    Parameters
+    ----------
+    y_true : np.ndarray
+        True target values.
+    y_pred : np.ndarray
+        Predicted target values.
+
+    Returns
+    -------
+    tuple[float, float, float]
+        (r2, rmse, mae). R2 defaults to 0.0 if computation fails.
+    """
+    from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
+
+    if np.array_equal(y_true, y_pred):
+        return 1.0, 0.0, 0.0
+
+    try:
+        r2 = float(r2_score(y_true, y_pred))
+    except Exception:
+        r2 = 0.0
+
+    rmse = float(np.sqrt(max(0.0, mean_squared_error(y_true, y_pred))))
+    mae = float(max(0.0, mean_absolute_error(y_true, y_pred)))
+
+    return r2, rmse, mae
