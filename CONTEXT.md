@@ -192,38 +192,31 @@ For continuous bimodal columns where `NonlinearityTag.Linear` is detected, the R
 
 A per-column quality assessment computed during `ImputationOrchestrator.fit()` and attached to `ColumnImputationRecord.diagnostic`. Present for model-based strategies (KNN, Regression, MICE); `None` for scalar strategies (Mean, Median, Mode) and Passthrough, Dropped, MNAR.
 
-- **`r2_train`** — R² on held-out complete rows; `None` when fewer than `refit_r2_min_complete_rows` complete rows are available or the strategy is scalar.
-- **`rmse`** — root-mean-square error of imputed vs. true values on the same held-out complete rows used for `r2_train`; `None` under the same guard. Diagnostic-only — not consumed by `suggest_refit_config` because RMSE is in column-specific units and has no universal threshold.
+- **`r2_train`** — Mean cross-validated R² across `refit_r2_cv_folds` (default 5) folds on complete rows; `None` when fewer than `refit_r2_min_complete_rows` (default 50) complete rows are available or the strategy is scalar. k-fold is used in place of a single holdout to reduce variance when complete rows are few; each validation fold contains at least 10 rows at the default threshold.
+- **`rmse`** — root-mean-square error of imputed vs. true values on the same held-out complete rows used for `r2_train`; `None` under the same guard. Diagnostic-only — RMSE is in column-specific units and has no universal threshold.
 - **`mae`** — mean absolute error on the same held-out rows; `None` under the same guard. Diagnostic-only for the same reason as `rmse`.
 - **`converged`** — whether `IterativeImputer` stabilised before reaching `max_iter`; `None` for KNN and scalar strategies.
 - **`n_iter`** — actual iteration count of `IterativeImputer`; `None` for KNN and scalar strategies.
+- **`n_neighbors_used`** — actual `n_neighbors` used by the KNN block; `None` for Regression, MICE, and scalar strategies.
+- **`k_capped`** — `True` when the adaptive k formula exceeded `n_rows − 1` and was forced to that bound (data-size cap), signalling the model is averaging nearly all rows; `False` when the formula's output was within bounds; `None` when `knn_n_neighbors` override is active (user chose k deliberately) or strategy is not KNN.
 - **`imputed_mean`**, **`imputed_std`** — distribution of values imputed for the null rows in `train_df`.
 - **`observed_mean`**, **`observed_std`** — distribution of non-null values in `train_df`.
-- **`variance_ratio`** — `imputed_std / observed_std`; values below `refit_variance_ratio_threshold` indicate distribution collapse (the model is predicting near-constant values for all null rows).
+- **`variance_ratio`** — `imputed_std / observed_std`; low values indicate distribution collapse (the model is predicting near-constant values for all null rows).
 
-For MICE, all three of `r2_train`, `rmse`, and `mae` are computed per column from a single shared holdback: rows that are complete across **all** MICE columns are identified, 20% are held back, and each MICE column's metrics are evaluated against that same holdback set. If the intersection of complete rows is smaller than `refit_r2_min_complete_rows`, all three fields are `None` for every column in the block. Part of the Public API.
+For MICE, `r2_train` is computed per column via k-fold CV on the intersection of complete rows across **all** MICE columns: in each fold, each column's target is masked independently and evaluated from the shared throwaway MICE model for that fold. `r2_train` per column is the mean of its fold R² scores. If the intersection of complete rows is smaller than `refit_r2_min_complete_rows`, all diagnostic fields are `None` for every column in the block. Part of the Public API.
   _Avoid_: fit diagnostic, quality score
-
-### suggest_refit_config
-
-A standalone function importable from `dataforge_ml`. Accepts `dict[str, ColumnImputationRecord]` (from `FittedImputer.records`) and the current `NumericImputationConfig`; returns a new `NumericImputationConfig` with per-column overrides pre-populated from three diagnostic rules:
-
-1. `converged=False` → sets `per_column_max_iter[col] = computed_max_iter × refit_max_iter_multiplier`
-2. `r2_train < refit_r2_threshold` → sets `per_column_strategy[col] = Median`
-3. `variance_ratio < refit_variance_ratio_threshold` → records a flag in signals; no automatic strategy change (requires user review)
-
-When `r2_train` is `None` (insufficient complete rows), rule 2 is skipped for that column. Rule 2 also skips columns already in `mnar_columns` — MNAR columns do not go through the routing engine and their R² is not a meaningful signal; adding them to `per_column_strategy` would fail the construction-time conflict validation. The caller passes the returned config to a new `ImputationOrchestrator` and calls `fit()` again — the re-fit entry point is unchanged. Part of the Public API.
 
 ### Per-Column Imputation Override
 
-An explicit assignment for a named column in `NumericImputationConfig` that bypasses the computed or dynamically-derived value during `NumericImputer.fit()`. Four override types:
+An explicit assignment for a named column in `NumericImputationConfig` that bypasses the computed or dynamically-derived value during `NumericImputer.fit()`. Five override types:
 
 - **`per_column_strategy`** — forces a specific `ImputationStrategy`, bypassing all routing priorities 2–7 (MNAR through MCAR). Fires at Priority 1.5 — after `DropCandidate` (which remains a hard gate) but before MNAR routing. Valid strategies: `Mean`, `Median`, `Mode`, `KNN`, `Regression`, `MICE`. `Constant`, `Passthrough`, `Indicator`, `MNAR`, and `Dropped` raise `ValueError` at construction (`Constant` with redirect to `per_column_constant_fill`). A column in both `mnar_columns` and `per_column_strategy` raises `ValueError` at construction. For model-based strategies, size guards are checked at fit time and raise `ValueError` if not met (no silent fallback). See ADR 0029.
-- **`per_column_constant_fill`** — self-sufficient constant fill declarations. Each column listed here is routed to `ImputationStrategy.Constant` at Priority 1.5, bypassing all routing priorities 2–7. No companion entry in `per_column_strategy` is required or allowed — the presence of a column in this dict fully encodes the intent. Set manually by the user; `suggest_refit_config` never populates this field.
-- **`per_column_max_iter`** — overrides the dynamically computed `max_iter` for Regression and MICE columns.
-- **`per_column_n_neighbors`** — overrides the dynamically computed `n_neighbors` for KNN columns.
+- **`per_column_constant_fill`** — self-sufficient constant fill declarations. Each column listed here is routed to `ImputationStrategy.Constant` at Priority 1.5, bypassing all routing priorities 2–7. No companion entry in `per_column_strategy` is required or allowed — the presence of a column in this dict fully encodes the intent. Set manually by the user.
+- **`per_column_max_iter`** — overrides the dynamically computed `max_iter` for Regression columns only. Each Regression column gets its own `IterativeImputer`, so per-column values are semantically valid. Keyed by column name. Set manually.
+- **`mice_max_iter`** — overrides the dynamically computed `max_iter` for the MICE block. Scalar (`Optional[int]`): all MICE columns share one `IterativeImputer`, so a single value governs the entire block. Set manually. See ADR-0037.
+- **`knn_n_neighbors`** — overrides the adaptively computed `n_neighbors` for the KNN block. Scalar (`Optional[int]`): all KNN columns share one `KNNImputer`, so a single value governs the entire block. When set, `k_capped` on `ImputationFitDiagnostic` is `None` (the adaptive formula was bypassed). Set manually. See ADR-0037.
 
-`per_column_strategy`, `per_column_max_iter`, and `per_column_n_neighbors` are populated automatically by `suggest_refit_config` or set manually by the user. `per_column_constant_fill` is set manually only.
+All override fields are set manually by the user. `per_column_constant_fill` is the only way to route a column to constant fill.
   _Avoid_: column parameter override, per-column config
 
 ## Strategy Routing vs Parameter Estimation

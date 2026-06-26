@@ -10,7 +10,7 @@ A symbol is **in scope** if it belongs to one of:
 - Everything exported from `dataforge_ml.__init__`
 - Phase Orchestrators (`StructuralProfiler`, `ImputationOrchestrator`, and future phase orchestrators)
 - All Config dataclasses (`PipelineConfig`, `ProfileConfig`, `ImputationConfig`, all Phase Sub-Configs, `SplitConfig`)
-- All standalone public functions in the Public API (e.g., `suggest_refit_config`)
+- All standalone public functions in the Public API
 
 `_`-prefixed (private) methods and functions are **exempt**.
 

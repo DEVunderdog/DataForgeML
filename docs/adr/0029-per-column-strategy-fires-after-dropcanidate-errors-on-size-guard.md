@@ -46,4 +46,4 @@ Three options existed:
 
 - A user who wants to fill a >50%-missing column cannot use `per_column_strategy` to do so. A dedicated escape hatch must be added in a future scope if this use case arises.
 - A user who forces a model-based strategy on a small dataset must either lower the relevant size threshold (`regression_min_rows`, `knn_max_rows`, `knn_max_features`) or choose a different strategy. The `ValueError` message names the specific guard and current values.
-- `suggest_refit_config` must skip MNAR columns when populating `per_column_strategy` (rule 2 of the diagnostic) — adding an MNAR column to `per_column_strategy` would fail the construction-time conflict validation. MNAR columns do not go through the routing engine and their R² is not a meaningful signal.
+- MNAR columns must not be added to `per_column_strategy` — they do not go through the routing engine and their R² is not a meaningful signal; doing so fails the construction-time conflict validation.

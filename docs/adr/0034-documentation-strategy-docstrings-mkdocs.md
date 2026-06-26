@@ -22,7 +22,7 @@ A unified documentation strategy was needed that covered all three layers withou
    - Everything exported from `dataforge_ml.__init__`
    - Phase Orchestrators (`StructuralProfiler`, `ImputationOrchestrator`, and equivalents in future phases)
    - All Config dataclasses (`PipelineConfig`, `ProfileConfig`, `ImputationConfig`, Phase Sub-Configs, `SplitConfig`)
-   - All standalone public functions in the Public API (e.g., `suggest_refit_config`)
+   - All standalone public functions in the Public API
    - `_`-prefixed (private) methods and functions are exempt.
 
 3. **Format: numpy-style, minimum contract.** Every compliant docstring must contain:

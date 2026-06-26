@@ -98,6 +98,11 @@ def test_numeric_config_to_dict_contains_all_keys():
         "mcar_feature_predictability_threshold",
         "per_column_strategy",
         "per_column_constant_fill",
+        "per_column_max_iter",
+        "knn_n_neighbors",
+        "mice_max_iter",
+        "refit_r2_min_complete_rows",
+        "refit_r2_cv_folds",
     }
 
 
@@ -750,3 +755,476 @@ def test_column_imputation_record_missing_domain_snap_bounds_deserialises_to_non
     }
     fi = FittedImputer.from_dict(legacy_dict)
     assert fi.records["age"].domain_snap_bounds is None
+
+
+# ---------------------------------------------------------------------------
+# ImputationFitDiagnostic — dataclass, to_dict / from_dict, ColumnImputationRecord wiring
+# ---------------------------------------------------------------------------
+
+
+def _make_diagnostic(**overrides):
+    from dataforge_ml.imputation._config import ImputationFitDiagnostic
+
+    defaults = {
+        "r2_train": 0.75,
+        "converged": True,
+        "n_iter": 5,
+        "imputed_mean": 42.0,
+        "imputed_std": 3.5,
+        "observed_mean": 40.0,
+        "observed_std": 4.0,
+        "variance_ratio": 0.875,
+        "n_neighbors_used": None,
+        "k_capped": None,
+    }
+    defaults.update(overrides)
+    return ImputationFitDiagnostic(**defaults)
+
+
+def test_imputation_fit_diagnostic_importable_from_imputation_module():
+    from dataforge_ml.imputation import ImputationFitDiagnostic  # noqa: F401
+
+
+def test_imputation_fit_diagnostic_importable_from_dataforge_ml():
+    from dataforge_ml import ImputationFitDiagnostic  # noqa: F401
+
+
+def test_imputation_fit_diagnostic_fields_typed_correctly():
+    from dataforge_ml.imputation._config import ImputationFitDiagnostic
+
+    diag = _make_diagnostic(r2_train=0.5, converged=False, n_iter=10)
+    assert isinstance(diag.r2_train, float)
+    assert isinstance(diag.converged, bool)
+    assert isinstance(diag.n_iter, int)
+    assert isinstance(diag.imputed_mean, float)
+    assert isinstance(diag.imputed_std, float)
+    assert isinstance(diag.observed_mean, float)
+    assert isinstance(diag.observed_std, float)
+    assert isinstance(diag.variance_ratio, float)
+
+
+def test_imputation_fit_diagnostic_optional_fields_accept_none():
+    from dataforge_ml.imputation._config import ImputationFitDiagnostic
+
+    diag = ImputationFitDiagnostic(
+        r2_train=None,
+        converged=None,
+        n_iter=None,
+        imputed_mean=1.0,
+        imputed_std=0.0,
+        observed_mean=1.0,
+        observed_std=0.5,
+        variance_ratio=0.0,
+    )
+    assert diag.r2_train is None
+    assert diag.converged is None
+    assert diag.n_iter is None
+
+
+def test_imputation_fit_diagnostic_to_dict_has_all_ten_keys():
+    diag = _make_diagnostic()
+    d = diag.to_dict()
+    assert set(d.keys()) == {
+        "r2_train", "converged", "n_iter",
+        "imputed_mean", "imputed_std",
+        "observed_mean", "observed_std",
+        "variance_ratio",
+        "n_neighbors_used", "k_capped",
+    }
+
+
+def test_imputation_fit_diagnostic_to_dict_preserves_values():
+    diag = _make_diagnostic(r2_train=0.9, converged=True, n_iter=7, variance_ratio=0.6)
+    d = diag.to_dict()
+    assert d["r2_train"] == pytest.approx(0.9)
+    assert d["converged"] is True
+    assert d["n_iter"] == 7
+    assert d["variance_ratio"] == pytest.approx(0.6)
+
+
+def test_imputation_fit_diagnostic_to_dict_with_none_fields():
+    diag = _make_diagnostic(r2_train=None, converged=None, n_iter=None)
+    d = diag.to_dict()
+    assert d["r2_train"] is None
+    assert d["converged"] is None
+    assert d["n_iter"] is None
+
+
+def test_imputation_fit_diagnostic_from_dict_round_trip():
+    from dataforge_ml.imputation._config import ImputationFitDiagnostic
+
+    diag = _make_diagnostic(r2_train=0.55, converged=False, n_iter=10, variance_ratio=0.2)
+    restored = ImputationFitDiagnostic.from_dict(diag.to_dict())
+    assert restored.r2_train == pytest.approx(0.55)
+    assert restored.converged is False
+    assert restored.n_iter == 10
+    assert restored.variance_ratio == pytest.approx(0.2)
+    assert restored.imputed_mean == pytest.approx(diag.imputed_mean)
+    assert restored.imputed_std == pytest.approx(diag.imputed_std)
+    assert restored.observed_mean == pytest.approx(diag.observed_mean)
+    assert restored.observed_std == pytest.approx(diag.observed_std)
+
+
+def test_imputation_fit_diagnostic_from_dict_none_optional_fields():
+    from dataforge_ml.imputation._config import ImputationFitDiagnostic
+
+    d = {
+        "r2_train": None,
+        "converged": None,
+        "n_iter": None,
+        "imputed_mean": 5.0,
+        "imputed_std": 1.0,
+        "observed_mean": 5.5,
+        "observed_std": 2.0,
+        "variance_ratio": 0.5,
+    }
+    restored = ImputationFitDiagnostic.from_dict(d)
+    assert restored.r2_train is None
+    assert restored.converged is None
+    assert restored.n_iter is None
+
+
+# KNN-specific fields: n_neighbors_used and k_capped
+
+
+def test_imputation_fit_diagnostic_knn_fields_default_to_none():
+    diag = _make_diagnostic()
+    assert diag.n_neighbors_used is None
+    assert diag.k_capped is None
+
+
+def test_imputation_fit_diagnostic_knn_fields_accept_values():
+    from dataforge_ml.imputation._config import ImputationFitDiagnostic
+
+    diag = ImputationFitDiagnostic(
+        r2_train=0.8,
+        converged=None,
+        n_iter=None,
+        imputed_mean=1.0,
+        imputed_std=0.5,
+        observed_mean=1.0,
+        observed_std=0.6,
+        variance_ratio=0.83,
+        n_neighbors_used=7,
+        k_capped=False,
+    )
+    assert diag.n_neighbors_used == 7
+    assert diag.k_capped is False
+
+
+def test_imputation_fit_diagnostic_to_dict_includes_knn_fields():
+    diag = _make_diagnostic(n_neighbors_used=5, k_capped=True)
+    d = diag.to_dict()
+    assert d["n_neighbors_used"] == 5
+    assert d["k_capped"] is True
+
+
+def test_imputation_fit_diagnostic_to_dict_knn_fields_none_by_default():
+    diag = _make_diagnostic()
+    d = diag.to_dict()
+    assert d["n_neighbors_used"] is None
+    assert d["k_capped"] is None
+
+
+def test_imputation_fit_diagnostic_from_dict_round_trips_knn_fields():
+    from dataforge_ml.imputation._config import ImputationFitDiagnostic
+
+    diag = _make_diagnostic(n_neighbors_used=9, k_capped=False)
+    restored = ImputationFitDiagnostic.from_dict(diag.to_dict())
+    assert restored.n_neighbors_used == 9
+    assert restored.k_capped is False
+
+
+def test_imputation_fit_diagnostic_from_dict_missing_knn_fields_default_to_none():
+    from dataforge_ml.imputation._config import ImputationFitDiagnostic
+
+    d = {
+        "r2_train": None,
+        "converged": None,
+        "n_iter": None,
+        "imputed_mean": 1.0,
+        "imputed_std": 0.5,
+        "observed_mean": 1.0,
+        "observed_std": 0.5,
+        "variance_ratio": 1.0,
+        # n_neighbors_used and k_capped intentionally absent (old serialised format)
+    }
+    restored = ImputationFitDiagnostic.from_dict(d)
+    assert restored.n_neighbors_used is None
+    assert restored.k_capped is None
+
+
+def test_imputation_fit_diagnostic_regression_mice_knn_fields_remain_none():
+    diag = _make_diagnostic(converged=True, n_iter=3)
+    assert diag.n_neighbors_used is None
+    assert diag.k_capped is None
+
+
+def test_column_imputation_record_diagnostic_defaults_to_none():
+    record = ColumnImputationRecord(
+        column="age",
+        semantic_type=SemanticType.Numeric,
+        strategy=ImputationStrategy.Mean,
+        fill_value=30.0,
+    )
+    assert record.diagnostic is None
+
+
+def test_column_imputation_record_diagnostic_field_accepted():
+    record = ColumnImputationRecord(
+        column="score",
+        semantic_type=SemanticType.Numeric,
+        strategy=ImputationStrategy.Regression,
+        diagnostic=_make_diagnostic(),
+    )
+    assert record.diagnostic is not None
+    assert record.diagnostic.r2_train == pytest.approx(0.75)
+
+
+def test_column_imputation_record_to_dict_includes_diagnostic_key():
+    record = ColumnImputationRecord(
+        column="age",
+        semantic_type=SemanticType.Numeric,
+        strategy=ImputationStrategy.Mean,
+        fill_value=30.0,
+    )
+    d = record.to_dict()
+    assert "diagnostic" in d
+
+
+def test_column_imputation_record_to_dict_diagnostic_is_none_for_scalar_strategy():
+    record = ColumnImputationRecord(
+        column="age",
+        semantic_type=SemanticType.Numeric,
+        strategy=ImputationStrategy.Mean,
+        fill_value=30.0,
+    )
+    d = record.to_dict()
+    assert d["diagnostic"] is None
+
+
+def test_column_imputation_record_to_dict_diagnostic_is_nested_dict_when_set():
+    diag = _make_diagnostic()
+    record = ColumnImputationRecord(
+        column="score",
+        semantic_type=SemanticType.Numeric,
+        strategy=ImputationStrategy.Regression,
+        diagnostic=diag,
+    )
+    d = record.to_dict()
+    assert isinstance(d["diagnostic"], dict)
+    assert set(d["diagnostic"].keys()) == {
+        "r2_train", "converged", "n_iter",
+        "imputed_mean", "imputed_std",
+        "observed_mean", "observed_std",
+        "variance_ratio",
+        "n_neighbors_used", "k_capped",
+    }
+
+
+def test_column_imputation_record_to_dict_diagnostic_values_correct():
+    diag = _make_diagnostic(r2_train=0.8, n_iter=3)
+    record = ColumnImputationRecord(
+        column="income",
+        semantic_type=SemanticType.Numeric,
+        strategy=ImputationStrategy.KNN,
+        diagnostic=diag,
+    )
+    d = record.to_dict()
+    assert d["diagnostic"]["r2_train"] == pytest.approx(0.8)
+    assert d["diagnostic"]["n_iter"] == 3
+
+
+def test_fitted_imputer_from_dict_round_trips_diagnostic():
+    from dataforge_ml.imputation._fitted_imputer import FittedImputer
+
+    diag = _make_diagnostic(r2_train=0.6, converged=True, n_iter=8, variance_ratio=0.7)
+    record = ColumnImputationRecord(
+        column="income",
+        semantic_type=SemanticType.Numeric,
+        strategy=ImputationStrategy.Regression,
+        diagnostic=diag,
+    )
+    fi = FittedImputer(records={"income": record})
+    restored = FittedImputer.from_dict(fi.to_dict())
+
+    restored_diag = restored.records["income"].diagnostic
+    assert restored_diag is not None
+    assert restored_diag.r2_train == pytest.approx(0.6)
+    assert restored_diag.converged is True
+    assert restored_diag.n_iter == 8
+    assert restored_diag.variance_ratio == pytest.approx(0.7)
+    assert restored_diag.imputed_mean == pytest.approx(diag.imputed_mean)
+    assert restored_diag.imputed_std == pytest.approx(diag.imputed_std)
+    assert restored_diag.observed_mean == pytest.approx(diag.observed_mean)
+    assert restored_diag.observed_std == pytest.approx(diag.observed_std)
+
+
+def test_fitted_imputer_from_dict_payload_without_diagnostic_key_gives_none():
+    from dataforge_ml.imputation._fitted_imputer import FittedImputer
+
+    legacy_dict = {
+        "records": {
+            "age": {
+                "column": "age",
+                "semantic_type": "numeric",
+                "strategy": "mean",
+                "fill_value": 30.0,
+                "indicator_added": False,
+                "signals": [],
+                "domain_snap_bounds": None,
+                # no "diagnostic" key — simulates a pre-Scope-3 serialised record
+            }
+        },
+        "models": {},
+        "model_cols": {},
+    }
+    fi = FittedImputer.from_dict(legacy_dict)
+    assert fi.records["age"].diagnostic is None
+
+
+def test_fitted_imputer_from_dict_payload_with_null_diagnostic_gives_none():
+    from dataforge_ml.imputation._fitted_imputer import FittedImputer
+
+    payload = {
+        "records": {
+            "age": {
+                "column": "age",
+                "semantic_type": "numeric",
+                "strategy": "mean",
+                "fill_value": 30.0,
+                "indicator_added": False,
+                "signals": [],
+                "domain_snap_bounds": None,
+                "diagnostic": None,
+            }
+        },
+        "models": {},
+        "model_cols": {},
+    }
+    fi = FittedImputer.from_dict(payload)
+    assert fi.records["age"].diagnostic is None
+
+
+# ---------------------------------------------------------------------------
+# NumericImputationConfig — per_column_max_iter / knn_n_neighbors / mice_max_iter defaults
+# ---------------------------------------------------------------------------
+
+
+def test_numeric_config_default_per_column_max_iter():
+    cfg = NumericImputationConfig()
+    assert cfg.per_column_max_iter == {}
+
+
+def test_numeric_config_default_knn_n_neighbors():
+    cfg = NumericImputationConfig()
+    assert cfg.knn_n_neighbors is None
+
+
+def test_numeric_config_default_mice_max_iter():
+    cfg = NumericImputationConfig()
+    assert cfg.mice_max_iter is None
+
+
+def test_numeric_config_default_refit_r2_min_complete_rows():
+    cfg = NumericImputationConfig()
+    assert cfg.refit_r2_min_complete_rows == 50
+
+
+# ---------------------------------------------------------------------------
+# NumericImputationConfig — six new fields in to_dict
+# ---------------------------------------------------------------------------
+
+
+def test_numeric_config_per_column_max_iter_in_to_dict():
+    cfg = NumericImputationConfig(per_column_max_iter={"income": 20})
+    d = cfg.to_dict()
+    assert d["per_column_max_iter"] == {"income": 20}
+
+
+def test_numeric_config_knn_n_neighbors_in_to_dict():
+    cfg = NumericImputationConfig(knn_n_neighbors=15)
+    d = cfg.to_dict()
+    assert d["knn_n_neighbors"] == 15
+
+
+def test_numeric_config_mice_max_iter_in_to_dict():
+    cfg = NumericImputationConfig(mice_max_iter=100)
+    d = cfg.to_dict()
+    assert d["mice_max_iter"] == 100
+
+
+def test_numeric_config_refit_fields_in_to_dict():
+    cfg = NumericImputationConfig()
+    d = cfg.to_dict()
+    assert d["refit_r2_min_complete_rows"] == 50
+
+
+# ---------------------------------------------------------------------------
+# NumericImputationConfig — from_dict({}) produces correct defaults
+# ---------------------------------------------------------------------------
+
+
+def test_numeric_config_new_fields_from_dict_empty_uses_defaults():
+    cfg = NumericImputationConfig.from_dict({})
+    assert cfg.per_column_max_iter == {}
+    assert cfg.knn_n_neighbors is None
+    assert cfg.mice_max_iter is None
+    assert cfg.refit_r2_min_complete_rows == 50
+    assert cfg.refit_r2_cv_folds == 5
+
+
+# ---------------------------------------------------------------------------
+# NumericImputationConfig — from_dict round-trips for non-default values
+# ---------------------------------------------------------------------------
+
+
+def test_numeric_config_per_column_max_iter_round_trip():
+    original = NumericImputationConfig(per_column_max_iter={"age": 30, "income": 50})
+    restored = NumericImputationConfig.from_dict(original.to_dict())
+    assert restored.per_column_max_iter == {"age": 30, "income": 50}
+
+
+def test_numeric_config_knn_n_neighbors_round_trip():
+    original = NumericImputationConfig(knn_n_neighbors=7)
+    restored = NumericImputationConfig.from_dict(original.to_dict())
+    assert restored.knn_n_neighbors == 7
+
+
+def test_numeric_config_mice_max_iter_round_trip():
+    original = NumericImputationConfig(mice_max_iter=100)
+    restored = NumericImputationConfig.from_dict(original.to_dict())
+    assert restored.mice_max_iter == 100
+
+
+def test_numeric_config_refit_r2_min_complete_rows_round_trip():
+    original = NumericImputationConfig(refit_r2_min_complete_rows=50)
+    restored = NumericImputationConfig.from_dict(original.to_dict())
+    assert restored.refit_r2_min_complete_rows == 50
+
+
+# ---------------------------------------------------------------------------
+# NumericImputationConfig — refit_r2_cv_folds
+# ---------------------------------------------------------------------------
+
+
+def test_numeric_config_default_refit_r2_cv_folds():
+    cfg = NumericImputationConfig()
+    assert cfg.refit_r2_cv_folds == 5
+
+
+def test_numeric_config_refit_r2_cv_folds_in_to_dict():
+    cfg = NumericImputationConfig()
+    d = cfg.to_dict()
+    assert d["refit_r2_cv_folds"] == 5
+
+
+def test_numeric_config_refit_r2_cv_folds_round_trip():
+    original = NumericImputationConfig(refit_r2_cv_folds=10)
+    restored = NumericImputationConfig.from_dict(original.to_dict())
+    assert restored.refit_r2_cv_folds == 10
+
+
+def test_numeric_config_refit_r2_cv_folds_from_dict_empty_uses_default():
+    cfg = NumericImputationConfig.from_dict({})
+    assert cfg.refit_r2_cv_folds == 5

@@ -26,7 +26,12 @@ from ..profiling._numeric_config import (
     NumericStats,
     SkewSeverity,
 )
-from ._config import ColumnImputationRecord, ImputationStrategy, NumericImputationConfig
+from ._config import (
+    ColumnImputationRecord,
+    ImputationFitDiagnostic,
+    ImputationStrategy,
+    NumericImputationConfig,
+)
 from ._regression_estimator_factory import RegressionEstimatorFactory
 from ._strategy_router import _StrategyRouter
 from ._utils import _df_to_numpy
@@ -54,12 +59,17 @@ class FittedRegression:
         Human-readable entries recording the estimator choice and any
         convergence warning. Appended to ``ColumnImputationRecord.signals``
         by the caller after a successful fit.
+    max_iter_used : int
+        The effective ``max_iter`` value passed to ``IterativeImputer``.
+        Used by the diagnostic to determine whether the model converged
+        (``n_iter_ < max_iter_used``) or was stopped by the iteration cap.
     """
 
     model: Any
     target_idx: int
     all_cols: list[str]
     signals: list[str] = field(default_factory=list)
+    max_iter_used: int = 0
 
 
 @dataclass
@@ -197,6 +207,8 @@ class NumericImputer:
                 max_iter = _compute_mice_max_iter(
                     winning_tag, arr, mice_stats, profile, mice_cols, config
                 )
+                if config.mice_max_iter is not None:
+                    max_iter = config.mice_max_iter
                 tol = _compute_mice_tol(winning_tag, mice_stats)
                 initial_strategy = _mice_initial_strategy(mice_stats)
                 n_nearest_features, n_nearest_signal = _compute_mice_n_nearest_features(
@@ -247,6 +259,21 @@ class NumericImputer:
                     if rec.column in mice_col_set:
                         rec.signals.append(convergence_signal)
 
+                mice_diagnostics = _compute_mice_diagnostics(
+                    arr=arr,
+                    mice_cols=mice_cols,
+                    mice_model=mice_model,
+                    config=config,
+                    max_iter=max_iter,
+                    estimator=estimator,
+                    tol=tol,
+                    initial_strategy=initial_strategy,
+                    n_nearest_features=n_nearest_features,
+                )
+                for rec in records:
+                    if rec.column in mice_col_set:
+                        rec.diagnostic = mice_diagnostics.get(rec.column)
+
         if knn_cols:
             from ._fitted_imputer import _FittedKNN
 
@@ -265,12 +292,18 @@ class NumericImputer:
             # --- Adaptive n_neighbors formula ---
             base_k = max(config.knn_min_neighbors, int(np.sqrt(n_knn_features)))
             k_raw = base_k * (1.0 + miss_frac) * (1.0 / max(complete_frac, 0.1)) ** 0.5
+            adaptive_raw = max(config.knn_min_neighbors, int(k_raw))
             n_neighbors = min(
-                max(config.knn_min_neighbors, int(k_raw)),
+                adaptive_raw,
                 n_rows - 1,
                 config.knn_max_neighbors,
             )
             n_neighbors = max(1, n_neighbors)
+            if config.knn_n_neighbors is not None:
+                k_capped: Optional[bool] = None
+                n_neighbors = config.knn_n_neighbors
+            else:
+                k_capped = adaptive_raw > (n_rows - 1)
 
             # --- Reliability-based weights formula ---
             reliability_high = (
@@ -311,6 +344,20 @@ class NumericImputer:
                 if rec.column in knn_cols:
                     rec.signals.append(knn_params_signal)
                     rec.signals.append(knn_scaling_signal)
+
+            knn_col_set = set(knn_cols)
+            knn_diagnostics = _compute_knn_diagnostics(
+                arr=arr,
+                knn_cols=knn_cols,
+                fitted_knn=models["knn"],
+                config=config,
+                n_neighbors_used=n_neighbors,
+                weights=weights,
+                k_capped=k_capped,
+            )
+            for rec in records:
+                if rec.column in knn_col_set:
+                    rec.diagnostic = knn_diagnostics.get(rec.column)
 
         if reg_cols:
             for col in reg_cols:
@@ -363,6 +410,16 @@ class NumericImputer:
 
                 for signal in fitted.signals:
                     record.signals.append(signal)
+
+                record.diagnostic = _compute_regression_diagnostic(
+                    train_df=train_df,
+                    col=col,
+                    feat_cols=feat_cols,
+                    fitted_reg=fitted,
+                    tag=tag,
+                    config=config,
+                    n_rows=n_rows,
+                )
 
         return _NumericFitBundle(records=records, models=models, model_cols=model_cols)
 
@@ -576,6 +633,9 @@ def _fit_regression(
 
     arr = _df_to_numpy(train_df, all_cols)
     max_iter = _compute_max_iter(tag, feat_cols, arr, stats, config)
+    _reg_override = (config.per_column_max_iter or {}).get(col)
+    if _reg_override is not None:
+        max_iter = int(_reg_override)
     tol = _compute_tol(tag, stats)
 
     imputer = IterativeImputer(
@@ -603,6 +663,7 @@ def _fit_regression(
         target_idx=0,
         all_cols=all_cols,
         signals=signals,
+        max_iter_used=max_iter,
     )
 
 
@@ -1054,3 +1115,383 @@ def _compute_mode(df: pl.DataFrame, col: str) -> float:
         return 0.0
     modes = clean.mode().sort()
     return float(modes[0])
+
+
+# ---------------------------------------------------------------------------
+# Fit diagnostic helpers (ImputationFitDiagnostic computation)
+# ---------------------------------------------------------------------------
+
+
+def _compute_regression_diagnostic(
+    train_df: pl.DataFrame,
+    col: str,
+    feat_cols: list[str],
+    fitted_reg: FittedRegression,
+    tag: NonlinearityTag,
+    config: NumericImputationConfig,
+    n_rows: int,
+) -> ImputationFitDiagnostic:
+    """Compute fit quality metrics for a single Regression-strategy column.
+
+    Runs k-fold cross-validated R² on complete rows when enough are available
+    (k = ``config.refit_r2_cv_folds``), then collects distribution statistics
+    from the imputed values the fitted model produces for the originally null
+    rows.  The final stored model is never re-trained during this function.
+
+    Parameters
+    ----------
+    train_df : pl.DataFrame
+        Training split used during ``fit()``.
+    col : str
+        Target column name.
+    feat_cols : list[str]
+        Predictor columns used by this regression model.
+    fitted_reg : FittedRegression
+        The final fitted regression bundle already stored in ``models``.
+    tag : NonlinearityTag
+        Nonlinearity tag for ``col``; used to select the same estimator class
+        for the temporary diagnostic model.
+    config : NumericImputationConfig
+        Imputation configuration; ``refit_r2_min_complete_rows`` and
+        ``refit_r2_cv_folds`` control the R² evaluation.
+    n_rows : int
+        Number of rows in ``train_df``.
+
+    Returns
+    -------
+    ImputationFitDiagnostic
+        Populated diagnostic instance.
+    """
+    from sklearn.metrics import r2_score as _r2_score
+
+    all_cols = [col] + feat_cols
+    arr = _df_to_numpy(train_df, all_cols)
+
+    # Observed stats from non-null target values
+    target_arr = arr[:, 0]
+    obs_vals = target_arr[~np.isnan(target_arr)]
+    observed_mean = float(np.mean(obs_vals)) if len(obs_vals) > 0 else 0.0
+    observed_std = float(np.std(obs_vals)) if len(obs_vals) > 0 else 0.0
+
+    # Complete rows for k-fold CV
+    complete_mask = ~np.isnan(arr).any(axis=1)
+    n_complete = int(complete_mask.sum())
+
+    r2_train: Optional[float] = None
+    if n_complete >= config.refit_r2_min_complete_rows:
+        arr_complete = arr[np.where(complete_mask)[0]]
+        n_folds = config.refit_r2_cv_folds
+
+        rng = np.random.default_rng(0)
+        perm = rng.permutation(n_complete)
+        arr_shuffled = arr_complete[perm]
+
+        fold_size = n_complete // n_folds
+        fold_r2s: list[float] = []
+
+        for fold_idx in range(n_folds):
+            val_start = fold_idx * fold_size
+            val_end = val_start + fold_size if fold_idx < n_folds - 1 else n_complete
+
+            arr_val_sub = arr_shuffled[val_start:val_end]
+            arr_train_sub = np.concatenate(
+                [arr_shuffled[:val_start], arr_shuffled[val_end:]]
+            )
+
+            y_true = arr_val_sub[:, 0]
+            if len(y_true) < 2 or float(np.std(y_true)) == 0.0:
+                continue
+
+            estimator_sub = RegressionEstimatorFactory.build(
+                tag, len(arr_train_sub), config
+            )
+            if estimator_sub is None:
+                continue
+
+            max_iter_sub = _compute_max_iter(tag, feat_cols, arr_train_sub, None, config)
+            tol_sub = _compute_tol(tag, None)
+            temp_imputer = IterativeImputer(
+                estimator=estimator_sub,
+                max_iter=max_iter_sub,
+                tol=tol_sub,
+                random_state=0,
+            )
+            temp_imputer.fit(arr_train_sub)
+
+            arr_val_masked = arr_val_sub.copy()
+            arr_val_masked[:, 0] = np.nan
+            arr_val_filled = temp_imputer.transform(arr_val_masked)
+
+            y_pred = arr_val_filled[:, 0]
+            try:
+                fold_r2s.append(float(_r2_score(y_true, y_pred)))
+            except Exception:  # noqa: BLE001
+                pass
+
+        if fold_r2s:
+            r2_train = float(np.mean(fold_r2s))
+
+    # Imputed values: apply final model to the full training array
+    null_mask = np.isnan(target_arr)
+    imputed_mean = 0.0
+    imputed_std = 0.0
+    if null_mask.any():
+        arr_filled = fitted_reg.model.transform(arr)
+        imputed_vals = arr_filled[null_mask, 0]
+        imputed_mean = float(np.mean(imputed_vals))
+        imputed_std = float(np.std(imputed_vals))
+
+    variance_ratio = imputed_std / observed_std if observed_std > 0.0 else 0.0
+    converged = fitted_reg.model.n_iter_ < fitted_reg.max_iter_used
+    n_iter = int(fitted_reg.model.n_iter_)
+
+    return ImputationFitDiagnostic(
+        r2_train=r2_train,
+        converged=converged,
+        n_iter=n_iter,
+        imputed_mean=imputed_mean,
+        imputed_std=imputed_std,
+        observed_mean=observed_mean,
+        observed_std=observed_std,
+        variance_ratio=variance_ratio,
+    )
+
+
+def _compute_knn_diagnostics(
+    arr: np.ndarray,
+    knn_cols: list[str],
+    fitted_knn: Any,
+    config: NumericImputationConfig,
+    n_neighbors_used: int,
+    weights: str,
+    k_capped: Optional[bool],
+) -> dict[str, ImputationFitDiagnostic]:
+    """Compute per-column fit quality metrics for all KNN-strategy columns.
+
+    Runs k-fold cross-validated R² using one shared throwaway KNN model per
+    fold, then collects distribution statistics for each column's imputed
+    values.  The final stored model is never re-trained during this function.
+
+    Parameters
+    ----------
+    arr : np.ndarray
+        Raw (unscaled) KNN matrix of shape ``(n_rows, n_knn_cols)``.  NaN
+        marks missing cells.
+    knn_cols : list[str]
+        Column names in the same order as columns in ``arr``.
+    fitted_knn : Any
+        The ``_FittedKNN`` instance already stored in ``models["knn"]``.
+        Provides ``col_means``, ``col_stds``, and the fitted ``KNNImputer``.
+    config : NumericImputationConfig
+        Imputation configuration; ``refit_r2_min_complete_rows`` and
+        ``refit_r2_cv_folds`` control the R² evaluation.
+    n_neighbors_used : int
+        Actual ``n_neighbors`` used when fitting the final KNN model; stored
+        on every returned ``ImputationFitDiagnostic`` and reused for the
+        throwaway fold models.
+    weights : str
+        ``weights`` strategy used when fitting the final KNN model; reused
+        for the throwaway models.
+    k_capped : bool, optional
+        Pre-computed ``k_capped`` flag (see ``ImputationFitDiagnostic``).
+        ``None`` when the ``knn_n_neighbors`` override is active.
+
+    Returns
+    -------
+    dict[str, ImputationFitDiagnostic]
+        One entry per column in ``knn_cols``.  ``converged`` and ``n_iter``
+        are always ``None`` (not applicable to KNN).
+    """
+    from sklearn.metrics import r2_score as _r2_score
+
+    col_means: np.ndarray = fitted_knn.col_means
+    col_stds: np.ndarray = fitted_knn.col_stds
+
+    arr_scaled = (arr - col_means) / col_stds
+
+    complete_mask = ~np.isnan(arr).any(axis=1)
+    n_complete = int(complete_mask.sum())
+
+    knn_r2: dict[str, Optional[float]] = {col: None for col in knn_cols}
+
+    if n_complete >= config.refit_r2_min_complete_rows:
+        arr_complete_scaled = arr_scaled[np.where(complete_mask)[0]]
+        n_folds = config.refit_r2_cv_folds
+
+        rng = np.random.default_rng(0)
+        perm = rng.permutation(n_complete)
+        arr_shuffled = arr_complete_scaled[perm]
+
+        fold_size = n_complete // n_folds
+        col_fold_r2s: dict[str, list[float]] = {col: [] for col in knn_cols}
+
+        for fold_idx in range(n_folds):
+            val_start = fold_idx * fold_size
+            val_end = val_start + fold_size if fold_idx < n_folds - 1 else n_complete
+
+            arr_val_sub = arr_shuffled[val_start:val_end]
+            arr_train_sub = np.concatenate(
+                [arr_shuffled[:val_start], arr_shuffled[val_end:]]
+            )
+
+            temp_knn = KNNImputer(n_neighbors=n_neighbors_used, weights=weights)
+            temp_knn.fit(arr_train_sub)
+
+            for k, col_k in enumerate(knn_cols):
+                y_true = arr_val_sub[:, k]
+                if len(y_true) < 2 or float(np.std(y_true)) == 0.0:
+                    continue
+
+                arr_val_masked = arr_val_sub.copy()
+                arr_val_masked[:, k] = np.nan
+                arr_val_filled = temp_knn.transform(arr_val_masked)
+
+                y_pred = arr_val_filled[:, k]
+                try:
+                    col_fold_r2s[col_k].append(float(_r2_score(y_true, y_pred)))
+                except Exception:  # noqa: BLE001
+                    pass
+
+        for col_k in knn_cols:
+            if col_fold_r2s[col_k]:
+                knn_r2[col_k] = float(np.mean(col_fold_r2s[col_k]))
+
+    # Apply final model to full matrix to obtain imputed values for null rows
+    arr_scaled_filled = fitted_knn.model.transform(arr_scaled)
+    arr_filled = arr_scaled_filled * col_stds + col_means
+
+    diagnostics: dict[str, ImputationFitDiagnostic] = {}
+    for k, col_k in enumerate(knn_cols):
+        col_arr = arr[:, k]
+
+        obs_vals = col_arr[~np.isnan(col_arr)]
+        observed_mean = float(np.mean(obs_vals)) if len(obs_vals) > 0 else 0.0
+        observed_std = float(np.std(obs_vals)) if len(obs_vals) > 0 else 0.0
+
+        null_mask = np.isnan(col_arr)
+        imputed_mean = 0.0
+        imputed_std = 0.0
+        if null_mask.any():
+            imputed_vals = arr_filled[null_mask, k]
+            imputed_mean = float(np.mean(imputed_vals))
+            imputed_std = float(np.std(imputed_vals))
+
+        variance_ratio = imputed_std / observed_std if observed_std > 0.0 else 0.0
+
+        diagnostics[col_k] = ImputationFitDiagnostic(
+            r2_train=knn_r2[col_k],
+            converged=None,
+            n_iter=None,
+            imputed_mean=imputed_mean,
+            imputed_std=imputed_std,
+            observed_mean=observed_mean,
+            observed_std=observed_std,
+            variance_ratio=variance_ratio,
+            n_neighbors_used=n_neighbors_used,
+            k_capped=k_capped,
+        )
+
+    return diagnostics
+
+
+def _compute_mice_diagnostics(
+    arr: np.ndarray,
+    mice_cols: list[str],
+    mice_model: Any,
+    config: NumericImputationConfig,
+    max_iter: int,
+    estimator: Any,
+    tol: float,
+    initial_strategy: str,
+    n_nearest_features: Optional[int],
+) -> dict[str, ImputationFitDiagnostic]:
+    from sklearn.metrics import r2_score as _r2_score
+
+    complete_mask = ~np.isnan(arr).any(axis=1)
+    n_complete = int(complete_mask.sum())
+
+    mice_r2: dict[str, Optional[float]] = {col: None for col in mice_cols}
+
+    if n_complete >= config.refit_r2_min_complete_rows:
+        arr_complete = arr[np.where(complete_mask)[0]]
+        n_folds = config.refit_r2_cv_folds
+
+        rng = np.random.default_rng(0)
+        perm = rng.permutation(n_complete)
+        arr_shuffled = arr_complete[perm]
+
+        fold_size = n_complete // n_folds
+        col_fold_r2s: dict[str, list[float]] = {col: [] for col in mice_cols}
+
+        for fold_idx in range(n_folds):
+            val_start = fold_idx * fold_size
+            val_end = val_start + fold_size if fold_idx < n_folds - 1 else n_complete
+
+            arr_val_sub = arr_shuffled[val_start:val_end]
+            arr_train_sub = np.concatenate(
+                [arr_shuffled[:val_start], arr_shuffled[val_end:]]
+            )
+
+            temp_mice = IterativeImputer(
+                estimator=estimator,
+                random_state=0,
+                max_iter=max_iter,
+                tol=tol,
+                initial_strategy=initial_strategy,
+                n_nearest_features=n_nearest_features,
+            )
+            temp_mice.fit(arr_train_sub)
+
+            for k, col_k in enumerate(mice_cols):
+                y_true = arr_val_sub[:, k]
+                if len(y_true) < 2 or float(np.std(y_true)) == 0.0:
+                    continue
+
+                arr_val_masked = arr_val_sub.copy()
+                arr_val_masked[:, k] = np.nan
+                arr_val_filled = temp_mice.transform(arr_val_masked)
+
+                y_pred = arr_val_filled[:, k]
+                try:
+                    col_fold_r2s[col_k].append(float(_r2_score(y_true, y_pred)))
+                except Exception:  # noqa: BLE001
+                    pass
+
+        for col_k in mice_cols:
+            if col_fold_r2s[col_k]:
+                mice_r2[col_k] = float(np.mean(col_fold_r2s[col_k]))
+
+    arr_filled = mice_model.transform(arr)
+    converged = mice_model.n_iter_ < max_iter
+    n_iter = int(mice_model.n_iter_)
+
+    diagnostics: dict[str, ImputationFitDiagnostic] = {}
+    for k, col_k in enumerate(mice_cols):
+        col_arr = arr[:, k]
+
+        obs_vals = col_arr[~np.isnan(col_arr)]
+        observed_mean = float(np.mean(obs_vals)) if len(obs_vals) > 0 else 0.0
+        observed_std = float(np.std(obs_vals)) if len(obs_vals) > 0 else 0.0
+
+        null_mask = np.isnan(col_arr)
+        imputed_mean = 0.0
+        imputed_std = 0.0
+        if null_mask.any():
+            imputed_vals = arr_filled[null_mask, k]
+            imputed_mean = float(np.mean(imputed_vals))
+            imputed_std = float(np.std(imputed_vals))
+
+        variance_ratio = imputed_std / observed_std if observed_std > 0.0 else 0.0
+
+        diagnostics[col_k] = ImputationFitDiagnostic(
+            r2_train=mice_r2[col_k],
+            converged=converged,
+            n_iter=n_iter,
+            imputed_mean=imputed_mean,
+            imputed_std=imputed_std,
+            observed_mean=observed_mean,
+            observed_std=observed_std,
+            variance_ratio=variance_ratio,
+        )
+
+    return diagnostics

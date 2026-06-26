@@ -1,6 +1,7 @@
 from ._config import (
     ColumnImputationRecord,
     ImputationConfig,
+    ImputationFitDiagnostic,
     ImputationResult,
     ImputationStrategy,
     NumericImputationConfig,
@@ -17,6 +18,7 @@ __all__ = [
     "ImputationStrategy",
     "NumericImputationConfig",
     "ImputationConfig",
+    "ImputationFitDiagnostic",
     "ColumnImputationRecord",
     "ImputationResult",
     "FittedImputer",
