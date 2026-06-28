@@ -145,6 +145,12 @@ class _StrategyRouter:
 
         stats = cp.stats if isinstance(cp.stats, NumericStats) else None
 
+        # Priority 3.5: Bimodal Imputation Framework (non-BoundedDiscrete only)
+        if stats is not None and stats.has_flag(NumericFlag.Bimodal):
+            return self._route_bimodal(
+                col, cp, config, n_rows, n_features, multi_mar, signals, feature_correlation
+            )
+
         # Priority 4: Unpredictable guard — non-BoundedDiscrete columns with no predictive signal
         if stats is not None and stats.nonlinearity_tag == NonlinearityTag.Unpredictable:
             mar_suspect = missingness is not None and missingness.has_flag(
@@ -246,6 +252,104 @@ class _StrategyRouter:
         signals.append(f"mcar {severity} + skew={skew_sev or 'unknown'}: median imputation")
         return ImputationStrategy.Median, signals
 
+    def _route_bimodal(
+        self,
+        col: str,
+        cp: "ColumnProfile",
+        config: NumericImputationConfig,
+        n_rows: int,
+        n_features: int,
+        multi_mar: bool,
+        signals: list[str],
+        feature_correlation: "Optional[CorrelationProfileResult]" = None,
+    ) -> tuple[ImputationStrategy, list[str]]:
+        """Route a bimodal column to the Bimodal Imputation Framework."""
+        if col in config.bimodal_grouping_variables:
+            signals.append("bimodal_branch_1: grouping variable declared")
+            return ImputationStrategy.ClusterConditional, signals
+
+        if feature_correlation is not None:
+            col_corrs = feature_correlation.pearson_matrix.get(col, {})
+            corr_list = [
+                c for c, r in col_corrs.items()
+                if c != col and abs(r) > config.bimodal_correlation_threshold
+            ]
+            count = len(corr_list)
+            
+            if count >= config.bimodal_min_correlated_features:
+                signals.append("bimodal_branch_2: N correlated features >= threshold")
+                strategy, signal = self._mar_strategy(
+                    severity=MissingSeverity.High,
+                    corrs=corr_list,
+                    config=config,
+                    n_rows=n_rows,
+                    n_features=n_features,
+                    multi_mar=False,
+                )
+                signals.append(signal)
+                return strategy, signals
+            elif count > 0:
+                signals.append("bimodal_branch_3: N correlated features < threshold")
+                return ImputationStrategy.ClusterConditional, signals
+
+        signals.append("bimodal_branch_4: no correlated features, gmm_sampling")
+        return ImputationStrategy.GMMSampling, signals
+
+    def _route_bimodal_bounded_discrete(
+        self,
+        col: str,
+        cp: "ColumnProfile",
+        config: NumericImputationConfig,
+        n_rows: int,
+        n_features: int,
+        multi_mar: bool,
+        signals: list[str],
+        feature_correlation: "Optional[CorrelationProfileResult]" = None,
+    ) -> tuple[ImputationStrategy, list[str]]:
+        """Route a BoundedDiscrete bimodal column to the Bimodal Imputation Framework."""
+        if col in config.bimodal_grouping_variables:
+            signals.append("bimodal_branch_1: grouping variable declared")
+            return ImputationStrategy.ClusterConditional, signals
+
+        if feature_correlation is not None:
+            col_corrs = feature_correlation.pearson_matrix.get(col, {})
+            corr_list = [
+                c for c, r in col_corrs.items()
+                if c != col and abs(r) > config.bimodal_correlation_threshold
+            ]
+            count = len(corr_list)
+            
+            if count >= config.bimodal_min_correlated_features:
+                signals.append("bimodal_branch_2: N correlated features >= threshold")
+                strategy, signal = self._mar_strategy(
+                    severity=MissingSeverity.High,
+                    corrs=corr_list,
+                    config=config,
+                    n_rows=n_rows,
+                    n_features=n_features,
+                    multi_mar=False,
+                )
+                signals.append(signal)
+                if strategy == ImputationStrategy.Median:
+                    signals.append(
+                        "bounded_discrete: terminal → mode (median not valid domain member)"
+                    )
+                    return ImputationStrategy.Mode, signals
+                
+                stats = cp.stats if isinstance(cp.stats, NumericStats) else None
+                snap_min = stats.min if stats is not None else None
+                snap_max = stats.max if stats is not None else None
+                signals.append(
+                    f"bounded_discrete: domain_snap_bounds=({snap_min}, {snap_max})"
+                )
+                return strategy, signals
+            elif count > 0:
+                signals.append("bimodal_branch_3: N correlated features < threshold")
+                return ImputationStrategy.ClusterConditional, signals
+
+        signals.append("bimodal_branch_4: no correlated features, mode")
+        return ImputationStrategy.Mode, signals
+
     def _route_bounded_discrete(
         self,
         col: str,
@@ -303,7 +407,11 @@ class _StrategyRouter:
             signals.append("bounded_discrete: near_constant → mode")
             return ImputationStrategy.Mode, signals
 
-        # 3. Bimodal → falls through (future scope; no special handling)
+        # (c) Bimodal — BoundedDiscrete variant (branch 4 → Mode, not GMMSampling)
+        if stats is not None and stats.has_flag(NumericFlag.Bimodal):
+            return self._route_bimodal_bounded_discrete(
+                col, cp, config, n_rows, n_features, multi_mar, signals, feature_correlation
+            )
 
         # 4. MARSuspect → domain-snapped MAR sub-chain (Mode replaces Median as terminal)
         if missingness is not None and missingness.has_flag(MissingnessFlag.MARSuspect):

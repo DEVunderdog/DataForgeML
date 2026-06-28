@@ -44,6 +44,8 @@ class ImputationStrategy(StrEnum):
     Constant = "constant"
     Dropped = "dropped"
     Passthrough = "passthrough"  # output-only: assigned to columns with no missing values in training; cannot be declared in per_column_strategy
+    ClusterConditional = "cluster_conditional"
+    GMMSampling = "gmm_sampling"
     Indicator = "indicator"  # output-only: assigned to {col}_missing columns appended by the MNAR mechanism; cannot be declared in per_column_strategy
 
 
@@ -138,6 +140,17 @@ class NumericImputationConfig:
     refit_r2_cv_folds : int
         Number of folds for cross-validated R² computation.  Applied
         uniformly across Regression, KNN, and MICE diagnostics.  Default ``5``.
+    bimodal_grouping_variables : dict[str, str]
+        Maps a bimodal column name to the name of the grouping column that
+        explains the bimodal split (e.g. ``{"age": "employment_status"}``).
+    bimodal_min_correlated_features : int
+        Minimum number of numeric features with ``|r| > 0.2`` required to
+        qualify the Bimodal Imputation Framework for branch 2 (MICE/KNN);
+        columns with fewer correlated features fall to branch 3 (Cluster-Conditional).
+    bimodal_correlation_threshold : float
+        Minimum absolute Pearson correlation ``|r|`` a feature must have against
+        a bimodal column for it to count toward the branch 2/3 feature tally in
+        the Bimodal Imputation Framework.
 
     Raises
     ------
@@ -170,6 +183,9 @@ class NumericImputationConfig:
     mice_max_iter: Optional[int] = None
     refit_r2_min_complete_rows: int = 50
     refit_r2_cv_folds: int = 5
+    bimodal_grouping_variables: dict[str, str] = field(default_factory=dict)
+    bimodal_min_correlated_features: int = 3
+    bimodal_correlation_threshold: float = 0.2
 
     def __post_init__(self) -> None:
         _BLOCKED = {
@@ -177,6 +193,8 @@ class NumericImputationConfig:
             ImputationStrategy.Indicator,
             ImputationStrategy.Dropped,
             ImputationStrategy.MNAR,
+            ImputationStrategy.ClusterConditional,
+            ImputationStrategy.GMMSampling,
         }
         for col, strategy in self.per_column_strategy.items():
             if strategy in _BLOCKED:
@@ -231,6 +249,9 @@ class NumericImputationConfig:
             "mice_max_iter": self.mice_max_iter,
             "refit_r2_min_complete_rows": self.refit_r2_min_complete_rows,
             "refit_r2_cv_folds": self.refit_r2_cv_folds,
+            "bimodal_grouping_variables": dict(self.bimodal_grouping_variables),
+            "bimodal_min_correlated_features": self.bimodal_min_correlated_features,
+            "bimodal_correlation_threshold": self.bimodal_correlation_threshold,
         }
 
     @classmethod
@@ -293,6 +314,16 @@ class NumericImputationConfig:
             ),
             refit_r2_min_complete_rows=int(data.get("refit_r2_min_complete_rows", 50)),
             refit_r2_cv_folds=int(data.get("refit_r2_cv_folds", 5)),
+            bimodal_grouping_variables={
+                k: str(v)
+                for k, v in data.get("bimodal_grouping_variables", {}).items()
+            },
+            bimodal_min_correlated_features=int(
+                data.get("bimodal_min_correlated_features", 3)
+            ),
+            bimodal_correlation_threshold=float(
+                data.get("bimodal_correlation_threshold", 0.2)
+            ),
         )
 
 

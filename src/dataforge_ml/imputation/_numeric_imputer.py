@@ -17,6 +17,7 @@ import polars as pl
 from sklearn.experimental import enable_iterative_imputer  # noqa: F401
 from sklearn.impute import IterativeImputer, KNNImputer
 from sklearn.pipeline import Pipeline
+from sklearn.mixture import GaussianMixture
 
 from ..config import SemanticType
 from ..profiling._config import NumericKind
@@ -73,6 +74,119 @@ class FittedRegression:
 
 
 @dataclass
+class FittedClusterConditional:
+    """Fitted state for Cluster-Conditional Imputation (branches 1 and 3).
+
+    Parameters
+    ----------
+    grouping_variable : str or None
+        Name of the categorical column used for grouping (branch 1).
+    group_fills : dict of Any to float or None
+        Mapping from group values to fill values (branch 1).
+    fill_1 : float or None
+        Fill value for cluster 1 (branch 3).
+    fill_2 : float or None
+        Fill value for cluster 2 (branch 3).
+    feature_centroid_1 : np.ndarray or None
+        Feature centroid for cluster 1 (branch 3).
+    feature_centroid_2 : np.ndarray or None
+        Feature centroid for cluster 2 (branch 3).
+    feature_cols : list of str or None
+        Names of the feature columns used to compute distances (branch 3).
+    center1 : float
+        Mean of cluster 1 from the univariate bimodal fit.
+    center2 : float
+        Mean of cluster 2 from the univariate bimodal fit.
+    """
+    grouping_variable: Optional[str]
+    group_fills: Optional[dict[Any, float]]
+    fill_1: Optional[float]
+    fill_2: Optional[float]
+    feature_centroid_1: Optional[np.ndarray]
+    feature_centroid_2: Optional[np.ndarray]
+    feature_cols: Optional[list[str]]
+    center1: float
+    center2: float
+
+    def to_dict(self) -> dict:
+        return {
+            "grouping_variable": self.grouping_variable,
+            "group_fills": self.group_fills,
+            "fill_1": self.fill_1,
+            "fill_2": self.fill_2,
+            "feature_centroid_1": self.feature_centroid_1.tolist() if self.feature_centroid_1 is not None else None,
+            "feature_centroid_2": self.feature_centroid_2.tolist() if self.feature_centroid_2 is not None else None,
+            "feature_cols": self.feature_cols,
+            "center1": self.center1,
+            "center2": self.center2,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "FittedClusterConditional":
+        return cls(
+            grouping_variable=data.get("grouping_variable"),
+            group_fills=data.get("group_fills"),
+            fill_1=data.get("fill_1"),
+            fill_2=data.get("fill_2"),
+            feature_centroid_1=np.array(data["feature_centroid_1"]) if data.get("feature_centroid_1") is not None else None,
+            feature_centroid_2=np.array(data["feature_centroid_2"]) if data.get("feature_centroid_2") is not None else None,
+            feature_cols=data.get("feature_cols"),
+            center1=float(data["center1"]) if data.get("center1") is not None else 0.0,
+            center2=float(data["center2"]) if data.get("center2") is not None else 0.0,
+        )
+
+
+
+@dataclass
+class FittedGMMSampling:
+    """Fitted state for GMM Sampling Imputation (branch 4).
+
+    Parameters
+    ----------
+    center1 : float
+        Mean of the first GMM component.
+    center2 : float
+        Mean of the second GMM component.
+    std1 : float
+        Standard deviation of the first GMM component.
+    std2 : float
+        Standard deviation of the second GMM component.
+    weight1 : float
+        Mixing weight of the first GMM component.
+    weight2 : float
+        Mixing weight of the second GMM component.
+    """
+    center1: float
+    center2: float
+    std1: float
+    std2: float
+    weight1: float
+    weight2: float
+
+    def to_dict(self) -> dict:
+        return {
+            "center1": self.center1,
+            "center2": self.center2,
+            "std1": self.std1,
+            "std2": self.std2,
+            "weight1": self.weight1,
+            "weight2": self.weight2,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "FittedGMMSampling":
+        return cls(
+            center1=float(data["center1"]),
+            center2=float(data["center2"]),
+            std1=float(data["std1"]),
+            std2=float(data["std2"]),
+            weight1=float(data["weight1"]),
+            weight2=float(data["weight2"]),
+        )
+
+
+
+@dataclass
 class _NumericFitBundle:
     """Return bundle from NumericImputer.fit()."""
 
@@ -91,6 +205,7 @@ class NumericImputer:
         profile: StructuralProfileResult,
         config: NumericImputationConfig,
         mnar_columns: set[str],
+        random_seed: Optional[int] = None,
     ) -> _NumericFitBundle:
         n_rows = len(train_df)
         n_features = len(columns)
@@ -157,6 +272,12 @@ class NumericImputer:
         reg_cols = [
             r.column for r in records if r.strategy == ImputationStrategy.Regression
         ]
+        cluster_cols = [
+            r.column for r in records if r.strategy == ImputationStrategy.ClusterConditional
+        ]
+        gmm_cols = [
+            r.column for r in records if r.strategy == ImputationStrategy.GMMSampling
+        ]
 
         models: dict[str, Any] = {}
         model_cols: dict[str, list[str]] = {}
@@ -179,6 +300,10 @@ class NumericImputer:
                     if stats is not None and stats.nonlinearity_tag is not None
                     else NonlinearityTag.Linear
                 )
+                
+                if stats is not None and stats.bimodal_stats is not None and tag == NonlinearityTag.Linear:
+                    tag = NonlinearityTag.MonotonicNonlinear
+
                 mice_tags.append(tag)
                 mice_stats.append(stats)
 
@@ -376,6 +501,8 @@ class NumericImputer:
 
                 rec_idx = next(i for i, r in enumerate(records) if r.column == col)
                 record = records[rec_idx]
+                if stats is not None and stats.bimodal_stats is not None and tag == NonlinearityTag.Linear:
+                    tag = NonlinearityTag.MonotonicNonlinear
 
                 fitted = _fit_regression(
                     train_df, col, feat_cols, tag, n_rows, config, stats
@@ -420,6 +547,190 @@ class NumericImputer:
                     config=config,
                     n_rows=n_rows,
                 )
+
+        if gmm_cols:
+            for col in gmm_cols:
+                series = train_df[col].drop_nulls()
+                if len(series) < 2:
+                    continue
+                cp = profile.columns.get(col)
+                stats = cp.stats if cp is not None and isinstance(cp.stats, NumericStats) else None
+                if stats and stats.bimodal_stats:
+                    c1, c2 = stats.bimodal_stats.center1, stats.bimodal_stats.center2
+                    
+                    gmm = GaussianMixture(
+                        n_components=2, 
+                        means_init=np.array([[c1], [c2]]),
+                        random_state=random_seed
+                    )
+                    gmm.fit(series.to_numpy().reshape(-1, 1))
+                    models[f"gmm:{col}"] = FittedGMMSampling(
+                        center1=gmm.means_[0][0],
+                        center2=gmm.means_[1][0],
+                        std1=np.sqrt(gmm.covariances_[0][0][0]),
+                        std2=np.sqrt(gmm.covariances_[1][0][0]),
+                        weight1=gmm.weights_[0],
+                        weight2=gmm.weights_[1]
+                    )
+                    
+                    rec = next((r for r in records if r.column == col), None)
+                    if rec:
+                        target_arr = train_df[col].to_numpy()
+                        obs_vals = target_arr[~np.isnan(target_arr)]
+                        observed_mean = float(np.mean(obs_vals)) if len(obs_vals) > 0 else 0.0
+                        observed_std = float(np.std(obs_vals)) if len(obs_vals) > 0 else 0.0
+                        
+                        null_mask = np.isnan(target_arr)
+                        if null_mask.any():
+                            n_missing = null_mask.sum()
+                            rng = np.random.default_rng(random_seed)
+                            choices = rng.choice([0, 1], p=[gmm.weights_[0], gmm.weights_[1]], size=n_missing)
+                            samples = np.where(
+                                choices == 0,
+                                rng.normal(gmm.means_[0][0], np.sqrt(gmm.covariances_[0][0][0]), size=n_missing),
+                                rng.normal(gmm.means_[1][0], np.sqrt(gmm.covariances_[1][0][0]), size=n_missing)
+                            )
+                            if rec.domain_snap_bounds is not None:
+                                lo, hi = rec.domain_snap_bounds
+                                samples = np.clip(np.round(samples), lo, hi)
+                            imputed_mean = float(np.mean(samples))
+                            imputed_std = float(np.std(samples))
+                        else:
+                            imputed_mean = 0.0
+                            imputed_std = 0.0
+                            
+                        variance_ratio = imputed_std / observed_std if observed_std > 0.0 else 0.0
+                        rec.diagnostic = ImputationFitDiagnostic(
+                            r2_train=None, rmse=None, mae=None,
+                            converged=None, n_iter=None,
+                            imputed_mean=imputed_mean, imputed_std=imputed_std,
+                            observed_mean=observed_mean, observed_std=observed_std,
+                            variance_ratio=variance_ratio
+                        )
+
+        if cluster_cols:
+            for col in cluster_cols:
+                cp = profile.columns.get(col)
+                stats = cp.stats if cp is not None and isinstance(cp.stats, NumericStats) else None
+                if not stats or not stats.bimodal_stats:
+                    continue
+                
+                c1, c2 = stats.bimodal_stats.center1, stats.bimodal_stats.center2
+                
+                grouping_var = config.bimodal_grouping_variables.get(col)
+                if grouping_var and grouping_var in train_df.columns:
+                    # Branch 1
+                    df_valid = train_df.select([col, grouping_var]).drop_nulls()
+                    if len(df_valid) == 0:
+                        continue
+                    
+                    if stats.skewness_severity == SkewSeverity.Normal:
+                        aggs = df_valid.group_by(grouping_var).agg(pl.col(col).mean())
+                    else:
+                        aggs = df_valid.group_by(grouping_var).agg(pl.col(col).median())
+                    
+                    group_fills = dict(zip(aggs[grouping_var].to_list(), aggs[col].to_list()))
+                    models[f"cluster:{col}"] = FittedClusterConditional(
+                        grouping_variable=grouping_var,
+                        group_fills=group_fills,
+                        fill_1=None,
+                        fill_2=None,
+                        feature_centroid_1=None,
+                        feature_centroid_2=None,
+                        feature_cols=None,
+                        center1=c1,
+                        center2=c2
+                    )
+                else:
+                    # Branch 3
+                    # Find correlated features
+                    feat_cols = []
+                    if profile.dataset.feature_correlation is not None:
+                        col_corrs = profile.dataset.feature_correlation.pearson_matrix.get(col, {})
+                        feat_cols = [c for c, r in col_corrs.items() if c != col and abs(r) > config.bimodal_correlation_threshold and c in train_df.columns]
+                    
+                    df_valid = train_df.select([col] + feat_cols).drop_nulls(subset=[col])
+                    if len(df_valid) == 0:
+                        continue
+                        
+                    vals = df_valid[col].to_numpy()
+                    dist1 = np.abs(vals - c1)
+                    dist2 = np.abs(vals - c2)
+                    mask1 = dist1 <= dist2
+                    mask2 = ~mask1
+                    
+                    if stats.skewness_severity == SkewSeverity.Normal:
+                        fill1 = float(np.mean(vals[mask1])) if mask1.any() else c1
+                        fill2 = float(np.mean(vals[mask2])) if mask2.any() else c2
+                    else:
+                        fill1 = float(np.median(vals[mask1])) if mask1.any() else c1
+                        fill2 = float(np.median(vals[mask2])) if mask2.any() else c2
+                    
+                    centroid1 = None
+                    centroid2 = None
+                    
+                    if feat_cols:
+                        feat_arr = df_valid.select(feat_cols).to_numpy()
+                        # handle nulls in feature cols by nanmean
+                        if mask1.any():
+                            centroid1 = np.nanmean(feat_arr[mask1], axis=0)
+                        if mask2.any():
+                            centroid2 = np.nanmean(feat_arr[mask2], axis=0)
+                            
+                        # If a feature is completely null in a cluster, replace nan with 0
+                        if centroid1 is not None:
+                            centroid1 = np.nan_to_num(centroid1)
+                        if centroid2 is not None:
+                            centroid2 = np.nan_to_num(centroid2)
+                    
+                    models[f"cluster:{col}"] = FittedClusterConditional(
+                        grouping_variable=None,
+                        group_fills=None,
+                        fill_1=fill1,
+                        fill_2=fill2,
+                        feature_centroid_1=centroid1,
+                        feature_centroid_2=centroid2,
+                        feature_cols=feat_cols if feat_cols else None,
+                        center1=c1,
+                        center2=c2
+                    )
+
+                rec = next((r for r in records if r.column == col), None)
+                if rec:
+                    target_arr = train_df[col].to_numpy()
+                    obs_vals = target_arr[~np.isnan(target_arr)]
+                    observed_mean = float(np.mean(obs_vals)) if len(obs_vals) > 0 else 0.0
+                    observed_std = float(np.std(obs_vals)) if len(obs_vals) > 0 else 0.0
+                    
+                    from ._fitted_imputer import _apply_cluster_conditional
+                    df_filled = _apply_cluster_conditional(train_df, col, models[f"cluster:{col}"])
+                    s_filled = df_filled[col].to_numpy()
+                    null_mask = train_df[col].is_null().to_numpy()
+                    
+                    if null_mask.any():
+                        imputed_vals = s_filled[null_mask]
+                        imputed_mean = float(np.mean(imputed_vals))
+                        imputed_std = float(np.std(imputed_vals))
+                    else:
+                        imputed_mean = 0.0
+                        imputed_std = 0.0
+                        
+                    variance_ratio = imputed_std / observed_std if observed_std > 0.0 else 0.0
+                    
+                    r2_train = None
+                    rmse = None
+                    mae = None
+                    
+                    if not grouping_var and feat_cols: # branch 3 with features
+                        r2_train, rmse, mae = _compute_cluster_cv_metrics(train_df, col, feat_cols, c1, c2, stats, config)
+                    
+                    rec.diagnostic = ImputationFitDiagnostic(
+                        r2_train=r2_train, rmse=rmse, mae=mae,
+                        converged=None, n_iter=None,
+                        imputed_mean=imputed_mean, imputed_std=imputed_std,
+                        observed_mean=observed_mean, observed_std=observed_std,
+                        variance_ratio=variance_ratio
+                    )
 
         return _NumericFitBundle(records=records, models=models, model_cols=model_cols)
 
@@ -562,6 +873,7 @@ def _resolve_domain_snap_bounds(
         ImputationStrategy.KNN,
         ImputationStrategy.Regression,
         ImputationStrategy.MICE,
+        ImputationStrategy.GMMSampling,
     ):
         return None
     stats = cp.stats if isinstance(cp.stats, NumericStats) else None
@@ -1558,3 +1870,85 @@ def _compute_fold_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> tuple[float
     mae = float(max(0.0, mean_absolute_error(y_true, y_pred)))
 
     return r2, rmse, mae
+
+def _compute_cluster_cv_metrics(
+    train_df: pl.DataFrame, col: str, feat_cols: list[str], c1: float, c2: float, stats: Optional[NumericStats], config: NumericImputationConfig
+) -> tuple[Optional[float], Optional[float], Optional[float]]:
+    all_cols = [col] + feat_cols
+    arr = _df_to_numpy(train_df, all_cols)
+    complete_mask = ~np.isnan(arr).any(axis=1)
+    n_complete = int(complete_mask.sum())
+    
+    if n_complete < config.refit_r2_min_complete_rows:
+        return None, None, None
+        
+    arr_complete = arr[np.where(complete_mask)[0]]
+    n_folds = config.refit_r2_cv_folds
+
+    rng = np.random.default_rng(0)
+    perm = rng.permutation(n_complete)
+    arr_shuffled = arr_complete[perm]
+
+    fold_size = n_complete // n_folds
+    fold_r2s: list[float] = []
+    fold_rmses: list[float] = []
+    fold_maes: list[float] = []
+
+    for fold_idx in range(n_folds):
+        val_start = fold_idx * fold_size
+        val_end = val_start + fold_size if fold_idx < n_folds - 1 else n_complete
+
+        arr_val_sub = arr_shuffled[val_start:val_end]
+        arr_train_sub = np.concatenate(
+            [arr_shuffled[:val_start], arr_shuffled[val_end:]]
+        )
+
+        y_true = arr_val_sub[:, 0]
+        if len(y_true) < 2 or float(np.std(y_true)) == 0.0:
+            continue
+            
+        y_train = arr_train_sub[:, 0]
+        dist1_train = np.abs(y_train - c1)
+        dist2_train = np.abs(y_train - c2)
+        mask1_train = dist1_train <= dist2_train
+        mask2_train = ~mask1_train
+        
+        is_normal = stats is not None and stats.skewness_severity == SkewSeverity.Normal
+        if is_normal:
+            fill1 = float(np.mean(y_train[mask1_train])) if mask1_train.any() else c1
+            fill2 = float(np.mean(y_train[mask2_train])) if mask2_train.any() else c2
+        else:
+            fill1 = float(np.median(y_train[mask1_train])) if mask1_train.any() else c1
+            fill2 = float(np.median(y_train[mask2_train])) if mask2_train.any() else c2
+            
+        feat_train = arr_train_sub[:, 1:]
+        centroid1 = np.nanmean(feat_train[mask1_train], axis=0) if mask1_train.any() else None
+        centroid2 = np.nanmean(feat_train[mask2_train], axis=0) if mask2_train.any() else None
+        if centroid1 is not None: 
+            centroid1 = np.nan_to_num(centroid1)
+        if centroid2 is not None: 
+            centroid2 = np.nan_to_num(centroid2)
+        
+        feat_val = arr_val_sub[:, 1:]
+        feat_val = np.nan_to_num(feat_val)
+        y_pred = np.zeros_like(y_true)
+        
+        for i in range(len(feat_val)):
+            d1 = np.linalg.norm(feat_val[i] - centroid1) if centroid1 is not None else float('inf')
+            d2 = np.linalg.norm(feat_val[i] - centroid2) if centroid2 is not None else float('inf')
+            if d1 <= d2:
+                y_pred[i] = fill1
+            else:
+                y_pred[i] = fill2
+                
+        try:
+            r2_fold, rmse_fold, mae_fold = _compute_fold_metrics(y_true, y_pred)
+            fold_r2s.append(r2_fold)
+            fold_rmses.append(rmse_fold)
+            fold_maes.append(mae_fold)
+        except Exception:
+            pass
+
+    if fold_r2s:
+        return float(np.mean(fold_r2s)), float(np.mean(fold_rmses)), float(np.mean(fold_maes))
+    return None, None, None

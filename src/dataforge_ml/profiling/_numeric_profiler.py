@@ -42,10 +42,12 @@ from ._numeric_config import (
     NumericStats,
     PercentileSnapshot,
     KurtosisTag,
+    TailAsymmetryTag,
     NumericFlag,
     SkewSeverity,
     NumericTopValueEntry,
     HistogramBin,
+    BimodalStats,
 )
 
 # Percentile quantile levels — not a user-configurable threshold
@@ -160,6 +162,12 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
             self._compute_shape(clean, profile, self._config)
 
             self._check_scale_anomaly(profile, self._config)
+            
+            self._compute_tail_asymmetry(profile, self._config)
+
+            self._compute_outlier_density(clean, profile, self._config)
+
+            self._compute_bimodality(clean, profile, self._config)
 
             result.columns[col] = profile
 
@@ -319,3 +327,108 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
         ratio = abs_max / abs_min
         if ratio >= 10**config.scale_orders_of_magnitude:
             profile.flags.append(NumericFlag.ScaleAnomaly)
+
+    # ------------------------------------------------------------------
+    # Step 4: Tail Asymmetry
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _compute_tail_asymmetry(
+        profile: NumericStats,
+        config: NumericProfileConfig,
+    ) -> None:
+        p1 = profile.percentiles.p1
+        p5 = profile.percentiles.p5
+        p95 = profile.percentiles.p95
+        p99 = profile.percentiles.p99
+
+        if p1 is None or p5 is None or p95 is None or p99 is None:
+            return
+
+        denominator = p5 - p1
+        if denominator == 0.0:
+            profile.tail_asymmetry_ratio = None
+            profile.tail_asymmetry_tag = None
+            return
+
+        ratio = (p99 - p95) / denominator
+        profile.tail_asymmetry_ratio = ratio
+
+        if ratio > config.tail_asymmetry_right_threshold:
+            profile.tail_asymmetry_tag = TailAsymmetryTag.RightHeavy
+        elif ratio < config.tail_asymmetry_left_threshold:
+            profile.tail_asymmetry_tag = TailAsymmetryTag.LeftHeavy
+        else:
+            profile.tail_asymmetry_tag = TailAsymmetryTag.Symmetric
+
+    # ------------------------------------------------------------------
+    # Step 5: Outlier Density
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _compute_outlier_density(
+        clean: pl.Series,
+        profile: NumericStats,
+        config: NumericProfileConfig,
+    ) -> None:
+        if profile.std is None or profile.std == 0.0 or profile.mean is None:
+            profile.outlier_density = None
+            return
+
+        n_non_null = clean.len()
+        if n_non_null == 0:
+            return
+
+        threshold = config.outlier_sigma_threshold * profile.std
+        outliers = (clean - profile.mean).abs() > threshold
+        outlier_count = outliers.sum()
+        
+        if outlier_count is None:
+            outlier_count = 0
+            
+        density = outlier_count / n_non_null
+        profile.outlier_density = float(density)
+        
+        if density > config.high_outlier_density_threshold:
+            profile.flags.append(NumericFlag.HighOutlierDensity)
+
+    # ------------------------------------------------------------------
+    # Step 6: Bimodality Detection
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _compute_bimodality(
+        clean: pl.Series,
+        profile: NumericStats,
+        config: NumericProfileConfig,
+    ) -> None:
+        if profile.has_flag(NumericFlag.NearConstant):
+            return
+
+        n_non_null = clean.len()
+        if n_non_null < 3:
+            return
+
+        import diptest
+        from sklearn.mixture import GaussianMixture
+
+        arr = clean.to_numpy()
+        
+        # Hartigan's Dip Test
+        dip_stat, dip_p_value = diptest.diptest(arr)
+
+        if dip_p_value < config.bimodal_dip_p_value_threshold:
+            # Fit 2-component GMM
+            gmm = GaussianMixture(n_components=2, random_state=42)
+            gmm.fit(arr.reshape(-1, 1))
+            
+            centers = gmm.means_.flatten()
+            centers.sort()
+            
+            profile.bimodal_stats = BimodalStats(
+                dip_statistic=float(dip_stat),
+                dip_p_value=float(dip_p_value),
+                center1=float(centers[0]),
+                center2=float(centers[1]),
+            )
+            profile.flags.append(NumericFlag.Bimodal)
