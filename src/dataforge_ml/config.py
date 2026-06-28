@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Union, Optional
 
 if TYPE_CHECKING:
     from dataforge_ml.profiling._config import ProfileConfig, NumericKind
@@ -72,6 +72,10 @@ class PipelineConfig:
         Phase 2-specific parameters (strategy thresholds, size guards).
     split : SplitConfig
         Splitting thresholds (stratification signal cap, boolean minority bar).
+    random_seed : int, optional
+        Single seed for all stochastic pipeline operations, including GMM
+        Sampling during bimodal imputation. None produces non-deterministic
+        output.
     """
 
     exclude_columns: list[str] = field(default_factory=list)
@@ -81,6 +85,7 @@ class PipelineConfig:
     profiling: ProfileConfig = field(default_factory=_default_profile_config)
     imputation: ImputationConfig = field(default_factory=_default_imputation_config)
     split: SplitConfig = field(default_factory=_default_split_config)
+    random_seed: Optional[int] = None
 
     def resolve_active_columns(
         self, phase: PipelinePhase, available_columns: list[str]
@@ -231,6 +236,7 @@ class PipelineConfig:
             "profiling": self.profiling.to_dict(),
             "imputation": self.imputation.to_dict(),
             "split": self.split.to_dict(),
+            "random_seed": self.random_seed,
         }
 
     @classmethod
@@ -268,6 +274,7 @@ class PipelineConfig:
             profiling=ProfileConfig.from_dict(data.get("profiling", {})),
             imputation=ImputationConfig.from_dict(data.get("imputation", {})),
             split=SplitConfig.from_dict(data.get("split", {})),
+            random_seed=data.get("random_seed"),
         )
 
     def to_json(self, indent: int = 2) -> str:

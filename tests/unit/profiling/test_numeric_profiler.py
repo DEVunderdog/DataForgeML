@@ -10,6 +10,7 @@ from dataforge_ml.profiling._numeric_config import (
     NumericStats,
     PercentileSnapshot,
     SkewSeverity,
+    TailAsymmetryTag,
 )
 
 
@@ -451,4 +452,106 @@ def test_config_to_dict_contains_all_keys():
         "kurt_leptokurtic_lower",
         "near_constant_threshold",
         "scale_orders_of_magnitude",
+        "bimodal_dip_p_value_threshold",
+        "tail_asymmetry_right_threshold",
+        "tail_asymmetry_left_threshold",
+        "outlier_sigma_threshold",
+        "high_outlier_density_threshold",
     }
+
+
+# ---------------------------------------------------------------------------
+# Tail Asymmetry
+# ---------------------------------------------------------------------------
+
+
+def test_tail_asymmetry_symmetric():
+    data = list(range(1, 101))
+    df = pl.DataFrame({"v": pl.Series(data, dtype=pl.Float64)})
+    stats = NumericProfiler().profile(df, ["v"]).columns["v"]
+    assert stats.tail_asymmetry_tag == TailAsymmetryTag.Symmetric
+    assert stats.tail_asymmetry_ratio is not None
+    assert 0.5 <= stats.tail_asymmetry_ratio <= 2.0
+
+
+def test_tail_asymmetry_right_heavy():
+    # (1000 - 95) / (5 - 1) = 905 / 4 = 226.25 > 2.0
+    data = list(range(1, 96)) + [100, 200, 500, 800, 1000]
+    df = pl.DataFrame({"v": pl.Series(data, dtype=pl.Float64)})
+    stats = NumericProfiler().profile(df, ["v"]).columns["v"]
+    assert stats.tail_asymmetry_tag == TailAsymmetryTag.RightHeavy
+    assert stats.tail_asymmetry_ratio > 2.0
+
+
+def test_tail_asymmetry_left_heavy():
+    # Left tail spreads much more than right tail
+    data = [-1000, -500, -200, -100, -50] + list(range(-40, 55))
+    df = pl.DataFrame({"v": pl.Series(data, dtype=pl.Float64)})
+    stats = NumericProfiler().profile(df, ["v"]).columns["v"]
+    assert stats.tail_asymmetry_tag == TailAsymmetryTag.LeftHeavy
+    assert stats.tail_asymmetry_ratio < 0.5
+
+
+def test_tail_asymmetry_flat_left_tail():
+    # p5 == p1 => denominator is zero
+    data = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] + list(range(1, 91))
+    df = pl.DataFrame({"v": pl.Series(data, dtype=pl.Float64)})
+    stats = NumericProfiler().profile(df, ["v"]).columns["v"]
+    assert stats.percentiles.p5 == stats.percentiles.p1
+    assert stats.tail_asymmetry_ratio is None
+    assert stats.tail_asymmetry_tag is None
+
+
+def test_tail_asymmetry_configurable_thresholds():
+    data_right = list(range(1, 96)) + [100, 200, 500, 800, 1000]
+    df_right = pl.DataFrame({"v": pl.Series(data_right, dtype=pl.Float64)})
+    cfg1 = NumericProfileConfig(tail_asymmetry_right_threshold=500.0)
+    stats_right = NumericProfiler(config=cfg1).profile(df_right, ["v"]).columns["v"]
+    assert stats_right.tail_asymmetry_tag == TailAsymmetryTag.Symmetric
+
+    data_left = [-1000, -500, -200, -100, -50] + list(range(-40, 55))
+    df_left = pl.DataFrame({"v": pl.Series(data_left, dtype=pl.Float64)})
+    cfg2 = NumericProfileConfig(tail_asymmetry_left_threshold=-1.0)
+    stats_left = NumericProfiler(config=cfg2).profile(df_left, ["v"]).columns["v"]
+    assert stats_left.tail_asymmetry_tag == TailAsymmetryTag.Symmetric
+
+# ---------------------------------------------------------------------------
+# Bimodality Detection
+# ---------------------------------------------------------------------------
+
+
+def test_bimodality_detected():
+    import numpy as np
+    rng = np.random.default_rng(42)
+    # Two clearly separated peaks
+    data = list(rng.normal(0, 1, 100)) + list(rng.normal(10, 1, 100))
+    df = pl.DataFrame({"v": pl.Series(data, dtype=pl.Float64)})
+    stats = NumericProfiler().profile(df, ["v"]).columns["v"]
+    
+    assert NumericFlag.Bimodal in stats.flags
+    assert stats.bimodal_stats is not None
+    assert stats.bimodal_stats.center1 is not None
+    assert stats.bimodal_stats.center2 is not None
+    assert stats.bimodal_stats.center1 < stats.bimodal_stats.center2
+
+
+def test_unimodal_not_bimodal():
+    import numpy as np
+    rng = np.random.default_rng(42)
+    data = list(rng.normal(0, 1, 200))
+    df = pl.DataFrame({"v": pl.Series(data, dtype=pl.Float64)})
+    stats = NumericProfiler().profile(df, ["v"]).columns["v"]
+    
+    assert NumericFlag.Bimodal not in stats.flags
+    assert stats.bimodal_stats is None
+
+
+def test_near_constant_skips_bimodality():
+    # 55/60 > 0.90
+    data = [5.0] * 55 + [1.0, 2.0, 3.0, 4.0, 6.0]
+    df = pl.DataFrame({"v": pl.Series(data, dtype=pl.Float64)})
+    stats = NumericProfiler().profile(df, ["v"]).columns["v"]
+    
+    assert NumericFlag.NearConstant in stats.flags
+    assert NumericFlag.Bimodal not in stats.flags
+    assert stats.bimodal_stats is None

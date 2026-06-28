@@ -1871,6 +1871,7 @@ def _router_route(
         multi_mar=multi_mar,
         mnar_columns=mnar_columns or set(),
         feature_correlation=feature_correlation,
+        per_column_strategy=(config or _DEFAULT_CONFIG).per_column_strategy,
     )
 
 
@@ -2094,6 +2095,87 @@ def test_router_size_guards_fail_falls_to_median():
     strategy, signals = _router_route(cp, n_rows=100, config=config)
     assert strategy == ImputationStrategy.Median
     assert any("all size guards failed" in s for s in signals)
+
+def test_router_bimodal_branch_1_grouping_var():
+    """Branch 1 fires when grouping variable declared (overrides feature count)."""
+    cp = _numeric_cp(null_count=2, total_rows=100, severity=MissingSeverity.Minor,
+                     numeric_flags=[NumericFlag.Bimodal])
+    config = NumericImputationConfig(bimodal_grouping_variables={_COL: "group_col"})
+    from dataforge_ml.profiling._correlation_config import CorrelationProfileResult
+    feature_correlation = CorrelationProfileResult(pearson_matrix={_COL: {"f1": 0.9, "f2": 0.8, "f3": 0.7, "f4": 0.6}})
+    strategy, signals = _router_route(cp, config=config, feature_correlation=feature_correlation)
+    assert strategy == ImputationStrategy.ClusterConditional
+    assert any("bimodal_branch_1" in s for s in signals)
+
+
+def test_router_bimodal_branch_2_many_features():
+    """Branch 2 fires when >= bimodal_min_correlated_features features present; strategy comes from _mar_strategy."""
+    cp = _numeric_cp(null_count=20, total_rows=1000, severity=MissingSeverity.High,
+                     numeric_flags=[NumericFlag.Bimodal])
+    config = NumericImputationConfig(bimodal_min_correlated_features=3, bimodal_correlation_threshold=0.2, knn_max_rows=50000, knn_max_features=50)
+    from dataforge_ml.profiling._correlation_config import CorrelationProfileResult
+    feature_correlation = CorrelationProfileResult(pearson_matrix={_COL: {"f1": 0.9, "f2": 0.8, "f3": 0.7, "f4": 0.1, _COL: 1.0}})
+    strategy, signals = _router_route(cp, config=config, feature_correlation=feature_correlation)
+    # Routes to Regression via _mar_strategy because MAR High + correlations and enough rows (n_rows=1000 > 500)
+    assert strategy == ImputationStrategy.Regression
+    assert any("bimodal_branch_2" in s for s in signals)
+
+
+def test_router_bimodal_branch_3_few_features():
+    """Branch 3 fires when 1 to bimodal_min_correlated_features - 1 features present -> ClusterConditional."""
+    cp = _numeric_cp(null_count=20, total_rows=1000, severity=MissingSeverity.High,
+                     numeric_flags=[NumericFlag.Bimodal])
+    config = NumericImputationConfig(bimodal_min_correlated_features=3, bimodal_correlation_threshold=0.2)
+    from dataforge_ml.profiling._correlation_config import CorrelationProfileResult
+    feature_correlation = CorrelationProfileResult(pearson_matrix={_COL: {"f1": 0.9, "f2": 0.8, "f3": 0.1, _COL: 1.0}})
+    strategy, signals = _router_route(cp, config=config, feature_correlation=feature_correlation)
+    assert strategy == ImputationStrategy.ClusterConditional
+    assert any("bimodal_branch_3" in s for s in signals)
+
+
+def test_router_bimodal_branch_4_zero_features():
+    """Branch 4 fires when 0 features -> GMMSampling."""
+    cp = _numeric_cp(null_count=20, total_rows=1000, severity=MissingSeverity.High,
+                     numeric_flags=[NumericFlag.Bimodal])
+    config = NumericImputationConfig(bimodal_min_correlated_features=3, bimodal_correlation_threshold=0.2)
+    from dataforge_ml.profiling._correlation_config import CorrelationProfileResult
+    feature_correlation = CorrelationProfileResult(pearson_matrix={_COL: {"f1": 0.1, _COL: 1.0}})
+    strategy, signals = _router_route(cp, config=config, feature_correlation=feature_correlation)
+    assert strategy == ImputationStrategy.GMMSampling
+    assert any("bimodal_branch_4" in s for s in signals)
+
+
+def test_router_bimodal_branch_4_none_correlation():
+    """Branch 4 fires when feature_correlation is None (branches 2 and 3 skipped)."""
+    cp = _numeric_cp(null_count=20, total_rows=1000, severity=MissingSeverity.High,
+                     numeric_flags=[NumericFlag.Bimodal])
+    config = NumericImputationConfig()
+    strategy, signals = _router_route(cp, config=config, feature_correlation=None)
+    assert strategy == ImputationStrategy.GMMSampling
+    assert any("bimodal_branch_4" in s for s in signals)
+
+
+def test_router_bimodal_unpredictable_routes_to_gmm():
+    """A bimodal column with NonlinearityTag.Unpredictable and no features -> GMMSampling (not Median)."""
+    cp = _numeric_cp(null_count=20, total_rows=1000, severity=MissingSeverity.High,
+                     numeric_flags=[NumericFlag.Bimodal])
+    cp.stats = NumericStats(nonlinearity_tag=NonlinearityTag.Unpredictable, flags=[NumericFlag.Bimodal])
+    config = NumericImputationConfig()
+    strategy, signals = _router_route(cp, config=config, feature_correlation=None)
+    assert strategy == ImputationStrategy.GMMSampling
+    assert any("bimodal_branch_4" in s for s in signals)
+    assert not any("unpredictable_guard" in s for s in signals)
+
+
+def test_router_bimodal_per_column_strategy_override():
+    """per_column_strategy override at Priority 1.5 bypasses the bimodal framework entirely."""
+    cp = _numeric_cp(null_count=20, total_rows=1000, severity=MissingSeverity.High,
+                     numeric_flags=[NumericFlag.Bimodal])
+    config = NumericImputationConfig(per_column_strategy={_COL: ImputationStrategy.Mean})
+    strategy, signals = _router_route(cp, config=config, feature_correlation=None)
+    assert strategy == ImputationStrategy.Mean
+    assert any("per_column_strategy_override" in s for s in signals)
+    assert not any("bimodal_branch" in s for s in signals)
 
 
 # ---------------------------------------------------------------------------
@@ -2369,3 +2451,150 @@ def test_per_column_strategy_scalar_overrides_not_checked_by_size_guard():
         regression_min_rows=999_999,
     )
     _fit_one_with_config(df, cp, config_const)
+
+
+def test_numeric_imputer_bimodal_smoke_test():
+    """NumericImputer.fit() populates gmm_cols and cluster_cols from the routed records (end-to-end smoke test with a synthetic bimodal DataFrame)."""
+    from dataforge_ml.profiling._config import StructuralProfileResult
+    from dataforge_ml.imputation._numeric_imputer import NumericImputer
+    from dataforge_ml.imputation._config import ImputationConfig
+    from dataforge_ml.profiling._numeric_config import BimodalStats
+
+    df = pl.DataFrame({
+        "col_gmm": pl.Series([1.0, 2.0, None, 4.0, 5.0, 6.0], dtype=pl.Float64),
+        "col_cluster": pl.Series([1.0, 2.0, None, 4.0, 5.0, 6.0], dtype=pl.Float64),
+        "group_var": pl.Series([1.0, 1.0, 2.0, 2.0, 1.0, 2.0], dtype=pl.Float64),
+    })
+
+    cp_gmm = _numeric_cp(
+        null_count=1, total_rows=6, severity=MissingSeverity.Minor,
+        numeric_flags=[NumericFlag.Bimodal]
+    )
+    cp_gmm.name = "col_gmm"
+    cp_gmm.stats = NumericStats(flags=[NumericFlag.Bimodal], min=1.0, max=6.0, mean=3.6, std=1.8)
+    cp_gmm.stats.bimodal_stats = BimodalStats(center1=1.5, center2=5.0, dip_statistic=0.1, dip_p_value=0.01)
+    
+    cp_cluster = _numeric_cp(
+        null_count=1, total_rows=6, severity=MissingSeverity.Minor,
+        numeric_flags=[NumericFlag.Bimodal]
+    )
+    cp_cluster.name = "col_cluster"
+    cp_cluster.stats = NumericStats(flags=[NumericFlag.Bimodal], min=1.0, max=6.0, mean=3.6, std=1.8)
+    cp_cluster.stats.bimodal_stats = BimodalStats(center1=1.5, center2=5.0, dip_statistic=0.1, dip_p_value=0.01)
+    
+    cp_group = _numeric_cp(null_count=0, total_rows=6)
+    cp_group.name = "group_var"
+
+    profile = StructuralProfileResult()
+    profile.columns = {"col_gmm": cp_gmm, "col_cluster": cp_cluster, "group_var": cp_group}
+    
+    config = ImputationConfig(
+        numeric=NumericImputationConfig(
+            bimodal_grouping_variables={"col_cluster": "group_var"}
+        )
+    )
+
+    imputer = NumericImputer()
+    bundle = imputer.fit(
+        train_df=df,
+        columns=["col_gmm", "col_cluster", "group_var"],
+        profile=profile,
+        config=config.numeric,
+        mnar_columns=set()
+    )
+    
+    rec_gmm = next(r for r in bundle.records if r.column == "col_gmm")
+    assert rec_gmm.strategy == ImputationStrategy.GMMSampling
+    
+    rec_cluster = next(r for r in bundle.records if r.column == "col_cluster")
+    assert rec_cluster.strategy == ImputationStrategy.ClusterConditional
+    
+    assert "gmm:col_gmm" in bundle.models
+    assert "cluster:col_cluster" in bundle.models
+
+
+def test_router_bounded_discrete_bimodal_branch_1():
+    """Branch 1: grouping variable declared → ClusterConditional."""
+    cp = _numeric_cp(null_count=20, total_rows=1000, severity=MissingSeverity.High,
+                     numeric_kind=NumericKind.BoundedDiscrete,
+                     numeric_flags=[NumericFlag.Bimodal])
+    config = NumericImputationConfig(bimodal_grouping_variables={_COL: "group_col"})
+    from dataforge_ml.profiling._correlation_config import CorrelationProfileResult
+    feature_correlation = CorrelationProfileResult(pearson_matrix={_COL: {"f1": 0.9, "f2": 0.8, "f3": 0.7, "f4": 0.6}})
+    strategy, signals = _router_route(cp, config=config, feature_correlation=feature_correlation)
+    assert strategy == ImputationStrategy.ClusterConditional
+    assert any("bimodal_branch_1" in s for s in signals)
+
+def test_router_bounded_discrete_bimodal_branch_2_many_features():
+    """Branch 2: many features → model-based strategy from _mar_strategy; Median terminal replaced by Mode."""
+    cp = _numeric_cp(null_count=20, total_rows=1000, severity=MissingSeverity.High,
+                     numeric_kind=NumericKind.BoundedDiscrete,
+                     numeric_flags=[NumericFlag.Bimodal])
+    cp.stats = NumericStats(min=0.0, max=10.0, flags=[NumericFlag.Bimodal])
+    config = NumericImputationConfig(bimodal_min_correlated_features=3, bimodal_correlation_threshold=0.2, knn_max_rows=50000, knn_max_features=50)
+    from dataforge_ml.profiling._correlation_config import CorrelationProfileResult
+    feature_correlation = CorrelationProfileResult(pearson_matrix={_COL: {"f1": 0.9, "f2": 0.8, "f3": 0.7, "f4": 0.1, _COL: 1.0}})
+    strategy, signals = _router_route(cp, config=config, feature_correlation=feature_correlation)
+    assert strategy == ImputationStrategy.Regression
+    assert any("bimodal_branch_2" in s for s in signals)
+    assert any("domain_snap_bounds=(0.0, 10.0)" in s for s in signals)
+
+def test_router_bounded_discrete_bimodal_branch_2_median_fallback():
+    """Branch 2: when _mar_strategy returns Median, it is replaced by Mode."""
+    cp = _numeric_cp(null_count=20, total_rows=1000, severity=MissingSeverity.High,
+                     numeric_kind=NumericKind.BoundedDiscrete,
+                     numeric_flags=[NumericFlag.Bimodal])
+    config = NumericImputationConfig(bimodal_min_correlated_features=3, bimodal_correlation_threshold=0.2, 
+                                     knn_max_rows=50000, regression_min_rows=100000)
+    from dataforge_ml.profiling._correlation_config import CorrelationProfileResult
+    feature_correlation = CorrelationProfileResult(pearson_matrix={_COL: {"f1": 0.9, "f2": 0.8, "f3": 0.7, "f4": 0.1, _COL: 1.0}})
+    strategy, signals = _router_route(cp, n_rows=60000, config=config, feature_correlation=feature_correlation)
+    assert strategy == ImputationStrategy.Mode
+    assert any("bimodal_branch_2" in s for s in signals)
+    assert any("median not valid domain member" in s for s in signals)
+
+def test_router_bounded_discrete_bimodal_branch_3_few_features():
+    """Branch 3: 1-2 features → ClusterConditional."""
+    cp = _numeric_cp(null_count=20, total_rows=1000, severity=MissingSeverity.High,
+                     numeric_kind=NumericKind.BoundedDiscrete,
+                     numeric_flags=[NumericFlag.Bimodal])
+    config = NumericImputationConfig(bimodal_min_correlated_features=3, bimodal_correlation_threshold=0.2)
+    from dataforge_ml.profiling._correlation_config import CorrelationProfileResult
+    feature_correlation = CorrelationProfileResult(pearson_matrix={_COL: {"f1": 0.9, "f2": 0.8, "f3": 0.1, _COL: 1.0}})
+    strategy, signals = _router_route(cp, config=config, feature_correlation=feature_correlation)
+    assert strategy == ImputationStrategy.ClusterConditional
+    assert any("bimodal_branch_3" in s for s in signals)
+
+def test_router_bounded_discrete_bimodal_branch_4_no_features():
+    """Branch 4: no features → Mode, not GMMSampling."""
+    cp = _numeric_cp(null_count=20, total_rows=1000, severity=MissingSeverity.High,
+                     numeric_kind=NumericKind.BoundedDiscrete,
+                     numeric_flags=[NumericFlag.Bimodal])
+    config = NumericImputationConfig(bimodal_min_correlated_features=3, bimodal_correlation_threshold=0.2)
+    from dataforge_ml.profiling._correlation_config import CorrelationProfileResult
+    feature_correlation = CorrelationProfileResult(pearson_matrix={_COL: {"f1": 0.1, _COL: 1.0}})
+    strategy, signals = _router_route(cp, config=config, feature_correlation=feature_correlation)
+    assert strategy == ImputationStrategy.Mode
+    assert any("bimodal_branch_4: no correlated features, mode" in s for s in signals)
+
+def test_router_bounded_discrete_bimodal_none_correlation():
+    """When feature_correlation is None, BoundedDiscrete bimodal column with no grouping variable routes to Mode."""
+    cp = _numeric_cp(null_count=20, total_rows=1000, severity=MissingSeverity.High,
+                     numeric_kind=NumericKind.BoundedDiscrete,
+                     numeric_flags=[NumericFlag.Bimodal])
+    config = NumericImputationConfig()
+    strategy, signals = _router_route(cp, config=config, feature_correlation=None)
+    assert strategy == ImputationStrategy.Mode
+    assert any("bimodal_branch_4: no correlated features, mode" in s for s in signals)
+
+def test_router_bounded_discrete_bimodal_unpredictable():
+    """BoundedDiscrete + Bimodal + Unpredictable: Unpredictable guard (step a) fires before bimodal check -> Mode."""
+    cp = _numeric_cp(null_count=20, total_rows=1000, severity=MissingSeverity.High,
+                     numeric_kind=NumericKind.BoundedDiscrete)
+    cp.stats = NumericStats(nonlinearity_tag=NonlinearityTag.Unpredictable, flags=[NumericFlag.Bimodal])
+    config = NumericImputationConfig()
+    strategy, signals = _router_route(cp, config=config, feature_correlation=None)
+    assert strategy == ImputationStrategy.Mode
+    assert any("unpredictable_guard" in s for s in signals)
+    assert not any("bimodal_branch" in s for s in signals)
+

@@ -103,6 +103,9 @@ def test_numeric_config_to_dict_contains_all_keys():
         "mice_max_iter",
         "refit_r2_min_complete_rows",
         "refit_r2_cv_folds",
+        "bimodal_grouping_variables",
+        "bimodal_min_correlated_features",
+        "bimodal_correlation_threshold",
     }
 
 
@@ -139,6 +142,13 @@ def test_numeric_config_from_dict_empty_uses_defaults():
     assert cfg.regression_min_rows == 500
     assert cfg.gradient_boost_min_rows == 10_000
     assert cfg.base_max_iter == 10
+    assert cfg.bimodal_correlation_threshold == 0.2
+
+
+def test_numeric_config_round_trip_bimodal_correlation_threshold():
+    original = NumericImputationConfig(bimodal_correlation_threshold=0.45)
+    restored = NumericImputationConfig.from_dict(original.to_dict())
+    assert restored.bimodal_correlation_threshold == 0.45
 
 
 def test_numeric_config_from_dict_ignores_legacy_mnar_constant_fill():

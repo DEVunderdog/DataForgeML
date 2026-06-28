@@ -659,6 +659,7 @@ def test_numeric_sentinel_end_to_end_fit_transform():
 
     config = PipelineConfig(
         profiling=ProfileConfig(numeric_sentinels={"age": [-999.0]}),
+        random_seed=42,
     )
     profile = StructuralProfiler(config).profile(df)
 

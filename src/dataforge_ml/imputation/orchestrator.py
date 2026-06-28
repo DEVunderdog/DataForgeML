@@ -96,6 +96,7 @@ class ImputationOrchestrator:
                 profile=profile,
                 config=imp_cfg.numeric,
                 mnar_columns=mnar_columns,
+                random_seed=self._config.random_seed,
             )
             if isinstance(result, _NumericFitBundle):
                 recs = result.records
@@ -140,6 +141,7 @@ class ImputationOrchestrator:
             model_cols=all_model_cols,
             numeric_sentinels=dict(profile.numeric_sentinels),
             string_sentinels=dict(profile.string_sentinels),
+            random_seed=self._config.random_seed,
         )
 
     def fit_transform(

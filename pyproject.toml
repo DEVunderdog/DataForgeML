@@ -24,6 +24,7 @@ dependencies = [
     "pandas>=2.0.0",
     "chardet>=5.0.0",
     "iterative-stratification>=0.1.9",
+    "diptest",
 ]
 
 [project.optional-dependencies]

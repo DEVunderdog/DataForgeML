@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import polars as pl
@@ -195,6 +195,7 @@ class FittedImputer:
     model_cols: dict[str, list[str]] = field(default_factory=dict)
     numeric_sentinels: dict[str, list[float]] = field(default_factory=dict)
     string_sentinels: dict[str, list[str]] = field(default_factory=dict)
+    random_seed: Optional[int] = None
 
     def __post_init__(self) -> None:
         self._exclusions_applied: bool = False
@@ -408,6 +409,17 @@ class FittedImputer:
                             pl.col(col).round(0).clip(lo, hi).alias(col)
                         )
 
+            for col, rec in self.records.items():
+                if rec.strategy == ImputationStrategy.ClusterConditional:
+                    result_df = _apply_cluster_conditional(
+                        result_df, col, self.models[f"cluster:{col}"]
+                    )
+                elif rec.strategy == ImputationStrategy.GMMSampling:
+                    result_df = _apply_gmm_sampling(
+                        result_df, col, self.models[f"gmm:{col}"], self.random_seed, self.records
+                    )
+
+
         return ImputationResult(
             dataframe=result_df,
             records=dict(self.records),
@@ -429,11 +441,18 @@ class FittedImputer:
         import io
         import joblib
 
+        import json
         serialized_models: dict[str, str] = {}
         for key, model in self.models.items():
-            buf = io.BytesIO()
-            joblib.dump(model, buf)
-            serialized_models[key] = base64.b64encode(buf.getvalue()).decode("ascii")
+            if type(model).__name__ in ("FittedClusterConditional", "FittedGMMSampling"):
+                serialized_models[key] = json.dumps({
+                    "_type": type(model).__name__,
+                    "data": model.to_dict()
+                })
+            else:
+                buf = io.BytesIO()
+                joblib.dump(model, buf)
+                serialized_models[key] = base64.b64encode(buf.getvalue()).decode("ascii")
 
         return {
             "records": {col: rec.to_dict() for col, rec in self.records.items()},
@@ -441,6 +460,7 @@ class FittedImputer:
             "model_cols": {k: list(v) for k, v in self.model_cols.items()},
             "numeric_sentinels": {k: list(v) for k, v in self.numeric_sentinels.items()},
             "string_sentinels": {k: list(v) for k, v in self.string_sentinels.items()},
+            "random_seed": self.random_seed,
         }
 
     @classmethod
@@ -494,10 +514,20 @@ class FittedImputer:
             k: list(v) for k, v in data.get("model_cols", {}).items()
         }
 
+        import json
         models: dict[str, Any] = {}
         for key, b64str in data.get("models", {}).items():
-            buf = io.BytesIO(base64.b64decode(b64str))
-            models[key] = joblib.load(buf)
+            if b64str.startswith('{"_type":'):
+                payload = json.loads(b64str)
+                if payload["_type"] == "FittedClusterConditional":
+                    from ._numeric_imputer import FittedClusterConditional
+                    models[key] = FittedClusterConditional.from_dict(payload["data"])
+                elif payload["_type"] == "FittedGMMSampling":
+                    from ._numeric_imputer import FittedGMMSampling
+                    models[key] = FittedGMMSampling.from_dict(payload["data"])
+            else:
+                buf = io.BytesIO(base64.b64decode(b64str))
+                models[key] = joblib.load(buf)
 
         numeric_sentinels: dict[str, list[float]] = {
             k: [float(v) for v in vals]
@@ -515,6 +545,7 @@ class FittedImputer:
             model_cols=model_cols,
             numeric_sentinels=numeric_sentinels,
             string_sentinels=string_sentinels,
+            random_seed=data.get("random_seed"),
         )
 
 
@@ -660,3 +691,74 @@ def _apply_domain_snap(
     return df
 
 
+
+def _apply_gmm_sampling(
+    df: pl.DataFrame, col: str, model: Any, random_seed: Optional[int], records: dict
+) -> pl.DataFrame:
+    s = df[col]
+    null_mask = s.is_null()
+    n_missing = null_mask.sum()
+    if n_missing == 0:
+        return df
+
+    rng = np.random.default_rng(random_seed)
+    
+    choices = rng.choice([0, 1], p=[model.weight1, model.weight2], size=n_missing)
+    samples = np.where(
+        choices == 0,
+        rng.normal(model.center1, model.std1, size=n_missing),
+        rng.normal(model.center2, model.std2, size=n_missing)
+    )
+    
+    rec = records.get(col)
+    if rec and rec.domain_snap_bounds is not None:
+        lo, hi = rec.domain_snap_bounds
+        samples = np.clip(np.round(samples), lo, hi)
+        
+    s_arr = s.to_numpy().copy()
+    s_arr[null_mask.to_numpy()] = samples
+    
+    return df.with_columns(pl.Series(col, s_arr))
+
+def _apply_cluster_conditional(
+    df: pl.DataFrame, col: str, model: Any
+) -> pl.DataFrame:
+    s = df[col]
+    null_mask = s.is_null()
+    n_missing = null_mask.sum()
+    if n_missing == 0:
+        return df
+        
+    import pandas as pd
+    s_arr = s.to_numpy().copy()
+    null_idx = np.where(null_mask.to_numpy())[0]
+
+    if model.grouping_variable:
+        group_s = df[model.grouping_variable].to_numpy()
+        for idx in null_idx:
+            group_val = group_s[idx]
+            if pd.isna(group_val):
+                continue
+            fill_val = model.group_fills.get(group_val)
+            if fill_val is not None:
+                s_arr[idx] = fill_val
+    else:
+        if model.feature_cols:
+            feat_arr = df.select(model.feature_cols).to_numpy()
+            for idx in null_idx:
+                row_feats = feat_arr[idx]
+                row_feats = np.nan_to_num(row_feats)
+                
+                dist1 = float('inf')
+                dist2 = float('inf')
+                if model.feature_centroid_1 is not None:
+                    dist1 = np.linalg.norm(row_feats - model.feature_centroid_1)
+                if model.feature_centroid_2 is not None:
+                    dist2 = np.linalg.norm(row_feats - model.feature_centroid_2)
+                    
+                if dist1 <= dist2 and model.fill_1 is not None:
+                    s_arr[idx] = model.fill_1
+                elif model.fill_2 is not None:
+                    s_arr[idx] = model.fill_2
+                    
+    return df.with_columns(pl.Series(col, s_arr))
