@@ -1,6 +1,6 @@
 # ADR 0034: Documentation strategy — numpy-style docstrings as API contract, mkdocs + mkdocstrings for generation
 
-**Status:** Accepted
+**Status:** Superseded by ADR-0038 (toolchain only — docstring rules unchanged)
 
 ## Context
 

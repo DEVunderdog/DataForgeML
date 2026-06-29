@@ -143,9 +143,30 @@ class ColumnMissingnessProfile:
     correlated_with: list[str] = field(default_factory=list)
 
     def has_flag(self, flag: MissingnessFlag) -> bool:
+        """Return whether this column carries the given ``MissingnessFlag``.
+
+        Parameters
+        ----------
+        flag : MissingnessFlag
+            The flag to test for.
+
+        Returns
+        -------
+        bool
+            ``True`` if *flag* is present in ``self.flags``, ``False`` otherwise.
+        """
         return flag in self.flags
 
     def to_dict(self) -> dict:
+        """Serialise the column profile to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            All field values keyed by field name. ``severity`` is converted to
+            its string value or ``None``; ``flags`` are converted to their
+            string values.
+        """
         return {
             "column": self.column,
             "total_rows": self.total_rows,

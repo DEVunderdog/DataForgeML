@@ -12,6 +12,13 @@ if TYPE_CHECKING:
 
 
 class SemanticType(StrEnum):
+    """The ML-level interpretation assigned to a column by the type detector.
+
+    Used throughout the pipeline to route columns to the correct sub-processors
+    and to determine which statistical operations apply. See CONTEXT.md §SemanticType
+    for the full type taxonomy and the Text vs Categorical distinction.
+    """
+
     Numeric = "numeric"
     Categorical = "categorical"
     Datetime = "datetime"
@@ -21,10 +28,23 @@ class SemanticType(StrEnum):
 
 
 class Modality(StrEnum):
+    """The data modality the pipeline operates on.
+
+    Currently only ``Tabular`` is supported. Reserved for future expansion to
+    additional modalities (time-series, image, etc.).
+    """
+
     Tabular = "tabular"
 
 
 class PipelinePhase(StrEnum):
+    """The six sequential phases of the DataForgeML feature engineering pipeline.
+
+    Phase Orchestrators call ``PipelineConfig.resolve_active_columns`` with one
+    of these values to obtain the column set for that phase after Hard and Soft
+    Exclusions are applied.
+    """
+
     Profiling = "profiling"
     Imputation = "imputation"
     OutlierDetection = "outlier_detection"
@@ -90,11 +110,25 @@ class PipelineConfig:
     def resolve_active_columns(
         self, phase: PipelinePhase, available_columns: list[str]
     ) -> list[str]:
-        """
-        Return the columns the given phase should operate on.
+        """Return the columns the given phase should operate on.
 
-        Hard exclusions are applied first, then phase-specific soft exclusions.
-        Columns absent from available_columns are silently ignored in both lists.
+        Hard Exclusions are applied first, then phase-specific Soft Exclusions.
+        Columns absent from ``available_columns`` are silently ignored in both
+        exclusion lists.
+
+        Parameters
+        ----------
+        phase : PipelinePhase
+            The pipeline phase requesting the active column set.
+        available_columns : list[str]
+            The full list of columns currently present in the DataFrame.
+
+        Returns
+        -------
+        list[str]
+            Columns from ``available_columns`` that are not excluded by either
+            Hard or Soft Exclusion rules for the given phase, preserving the
+            original order.
         """
         hard_set = set(self.exclude_columns)
         soft_set = set(self.phase_exclusions.get(phase, []))
