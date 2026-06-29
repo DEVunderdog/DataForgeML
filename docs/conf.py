@@ -10,3 +10,4 @@ html_theme = "pydata_sphinx_theme"
 napoleon_numpy_docstring = True
 autodoc_typehints = "description"
 numpydoc_show_class_members = False
+exclude_patterns = ["_build", "adr/**"]
