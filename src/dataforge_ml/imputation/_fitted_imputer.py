@@ -166,7 +166,7 @@ class FittedImputer:
         - ``"knn"``           : ``_FittedKNN`` for KNN-assigned columns.
         - ``"mice"``          : ``IterativeImputer`` for MICE-assigned columns.
         - ``"regression:{col}"`` : ``FittedRegression`` containing a fitted
-        ``IterativeImputer``.
+          ``IterativeImputer``.
     model_cols : dict[str, list[str]]
         Ordered column lists for each model entry in models.  Regression
         entries store the full ``[col] + feat_cols`` list (including the

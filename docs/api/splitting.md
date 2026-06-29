@@ -16,14 +16,10 @@
 
 ```{eval-rst}
 .. autoclass:: dataforge_ml.splitting._config.SplitResult
-   :members:
-   :undoc-members:
    :show-inheritance:
 ```
 
 ```{eval-rst}
 .. autoclass:: dataforge_ml.splitting._config.FoldResult
-   :members:
-   :undoc-members:
    :show-inheritance:
 ```
