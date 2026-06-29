@@ -1,0 +1,1616 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>dataforge_ml.imputation._config &#8212; DataForgeML  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../../../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5" />
+
+    <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/dataforge_ml/imputation/_config';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../../../_static/searchtools.js"></script>
+    <script src="../../../_static/language_data.js"></script>
+    <script src="../../../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">DataForgeML  documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/pipeline.html">
+    Pipeline
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/profiling.html">
+    Profiling
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/imputation.html">
+    Imputation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/splitting.html">
+    Splitting
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/utilities.html">
+    Utilities
+  </a>
+</li>
+
+            <li class="nav-item dropdown">
+                <button class="btn dropdown-toggle nav-item" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false"
+                aria-controls="pst-nav-more-links">
+                    More
+                </button>
+                <ul id="pst-nav-more-links" class="dropdown-menu">
+                    
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0001-type-detection-no-external-library.html">
+    ADR 0001: Type detection without an external type-inference library
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0002-sub-processors-hold-no-config.html">
+    ADR 0002: Sub-processors hold no configuration — Phase Orchestrators own all routing and exclusion decisions
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0003-pipeline-config-at-package-root.html">
+    PipelineConfig lives at the package root, not inside the profiling module
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0004-impute-before-normalize.html">
+    ADR 0004: Impute missing values before normalizing distributions
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0005-imputation-registry-per-semantic-type.html">
+    ADR 0005: Imputation sub-processors registered per SemanticType
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0006-fitted-imputer-stateless-fit-returns-object.html">
+    ADR 0006: fit() returns a stateless FittedImputer rather than mutating the orchestrator
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0007-profile-stratified-split-full-profile-signals.html">
+    ADR 0007: Profile-stratified split uses full profile signals, not missingness only
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0008-stratification-signal-taxonomy-extension.html">
+    ADR 0008: Stratification signal taxonomy extension
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0009-phase2-effective-null-boundary-normalization.html">
+    ADR 0009: Phase 2 effective null boundary normalization
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0010-knn-nan-safe-manual-scaling.html">
+    ADR 0010: NaN-safe manual scaling for KNN rather than sklearn Pipeline
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0011-mice-estimator-most-complex-tag-wins.html">
+    ADR 0011: MICE estimator selection uses the most complex NonlinearityTag across the block
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0012-mice-sample-posterior-deferred.html">
+    ADR 0012: sample_posterior stays False in MICE; posterior sampling deferred
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0013-fit-quality-held-back-evaluation.html">
+    Held-back evaluation for ImputationFitDiagnostic R² — k-fold CV on complete rows
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0014-mcar-rmse-mae-shares-r2-holdback.html">
+    ADR 0014: MCAR RMSE/MAE evaluation shares the R² holdback pass — no separate masking pass
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0015-rmse-mae-diagnostic-only-excluded-from-suggest-refit.html">
+    ADR 0015: RMSE and MAE are diagnostic-only — not used for automated decisions
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0016-unpredictable-is-unconditional-pre-routing-guard.html">
+    ADR 0016: NonlinearityTag.Unpredictable is an unconditional pre-routing guard
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0017-distribution-shape-is-universal-routing-signal.html">
+    ADR 0017: Distribution shape (KurtosisTag + SkewSeverity) is a universal routing signal across all missingness paths
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0018-bounded-discrete-compound-classification.html">
+    ADR 0018: BoundedDiscrete replaces Discrete — compound four-signal classification
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0019-mnar-data-derived-fill-replaces-sentinel.html">
+    ADR 0019 — MNAR fill is data-derived (mean/median), not a user-configured sentinel
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0020-test-split-imbalance-check-in-transform.html">
+    ADR 0020: TestSplitImbalanceWarning lives in FittedImputer.transform(), not DataSplitter
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0021-fit-transform-returns-tuple.html">
+    ADR 0021: fit_transform returns tuple[FittedImputer, ImputationResult]
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0022-proportional-split-imbalance-check.html">
+    ADR 0022: Split imbalance check is proportional, not binary
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0023-dropcandiate-exclusion-propagation-caller-initiated-phase3-enforced.html">
+    ADR 0023: DropCandidate exclusion propagation is caller-initiated and Phase-3-enforced
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0024-records-is-full-train-schema-manifest.html">
+    ADR 0024: self.records is a complete manifest of the train schema
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0025-indicator-records-written-at-fit-time.html">
+    ADR 0025: Indicator column records are written into self.records at fit time
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0026-unseen-column-error-fires-regardless-of-missingness.html">
+    ADR 0026: UnseenColumnError fires on any column absent from self.records, regardless of missingness
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0027-regression-fitted-model-stores-target-idx.html">
+    ADR 0027: Regression fitted model stores target_idx explicitly alongside the fitted IterativeImputer
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0028-df-to-numpy-sentinel-ignorant-precondition.html">
+    ADR 0028: _df_to_numpy is sentinel-ignorant; normalization is the caller’s precondition
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0029-per-column-strategy-fires-after-dropcanidate-errors-on-size-guard.html">
+    ADR 0029: per_column_strategy fires after DropCandidate and raises at fit time when size guards fail
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0030-definitional-thresholds-promoted-to-phase-sub-configs.html">
+    ADR-0030: Definitional thresholds promoted to user-configurable Phase Sub-Configs
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0031-bimodality-dual-detection-dip-test-plus-gmm.html">
+    ADR 0031: Bimodality is detected with Hartigan’s Dip Test for the signal and 2-component GMM for peak locations
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0032-bimodal-imputation-framework.html">
+    ADR 0032: Bimodal columns follow a four-branch imputation framework ordered by available cluster evidence
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0033-tail-asymmetry-outlier-density-routing-signals.html">
+    ADR 0033: Tail asymmetry ratio and outlier density extend the universal distribution shape escalation from ADR-0017
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0034-documentation-strategy-docstrings-mkdocs.html">
+    ADR 0034: Documentation strategy — numpy-style docstrings as API contract, mkdocs + mkdocstrings for generation
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0035-bounded-discrete-model-based-routing-with-domain-snap.html">
+    ADR 0035: BoundedDiscrete model-based routing with domain-snap
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0036-remove-proportional-split-imbalance-checks.html">
+    ADR 0036: Remove proportional split imbalance checks
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0037-knn-mice-block-override-scalars.html">
+    KNN and MICE block overrides are scalars, not per-column dicts
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0038-sphinx-pydata-theme-replaces-mkdocs.html">
+    ADR 0038: Sphinx + PyData Sphinx Theme replaces MkDocs as the docs build toolchain
+  </a>
+</li>
+
+                </ul>
+            </li>
+            
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/pipeline.html">
+    Pipeline
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/profiling.html">
+    Profiling
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/imputation.html">
+    Imputation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/splitting.html">
+    Splitting
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/utilities.html">
+    Utilities
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0001-type-detection-no-external-library.html">
+    ADR 0001: Type detection without an external type-inference library
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0002-sub-processors-hold-no-config.html">
+    ADR 0002: Sub-processors hold no configuration — Phase Orchestrators own all routing and exclusion decisions
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0003-pipeline-config-at-package-root.html">
+    PipelineConfig lives at the package root, not inside the profiling module
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0004-impute-before-normalize.html">
+    ADR 0004: Impute missing values before normalizing distributions
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0005-imputation-registry-per-semantic-type.html">
+    ADR 0005: Imputation sub-processors registered per SemanticType
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0006-fitted-imputer-stateless-fit-returns-object.html">
+    ADR 0006: fit() returns a stateless FittedImputer rather than mutating the orchestrator
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0007-profile-stratified-split-full-profile-signals.html">
+    ADR 0007: Profile-stratified split uses full profile signals, not missingness only
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0008-stratification-signal-taxonomy-extension.html">
+    ADR 0008: Stratification signal taxonomy extension
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0009-phase2-effective-null-boundary-normalization.html">
+    ADR 0009: Phase 2 effective null boundary normalization
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0010-knn-nan-safe-manual-scaling.html">
+    ADR 0010: NaN-safe manual scaling for KNN rather than sklearn Pipeline
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0011-mice-estimator-most-complex-tag-wins.html">
+    ADR 0011: MICE estimator selection uses the most complex NonlinearityTag across the block
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0012-mice-sample-posterior-deferred.html">
+    ADR 0012: sample_posterior stays False in MICE; posterior sampling deferred
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0013-fit-quality-held-back-evaluation.html">
+    Held-back evaluation for ImputationFitDiagnostic R² — k-fold CV on complete rows
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0014-mcar-rmse-mae-shares-r2-holdback.html">
+    ADR 0014: MCAR RMSE/MAE evaluation shares the R² holdback pass — no separate masking pass
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0015-rmse-mae-diagnostic-only-excluded-from-suggest-refit.html">
+    ADR 0015: RMSE and MAE are diagnostic-only — not used for automated decisions
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0016-unpredictable-is-unconditional-pre-routing-guard.html">
+    ADR 0016: NonlinearityTag.Unpredictable is an unconditional pre-routing guard
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0017-distribution-shape-is-universal-routing-signal.html">
+    ADR 0017: Distribution shape (KurtosisTag + SkewSeverity) is a universal routing signal across all missingness paths
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0018-bounded-discrete-compound-classification.html">
+    ADR 0018: BoundedDiscrete replaces Discrete — compound four-signal classification
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0019-mnar-data-derived-fill-replaces-sentinel.html">
+    ADR 0019 — MNAR fill is data-derived (mean/median), not a user-configured sentinel
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0020-test-split-imbalance-check-in-transform.html">
+    ADR 0020: TestSplitImbalanceWarning lives in FittedImputer.transform(), not DataSplitter
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0021-fit-transform-returns-tuple.html">
+    ADR 0021: fit_transform returns tuple[FittedImputer, ImputationResult]
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0022-proportional-split-imbalance-check.html">
+    ADR 0022: Split imbalance check is proportional, not binary
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0023-dropcandiate-exclusion-propagation-caller-initiated-phase3-enforced.html">
+    ADR 0023: DropCandidate exclusion propagation is caller-initiated and Phase-3-enforced
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0024-records-is-full-train-schema-manifest.html">
+    ADR 0024: self.records is a complete manifest of the train schema
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0025-indicator-records-written-at-fit-time.html">
+    ADR 0025: Indicator column records are written into self.records at fit time
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0026-unseen-column-error-fires-regardless-of-missingness.html">
+    ADR 0026: UnseenColumnError fires on any column absent from self.records, regardless of missingness
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0027-regression-fitted-model-stores-target-idx.html">
+    ADR 0027: Regression fitted model stores target_idx explicitly alongside the fitted IterativeImputer
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0028-df-to-numpy-sentinel-ignorant-precondition.html">
+    ADR 0028: _df_to_numpy is sentinel-ignorant; normalization is the caller’s precondition
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0029-per-column-strategy-fires-after-dropcanidate-errors-on-size-guard.html">
+    ADR 0029: per_column_strategy fires after DropCandidate and raises at fit time when size guards fail
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0030-definitional-thresholds-promoted-to-phase-sub-configs.html">
+    ADR-0030: Definitional thresholds promoted to user-configurable Phase Sub-Configs
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0031-bimodality-dual-detection-dip-test-plus-gmm.html">
+    ADR 0031: Bimodality is detected with Hartigan’s Dip Test for the signal and 2-component GMM for peak locations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0032-bimodal-imputation-framework.html">
+    ADR 0032: Bimodal columns follow a four-branch imputation framework ordered by available cluster evidence
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0033-tail-asymmetry-outlier-density-routing-signals.html">
+    ADR 0033: Tail asymmetry ratio and outlier density extend the universal distribution shape escalation from ADR-0017
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0034-documentation-strategy-docstrings-mkdocs.html">
+    ADR 0034: Documentation strategy — numpy-style docstrings as API contract, mkdocs + mkdocstrings for generation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0035-bounded-discrete-model-based-routing-with-domain-snap.html">
+    ADR 0035: BoundedDiscrete model-based routing with domain-snap
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0036-remove-proportional-split-imbalance-checks.html">
+    ADR 0036: Remove proportional split imbalance checks
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0037-knn-mice-block-override-scalars.html">
+    KNN and MICE block overrides are scalars, not per-column dicts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0038-sphinx-pydata-theme-replaces-mkdocs.html">
+    ADR 0038: Sphinx + PyData Sphinx Theme replaces MkDocs as the docs build toolchain
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">dataforge_ml.imputation._config</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for dataforge_ml.imputation._config</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Configuration and result dataclasses for the imputation phase — Phase 2.</span>
+
+<span class="sd">ImputationConfig controls strategy thresholds and MNAR declarations.</span>
+<span class="sd">Result dataclasses carry per-column audit records and the imputed DataFrame.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">StrEnum</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Optional</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">..config</span><span class="w"> </span><span class="kn">import</span> <span class="n">SemanticType</span>
+
+
+<div class="viewcode-block" id="ImputationStrategy">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ImputationStrategy">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ImputationStrategy</span><span class="p">(</span><span class="n">StrEnum</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Imputation strategy assigned to a column after Phase 2 fitting.</span>
+
+<span class="sd">    Members fall into two categories:</span>
+
+<span class="sd">    **Input strategies** — may be declared in ``per_column_strategy`` to</span>
+<span class="sd">    override automatic routing: ``Mean``, ``Median``, ``Mode``, ``KNN``,</span>
+<span class="sd">    ``Regression``, ``MICE``.</span>
+
+<span class="sd">    **Output-only labels** — assigned by the engine after ``fit()`` and</span>
+<span class="sd">    recorded in ``ColumnImputationRecord.strategy``; declaring them in</span>
+<span class="sd">    ``per_column_strategy`` raises ``ValueError`` at construction time:</span>
+<span class="sd">    ``Constant``, ``MNAR``, ``Dropped``, ``Passthrough``, ``Indicator``.</span>
+<span class="sd">    ``Constant`` is produced when a column appears in</span>
+<span class="sd">    ``per_column_constant_fill``; use that field instead of declaring it in</span>
+<span class="sd">    ``per_column_strategy``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">Mean</span> <span class="o">=</span> <span class="s2">&quot;mean&quot;</span>
+    <span class="n">Median</span> <span class="o">=</span> <span class="s2">&quot;median&quot;</span>
+    <span class="n">Mode</span> <span class="o">=</span> <span class="s2">&quot;mode&quot;</span>
+    <span class="n">KNN</span> <span class="o">=</span> <span class="s2">&quot;knn&quot;</span>
+    <span class="n">Regression</span> <span class="o">=</span> <span class="s2">&quot;regression&quot;</span>
+    <span class="n">MICE</span> <span class="o">=</span> <span class="s2">&quot;mice&quot;</span>
+    <span class="n">MNAR</span> <span class="o">=</span> <span class="s2">&quot;mnar&quot;</span>
+    <span class="n">Constant</span> <span class="o">=</span> <span class="s2">&quot;constant&quot;</span>
+    <span class="n">Dropped</span> <span class="o">=</span> <span class="s2">&quot;dropped&quot;</span>
+    <span class="n">Passthrough</span> <span class="o">=</span> <span class="s2">&quot;passthrough&quot;</span>  <span class="c1"># output-only: assigned to columns with no missing values in training; cannot be declared in per_column_strategy</span>
+    <span class="n">ClusterConditional</span> <span class="o">=</span> <span class="s2">&quot;cluster_conditional&quot;</span>
+    <span class="n">GMMSampling</span> <span class="o">=</span> <span class="s2">&quot;gmm_sampling&quot;</span>
+    <span class="n">Indicator</span> <span class="o">=</span> <span class="s2">&quot;indicator&quot;</span>  <span class="c1"># output-only: assigned to {col}_missing columns appended by the MNAR mechanism; cannot be declared in per_column_strategy</span></div>
+
+
+
+<div class="viewcode-block" id="NumericImputationConfig">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.NumericImputationConfig">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">NumericImputationConfig</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Operational thresholds for the numeric imputation sub-processor.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    knn_max_rows : int</span>
+<span class="sd">        Maximum number of rows before KNN is skipped in favour of Regression.</span>
+<span class="sd">    knn_max_features : int</span>
+<span class="sd">        Maximum number of features before KNN is skipped in favour of Regression.</span>
+<span class="sd">    regression_min_rows : int</span>
+<span class="sd">        Minimum number of rows required to fit a stable Regression model.</span>
+<span class="sd">    gradient_boost_min_rows : int</span>
+<span class="sd">        Row count threshold above which ``GradientBoostingRegressor`` is preferred</span>
+<span class="sd">        over ``RandomForestRegressor`` for ``ComplexNonlinear`` columns. Below this</span>
+<span class="sd">        threshold the cheaper ``RandomForestRegressor`` is used instead.</span>
+<span class="sd">    base_max_iter : int</span>
+<span class="sd">        Base number of ``IterativeImputer`` iterations before dynamic signal</span>
+<span class="sd">        adjustments are applied.  Increase this value for columns that exhibit</span>
+<span class="sd">        convergence warnings in ``ColumnImputationRecord.signals``.</span>
+<span class="sd">    knn_min_neighbors : int</span>
+<span class="sd">        Floor on the adaptively computed ``n_neighbors`` value passed to</span>
+<span class="sd">        ``KNNImputer``. The computed k will never fall below this value.</span>
+<span class="sd">    knn_max_neighbors : int</span>
+<span class="sd">        Cap on the adaptively computed ``n_neighbors`` value passed to</span>
+<span class="sd">        ``KNNImputer``. The computed k will never exceed this value.</span>
+<span class="sd">    knn_distance_weight_max_null_ratio : float</span>
+<span class="sd">        Feature-matrix missingness fraction below which distance weighting is</span>
+<span class="sd">        considered reliable. When ``miss_frac`` exceeds this threshold,</span>
+<span class="sd">        ``weights`` is forced to ``&quot;uniform&quot;``.</span>
+<span class="sd">    knn_distance_weight_max_features : int</span>
+<span class="sd">        Dimensionality threshold below which distance weighting is considered</span>
+<span class="sd">        reliable. When the number of KNN feature columns exceeds this value,</span>
+<span class="sd">        ``weights`` is forced to ``&quot;uniform&quot;``.</span>
+<span class="sd">    mice_n_nearest_features_min_cols : int</span>
+<span class="sd">        MICE block size at or below which ``n_nearest_features`` is left unset,</span>
+<span class="sd">        meaning all columns in the block are used as predictors for every</span>
+<span class="sd">        imputation target. Above this threshold, ``n_nearest_features`` is</span>
+<span class="sd">        derived from value-level Pearson correlations.</span>
+<span class="sd">    mice_max_nearest_features : int</span>
+<span class="sd">        Upper cap on the ``n_nearest_features`` value computed for large MICE</span>
+<span class="sd">        blocks. The correlation-derived count is clamped to this maximum before</span>
+<span class="sd">        being passed to ``IterativeImputer``.</span>
+<span class="sd">    mice_correlation_threshold : float</span>
+<span class="sd">        Minimum absolute Pearson correlation ``|r|`` required for another MICE</span>
+<span class="sd">        column to be counted as an informative predictor when computing</span>
+<span class="sd">        ``n_nearest_features``. Columns below this threshold are excluded from</span>
+<span class="sd">        the count.</span>
+<span class="sd">    mcar_feature_predictability_threshold : float</span>
+<span class="sd">        Maximum absolute Pearson correlation ``|r|`` below which MCAR</span>
+<span class="sd">        model-based routing is skipped in favour of Median. When no numeric</span>
+<span class="sd">        predictor exceeds this threshold against the target column, KNN and</span>
+<span class="sd">        Regression are not attempted because the feature set contains no useful</span>
+<span class="sd">        predictive signal. Applies only to MCAR paths; MAR paths are not</span>
+<span class="sd">        affected. Default of ``0.2`` preserves existing behaviour (no check</span>
+<span class="sd">        applied today).</span>
+<span class="sd">    per_column_strategy : dict[str, ImputationStrategy]</span>
+<span class="sd">        Explicit per-column strategy overrides that fire at Priority 1.5 in the</span>
+<span class="sd">        routing chain — after ``DropCandidate`` but before MNAR routing.  A</span>
+<span class="sd">        column listed here bypasses all routing priorities 2–7.  Defaults to</span>
+<span class="sd">        empty dict (no overrides).  Allowed values: ``Mean``, ``Median``,</span>
+<span class="sd">        ``Mode``, ``KNN``, ``Regression``, ``MICE``.  To route a column to a</span>
+<span class="sd">        constant fill, use ``per_column_constant_fill``</span>
+<span class="sd">    per_column_constant_fill : dict[str, float]</span>
+<span class="sd">        Self-sufficient constant fill declarations.  Each column listed here</span>
+<span class="sd">        is routed to ``ImputationStrategy.Constant`` at Priority 1.5,</span>
+<span class="sd">        bypassing all routing priorities 2–7.  No companion entry in</span>
+<span class="sd">        ``per_column_strategy`` is required or allowed.  Keyed by column name.</span>
+<span class="sd">        Defaults to empty dict.</span>
+<span class="sd">    per_column_max_iter : dict[str, int]</span>
+<span class="sd">        Overrides the dynamically-computed ``max_iter`` for named Regression</span>
+<span class="sd">        columns only.  Keys are column names; values replace whatever</span>
+<span class="sd">        ``_compute_max_iter`` would produce.</span>
+<span class="sd">        Set manually.  Defaults to empty dict (no overrides).</span>
+<span class="sd">    knn_n_neighbors : int, optional</span>
+<span class="sd">        Overrides the dynamically-computed ``n_neighbors`` for the entire KNN</span>
+<span class="sd">        block. A single value governs all KNN columns.</span>
+<span class="sd">    mice_max_iter : int, optional</span>
+<span class="sd">        Overrides the dynamically-computed ``max_iter`` for the entire MICE</span>
+<span class="sd">        block. A single value governs all MICE columns.</span>
+<span class="sd">    refit_r2_min_complete_rows : int</span>
+<span class="sd">        Minimum number of complete rows required to attempt R² computation</span>
+<span class="sd">        during fit.  When fewer complete rows are available, ``r2_train`` on</span>
+<span class="sd">        ``ImputationFitDiagnostic`` is set to ``None``.  With k-fold CV</span>
+<span class="sd">        (``refit_r2_cv_folds=5``), each validation fold contains 1/k of the</span>
+<span class="sd">        complete rows; the floor of 50 ensures at least 10 rows per fold.</span>
+<span class="sd">        Default ``50``.</span>
+<span class="sd">    refit_r2_cv_folds : int</span>
+<span class="sd">        Number of folds for cross-validated R² computation.  Applied</span>
+<span class="sd">        uniformly across Regression, KNN, and MICE diagnostics.  Default ``5``.</span>
+<span class="sd">    bimodal_grouping_variables : dict[str, str]</span>
+<span class="sd">        Maps a bimodal column name to the name of the grouping column that</span>
+<span class="sd">        explains the bimodal split (e.g. ``{&quot;age&quot;: &quot;employment_status&quot;}``).</span>
+<span class="sd">    bimodal_min_correlated_features : int</span>
+<span class="sd">        Minimum number of numeric features with ``|r| &gt; 0.2`` required to</span>
+<span class="sd">        qualify the Bimodal Imputation Framework for branch 2 (MICE/KNN);</span>
+<span class="sd">        columns with fewer correlated features fall to branch 3 (Cluster-Conditional).</span>
+<span class="sd">    bimodal_correlation_threshold : float</span>
+<span class="sd">        Minimum absolute Pearson correlation ``|r|`` a feature must have against</span>
+<span class="sd">        a bimodal column for it to count toward the branch 2/3 feature tally in</span>
+<span class="sd">        the Bimodal Imputation Framework.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    ValueError</span>
+<span class="sd">        If any column in ``per_column_strategy`` is mapped to</span>
+<span class="sd">        ``Passthrough``, ``Indicator``, ``Dropped``, or ``MNAR``.  ``Constant``</span>
+<span class="sd">        columns should use ``per_column_constant_fill``; ``Dropped`` columns</span>
+<span class="sd">        should use ``PipelineConfig.exclude_columns``; ``MNAR`` columns should</span>
+<span class="sd">        use ``mnar_columns``; ``Passthrough`` and ``Indicator`` are</span>
+<span class="sd">        internal-only.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">knn_max_rows</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50_000</span>
+    <span class="n">knn_max_features</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50</span>
+    <span class="n">regression_min_rows</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">500</span>
+    <span class="n">gradient_boost_min_rows</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10_000</span>
+    <span class="n">base_max_iter</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span>
+    <span class="n">knn_min_neighbors</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span>
+    <span class="n">knn_max_neighbors</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">25</span>
+    <span class="n">knn_distance_weight_max_null_ratio</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.15</span>
+    <span class="n">knn_distance_weight_max_features</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">30</span>
+    <span class="n">mice_n_nearest_features_min_cols</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span>
+    <span class="n">mice_max_nearest_features</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">20</span>
+    <span class="n">mice_correlation_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span>
+    <span class="n">mcar_feature_predictability_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.2</span>
+    <span class="n">per_column_strategy</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ImputationStrategy</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">per_column_constant_fill</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">per_column_max_iter</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">knn_n_neighbors</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">mice_max_iter</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">refit_r2_min_complete_rows</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50</span>
+    <span class="n">refit_r2_cv_folds</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span>
+    <span class="n">bimodal_grouping_variables</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">bimodal_min_correlated_features</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span>
+    <span class="n">bimodal_correlation_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.2</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">_BLOCKED</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Passthrough</span><span class="p">,</span>
+            <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Indicator</span><span class="p">,</span>
+            <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Dropped</span><span class="p">,</span>
+            <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MNAR</span><span class="p">,</span>
+            <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">ClusterConditional</span><span class="p">,</span>
+            <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">GMMSampling</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">strategy</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">per_column_strategy</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">strategy</span> <span class="ow">in</span> <span class="n">_BLOCKED</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Dropped</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">&#39;: &#39;Dropped&#39; cannot be used in per_column_strategy. &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;To exclude a column, use PipelineConfig.exclude_columns.&quot;</span>
+                    <span class="p">)</span>
+                <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MNAR</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">&#39;: &#39;MNAR&#39; cannot be used in per_column_strategy. &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;To declare MNAR semantics, use mnar_columns.&quot;</span>
+                    <span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">&#39;: &#39;</span><span class="si">{</span><span class="n">strategy</span><span class="si">}</span><span class="s2">&#39; is an internal-only strategy and cannot &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;be used in per_column_strategy.&quot;</span>
+                <span class="p">)</span>
+            <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Constant</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">per_column_constant_fill</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">&#39;: strategy is &#39;Constant&#39; but no fill value was provided. &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;Add an entry to per_column_constant_fill.&quot;</span>
+                    <span class="p">)</span>
+
+<div class="viewcode-block" id="NumericImputationConfig.to_dict">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.NumericImputationConfig.to_dict">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Serialise the config to a plain dictionary.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict</span>
+<span class="sd">            All field values keyed by field name.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;knn_max_rows&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">knn_max_rows</span><span class="p">,</span>
+            <span class="s2">&quot;knn_max_features&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">knn_max_features</span><span class="p">,</span>
+            <span class="s2">&quot;regression_min_rows&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">regression_min_rows</span><span class="p">,</span>
+            <span class="s2">&quot;gradient_boost_min_rows&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">gradient_boost_min_rows</span><span class="p">,</span>
+            <span class="s2">&quot;base_max_iter&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">base_max_iter</span><span class="p">,</span>
+            <span class="s2">&quot;knn_min_neighbors&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">knn_min_neighbors</span><span class="p">,</span>
+            <span class="s2">&quot;knn_max_neighbors&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">knn_max_neighbors</span><span class="p">,</span>
+            <span class="s2">&quot;knn_distance_weight_max_null_ratio&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">knn_distance_weight_max_null_ratio</span><span class="p">,</span>
+            <span class="s2">&quot;knn_distance_weight_max_features&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">knn_distance_weight_max_features</span><span class="p">,</span>
+            <span class="s2">&quot;mice_n_nearest_features_min_cols&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">mice_n_nearest_features_min_cols</span><span class="p">,</span>
+            <span class="s2">&quot;mice_max_nearest_features&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">mice_max_nearest_features</span><span class="p">,</span>
+            <span class="s2">&quot;mice_correlation_threshold&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">mice_correlation_threshold</span><span class="p">,</span>
+            <span class="s2">&quot;mcar_feature_predictability_threshold&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">mcar_feature_predictability_threshold</span><span class="p">,</span>
+            <span class="s2">&quot;per_column_strategy&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">per_column_strategy</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span>
+            <span class="s2">&quot;per_column_constant_fill&quot;</span><span class="p">:</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">per_column_constant_fill</span><span class="p">),</span>
+            <span class="s2">&quot;per_column_max_iter&quot;</span><span class="p">:</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">per_column_max_iter</span><span class="p">),</span>
+            <span class="s2">&quot;knn_n_neighbors&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">knn_n_neighbors</span><span class="p">,</span>
+            <span class="s2">&quot;mice_max_iter&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">mice_max_iter</span><span class="p">,</span>
+            <span class="s2">&quot;refit_r2_min_complete_rows&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">refit_r2_min_complete_rows</span><span class="p">,</span>
+            <span class="s2">&quot;refit_r2_cv_folds&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">refit_r2_cv_folds</span><span class="p">,</span>
+            <span class="s2">&quot;bimodal_grouping_variables&quot;</span><span class="p">:</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bimodal_grouping_variables</span><span class="p">),</span>
+            <span class="s2">&quot;bimodal_min_correlated_features&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">bimodal_min_correlated_features</span><span class="p">,</span>
+            <span class="s2">&quot;bimodal_correlation_threshold&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">bimodal_correlation_threshold</span><span class="p">,</span>
+        <span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="NumericImputationConfig.from_dict">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.NumericImputationConfig.from_dict">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NumericImputationConfig</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Construct a ``NumericImputationConfig`` from a plain dictionary.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        data : dict</span>
+<span class="sd">            Mapping produced by ``to_dict()``. Missing keys fall back to field</span>
+<span class="sd">            defaults.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        NumericImputationConfig</span>
+<span class="sd">            Reconstructed config instance.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+            <span class="n">knn_max_rows</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;knn_max_rows&quot;</span><span class="p">,</span> <span class="mi">50_000</span><span class="p">)),</span>
+            <span class="n">knn_max_features</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;knn_max_features&quot;</span><span class="p">,</span> <span class="mi">50</span><span class="p">)),</span>
+            <span class="n">regression_min_rows</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;regression_min_rows&quot;</span><span class="p">,</span> <span class="mi">500</span><span class="p">)),</span>
+            <span class="n">gradient_boost_min_rows</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;gradient_boost_min_rows&quot;</span><span class="p">,</span> <span class="mi">10_000</span><span class="p">)),</span>
+            <span class="n">base_max_iter</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;base_max_iter&quot;</span><span class="p">,</span> <span class="mi">10</span><span class="p">)),</span>
+            <span class="n">knn_min_neighbors</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;knn_min_neighbors&quot;</span><span class="p">,</span> <span class="mi">5</span><span class="p">)),</span>
+            <span class="n">knn_max_neighbors</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;knn_max_neighbors&quot;</span><span class="p">,</span> <span class="mi">25</span><span class="p">)),</span>
+            <span class="n">knn_distance_weight_max_null_ratio</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span>
+                <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;knn_distance_weight_max_null_ratio&quot;</span><span class="p">,</span> <span class="mf">0.15</span><span class="p">)</span>
+            <span class="p">),</span>
+            <span class="n">knn_distance_weight_max_features</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span>
+                <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;knn_distance_weight_max_features&quot;</span><span class="p">,</span> <span class="mi">30</span><span class="p">)</span>
+            <span class="p">),</span>
+            <span class="n">mice_n_nearest_features_min_cols</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span>
+                <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;mice_n_nearest_features_min_cols&quot;</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+            <span class="p">),</span>
+            <span class="n">mice_max_nearest_features</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;mice_max_nearest_features&quot;</span><span class="p">,</span> <span class="mi">20</span><span class="p">)),</span>
+            <span class="n">mice_correlation_threshold</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span>
+                <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;mice_correlation_threshold&quot;</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">)</span>
+            <span class="p">),</span>
+            <span class="n">mcar_feature_predictability_threshold</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span>
+                <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;mcar_feature_predictability_threshold&quot;</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">)</span>
+            <span class="p">),</span>
+            <span class="n">per_column_strategy</span><span class="o">=</span><span class="p">{</span>
+                <span class="n">k</span><span class="p">:</span> <span class="n">ImputationStrategy</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;per_column_strategy&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">},</span>
+            <span class="n">per_column_constant_fill</span><span class="o">=</span><span class="p">{</span>
+                <span class="n">k</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;per_column_constant_fill&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">},</span>
+            <span class="n">per_column_max_iter</span><span class="o">=</span><span class="p">{</span>
+                <span class="n">k</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;per_column_max_iter&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">},</span>
+            <span class="n">knn_n_neighbors</span><span class="o">=</span><span class="p">(</span>
+                <span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;knn_n_neighbors&quot;</span><span class="p">])</span> <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;knn_n_neighbors&quot;</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="p">),</span>
+            <span class="n">mice_max_iter</span><span class="o">=</span><span class="p">(</span>
+                <span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;mice_max_iter&quot;</span><span class="p">])</span> <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;mice_max_iter&quot;</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="p">),</span>
+            <span class="n">refit_r2_min_complete_rows</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;refit_r2_min_complete_rows&quot;</span><span class="p">,</span> <span class="mi">50</span><span class="p">)),</span>
+            <span class="n">refit_r2_cv_folds</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;refit_r2_cv_folds&quot;</span><span class="p">,</span> <span class="mi">5</span><span class="p">)),</span>
+            <span class="n">bimodal_grouping_variables</span><span class="o">=</span><span class="p">{</span>
+                <span class="n">k</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;bimodal_grouping_variables&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">},</span>
+            <span class="n">bimodal_min_correlated_features</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span>
+                <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;bimodal_min_correlated_features&quot;</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+            <span class="p">),</span>
+            <span class="n">bimodal_correlation_threshold</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span>
+                <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;bimodal_correlation_threshold&quot;</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">)</span>
+            <span class="p">),</span>
+        <span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="ImputationConfig">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ImputationConfig">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ImputationConfig</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Cross-type Phase 2 configuration.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    numeric : NumericImputationConfig</span>
+<span class="sd">        Thresholds and fill values for numeric imputation.</span>
+<span class="sd">    mnar_columns : list[str]</span>
+<span class="sd">        Columns declared by the user as Missing Not At Random.</span>
+<span class="sd">        These receive a data-derived fill (observed mean or median, skew-driven)</span>
+<span class="sd">        plus a binary missingness indicator, regardless of Phase 1 signals.</span>
+<span class="sd">    add_indicator_columns : list[str]</span>
+<span class="sd">        Columns for which a binary missingness indicator should be added</span>
+<span class="sd">        even when they are not MNAR.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    ValueError</span>
+<span class="sd">        If any column appears in both ``mnar_columns`` and</span>
+<span class="sd">        ``numeric.per_column_strategy``.  These declarations are mutually</span>
+<span class="sd">        exclusive: ``mnar_columns`` applies a data-derived fill plus an</span>
+<span class="sd">        indicator; ``per_column_strategy`` directs the routing engine to a</span>
+<span class="sd">        user-specified strategy.  Declaring the same column in both is</span>
+<span class="sd">        contradictory and is caught at construction time before any data is</span>
+<span class="sd">        touched.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">numeric</span><span class="p">:</span> <span class="n">NumericImputationConfig</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">NumericImputationConfig</span><span class="p">)</span>
+    <span class="n">mnar_columns</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
+    <span class="n">add_indicator_columns</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">conflicts</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
+            <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mnar_columns</span><span class="p">)</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">numeric</span><span class="o">.</span><span class="n">per_column_strategy</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">conflicts</span><span class="p">:</span>
+            <span class="n">names</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">c</span><span class="si">}</span><span class="s2">&#39;&quot;</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">conflicts</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Columns appear in both mnar_columns and numeric.per_column_strategy, &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;which are mutually exclusive: </span><span class="si">{</span><span class="n">names</span><span class="si">}</span><span class="s2">. &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;Use mnar_columns for MNAR semantics (data-derived fill + indicator) &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;or per_column_strategy for a user-specified strategy, not both.&quot;</span>
+            <span class="p">)</span>
+
+<div class="viewcode-block" id="ImputationConfig.to_dict">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ImputationConfig.to_dict">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Serialise the config to a plain dictionary.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict</span>
+<span class="sd">            All field values keyed by field name, with ``numeric`` nested.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;numeric&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">numeric</span><span class="o">.</span><span class="n">to_dict</span><span class="p">(),</span>
+            <span class="s2">&quot;mnar_columns&quot;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mnar_columns</span><span class="p">),</span>
+            <span class="s2">&quot;add_indicator_columns&quot;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">add_indicator_columns</span><span class="p">),</span>
+        <span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="ImputationConfig.from_dict">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ImputationConfig.from_dict">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ImputationConfig</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Construct an ``ImputationConfig`` from a plain dictionary.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        data : dict</span>
+<span class="sd">            Mapping produced by ``to_dict()``. Missing keys fall back to field</span>
+<span class="sd">            defaults.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        ImputationConfig</span>
+<span class="sd">            Reconstructed config instance.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+            <span class="n">numeric</span><span class="o">=</span><span class="n">NumericImputationConfig</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;numeric&quot;</span><span class="p">,</span> <span class="p">{})),</span>
+            <span class="n">mnar_columns</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;mnar_columns&quot;</span><span class="p">,</span> <span class="p">[])),</span>
+            <span class="n">add_indicator_columns</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;add_indicator_columns&quot;</span><span class="p">,</span> <span class="p">[])),</span>
+        <span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="ImputationFitDiagnostic">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ImputationFitDiagnostic">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ImputationFitDiagnostic</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Fit quality diagnostic attached to each model-based column after fit().</span>
+
+<span class="sd">    Present on ``ColumnImputationRecord.diagnostic`` for KNN, Regression, and</span>
+<span class="sd">    MICE columns.  ``None`` for Passthrough, Dropped, Constant, and all scalar</span>
+<span class="sd">    strategies (Mean, Median, Mode).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    r2_train : float, optional</span>
+<span class="sd">        Mean R² across k cross-validation folds on complete rows (k =</span>
+<span class="sd">        ``refit_r2_cv_folds``).  ``None`` when fewer than</span>
+<span class="sd">        ``refit_r2_min_complete_rows`` complete rows are available or when all</span>
+<span class="sd">        folds are skipped due to zero variance in ``y_true``.</span>
+<span class="sd">    converged : bool, optional</span>
+<span class="sd">        Whether ``IterativeImputer`` halted before reaching ``max_iter``.</span>
+<span class="sd">        ``None`` for KNN columns (convergence is not applicable).</span>
+<span class="sd">    n_iter : int, optional</span>
+<span class="sd">        Actual iteration count of ``IterativeImputer``.  ``None`` for KNN</span>
+<span class="sd">        columns.</span>
+<span class="sd">    imputed_mean : float</span>
+<span class="sd">        Mean of the values imputed for null rows during fit.</span>
+<span class="sd">    imputed_std : float</span>
+<span class="sd">        Standard deviation of the imputed values.</span>
+<span class="sd">    observed_mean : float</span>
+<span class="sd">        Mean of non-null training values for this column.</span>
+<span class="sd">    observed_std : float</span>
+<span class="sd">        Standard deviation of non-null training values for this column.</span>
+<span class="sd">    variance_ratio : float</span>
+<span class="sd">        ``imputed_std / observed_std``.  A value near zero indicates</span>
+<span class="sd">        distribution collapse — the model is predicting near-constant values.</span>
+<span class="sd">    n_neighbors_used : int, optional</span>
+<span class="sd">        Actual ``n_neighbors`` used by the KNN block.  ``None`` for Regression</span>
+<span class="sd">        and MICE columns.</span>
+<span class="sd">    k_capped : bool, optional</span>
+<span class="sd">        ``True`` when the adaptive k formula&#39;s raw output exceeded ``n_rows − 1``</span>
+<span class="sd">        and was forced to that bound (the model is averaging nearly all rows).</span>
+<span class="sd">        ``False`` when the formula ran within bounds.  ``None`` when</span>
+<span class="sd">        ``knn_n_neighbors`` override is active (adaptive formula was bypassed)</span>
+<span class="sd">        or strategy is not KNN.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">r2_train</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span>
+    <span class="n">rmse</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span>
+    <span class="n">mae</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span>
+    <span class="n">converged</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span>
+    <span class="n">n_iter</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span>
+    <span class="n">imputed_mean</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">imputed_std</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">observed_mean</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">observed_std</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">variance_ratio</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">n_neighbors_used</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">k_capped</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="ImputationFitDiagnostic.to_dict">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ImputationFitDiagnostic.to_dict">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Serialise the diagnostic to a plain dictionary.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict</span>
+<span class="sd">            All ten field values keyed by field name.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;r2_train&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">r2_train</span><span class="p">,</span>
+            <span class="s2">&quot;rmse&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">rmse</span><span class="p">,</span>
+            <span class="s2">&quot;mae&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">mae</span><span class="p">,</span>
+            <span class="s2">&quot;converged&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">converged</span><span class="p">,</span>
+            <span class="s2">&quot;n_iter&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_iter</span><span class="p">,</span>
+            <span class="s2">&quot;imputed_mean&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">imputed_mean</span><span class="p">,</span>
+            <span class="s2">&quot;imputed_std&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">imputed_std</span><span class="p">,</span>
+            <span class="s2">&quot;observed_mean&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">observed_mean</span><span class="p">,</span>
+            <span class="s2">&quot;observed_std&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">observed_std</span><span class="p">,</span>
+            <span class="s2">&quot;variance_ratio&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">variance_ratio</span><span class="p">,</span>
+            <span class="s2">&quot;n_neighbors_used&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_neighbors_used</span><span class="p">,</span>
+            <span class="s2">&quot;k_capped&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">k_capped</span><span class="p">,</span>
+        <span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="ImputationFitDiagnostic.from_dict">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ImputationFitDiagnostic.from_dict">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;ImputationFitDiagnostic&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reconstruct an ``ImputationFitDiagnostic`` from a plain dictionary.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        data : dict</span>
+<span class="sd">            Mapping produced by ``to_dict()``.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        ImputationFitDiagnostic</span>
+<span class="sd">            Reconstructed diagnostic instance.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+            <span class="n">r2_train</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;r2_train&quot;</span><span class="p">),</span>
+            <span class="n">rmse</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;rmse&quot;</span><span class="p">),</span>
+            <span class="n">mae</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;mae&quot;</span><span class="p">),</span>
+            <span class="n">converged</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;converged&quot;</span><span class="p">),</span>
+            <span class="n">n_iter</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;n_iter&quot;</span><span class="p">),</span>
+            <span class="n">imputed_mean</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;imputed_mean&quot;</span><span class="p">]),</span>
+            <span class="n">imputed_std</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;imputed_std&quot;</span><span class="p">]),</span>
+            <span class="n">observed_mean</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;observed_mean&quot;</span><span class="p">]),</span>
+            <span class="n">observed_std</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;observed_std&quot;</span><span class="p">]),</span>
+            <span class="n">variance_ratio</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;variance_ratio&quot;</span><span class="p">]),</span>
+            <span class="n">n_neighbors_used</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;n_neighbors_used&quot;</span><span class="p">),</span>
+            <span class="n">k_capped</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;k_capped&quot;</span><span class="p">),</span>
+        <span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="ColumnImputationRecord">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ColumnImputationRecord">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ColumnImputationRecord</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Per-column audit entry produced after fit().</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    column : str</span>
+<span class="sd">        Column name.</span>
+<span class="sd">    semantic_type : SemanticType</span>
+<span class="sd">        Detected semantic type of the column.</span>
+<span class="sd">    strategy : ImputationStrategy</span>
+<span class="sd">        Strategy applied to this column.</span>
+<span class="sd">    fill_value : Any, optional</span>
+<span class="sd">        Scalar fill value learned from training data (None for model-based strategies).</span>
+<span class="sd">    indicator_added : bool</span>
+<span class="sd">        Whether a binary missingness indicator column was appended.</span>
+<span class="sd">    signals : list[str]</span>
+<span class="sd">        Human-readable reasons that drove the strategy decision.</span>
+<span class="sd">    domain_snap_bounds : tuple[float, float], optional</span>
+<span class="sd">        ``(min, max)`` bounds applied to snap model-based predictions for</span>
+<span class="sd">        BoundedDiscrete columns.  ``None`` for all other columns.</span>
+<span class="sd">    diagnostic : ImputationFitDiagnostic, optional</span>
+<span class="sd">        Fit quality metrics for KNN, Regression, and MICE columns.  ``None``</span>
+<span class="sd">        for Passthrough, Dropped, Constant, and all scalar strategies.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">column</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">semantic_type</span><span class="p">:</span> <span class="n">SemanticType</span>
+    <span class="n">strategy</span><span class="p">:</span> <span class="n">ImputationStrategy</span>
+    <span class="n">fill_value</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">indicator_added</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">signals</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
+    <span class="n">domain_snap_bounds</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">diagnostic</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ImputationFitDiagnostic</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="ColumnImputationRecord.to_dict">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ColumnImputationRecord.to_dict">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Serialise the audit record to a plain dictionary.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict</span>
+<span class="sd">            All field values keyed by field name.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;column&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">column</span><span class="p">,</span>
+            <span class="s2">&quot;semantic_type&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">semantic_type</span><span class="p">),</span>
+            <span class="s2">&quot;strategy&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">strategy</span><span class="p">),</span>
+            <span class="s2">&quot;fill_value&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">fill_value</span><span class="p">,</span>
+            <span class="s2">&quot;indicator_added&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">indicator_added</span><span class="p">,</span>
+            <span class="s2">&quot;signals&quot;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">signals</span><span class="p">),</span>
+            <span class="s2">&quot;domain_snap_bounds&quot;</span><span class="p">:</span> <span class="p">(</span>
+                <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">domain_snap_bounds</span><span class="p">)</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">domain_snap_bounds</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="k">else</span> <span class="kc">None</span>
+            <span class="p">),</span>
+            <span class="s2">&quot;diagnostic&quot;</span><span class="p">:</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">diagnostic</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">diagnostic</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="p">),</span>
+        <span class="p">}</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="ImputationResult">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ImputationResult">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ImputationResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Output of FittedImputer.transform().</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    dataframe : pl.DataFrame</span>
+<span class="sd">        DataFrame with imputed values (and any indicator columns appended).</span>
+<span class="sd">    records : dict[str, ColumnImputationRecord]</span>
+<span class="sd">        Per-column audit log keyed by column name.</span>
+<span class="sd">    dropped_columns : list[str]</span>
+<span class="sd">        Columns removed because they exceeded the drop threshold (&gt;50% missing).</span>
+<span class="sd">    exclusions_applied : bool</span>
+<span class="sd">        ``True`` when ``FittedImputer.apply_exclusions`` was called before</span>
+<span class="sd">        ``transform()``, meaning dropped columns have been propagated into the</span>
+<span class="sd">        pipeline config&#39;s hard exclusion set. A future Phase 3 orchestrator</span>
+<span class="sd">        will raise if this is ``False`` when it receives an</span>
+<span class="sd">        ``ImputationResult``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">dataframe</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span>
+    <span class="n">records</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ColumnImputationRecord</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">dropped_columns</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
+    <span class="n">exclusions_applied</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></div>
+
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.19.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

@@ -1,0 +1,1755 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>dataforge_ml.imputation._fitted_imputer &#8212; DataForgeML  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../../../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5" />
+
+    <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/dataforge_ml/imputation/_fitted_imputer';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../../../_static/searchtools.js"></script>
+    <script src="../../../_static/language_data.js"></script>
+    <script src="../../../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">DataForgeML  documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/pipeline.html">
+    Pipeline
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/profiling.html">
+    Profiling
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/imputation.html">
+    Imputation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/splitting.html">
+    Splitting
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/utilities.html">
+    Utilities
+  </a>
+</li>
+
+            <li class="nav-item dropdown">
+                <button class="btn dropdown-toggle nav-item" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false"
+                aria-controls="pst-nav-more-links">
+                    More
+                </button>
+                <ul id="pst-nav-more-links" class="dropdown-menu">
+                    
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0001-type-detection-no-external-library.html">
+    ADR 0001: Type detection without an external type-inference library
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0002-sub-processors-hold-no-config.html">
+    ADR 0002: Sub-processors hold no configuration — Phase Orchestrators own all routing and exclusion decisions
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0003-pipeline-config-at-package-root.html">
+    PipelineConfig lives at the package root, not inside the profiling module
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0004-impute-before-normalize.html">
+    ADR 0004: Impute missing values before normalizing distributions
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0005-imputation-registry-per-semantic-type.html">
+    ADR 0005: Imputation sub-processors registered per SemanticType
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0006-fitted-imputer-stateless-fit-returns-object.html">
+    ADR 0006: fit() returns a stateless FittedImputer rather than mutating the orchestrator
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0007-profile-stratified-split-full-profile-signals.html">
+    ADR 0007: Profile-stratified split uses full profile signals, not missingness only
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0008-stratification-signal-taxonomy-extension.html">
+    ADR 0008: Stratification signal taxonomy extension
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0009-phase2-effective-null-boundary-normalization.html">
+    ADR 0009: Phase 2 effective null boundary normalization
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0010-knn-nan-safe-manual-scaling.html">
+    ADR 0010: NaN-safe manual scaling for KNN rather than sklearn Pipeline
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0011-mice-estimator-most-complex-tag-wins.html">
+    ADR 0011: MICE estimator selection uses the most complex NonlinearityTag across the block
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0012-mice-sample-posterior-deferred.html">
+    ADR 0012: sample_posterior stays False in MICE; posterior sampling deferred
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0013-fit-quality-held-back-evaluation.html">
+    Held-back evaluation for ImputationFitDiagnostic R² — k-fold CV on complete rows
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0014-mcar-rmse-mae-shares-r2-holdback.html">
+    ADR 0014: MCAR RMSE/MAE evaluation shares the R² holdback pass — no separate masking pass
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0015-rmse-mae-diagnostic-only-excluded-from-suggest-refit.html">
+    ADR 0015: RMSE and MAE are diagnostic-only — not used for automated decisions
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0016-unpredictable-is-unconditional-pre-routing-guard.html">
+    ADR 0016: NonlinearityTag.Unpredictable is an unconditional pre-routing guard
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0017-distribution-shape-is-universal-routing-signal.html">
+    ADR 0017: Distribution shape (KurtosisTag + SkewSeverity) is a universal routing signal across all missingness paths
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0018-bounded-discrete-compound-classification.html">
+    ADR 0018: BoundedDiscrete replaces Discrete — compound four-signal classification
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0019-mnar-data-derived-fill-replaces-sentinel.html">
+    ADR 0019 — MNAR fill is data-derived (mean/median), not a user-configured sentinel
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0020-test-split-imbalance-check-in-transform.html">
+    ADR 0020: TestSplitImbalanceWarning lives in FittedImputer.transform(), not DataSplitter
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0021-fit-transform-returns-tuple.html">
+    ADR 0021: fit_transform returns tuple[FittedImputer, ImputationResult]
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0022-proportional-split-imbalance-check.html">
+    ADR 0022: Split imbalance check is proportional, not binary
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0023-dropcandiate-exclusion-propagation-caller-initiated-phase3-enforced.html">
+    ADR 0023: DropCandidate exclusion propagation is caller-initiated and Phase-3-enforced
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0024-records-is-full-train-schema-manifest.html">
+    ADR 0024: self.records is a complete manifest of the train schema
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0025-indicator-records-written-at-fit-time.html">
+    ADR 0025: Indicator column records are written into self.records at fit time
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0026-unseen-column-error-fires-regardless-of-missingness.html">
+    ADR 0026: UnseenColumnError fires on any column absent from self.records, regardless of missingness
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0027-regression-fitted-model-stores-target-idx.html">
+    ADR 0027: Regression fitted model stores target_idx explicitly alongside the fitted IterativeImputer
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0028-df-to-numpy-sentinel-ignorant-precondition.html">
+    ADR 0028: _df_to_numpy is sentinel-ignorant; normalization is the caller’s precondition
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0029-per-column-strategy-fires-after-dropcanidate-errors-on-size-guard.html">
+    ADR 0029: per_column_strategy fires after DropCandidate and raises at fit time when size guards fail
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0030-definitional-thresholds-promoted-to-phase-sub-configs.html">
+    ADR-0030: Definitional thresholds promoted to user-configurable Phase Sub-Configs
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0031-bimodality-dual-detection-dip-test-plus-gmm.html">
+    ADR 0031: Bimodality is detected with Hartigan’s Dip Test for the signal and 2-component GMM for peak locations
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0032-bimodal-imputation-framework.html">
+    ADR 0032: Bimodal columns follow a four-branch imputation framework ordered by available cluster evidence
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0033-tail-asymmetry-outlier-density-routing-signals.html">
+    ADR 0033: Tail asymmetry ratio and outlier density extend the universal distribution shape escalation from ADR-0017
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0034-documentation-strategy-docstrings-mkdocs.html">
+    ADR 0034: Documentation strategy — numpy-style docstrings as API contract, mkdocs + mkdocstrings for generation
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0035-bounded-discrete-model-based-routing-with-domain-snap.html">
+    ADR 0035: BoundedDiscrete model-based routing with domain-snap
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0036-remove-proportional-split-imbalance-checks.html">
+    ADR 0036: Remove proportional split imbalance checks
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0037-knn-mice-block-override-scalars.html">
+    KNN and MICE block overrides are scalars, not per-column dicts
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0038-sphinx-pydata-theme-replaces-mkdocs.html">
+    ADR 0038: Sphinx + PyData Sphinx Theme replaces MkDocs as the docs build toolchain
+  </a>
+</li>
+
+                </ul>
+            </li>
+            
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/pipeline.html">
+    Pipeline
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/profiling.html">
+    Profiling
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/imputation.html">
+    Imputation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/splitting.html">
+    Splitting
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/utilities.html">
+    Utilities
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0001-type-detection-no-external-library.html">
+    ADR 0001: Type detection without an external type-inference library
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0002-sub-processors-hold-no-config.html">
+    ADR 0002: Sub-processors hold no configuration — Phase Orchestrators own all routing and exclusion decisions
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0003-pipeline-config-at-package-root.html">
+    PipelineConfig lives at the package root, not inside the profiling module
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0004-impute-before-normalize.html">
+    ADR 0004: Impute missing values before normalizing distributions
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0005-imputation-registry-per-semantic-type.html">
+    ADR 0005: Imputation sub-processors registered per SemanticType
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0006-fitted-imputer-stateless-fit-returns-object.html">
+    ADR 0006: fit() returns a stateless FittedImputer rather than mutating the orchestrator
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0007-profile-stratified-split-full-profile-signals.html">
+    ADR 0007: Profile-stratified split uses full profile signals, not missingness only
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0008-stratification-signal-taxonomy-extension.html">
+    ADR 0008: Stratification signal taxonomy extension
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0009-phase2-effective-null-boundary-normalization.html">
+    ADR 0009: Phase 2 effective null boundary normalization
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0010-knn-nan-safe-manual-scaling.html">
+    ADR 0010: NaN-safe manual scaling for KNN rather than sklearn Pipeline
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0011-mice-estimator-most-complex-tag-wins.html">
+    ADR 0011: MICE estimator selection uses the most complex NonlinearityTag across the block
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0012-mice-sample-posterior-deferred.html">
+    ADR 0012: sample_posterior stays False in MICE; posterior sampling deferred
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0013-fit-quality-held-back-evaluation.html">
+    Held-back evaluation for ImputationFitDiagnostic R² — k-fold CV on complete rows
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0014-mcar-rmse-mae-shares-r2-holdback.html">
+    ADR 0014: MCAR RMSE/MAE evaluation shares the R² holdback pass — no separate masking pass
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0015-rmse-mae-diagnostic-only-excluded-from-suggest-refit.html">
+    ADR 0015: RMSE and MAE are diagnostic-only — not used for automated decisions
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0016-unpredictable-is-unconditional-pre-routing-guard.html">
+    ADR 0016: NonlinearityTag.Unpredictable is an unconditional pre-routing guard
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0017-distribution-shape-is-universal-routing-signal.html">
+    ADR 0017: Distribution shape (KurtosisTag + SkewSeverity) is a universal routing signal across all missingness paths
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0018-bounded-discrete-compound-classification.html">
+    ADR 0018: BoundedDiscrete replaces Discrete — compound four-signal classification
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0019-mnar-data-derived-fill-replaces-sentinel.html">
+    ADR 0019 — MNAR fill is data-derived (mean/median), not a user-configured sentinel
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0020-test-split-imbalance-check-in-transform.html">
+    ADR 0020: TestSplitImbalanceWarning lives in FittedImputer.transform(), not DataSplitter
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0021-fit-transform-returns-tuple.html">
+    ADR 0021: fit_transform returns tuple[FittedImputer, ImputationResult]
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0022-proportional-split-imbalance-check.html">
+    ADR 0022: Split imbalance check is proportional, not binary
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0023-dropcandiate-exclusion-propagation-caller-initiated-phase3-enforced.html">
+    ADR 0023: DropCandidate exclusion propagation is caller-initiated and Phase-3-enforced
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0024-records-is-full-train-schema-manifest.html">
+    ADR 0024: self.records is a complete manifest of the train schema
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0025-indicator-records-written-at-fit-time.html">
+    ADR 0025: Indicator column records are written into self.records at fit time
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0026-unseen-column-error-fires-regardless-of-missingness.html">
+    ADR 0026: UnseenColumnError fires on any column absent from self.records, regardless of missingness
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0027-regression-fitted-model-stores-target-idx.html">
+    ADR 0027: Regression fitted model stores target_idx explicitly alongside the fitted IterativeImputer
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0028-df-to-numpy-sentinel-ignorant-precondition.html">
+    ADR 0028: _df_to_numpy is sentinel-ignorant; normalization is the caller’s precondition
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0029-per-column-strategy-fires-after-dropcanidate-errors-on-size-guard.html">
+    ADR 0029: per_column_strategy fires after DropCandidate and raises at fit time when size guards fail
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0030-definitional-thresholds-promoted-to-phase-sub-configs.html">
+    ADR-0030: Definitional thresholds promoted to user-configurable Phase Sub-Configs
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0031-bimodality-dual-detection-dip-test-plus-gmm.html">
+    ADR 0031: Bimodality is detected with Hartigan’s Dip Test for the signal and 2-component GMM for peak locations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0032-bimodal-imputation-framework.html">
+    ADR 0032: Bimodal columns follow a four-branch imputation framework ordered by available cluster evidence
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0033-tail-asymmetry-outlier-density-routing-signals.html">
+    ADR 0033: Tail asymmetry ratio and outlier density extend the universal distribution shape escalation from ADR-0017
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0034-documentation-strategy-docstrings-mkdocs.html">
+    ADR 0034: Documentation strategy — numpy-style docstrings as API contract, mkdocs + mkdocstrings for generation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0035-bounded-discrete-model-based-routing-with-domain-snap.html">
+    ADR 0035: BoundedDiscrete model-based routing with domain-snap
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0036-remove-proportional-split-imbalance-checks.html">
+    ADR 0036: Remove proportional split imbalance checks
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0037-knn-mice-block-override-scalars.html">
+    KNN and MICE block overrides are scalars, not per-column dicts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0038-sphinx-pydata-theme-replaces-mkdocs.html">
+    ADR 0038: Sphinx + PyData Sphinx Theme replaces MkDocs as the docs build toolchain
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">dataforge_ml.imputation._fitted_imputer</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for dataforge_ml.imputation._fitted_imputer</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">FittedImputer — stateless, serialisable object returned by ImputationOrchestrator.fit().</span>
+
+<span class="sd">transform(df) applies train-time fill parameters and fitted models to any DataFrame.</span>
+<span class="sd">to_dict() / from_dict() round-trips all scalar strategies and model-based strategies</span>
+<span class="sd">(sklearn objects stored as base64-encoded joblib bytes).</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Optional</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">..config</span><span class="w"> </span><span class="kn">import</span> <span class="n">PipelineConfig</span><span class="p">,</span> <span class="n">PipelinePhase</span><span class="p">,</span> <span class="n">SemanticType</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">ColumnImputationRecord</span><span class="p">,</span>
+    <span class="n">ImputationResult</span><span class="p">,</span>
+    <span class="n">ImputationStrategy</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._numeric_imputer</span><span class="w"> </span><span class="kn">import</span> <span class="n">FittedRegression</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..models._data_types</span><span class="w"> </span><span class="kn">import</span> <span class="n">_INT_DTYPES</span><span class="p">,</span> <span class="n">_FLOAT_DTYPES</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..utils._null_normalization</span><span class="w"> </span><span class="kn">import</span> <span class="n">_resolve_effective_nulls</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">_df_to_numpy</span><span class="p">,</span> <span class="n">_numpy_to_df</span>
+
+
+<div class="viewcode-block" id="UnfittedColumnError">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._fitted_imputer.UnfittedColumnError">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">UnfittedColumnError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Raised by FittedImputer.transform() when the input DataFrame contains</span>
+<span class="sd">    missing values in a column for which no fill strategy was learned during</span>
+<span class="sd">    fit() — i.e. the column had zero missing values in the training split.</span>
+
+<span class="sd">    Typically indicates that a non-profile-stratified split was used.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">DroppedColumnAbsentWarning</span><span class="p">(</span><span class="ne">UserWarning</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Emitted by FittedImputer.transform() when a column recorded as</span>
+<span class="sd">    ``ImputationStrategy.Dropped`` during fit() is already absent from the</span>
+<span class="sd">    input DataFrame.</span>
+
+<span class="sd">    This typically means the caller pre-removed the column before calling</span>
+<span class="sd">    transform(). Transform continues normally; the warning is the only signal.</span>
+<span class="sd">    Suppress with</span>
+<span class="sd">    ``warnings.filterwarnings(&quot;ignore&quot;, category=DroppedColumnAbsentWarning)``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+
+<div class="viewcode-block" id="UnseenColumnError">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._fitted_imputer.UnseenColumnError">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">UnseenColumnError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Raised by FittedImputer.transform() when the input DataFrame contains</span>
+<span class="sd">    columns that were not present in the training DataFrame during fit().</span>
+
+<span class="sd">    Fires before any DataFrame mutations regardless of whether the unknown</span>
+<span class="sd">    columns contain missing values, so schema drift is caught at transform</span>
+<span class="sd">    entry rather than silently propagating downstream (ADR 0026).</span>
+
+<span class="sd">    All unknown column names are reported in a single raise so the caller</span>
+<span class="sd">    can resolve all schema mismatches at once.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="FittedColumnAbsentError">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._fitted_imputer.FittedColumnAbsentError">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">FittedColumnAbsentError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Raised by FittedImputer.transform() when a column that received an active</span>
+<span class="sd">    imputation strategy during fit() is absent from the input DataFrame.</span>
+
+<span class="sd">    Active strategies are any strategy other than ``Dropped`` or ``Indicator``.</span>
+<span class="sd">    Absence of such a column is always a pipeline bug — imputation was never</span>
+<span class="sd">    applied — so this is escalated to an error rather than a warning.</span>
+
+<span class="sd">    All absent column names are reported in a single raise.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">_FittedKNN</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Fitted KNN state including scaling parameters.</span>
+
+<span class="sd">    Replaces the bare ``KNNImputer`` previously stored under ``&quot;knn&quot;`` in</span>
+<span class="sd">    ``FittedImputer.models``.  Stores the model together with the</span>
+<span class="sd">    ``nanmean``/``nanstd`` statistics used to scale the training matrix so</span>
+<span class="sd">    that ``_apply_knn`` can inverse-scale the imputed output back to original</span>
+<span class="sd">    units.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    model : Any</span>
+<span class="sd">        Fitted ``KNNImputer`` trained on the NaN-safe scaled training matrix.</span>
+<span class="sd">    col_means : np.ndarray</span>
+<span class="sd">        Per-column means computed with ``nanmean`` from the KNN training</span>
+<span class="sd">        matrix.  Shape ``(n_knn_features,)``.</span>
+<span class="sd">    col_stds : np.ndarray</span>
+<span class="sd">        Per-column standard deviations computed with ``nanstd`` from the KNN</span>
+<span class="sd">        training matrix, with zero values replaced by ``1.0``.</span>
+<span class="sd">        Shape ``(n_knn_features,)``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">model</span><span class="p">:</span> <span class="n">Any</span>
+    <span class="n">col_means</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
+    <span class="n">col_stds</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Serialise to a plain dictionary for JSON-safe storage.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict</span>
+<span class="sd">            Keys: ``&quot;model&quot;`` (base64-encoded joblib bytes), ``&quot;col_means&quot;``</span>
+<span class="sd">            and ``&quot;col_stds&quot;`` (plain Python lists).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">base64</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">io</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">joblib</span>
+
+        <span class="n">buf</span> <span class="o">=</span> <span class="n">io</span><span class="o">.</span><span class="n">BytesIO</span><span class="p">()</span>
+        <span class="n">joblib</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="n">buf</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;model&quot;</span><span class="p">:</span> <span class="n">base64</span><span class="o">.</span><span class="n">b64encode</span><span class="p">(</span><span class="n">buf</span><span class="o">.</span><span class="n">getvalue</span><span class="p">())</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">&quot;ascii&quot;</span><span class="p">),</span>
+            <span class="s2">&quot;col_means&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">col_means</span><span class="o">.</span><span class="n">tolist</span><span class="p">(),</span>
+            <span class="s2">&quot;col_stds&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">col_stds</span><span class="o">.</span><span class="n">tolist</span><span class="p">(),</span>
+        <span class="p">}</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">_FittedKNN</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reconstruct a ``_FittedKNN`` from a plain dictionary.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        data : dict</span>
+<span class="sd">            Mapping produced by ``to_dict()``.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        _FittedKNN</span>
+<span class="sd">            Reconstructed instance with a deserialised model and numpy arrays.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">base64</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">io</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">joblib</span>
+
+        <span class="n">buf</span> <span class="o">=</span> <span class="n">io</span><span class="o">.</span><span class="n">BytesIO</span><span class="p">(</span><span class="n">base64</span><span class="o">.</span><span class="n">b64decode</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;model&quot;</span><span class="p">]))</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">joblib</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">buf</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+            <span class="n">col_means</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;col_means&quot;</span><span class="p">]),</span>
+            <span class="n">col_stds</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;col_stds&quot;</span><span class="p">]),</span>
+        <span class="p">)</span>
+
+
+<div class="viewcode-block" id="FittedImputer">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._fitted_imputer.FittedImputer">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">FittedImputer</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Stores per-column imputation records and fitted models; applies them to any DataFrame.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    records : dict[str, ColumnImputationRecord]</span>
+<span class="sd">        One record per column processed during fit().</span>
+<span class="sd">    models : dict[str, Any]</span>
+<span class="sd">        Fitted sklearn model objects keyed by model name.</span>
+
+<span class="sd">        - ``&quot;knn&quot;``           : ``_FittedKNN`` for KNN-assigned columns.</span>
+<span class="sd">        - ``&quot;mice&quot;``          : ``IterativeImputer`` for MICE-assigned columns.</span>
+<span class="sd">        - ``&quot;regression:{col}&quot;`` : ``FittedRegression`` containing a fitted</span>
+<span class="sd">          ``IterativeImputer``.</span>
+<span class="sd">    model_cols : dict[str, list[str]]</span>
+<span class="sd">        Ordered column lists for each model entry in models.  Regression</span>
+<span class="sd">        entries store the full ``[col] + feat_cols`` list (including the</span>
+<span class="sd">        target at index 0).</span>
+<span class="sd">    numeric_sentinels : dict[str, list[float]]</span>
+<span class="sd">        Per-column numeric sentinel declarations copied from</span>
+<span class="sd">        ``StructuralProfileResult.numeric_sentinels``.  Keys are column names;</span>
+<span class="sd">        values are float-compatible sentinel values that are normalized to</span>
+<span class="sd">        Polars-native null before any imputation operation.  Defaults to an</span>
+<span class="sd">        empty dict — columns with no declaration are completely unaffected.</span>
+<span class="sd">        Survives ``to_dict()`` / ``from_dict()`` round-trips.</span>
+<span class="sd">    string_sentinels : dict[str, list[str]]</span>
+<span class="sd">        Per-column string sentinel declarations copied from</span>
+<span class="sd">        ``StructuralProfileResult.string_sentinels``.  Uses **replace</span>
+<span class="sd">        semantics**: when a column name is present, only the declared values</span>
+<span class="sd">        are matched (case-insensitive) and the hardcoded defaults</span>
+<span class="sd">        (``&quot;NA&quot;``, ``&quot;NAN&quot;``, ``&quot;NULL&quot;``, ``&quot;NONE&quot;``, ``&quot;?&quot;``) are suppressed</span>
+<span class="sd">        for that column.  Empty/whitespace strings are always treated as</span>
+<span class="sd">        effective null regardless of any declaration.  Defaults to an empty</span>
+<span class="sd">        dict — columns with no declaration continue to use the hardcoded</span>
+<span class="sd">        defaults.  Survives ``to_dict()`` / ``from_dict()`` round-trips.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">records</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ColumnImputationRecord</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">models</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">model_cols</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">numeric_sentinels</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">string_sentinels</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">random_seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exclusions_applied</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+
+<div class="viewcode-block" id="FittedImputer.apply_exclusions">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._fitted_imputer.FittedImputer.apply_exclusions">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">apply_exclusions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">PipelineConfig</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Propagate dropped and indicator columns into the pipeline config.</span>
+
+<span class="sd">        Hard Exclusions (ADR 0023): columns recorded with</span>
+<span class="sd">        ``ImputationStrategy.Dropped`` are added to ``config.exclude_columns``</span>
+<span class="sd">        via ``add_exclusions``, removing them from every downstream phase.</span>
+
+<span class="sd">        Soft Exclusions: columns recorded with ``ImputationStrategy.Indicator``</span>
+<span class="sd">        are registered in ``config.phase_exclusions`` for Phases 3–6</span>
+<span class="sd">        (OutlierDetection, Normalization, Encoding, Scaling), so those phases</span>
+<span class="sd">        skip indicator columns without removing them from the dataset.</span>
+
+<span class="sd">        Sets ``_exclusions_applied`` to ``True`` regardless of whether any</span>
+<span class="sd">        excluded columns exist, so callers can invoke this method</span>
+<span class="sd">        unconditionally without branching.</span>
+
+<span class="sd">        Propagation is caller-initiated: ``fit()`` does not touch</span>
+<span class="sd">        ``PipelineConfig``, preserving re-fit idempotency. A fresh call is</span>
+<span class="sd">        required after deserialising via ``from_dict()`` because</span>
+<span class="sd">        ``_exclusions_applied`` is not persisted across serialisation.</span>
+<span class="sd">        Duplicate calls are safe — both hard and soft exclusion registrations</span>
+<span class="sd">        deduplicate automatically.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        config : PipelineConfig</span>
+<span class="sd">            Pipeline config to update.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">dropped</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">col</span> <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">rec</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">rec</span><span class="o">.</span><span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Dropped</span>
+        <span class="p">]</span>
+        <span class="n">config</span><span class="o">.</span><span class="n">add_exclusions</span><span class="p">(</span><span class="n">dropped</span><span class="p">)</span>
+
+        <span class="n">indicator_cols</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">col</span> <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">rec</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">rec</span><span class="o">.</span><span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Indicator</span>
+        <span class="p">]</span>
+        <span class="n">_soft_phases</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">PipelinePhase</span><span class="o">.</span><span class="n">OutlierDetection</span><span class="p">,</span>
+            <span class="n">PipelinePhase</span><span class="o">.</span><span class="n">Normalization</span><span class="p">,</span>
+            <span class="n">PipelinePhase</span><span class="o">.</span><span class="n">Encoding</span><span class="p">,</span>
+            <span class="n">PipelinePhase</span><span class="o">.</span><span class="n">Scaling</span><span class="p">,</span>
+        <span class="p">]</span>
+        <span class="k">for</span> <span class="n">phase</span> <span class="ow">in</span> <span class="n">_soft_phases</span><span class="p">:</span>
+            <span class="n">existing</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">phase_exclusions</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">phase</span><span class="p">,</span> <span class="p">[]))</span>
+            <span class="n">new_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">indicator_cols</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">existing</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">new_cols</span><span class="p">:</span>
+                <span class="n">config</span><span class="o">.</span><span class="n">phase_exclusions</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">phase</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">new_cols</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exclusions_applied</span> <span class="o">=</span> <span class="kc">True</span></div>
+
+
+<div class="viewcode-block" id="FittedImputer.transform">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._fitted_imputer.FittedImputer.transform">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">transform</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">df</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ImputationResult</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Apply train-time fill parameters and models to df.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        UnseenColumnError</span>
+<span class="sd">            If df contains any column absent from ``self.records``. Fires before</span>
+<span class="sd">            any DataFrame mutations regardless of whether the unknown column has</span>
+<span class="sd">            missing values. All unknown column names are reported in one raise.</span>
+<span class="sd">        FittedColumnAbsentError</span>
+<span class="sd">            If a column with an active imputation strategy (any strategy other</span>
+<span class="sd">            than ``Dropped`` or ``Indicator``) is absent from df. All absent</span>
+<span class="sd">            column names are reported in one raise.</span>
+<span class="sd">        UnfittedColumnError</span>
+<span class="sd">            If df has missing values in a column that had no missingness during</span>
+<span class="sd">            fit() (strategy == Passthrough).</span>
+
+<span class="sd">        Warns</span>
+<span class="sd">        -----</span>
+<span class="sd">        DroppedColumnAbsentWarning</span>
+<span class="sd">            If a column recorded as Dropped during fit() is already absent from</span>
+<span class="sd">            df. One warning is emitted per absent column. Transform continues</span>
+<span class="sd">            normally.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># --- UnseenColumnError check (before any mutations) ---</span>
+        <span class="n">unseen</span> <span class="o">=</span> <span class="p">[</span><span class="n">col</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="n">col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">unseen</span><span class="p">:</span>
+            <span class="n">cols_str</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">c</span><span class="si">}</span><span class="s2">&#39;&quot;</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">unseen</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="n">UnseenColumnError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Column(s) </span><span class="si">{</span><span class="n">cols_str</span><span class="si">}</span><span class="s2"> were not present in the training DataFrame &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;during fit() and have no entry in the schema manifest. Schema &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;drift between fit and transform is not permitted.&quot;</span>
+            <span class="p">)</span>
+
+        <span class="c1"># --- FittedColumnAbsentError check (before any mutations) ---</span>
+        <span class="n">_absent_exempt</span> <span class="o">=</span> <span class="p">{</span><span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Dropped</span><span class="p">,</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Indicator</span><span class="p">}</span>
+        <span class="n">absent</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">col</span> <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">rec</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">rec</span><span class="o">.</span><span class="n">strategy</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_absent_exempt</span> <span class="ow">and</span> <span class="n">col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span>
+        <span class="p">]</span>
+        <span class="k">if</span> <span class="n">absent</span><span class="p">:</span>
+            <span class="n">cols_str</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">c</span><span class="si">}</span><span class="s2">&#39;&quot;</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">absent</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="n">FittedColumnAbsentError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Column(s) </span><span class="si">{</span><span class="n">cols_str</span><span class="si">}</span><span class="s2"> were fitted with an active imputation &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;strategy but are absent from the input DataFrame. Imputation &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;cannot be applied to absent columns.&quot;</span>
+            <span class="p">)</span>
+
+        <span class="n">df</span> <span class="o">=</span> <span class="n">_resolve_effective_nulls</span><span class="p">(</span>
+            <span class="n">df</span><span class="p">,</span>
+            <span class="n">numeric_sentinels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">numeric_sentinels</span><span class="p">,</span>
+            <span class="n">string_sentinels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">string_sentinels</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># --- Passthrough violation check ---</span>
+        <span class="n">violating_cols</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">rec</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">rec</span><span class="o">.</span><span class="n">strategy</span> <span class="o">!=</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Passthrough</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">df</span><span class="p">[</span><span class="n">col</span><span class="p">]</span><span class="o">.</span><span class="n">null_count</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">violating_cols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">violating_cols</span><span class="p">:</span>
+            <span class="n">cols_str</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">c</span><span class="si">}</span><span class="s2">&#39;&quot;</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">violating_cols</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="n">UnfittedColumnError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Column(s) </span><span class="si">{</span><span class="n">cols_str</span><span class="si">}</span><span class="s2"> have missing values but no fill strategy was &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;learned during fit() because the training split had no missing &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;values. Consider using DataSplitter.profile_stratified_split() &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;to ensure missingness is represented in training data.&quot;</span>
+            <span class="p">)</span>
+
+        <span class="c1"># --- Warn about already-absent dropped columns ---</span>
+        <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">rec</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">rec</span><span class="o">.</span><span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Dropped</span> <span class="ow">and</span> <span class="n">col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">&#39; was recorded as Dropped during fit() but is &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;already absent from the input DataFrame. The drop is a no-op.&quot;</span><span class="p">,</span>
+                    <span class="n">DroppedColumnAbsentWarning</span><span class="p">,</span>
+                    <span class="n">stacklevel</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+                <span class="p">)</span>
+
+        <span class="c1"># --- Drop columns ---</span>
+        <span class="n">dropped_cols</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">col</span>
+            <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">rec</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">rec</span><span class="o">.</span><span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Dropped</span> <span class="ow">and</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span>
+        <span class="p">]</span>
+        <span class="n">result_df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">dropped_cols</span><span class="p">)</span>
+
+        <span class="c1"># --- Build indicator expressions before filling ---</span>
+        <span class="n">indicator_exprs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">rec</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">rec</span><span class="o">.</span><span class="n">indicator_added</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">result_df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">indicator_exprs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="n">col</span><span class="p">)</span><span class="o">.</span><span class="n">is_null</span><span class="p">()</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">Int8</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">_missing&quot;</span><span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">indicator_exprs</span><span class="p">:</span>
+            <span class="n">result_df</span> <span class="o">=</span> <span class="n">result_df</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span><span class="n">indicator_exprs</span><span class="p">)</span>
+
+        <span class="c1"># --- Apply scalar fill values ---</span>
+        <span class="n">fill_exprs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">rec</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">rec</span><span class="o">.</span><span class="n">strategy</span> <span class="ow">in</span> <span class="p">(</span>
+                <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Dropped</span><span class="p">,</span>
+                <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Passthrough</span><span class="p">,</span>
+                <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">KNN</span><span class="p">,</span>
+                <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MICE</span><span class="p">,</span>
+                <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Regression</span><span class="p">,</span>
+            <span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">result_df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">rec</span><span class="o">.</span><span class="n">fill_value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">dtype</span> <span class="o">=</span> <span class="n">result_df</span><span class="o">.</span><span class="n">schema</span><span class="p">[</span><span class="n">col</span><span class="p">]</span>
+            <span class="n">fill_val</span> <span class="o">=</span> <span class="n">rec</span><span class="o">.</span><span class="n">fill_value</span>
+            <span class="k">if</span> <span class="n">dtype</span> <span class="ow">in</span> <span class="n">_INT_DTYPES</span><span class="p">:</span>
+                <span class="n">fill_val</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">fill_val</span><span class="p">)))</span>
+                <span class="n">fill_exprs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="n">col</span><span class="p">)</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">fill_val</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="n">dtype</span> <span class="ow">in</span> <span class="n">_FLOAT_DTYPES</span><span class="p">:</span>
+                <span class="n">fill_exprs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="n">col</span><span class="p">)</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">fill_val</span><span class="p">)))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">fill_exprs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="n">col</span><span class="p">)</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">fill_val</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">fill_exprs</span><span class="p">:</span>
+            <span class="n">result_df</span> <span class="o">=</span> <span class="n">result_df</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span><span class="n">fill_exprs</span><span class="p">)</span>
+
+        <span class="c1"># --- Apply model-based strategies (MICE → KNN → Regression) with domain-snap ---</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">models</span><span class="p">:</span>
+            <span class="n">result_df</span> <span class="o">=</span> <span class="n">_apply_block_model</span><span class="p">(</span>
+                <span class="n">result_df</span><span class="p">,</span> <span class="s2">&quot;mice&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">models</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_cols</span>
+            <span class="p">)</span>
+            <span class="n">result_df</span> <span class="o">=</span> <span class="n">_apply_domain_snap</span><span class="p">(</span>
+                <span class="n">result_df</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_cols</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;mice&quot;</span><span class="p">,</span> <span class="p">[]),</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span>
+            <span class="p">)</span>
+            <span class="n">result_df</span> <span class="o">=</span> <span class="n">_apply_knn</span><span class="p">(</span><span class="n">result_df</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">models</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_cols</span><span class="p">)</span>
+            <span class="n">result_df</span> <span class="o">=</span> <span class="n">_apply_domain_snap</span><span class="p">(</span>
+                <span class="n">result_df</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_cols</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;knn&quot;</span><span class="p">,</span> <span class="p">[]),</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">rec</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">rec</span><span class="o">.</span><span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Regression</span><span class="p">:</span>
+                    <span class="n">result_df</span> <span class="o">=</span> <span class="n">_apply_regression</span><span class="p">(</span>
+                        <span class="n">result_df</span><span class="p">,</span> <span class="n">col</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">models</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_cols</span>
+                    <span class="p">)</span>
+                    <span class="k">if</span> <span class="n">rec</span><span class="o">.</span><span class="n">domain_snap_bounds</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">lo</span><span class="p">,</span> <span class="n">hi</span> <span class="o">=</span> <span class="n">rec</span><span class="o">.</span><span class="n">domain_snap_bounds</span>
+                        <span class="n">result_df</span> <span class="o">=</span> <span class="n">result_df</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
+                            <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="n">col</span><span class="p">)</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">lo</span><span class="p">,</span> <span class="n">hi</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
+                        <span class="p">)</span>
+
+            <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">rec</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">rec</span><span class="o">.</span><span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">ClusterConditional</span><span class="p">:</span>
+                    <span class="n">result_df</span> <span class="o">=</span> <span class="n">_apply_cluster_conditional</span><span class="p">(</span>
+                        <span class="n">result_df</span><span class="p">,</span> <span class="n">col</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">models</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;cluster:</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span>
+                    <span class="p">)</span>
+                <span class="k">elif</span> <span class="n">rec</span><span class="o">.</span><span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">GMMSampling</span><span class="p">:</span>
+                    <span class="n">result_df</span> <span class="o">=</span> <span class="n">_apply_gmm_sampling</span><span class="p">(</span>
+                        <span class="n">result_df</span><span class="p">,</span> <span class="n">col</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">models</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;gmm:</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">random_seed</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span>
+                    <span class="p">)</span>
+
+
+        <span class="k">return</span> <span class="n">ImputationResult</span><span class="p">(</span>
+            <span class="n">dataframe</span><span class="o">=</span><span class="n">result_df</span><span class="p">,</span>
+            <span class="n">records</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="p">),</span>
+            <span class="n">dropped_columns</span><span class="o">=</span><span class="n">dropped_cols</span><span class="p">,</span>
+            <span class="n">exclusions_applied</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_exclusions_applied</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="FittedImputer.to_dict">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._fitted_imputer.FittedImputer.to_dict">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Serialize the FittedImputer instance to a dictionary.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict</span>
+<span class="sd">            Dictionary containing serialized records, models (as base64-encoded</span>
+<span class="sd">            joblib bytes), model column lists, numeric sentinel declarations,</span>
+<span class="sd">            and string sentinel declarations.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">base64</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">io</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">joblib</span>
+
+        <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+        <span class="n">serialized_models</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">model</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">models</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">model</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;FittedClusterConditional&quot;</span><span class="p">,</span> <span class="s2">&quot;FittedGMMSampling&quot;</span><span class="p">):</span>
+                <span class="n">serialized_models</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">({</span>
+                    <span class="s2">&quot;_type&quot;</span><span class="p">:</span> <span class="nb">type</span><span class="p">(</span><span class="n">model</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span>
+                    <span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
+                <span class="p">})</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">buf</span> <span class="o">=</span> <span class="n">io</span><span class="o">.</span><span class="n">BytesIO</span><span class="p">()</span>
+                <span class="n">joblib</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">buf</span><span class="p">)</span>
+                <span class="n">serialized_models</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">base64</span><span class="o">.</span><span class="n">b64encode</span><span class="p">(</span><span class="n">buf</span><span class="o">.</span><span class="n">getvalue</span><span class="p">())</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">&quot;ascii&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;records&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">col</span><span class="p">:</span> <span class="n">rec</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span> <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">rec</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span>
+            <span class="s2">&quot;models&quot;</span><span class="p">:</span> <span class="n">serialized_models</span><span class="p">,</span>
+            <span class="s2">&quot;model_cols&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_cols</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span>
+            <span class="s2">&quot;numeric_sentinels&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">numeric_sentinels</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span>
+            <span class="s2">&quot;string_sentinels&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">string_sentinels</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span>
+            <span class="s2">&quot;random_seed&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">random_seed</span><span class="p">,</span>
+        <span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="FittedImputer.from_dict">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._fitted_imputer.FittedImputer.from_dict">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FittedImputer</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Deserialize a dictionary back into a FittedImputer instance.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        data : dict</span>
+<span class="sd">            Mapping produced by ``to_dict()``.  Payloads without a</span>
+<span class="sd">            ``&quot;numeric_sentinels&quot;`` key (serialised before Scope 5 / issue #94)</span>
+<span class="sd">            default to an empty dict for backwards compatibility.  Payloads</span>
+<span class="sd">            without a ``&quot;string_sentinels&quot;`` key (serialised before issue #182)</span>
+<span class="sd">            also default to an empty dict for backwards compatibility.</span>
+<span class="sd">            Pre-Scope 8 payloads may contain ``&quot;constant&quot;`` as a strategy</span>
+<span class="sd">            value; those records deserialise as ``ImputationStrategy.Constant``</span>
+<span class="sd">            (audit label only — fill behaviour is unchanged).  Payloads without</span>
+<span class="sd">            a ``&quot;diagnostic&quot;`` key on individual records (serialised before</span>
+<span class="sd">            Scope 3 / issue #214) default to ``None`` for backwards</span>
+<span class="sd">            compatibility.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        FittedImputer</span>
+<span class="sd">            The deserialized FittedImputer instance.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">base64</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">io</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">joblib</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">ColumnImputationRecord</span><span class="p">,</span> <span class="n">ImputationFitDiagnostic</span><span class="p">,</span> <span class="n">ImputationStrategy</span>
+
+        <span class="n">records</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ColumnImputationRecord</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">rec_data</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;records&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">raw_bounds</span> <span class="o">=</span> <span class="n">rec_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;domain_snap_bounds&quot;</span><span class="p">)</span>
+            <span class="n">snap_bounds</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">raw_bounds</span><span class="p">)</span> <span class="k">if</span> <span class="n">raw_bounds</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="n">strategy_str</span> <span class="o">=</span> <span class="n">rec_data</span><span class="p">[</span><span class="s2">&quot;strategy&quot;</span><span class="p">]</span>
+            <span class="n">raw_diag</span> <span class="o">=</span> <span class="n">rec_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;diagnostic&quot;</span><span class="p">)</span>
+            <span class="n">diagnostic</span> <span class="o">=</span> <span class="n">ImputationFitDiagnostic</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">raw_diag</span><span class="p">)</span> <span class="k">if</span> <span class="n">raw_diag</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="n">records</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">ColumnImputationRecord</span><span class="p">(</span>
+                <span class="n">column</span><span class="o">=</span><span class="n">rec_data</span><span class="p">[</span><span class="s2">&quot;column&quot;</span><span class="p">],</span>
+                <span class="n">semantic_type</span><span class="o">=</span><span class="n">SemanticType</span><span class="p">(</span><span class="n">rec_data</span><span class="p">[</span><span class="s2">&quot;semantic_type&quot;</span><span class="p">]),</span>
+                <span class="n">strategy</span><span class="o">=</span><span class="n">ImputationStrategy</span><span class="p">(</span><span class="n">strategy_str</span><span class="p">),</span>
+                <span class="n">fill_value</span><span class="o">=</span><span class="n">rec_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;fill_value&quot;</span><span class="p">),</span>
+                <span class="n">indicator_added</span><span class="o">=</span><span class="nb">bool</span><span class="p">(</span><span class="n">rec_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;indicator_added&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)),</span>
+                <span class="n">signals</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">rec_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;signals&quot;</span><span class="p">,</span> <span class="p">[])),</span>
+                <span class="n">domain_snap_bounds</span><span class="o">=</span><span class="n">snap_bounds</span><span class="p">,</span>
+                <span class="n">diagnostic</span><span class="o">=</span><span class="n">diagnostic</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="n">model_cols</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">k</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;model_cols&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="p">}</span>
+
+        <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+        <span class="n">models</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">b64str</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;models&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">b64str</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;{&quot;_type&quot;:&#39;</span><span class="p">):</span>
+                <span class="n">payload</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">b64str</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">payload</span><span class="p">[</span><span class="s2">&quot;_type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;FittedClusterConditional&quot;</span><span class="p">:</span>
+                    <span class="kn">from</span><span class="w"> </span><span class="nn">._numeric_imputer</span><span class="w"> </span><span class="kn">import</span> <span class="n">FittedClusterConditional</span>
+                    <span class="n">models</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">FittedClusterConditional</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">payload</span><span class="p">[</span><span class="s2">&quot;data&quot;</span><span class="p">])</span>
+                <span class="k">elif</span> <span class="n">payload</span><span class="p">[</span><span class="s2">&quot;_type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;FittedGMMSampling&quot;</span><span class="p">:</span>
+                    <span class="kn">from</span><span class="w"> </span><span class="nn">._numeric_imputer</span><span class="w"> </span><span class="kn">import</span> <span class="n">FittedGMMSampling</span>
+                    <span class="n">models</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">FittedGMMSampling</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">payload</span><span class="p">[</span><span class="s2">&quot;data&quot;</span><span class="p">])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">buf</span> <span class="o">=</span> <span class="n">io</span><span class="o">.</span><span class="n">BytesIO</span><span class="p">(</span><span class="n">base64</span><span class="o">.</span><span class="n">b64decode</span><span class="p">(</span><span class="n">b64str</span><span class="p">))</span>
+                <span class="n">models</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">joblib</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">buf</span><span class="p">)</span>
+
+        <span class="n">numeric_sentinels</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">k</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">vals</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">vals</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;numeric_sentinels&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="p">}</span>
+
+        <span class="n">string_sentinels</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">k</span><span class="p">:</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">vals</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">vals</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;string_sentinels&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="p">}</span>
+
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+            <span class="n">records</span><span class="o">=</span><span class="n">records</span><span class="p">,</span>
+            <span class="n">models</span><span class="o">=</span><span class="n">models</span><span class="p">,</span>
+            <span class="n">model_cols</span><span class="o">=</span><span class="n">model_cols</span><span class="p">,</span>
+            <span class="n">numeric_sentinels</span><span class="o">=</span><span class="n">numeric_sentinels</span><span class="p">,</span>
+            <span class="n">string_sentinels</span><span class="o">=</span><span class="n">string_sentinels</span><span class="p">,</span>
+            <span class="n">random_seed</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;random_seed&quot;</span><span class="p">),</span>
+        <span class="p">)</span></div>
+</div>
+
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># Model application helpers</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_apply_block_model</span><span class="p">(</span>
+    <span class="n">df</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span>
+    <span class="n">model_key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">models</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">model_cols</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Apply a block model (MICE) to its assigned columns.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">model_key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">models</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">df</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">models</span><span class="p">[</span><span class="n">model_key</span><span class="p">]</span>
+    <span class="n">cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">model_cols</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">model_key</span><span class="p">,</span> <span class="p">[])</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">cols</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">df</span>
+    <span class="n">arr</span> <span class="o">=</span> <span class="n">_df_to_numpy</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">cols</span><span class="p">)</span>
+    <span class="n">arr_filled</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">_numpy_to_df</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">cols</span><span class="p">,</span> <span class="n">arr_filled</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_apply_knn</span><span class="p">(</span>
+    <span class="n">df</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span>
+    <span class="n">models</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">model_cols</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Apply NaN-safe scaling, KNN imputation, and inverse scaling.</span>
+
+<span class="sd">    Retrieves the ``_FittedKNN`` stored at ``models[&quot;knn&quot;]``, scales the KNN</span>
+<span class="sd">    feature columns using the stored ``col_means``/``col_stds``, runs</span>
+<span class="sd">    ``KNNImputer.transform()`` on the scaled matrix, then inverse-scales the</span>
+<span class="sd">    output back to original units before writing the imputed values into ``df``.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    df : pl.DataFrame</span>
+<span class="sd">        Input DataFrame containing the KNN columns.</span>
+<span class="sd">    models : dict[str, Any]</span>
+<span class="sd">        Fitted models dictionary; the ``&quot;knn&quot;`` entry must be a ``_FittedKNN``.</span>
+<span class="sd">    model_cols : dict[str, list[str]]</span>
+<span class="sd">        Ordered column lists for each model.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    pl.DataFrame</span>
+<span class="sd">        DataFrame with KNN-imputed values, inverse-scaled to original units.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="s2">&quot;knn&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">models</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">df</span>
+    <span class="n">fitted</span><span class="p">:</span> <span class="n">_FittedKNN</span> <span class="o">=</span> <span class="n">models</span><span class="p">[</span><span class="s2">&quot;knn&quot;</span><span class="p">]</span>
+    <span class="n">cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">model_cols</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;knn&quot;</span><span class="p">,</span> <span class="p">[])</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">cols</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">df</span>
+    <span class="n">arr</span> <span class="o">=</span> <span class="n">_df_to_numpy</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">cols</span><span class="p">)</span>
+    <span class="n">arr_scaled</span> <span class="o">=</span> <span class="p">(</span><span class="n">arr</span> <span class="o">-</span> <span class="n">fitted</span><span class="o">.</span><span class="n">col_means</span><span class="p">)</span> <span class="o">/</span> <span class="n">fitted</span><span class="o">.</span><span class="n">col_stds</span>
+    <span class="n">arr_imputed</span> <span class="o">=</span> <span class="n">fitted</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">arr_scaled</span><span class="p">)</span>
+    <span class="n">arr_unscaled</span> <span class="o">=</span> <span class="n">arr_imputed</span> <span class="o">*</span> <span class="n">fitted</span><span class="o">.</span><span class="n">col_stds</span> <span class="o">+</span> <span class="n">fitted</span><span class="o">.</span><span class="n">col_means</span>
+    <span class="k">return</span> <span class="n">_numpy_to_df</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">cols</span><span class="p">,</span> <span class="n">arr_unscaled</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_apply_regression</span><span class="p">(</span>
+    <span class="n">df</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span>
+    <span class="n">col</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">models</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">model_cols</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Apply a per-column IterativeImputer to fill nulls in col.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    df : pl.DataFrame</span>
+<span class="sd">        Input DataFrame.</span>
+<span class="sd">    col : str</span>
+<span class="sd">        Target column name.</span>
+<span class="sd">    models : dict[str, Any]</span>
+<span class="sd">        Fitted models dictionary.</span>
+<span class="sd">    model_cols : dict[str, list[str]]</span>
+<span class="sd">        Ordered column lists for each model.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    pl.DataFrame</span>
+<span class="sd">        DataFrame with imputed values in col.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">model_key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;regression:</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="k">if</span> <span class="n">model_key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">models</span> <span class="ow">or</span> <span class="n">col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">df</span>
+
+    <span class="n">fitted_reg</span><span class="p">:</span> <span class="n">FittedRegression</span> <span class="o">=</span> <span class="n">models</span><span class="p">[</span><span class="n">model_key</span><span class="p">]</span>
+    <span class="n">all_cols</span> <span class="o">=</span> <span class="n">model_cols</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">model_key</span><span class="p">,</span> <span class="p">[])</span>
+
+    <span class="n">target_arr</span> <span class="o">=</span> <span class="n">_df_to_numpy</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="p">[</span><span class="n">col</span><span class="p">])</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">target_arr</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+        <span class="k">return</span> <span class="n">df</span>
+
+    <span class="c1"># Build the joint array ([col] + feat_cols); absent columns stay NaN.</span>
+    <span class="n">n_df_rows</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
+    <span class="n">arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="n">n_df_rows</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">all_cols</span><span class="p">)),</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">all_cols</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="n">arr</span><span class="p">[:,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">_df_to_numpy</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="p">[</span><span class="n">c</span><span class="p">])</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+
+    <span class="n">arr_filled</span> <span class="o">=</span> <span class="n">fitted_reg</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span>
+    <span class="n">target_filled</span> <span class="o">=</span> <span class="n">arr_filled</span><span class="p">[:,</span> <span class="n">fitted_reg</span><span class="o">.</span><span class="n">target_idx</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">_numpy_to_df</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="p">[</span><span class="n">col</span><span class="p">],</span> <span class="n">target_filled</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_apply_domain_snap</span><span class="p">(</span>
+    <span class="n">df</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span>
+    <span class="n">cols</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+    <span class="n">records</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ColumnImputationRecord</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Apply clip(round(p), lo, hi) after model inference for BoundedDiscrete columns.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    df : pl.DataFrame</span>
+<span class="sd">        DataFrame after model inference.</span>
+<span class="sd">    cols : list[str]</span>
+<span class="sd">        Columns processed by the preceding model block.</span>
+<span class="sd">    records : dict[str, ColumnImputationRecord]</span>
+<span class="sd">        Per-column imputation records; only columns with ``domain_snap_bounds`` set are snapped.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    pl.DataFrame</span>
+<span class="sd">        DataFrame with snapped values for any column that has ``domain_snap_bounds``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">snap_exprs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">cols</span><span class="p">:</span>
+        <span class="n">rec</span> <span class="o">=</span> <span class="n">records</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">rec</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">rec</span><span class="o">.</span><span class="n">domain_snap_bounds</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">lo</span><span class="p">,</span> <span class="n">hi</span> <span class="o">=</span> <span class="n">rec</span><span class="o">.</span><span class="n">domain_snap_bounds</span>
+        <span class="n">snap_exprs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="n">col</span><span class="p">)</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">lo</span><span class="p">,</span> <span class="n">hi</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="n">col</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">snap_exprs</span><span class="p">:</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span><span class="n">snap_exprs</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">df</span>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_apply_gmm_sampling</span><span class="p">(</span>
+    <span class="n">df</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">col</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">random_seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="n">records</span><span class="p">:</span> <span class="nb">dict</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="n">col</span><span class="p">]</span>
+    <span class="n">null_mask</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">is_null</span><span class="p">()</span>
+    <span class="n">n_missing</span> <span class="o">=</span> <span class="n">null_mask</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">n_missing</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">df</span>
+
+    <span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">random_seed</span><span class="p">)</span>
+    
+    <span class="n">choices</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">choice</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">p</span><span class="o">=</span><span class="p">[</span><span class="n">model</span><span class="o">.</span><span class="n">weight1</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">weight2</span><span class="p">],</span> <span class="n">size</span><span class="o">=</span><span class="n">n_missing</span><span class="p">)</span>
+    <span class="n">samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+        <span class="n">choices</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span>
+        <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">center1</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">std1</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">n_missing</span><span class="p">),</span>
+        <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">center2</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">std2</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">n_missing</span><span class="p">)</span>
+    <span class="p">)</span>
+    
+    <span class="n">rec</span> <span class="o">=</span> <span class="n">records</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">rec</span> <span class="ow">and</span> <span class="n">rec</span><span class="o">.</span><span class="n">domain_snap_bounds</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">lo</span><span class="p">,</span> <span class="n">hi</span> <span class="o">=</span> <span class="n">rec</span><span class="o">.</span><span class="n">domain_snap_bounds</span>
+        <span class="n">samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">samples</span><span class="p">),</span> <span class="n">lo</span><span class="p">,</span> <span class="n">hi</span><span class="p">)</span>
+        
+    <span class="n">s_arr</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">s_arr</span><span class="p">[</span><span class="n">null_mask</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()]</span> <span class="o">=</span> <span class="n">samples</span>
+    
+    <span class="k">return</span> <span class="n">df</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">s_arr</span><span class="p">))</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_apply_cluster_conditional</span><span class="p">(</span>
+    <span class="n">df</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">col</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">Any</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="n">col</span><span class="p">]</span>
+    <span class="n">null_mask</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">is_null</span><span class="p">()</span>
+    <span class="n">n_missing</span> <span class="o">=</span> <span class="n">null_mask</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">n_missing</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">df</span>
+        
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+    <span class="n">s_arr</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">null_idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">null_mask</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">())[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">model</span><span class="o">.</span><span class="n">grouping_variable</span><span class="p">:</span>
+        <span class="n">group_s</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="n">model</span><span class="o">.</span><span class="n">grouping_variable</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">null_idx</span><span class="p">:</span>
+            <span class="n">group_val</span> <span class="o">=</span> <span class="n">group_s</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">pd</span><span class="o">.</span><span class="n">isna</span><span class="p">(</span><span class="n">group_val</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="n">fill_val</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">group_fills</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">group_val</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">fill_val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">s_arr</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">fill_val</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">model</span><span class="o">.</span><span class="n">feature_cols</span><span class="p">:</span>
+            <span class="n">feat_arr</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">feature_cols</span><span class="p">)</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">null_idx</span><span class="p">:</span>
+                <span class="n">row_feats</span> <span class="o">=</span> <span class="n">feat_arr</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+                <span class="n">row_feats</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan_to_num</span><span class="p">(</span><span class="n">row_feats</span><span class="p">)</span>
+                
+                <span class="n">dist1</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;inf&#39;</span><span class="p">)</span>
+                <span class="n">dist2</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;inf&#39;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">model</span><span class="o">.</span><span class="n">feature_centroid_1</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">dist1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">row_feats</span> <span class="o">-</span> <span class="n">model</span><span class="o">.</span><span class="n">feature_centroid_1</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">model</span><span class="o">.</span><span class="n">feature_centroid_2</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">dist2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">row_feats</span> <span class="o">-</span> <span class="n">model</span><span class="o">.</span><span class="n">feature_centroid_2</span><span class="p">)</span>
+                    
+                <span class="k">if</span> <span class="n">dist1</span> <span class="o">&lt;=</span> <span class="n">dist2</span> <span class="ow">and</span> <span class="n">model</span><span class="o">.</span><span class="n">fill_1</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">s_arr</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">fill_1</span>
+                <span class="k">elif</span> <span class="n">model</span><span class="o">.</span><span class="n">fill_2</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">s_arr</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">fill_2</span>
+                    
+    <span class="k">return</span> <span class="n">df</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">s_arr</span><span class="p">))</span>
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.19.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

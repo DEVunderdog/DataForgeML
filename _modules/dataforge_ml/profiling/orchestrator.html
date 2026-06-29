@@ -1,0 +1,1365 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>dataforge_ml.profiling.orchestrator &#8212; DataForgeML  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../../../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5" />
+
+    <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/dataforge_ml/profiling/orchestrator';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../../../_static/searchtools.js"></script>
+    <script src="../../../_static/language_data.js"></script>
+    <script src="../../../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">DataForgeML  documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/pipeline.html">
+    Pipeline
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/profiling.html">
+    Profiling
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/imputation.html">
+    Imputation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/splitting.html">
+    Splitting
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/utilities.html">
+    Utilities
+  </a>
+</li>
+
+            <li class="nav-item dropdown">
+                <button class="btn dropdown-toggle nav-item" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false"
+                aria-controls="pst-nav-more-links">
+                    More
+                </button>
+                <ul id="pst-nav-more-links" class="dropdown-menu">
+                    
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0001-type-detection-no-external-library.html">
+    ADR 0001: Type detection without an external type-inference library
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0002-sub-processors-hold-no-config.html">
+    ADR 0002: Sub-processors hold no configuration — Phase Orchestrators own all routing and exclusion decisions
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0003-pipeline-config-at-package-root.html">
+    PipelineConfig lives at the package root, not inside the profiling module
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0004-impute-before-normalize.html">
+    ADR 0004: Impute missing values before normalizing distributions
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0005-imputation-registry-per-semantic-type.html">
+    ADR 0005: Imputation sub-processors registered per SemanticType
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0006-fitted-imputer-stateless-fit-returns-object.html">
+    ADR 0006: fit() returns a stateless FittedImputer rather than mutating the orchestrator
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0007-profile-stratified-split-full-profile-signals.html">
+    ADR 0007: Profile-stratified split uses full profile signals, not missingness only
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0008-stratification-signal-taxonomy-extension.html">
+    ADR 0008: Stratification signal taxonomy extension
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0009-phase2-effective-null-boundary-normalization.html">
+    ADR 0009: Phase 2 effective null boundary normalization
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0010-knn-nan-safe-manual-scaling.html">
+    ADR 0010: NaN-safe manual scaling for KNN rather than sklearn Pipeline
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0011-mice-estimator-most-complex-tag-wins.html">
+    ADR 0011: MICE estimator selection uses the most complex NonlinearityTag across the block
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0012-mice-sample-posterior-deferred.html">
+    ADR 0012: sample_posterior stays False in MICE; posterior sampling deferred
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0013-fit-quality-held-back-evaluation.html">
+    Held-back evaluation for ImputationFitDiagnostic R² — k-fold CV on complete rows
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0014-mcar-rmse-mae-shares-r2-holdback.html">
+    ADR 0014: MCAR RMSE/MAE evaluation shares the R² holdback pass — no separate masking pass
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0015-rmse-mae-diagnostic-only-excluded-from-suggest-refit.html">
+    ADR 0015: RMSE and MAE are diagnostic-only — not used for automated decisions
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0016-unpredictable-is-unconditional-pre-routing-guard.html">
+    ADR 0016: NonlinearityTag.Unpredictable is an unconditional pre-routing guard
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0017-distribution-shape-is-universal-routing-signal.html">
+    ADR 0017: Distribution shape (KurtosisTag + SkewSeverity) is a universal routing signal across all missingness paths
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0018-bounded-discrete-compound-classification.html">
+    ADR 0018: BoundedDiscrete replaces Discrete — compound four-signal classification
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0019-mnar-data-derived-fill-replaces-sentinel.html">
+    ADR 0019 — MNAR fill is data-derived (mean/median), not a user-configured sentinel
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0020-test-split-imbalance-check-in-transform.html">
+    ADR 0020: TestSplitImbalanceWarning lives in FittedImputer.transform(), not DataSplitter
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0021-fit-transform-returns-tuple.html">
+    ADR 0021: fit_transform returns tuple[FittedImputer, ImputationResult]
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0022-proportional-split-imbalance-check.html">
+    ADR 0022: Split imbalance check is proportional, not binary
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0023-dropcandiate-exclusion-propagation-caller-initiated-phase3-enforced.html">
+    ADR 0023: DropCandidate exclusion propagation is caller-initiated and Phase-3-enforced
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0024-records-is-full-train-schema-manifest.html">
+    ADR 0024: self.records is a complete manifest of the train schema
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0025-indicator-records-written-at-fit-time.html">
+    ADR 0025: Indicator column records are written into self.records at fit time
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0026-unseen-column-error-fires-regardless-of-missingness.html">
+    ADR 0026: UnseenColumnError fires on any column absent from self.records, regardless of missingness
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0027-regression-fitted-model-stores-target-idx.html">
+    ADR 0027: Regression fitted model stores target_idx explicitly alongside the fitted IterativeImputer
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0028-df-to-numpy-sentinel-ignorant-precondition.html">
+    ADR 0028: _df_to_numpy is sentinel-ignorant; normalization is the caller’s precondition
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0029-per-column-strategy-fires-after-dropcanidate-errors-on-size-guard.html">
+    ADR 0029: per_column_strategy fires after DropCandidate and raises at fit time when size guards fail
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0030-definitional-thresholds-promoted-to-phase-sub-configs.html">
+    ADR-0030: Definitional thresholds promoted to user-configurable Phase Sub-Configs
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0031-bimodality-dual-detection-dip-test-plus-gmm.html">
+    ADR 0031: Bimodality is detected with Hartigan’s Dip Test for the signal and 2-component GMM for peak locations
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0032-bimodal-imputation-framework.html">
+    ADR 0032: Bimodal columns follow a four-branch imputation framework ordered by available cluster evidence
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0033-tail-asymmetry-outlier-density-routing-signals.html">
+    ADR 0033: Tail asymmetry ratio and outlier density extend the universal distribution shape escalation from ADR-0017
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0034-documentation-strategy-docstrings-mkdocs.html">
+    ADR 0034: Documentation strategy — numpy-style docstrings as API contract, mkdocs + mkdocstrings for generation
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0035-bounded-discrete-model-based-routing-with-domain-snap.html">
+    ADR 0035: BoundedDiscrete model-based routing with domain-snap
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0036-remove-proportional-split-imbalance-checks.html">
+    ADR 0036: Remove proportional split imbalance checks
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0037-knn-mice-block-override-scalars.html">
+    KNN and MICE block overrides are scalars, not per-column dicts
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../adr/0038-sphinx-pydata-theme-replaces-mkdocs.html">
+    ADR 0038: Sphinx + PyData Sphinx Theme replaces MkDocs as the docs build toolchain
+  </a>
+</li>
+
+                </ul>
+            </li>
+            
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/pipeline.html">
+    Pipeline
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/profiling.html">
+    Profiling
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/imputation.html">
+    Imputation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/splitting.html">
+    Splitting
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/utilities.html">
+    Utilities
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0001-type-detection-no-external-library.html">
+    ADR 0001: Type detection without an external type-inference library
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0002-sub-processors-hold-no-config.html">
+    ADR 0002: Sub-processors hold no configuration — Phase Orchestrators own all routing and exclusion decisions
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0003-pipeline-config-at-package-root.html">
+    PipelineConfig lives at the package root, not inside the profiling module
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0004-impute-before-normalize.html">
+    ADR 0004: Impute missing values before normalizing distributions
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0005-imputation-registry-per-semantic-type.html">
+    ADR 0005: Imputation sub-processors registered per SemanticType
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0006-fitted-imputer-stateless-fit-returns-object.html">
+    ADR 0006: fit() returns a stateless FittedImputer rather than mutating the orchestrator
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0007-profile-stratified-split-full-profile-signals.html">
+    ADR 0007: Profile-stratified split uses full profile signals, not missingness only
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0008-stratification-signal-taxonomy-extension.html">
+    ADR 0008: Stratification signal taxonomy extension
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0009-phase2-effective-null-boundary-normalization.html">
+    ADR 0009: Phase 2 effective null boundary normalization
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0010-knn-nan-safe-manual-scaling.html">
+    ADR 0010: NaN-safe manual scaling for KNN rather than sklearn Pipeline
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0011-mice-estimator-most-complex-tag-wins.html">
+    ADR 0011: MICE estimator selection uses the most complex NonlinearityTag across the block
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0012-mice-sample-posterior-deferred.html">
+    ADR 0012: sample_posterior stays False in MICE; posterior sampling deferred
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0013-fit-quality-held-back-evaluation.html">
+    Held-back evaluation for ImputationFitDiagnostic R² — k-fold CV on complete rows
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0014-mcar-rmse-mae-shares-r2-holdback.html">
+    ADR 0014: MCAR RMSE/MAE evaluation shares the R² holdback pass — no separate masking pass
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0015-rmse-mae-diagnostic-only-excluded-from-suggest-refit.html">
+    ADR 0015: RMSE and MAE are diagnostic-only — not used for automated decisions
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0016-unpredictable-is-unconditional-pre-routing-guard.html">
+    ADR 0016: NonlinearityTag.Unpredictable is an unconditional pre-routing guard
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0017-distribution-shape-is-universal-routing-signal.html">
+    ADR 0017: Distribution shape (KurtosisTag + SkewSeverity) is a universal routing signal across all missingness paths
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0018-bounded-discrete-compound-classification.html">
+    ADR 0018: BoundedDiscrete replaces Discrete — compound four-signal classification
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0019-mnar-data-derived-fill-replaces-sentinel.html">
+    ADR 0019 — MNAR fill is data-derived (mean/median), not a user-configured sentinel
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0020-test-split-imbalance-check-in-transform.html">
+    ADR 0020: TestSplitImbalanceWarning lives in FittedImputer.transform(), not DataSplitter
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0021-fit-transform-returns-tuple.html">
+    ADR 0021: fit_transform returns tuple[FittedImputer, ImputationResult]
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0022-proportional-split-imbalance-check.html">
+    ADR 0022: Split imbalance check is proportional, not binary
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0023-dropcandiate-exclusion-propagation-caller-initiated-phase3-enforced.html">
+    ADR 0023: DropCandidate exclusion propagation is caller-initiated and Phase-3-enforced
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0024-records-is-full-train-schema-manifest.html">
+    ADR 0024: self.records is a complete manifest of the train schema
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0025-indicator-records-written-at-fit-time.html">
+    ADR 0025: Indicator column records are written into self.records at fit time
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0026-unseen-column-error-fires-regardless-of-missingness.html">
+    ADR 0026: UnseenColumnError fires on any column absent from self.records, regardless of missingness
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0027-regression-fitted-model-stores-target-idx.html">
+    ADR 0027: Regression fitted model stores target_idx explicitly alongside the fitted IterativeImputer
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0028-df-to-numpy-sentinel-ignorant-precondition.html">
+    ADR 0028: _df_to_numpy is sentinel-ignorant; normalization is the caller’s precondition
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0029-per-column-strategy-fires-after-dropcanidate-errors-on-size-guard.html">
+    ADR 0029: per_column_strategy fires after DropCandidate and raises at fit time when size guards fail
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0030-definitional-thresholds-promoted-to-phase-sub-configs.html">
+    ADR-0030: Definitional thresholds promoted to user-configurable Phase Sub-Configs
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0031-bimodality-dual-detection-dip-test-plus-gmm.html">
+    ADR 0031: Bimodality is detected with Hartigan’s Dip Test for the signal and 2-component GMM for peak locations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0032-bimodal-imputation-framework.html">
+    ADR 0032: Bimodal columns follow a four-branch imputation framework ordered by available cluster evidence
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0033-tail-asymmetry-outlier-density-routing-signals.html">
+    ADR 0033: Tail asymmetry ratio and outlier density extend the universal distribution shape escalation from ADR-0017
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0034-documentation-strategy-docstrings-mkdocs.html">
+    ADR 0034: Documentation strategy — numpy-style docstrings as API contract, mkdocs + mkdocstrings for generation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0035-bounded-discrete-model-based-routing-with-domain-snap.html">
+    ADR 0035: BoundedDiscrete model-based routing with domain-snap
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0036-remove-proportional-split-imbalance-checks.html">
+    ADR 0036: Remove proportional split imbalance checks
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0037-knn-mice-block-override-scalars.html">
+    KNN and MICE block overrides are scalars, not per-column dicts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../adr/0038-sphinx-pydata-theme-replaces-mkdocs.html">
+    ADR 0038: Sphinx + PyData Sphinx Theme replaces MkDocs as the docs build toolchain
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">dataforge_ml.profiling.orchestrator</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for dataforge_ml.profiling.orchestrator</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">StructuralProfiler  –  unified Phase 1 entry point.</span>
+
+<span class="sd">Execution order inside profile(df):</span>
+<span class="sd">  1. ModalityProfiler      → result.dataset (DatasetStats)</span>
+<span class="sd">  2. MissingnessProfiler   → ColumnProfile.missingness + dataset.missingness_matrix</span>
+<span class="sd">  3. Row-missingness dist  → dataset.row_distribution</span>
+<span class="sd">  4. TypeDetector          → ColumnProfile.semantic_type / type_flags / dtypes</span>
+<span class="sd">  5. column_overrides      → replace SemanticType on existing ColumnProfiles</span>
+<span class="sd">     numeric_kind_overrides→ replace NumericKind (validated; Numeric-only)</span>
+<span class="sd">  6. ColumnTypeProfiler    → route each column to its profiler by SemanticType;</span>
+<span class="sd">                            Identifier columns: skip, stats stays None</span>
+<span class="sd">  7. target_columns        → TargetProfiler; mark ColumnProfile.is_target=True</span>
+<span class="sd">  8. Correlation           → if compute_correlation=True:</span>
+<span class="sd">       a. profile_features()  → dataset.feature_correlation  (computed once)</span>
+<span class="sd">       b. profile_target()    → dataset.target_correlations[target]</span>
+<span class="sd">                                (once per declared target column)</span>
+<span class="sd">  9. Nonlinearity          → if compute_nonlinearity=True:</span>
+<span class="sd">       NonlinearityProfiler  → NumericStats.nonlinearity_tag + four signal fields</span>
+<span class="sd">       Reuses Pearson/Spearman matrices from step 8 when compute_correlation=True.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">._base</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModalityProfiler</span><span class="p">,</span> <span class="n">ColumnBatchProfiler</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._tabular</span><span class="w"> </span><span class="kn">import</span> <span class="n">TabularProfiler</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._categorical</span><span class="w"> </span><span class="kn">import</span> <span class="n">CategoricalProfiler</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._datetime_profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">DatetimeProfiler</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._numeric_profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">NumericProfiler</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._boolean_profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">BooleanProfiler</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._text_profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">TextProfiler</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._missingness_profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">MissingnessProfiler</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._target_profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetProfiler</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._correlation_profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">CorrelationProfiler</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._nonlinearity_profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">NonlinearityProfiler</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._type_detector</span><span class="w"> </span><span class="kn">import</span> <span class="n">TypeDetector</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..config</span><span class="w"> </span><span class="kn">import</span> <span class="n">PipelineConfig</span><span class="p">,</span> <span class="n">PipelinePhase</span><span class="p">,</span> <span class="n">SemanticType</span><span class="p">,</span> <span class="n">Modality</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">ColumnProfile</span><span class="p">,</span>
+    <span class="n">StructuralProfileResult</span><span class="p">,</span>
+    <span class="n">RowMissingnessDistribution</span><span class="p">,</span>
+    <span class="n">TypeFlag</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..utils._null_normalization</span><span class="w"> </span><span class="kn">import</span> <span class="n">_resolve_effective_nulls</span>
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># Registry: SemanticType → ColumnTypeProfiler class</span>
+<span class="c1">#</span>
+<span class="c1"># Stateless between profile(series, df) calls, so one instance per</span>
+<span class="c1"># SemanticType safely handles all columns of that type in one run.</span>
+<span class="c1"># Add Boolean / Text profilers here when implemented.</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="n">_COLUMN_PROFILER_REGISTRY</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">SemanticType</span><span class="p">,</span> <span class="nb">type</span><span class="p">[</span><span class="n">ColumnBatchProfiler</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>  <span class="c1"># type: ignore[type-arg]</span>
+    <span class="n">SemanticType</span><span class="o">.</span><span class="n">Numeric</span><span class="p">:</span> <span class="n">NumericProfiler</span><span class="p">,</span>
+    <span class="n">SemanticType</span><span class="o">.</span><span class="n">Categorical</span><span class="p">:</span> <span class="n">CategoricalProfiler</span><span class="p">,</span>
+    <span class="n">SemanticType</span><span class="o">.</span><span class="n">Datetime</span><span class="p">:</span> <span class="n">DatetimeProfiler</span><span class="p">,</span>
+    <span class="n">SemanticType</span><span class="o">.</span><span class="n">Boolean</span><span class="p">:</span> <span class="n">BooleanProfiler</span><span class="p">,</span>
+    <span class="n">SemanticType</span><span class="o">.</span><span class="n">Text</span><span class="p">:</span> <span class="n">TextProfiler</span><span class="p">,</span>
+<span class="p">}</span>
+
+
+<div class="viewcode-block" id="StructuralProfiler">
+<a class="viewcode-back" href="../../../api/profiling.html#dataforge_ml.profiling.orchestrator.StructuralProfiler">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">StructuralProfiler</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Phase 1 orchestrator — runs all sub-processors and assembles</span>
+<span class="sd">    ``StructuralProfileResult``.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    config : PipelineConfig, optional</span>
+<span class="sd">        Master pipeline configuration.  Defaults to ``PipelineConfig()`` which</span>
+<span class="sd">        applies all sub-processor defaults exactly as they were before Scope 15.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">PipelineConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">:</span> <span class="n">PipelineConfig</span> <span class="o">=</span> <span class="n">config</span> <span class="ow">or</span> <span class="n">PipelineConfig</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">modality</span> <span class="o">==</span> <span class="n">Modality</span><span class="o">.</span><span class="n">Tabular</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">modality_profiler</span><span class="p">:</span> <span class="n">ModalityProfiler</span> <span class="o">=</span> <span class="n">TabularProfiler</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;modality </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">modality</span><span class="si">}</span><span class="s2"> not supported yet&quot;</span>
+            <span class="p">)</span>
+
+    <span class="c1"># ------------------------------------------------------------------</span>
+    <span class="c1"># Public entry point</span>
+    <span class="c1"># ------------------------------------------------------------------</span>
+
+<div class="viewcode-block" id="StructuralProfiler.profile">
+<a class="viewcode-back" href="../../../api/profiling.html#dataforge_ml.profiling.orchestrator.StructuralProfiler.profile">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">profile</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">StructuralProfileResult</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Profile a Polars DataFrame and return a full ``StructuralProfileResult``.</span>
+
+<span class="sd">        Runs all Phase 1 sub-processors in sequence: modality stats, missingness,</span>
+<span class="sd">        type detection, per-column distribution profiling, target profiling, and</span>
+<span class="sd">        (optionally) correlation analysis.  Sub-processor thresholds are drawn</span>
+<span class="sd">        from the nested sub-configs on ``config.profiling``.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        data : Any</span>
+<span class="sd">            Must be a ``polars.DataFrame``.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        StructuralProfileResult</span>
+<span class="sd">            Fully populated profile result for the dataset.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        TypeError</span>
+<span class="sd">            When ``data`` is not a ``polars.DataFrame``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;StructuralProfiler expects a Polars DataFrame, &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">data</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">.&quot;</span>
+            <span class="p">)</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="n">StructuralProfileResult</span><span class="p">()</span>
+
+        <span class="n">active_cols</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">resolve_active_columns</span><span class="p">(</span>
+            <span class="n">PipelinePhase</span><span class="o">.</span><span class="n">Profiling</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Columns soft-excluded for Profiling: skipped but retained in the result.</span>
+        <span class="n">hard_set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">exclude_columns</span><span class="p">)</span>
+        <span class="n">soft_retained</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">columns</span>
+            <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">phase_exclusions</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">PipelinePhase</span><span class="o">.</span><span class="n">Profiling</span><span class="p">,</span> <span class="p">[]))</span>
+            <span class="ow">and</span> <span class="n">c</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">hard_set</span>
+        <span class="p">]</span>
+
+        <span class="c1"># ── 1. Modality profiler ─────────────────────────────────────────</span>
+        <span class="c1"># Replaces default DatasetStats with the real one (row_count, memory,</span>
+        <span class="c1"># duplicates, etc.).  Must run before anything writes to result.dataset.</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">dataset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">modality_profiler</span><span class="o">.</span><span class="n">profile</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+        <span class="c1"># ── 2. Missingness pre-pass ──────────────────────────────────────</span>
+        <span class="c1"># setdefault creates ColumnProfile entries; subsequent steps mutate</span>
+        <span class="c1"># the same objects via the same setdefault pattern.</span>
+        <span class="n">missingness_result</span> <span class="o">=</span> <span class="n">MissingnessProfiler</span><span class="p">(</span>
+            <span class="n">config</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">missingness</span><span class="p">,</span>
+            <span class="n">numeric_sentinels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">numeric_sentinels</span><span class="p">,</span>
+            <span class="n">string_sentinels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">string_sentinels</span><span class="p">,</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">profile</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">active_cols</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">col_name</span> <span class="ow">in</span> <span class="n">missingness_result</span><span class="o">.</span><span class="n">analysed_columns</span><span class="p">:</span>
+            <span class="n">cp</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">col_name</span><span class="p">,</span> <span class="n">ColumnProfile</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">col_name</span><span class="p">))</span>
+            <span class="n">cp</span><span class="o">.</span><span class="n">missingness</span> <span class="o">=</span> <span class="n">missingness_result</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">col_name</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">missingness_result</span><span class="o">.</span><span class="n">correlation_matrix</span><span class="p">:</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">dataset</span><span class="o">.</span><span class="n">missingness_matrix</span> <span class="o">=</span> <span class="n">missingness_result</span><span class="o">.</span><span class="n">correlation_matrix</span>
+
+        <span class="c1"># ── 3. Row-missingness distribution ─────────────────────────────</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">dataset</span><span class="o">.</span><span class="n">row_distribution</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compute_row_distribution</span><span class="p">(</span>
+            <span class="n">df</span><span class="o">=</span><span class="n">data</span><span class="p">,</span>
+            <span class="n">cols</span><span class="o">=</span><span class="n">active_cols</span><span class="p">,</span>
+            <span class="n">n_rows</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">height</span><span class="p">,</span>
+            <span class="n">row_drop_threshold</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">row_drop_threshold</span><span class="p">,</span>
+            <span class="n">numeric_sentinels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">numeric_sentinels</span><span class="p">,</span>
+            <span class="n">string_sentinels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">string_sentinels</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># ── 4. Type detection ────────────────────────────────────────────</span>
+        <span class="c1"># setdefault returns the existing ColumnProfile from step 2, so</span>
+        <span class="c1"># missingness and type info land on the same object.</span>
+        <span class="n">type_info</span> <span class="o">=</span> <span class="n">TypeDetector</span><span class="p">(</span>
+            <span class="n">columns</span><span class="o">=</span><span class="n">active_cols</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">type_detection</span><span class="p">,</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">detect</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">col_name</span><span class="p">,</span> <span class="n">info</span> <span class="ow">in</span> <span class="n">type_info</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">cp</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">col_name</span><span class="p">,</span> <span class="n">ColumnProfile</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">col_name</span><span class="p">))</span>
+            <span class="n">cp</span><span class="o">.</span><span class="n">semantic_type</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">semantic_type</span>
+            <span class="n">cp</span><span class="o">.</span><span class="n">numeric_kind</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">numeric_kind</span>
+            <span class="n">cp</span><span class="o">.</span><span class="n">type_flags</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">info</span><span class="o">.</span><span class="n">flags</span><span class="p">)</span>
+            <span class="n">cp</span><span class="o">.</span><span class="n">original_dtype</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">original_dtype</span>
+            <span class="n">cp</span><span class="o">.</span><span class="n">inferred_dtype</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">inferred_dtype</span>
+
+        <span class="c1"># ── 5. Apply column_overrides then numeric_kind_overrides ────────</span>
+        <span class="c1"># All active columns are in result.columns by now (steps 2 + 4).</span>
+        <span class="c1"># Overrides for excluded / non-existent columns are silently ignored.</span>
+        <span class="c1"># SemanticType overrides must be applied first so the NumericKind guard</span>
+        <span class="c1"># checks the user&#39;s declared type, not the detector&#39;s raw type.</span>
+        <span class="k">for</span> <span class="n">col_name</span><span class="p">,</span> <span class="n">override_type</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">column_overrides</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">col_name</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+                <span class="n">cp</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">col_name</span><span class="p">]</span>
+                <span class="n">cp</span><span class="o">.</span><span class="n">semantic_type</span> <span class="o">=</span> <span class="n">override_type</span>
+                <span class="k">if</span> <span class="n">TypeFlag</span><span class="o">.</span><span class="n">UserOverride</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">cp</span><span class="o">.</span><span class="n">type_flags</span><span class="p">:</span>
+                    <span class="n">cp</span><span class="o">.</span><span class="n">type_flags</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">TypeFlag</span><span class="o">.</span><span class="n">UserOverride</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">col_name</span><span class="p">,</span> <span class="n">override_kind</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">numeric_kind_overrides</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">col_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">cp</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">col_name</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">cp</span><span class="o">.</span><span class="n">semantic_type</span> <span class="o">!=</span> <span class="n">SemanticType</span><span class="o">.</span><span class="n">Numeric</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;NumericKind override for column </span><span class="si">{</span><span class="n">col_name</span><span class="si">!r}</span><span class="s2"> is invalid — &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;column has </span><span class="si">{</span><span class="n">cp</span><span class="o">.</span><span class="n">semantic_type</span><span class="si">!r}</span><span class="s2">. &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;NumericKind only applies to SemanticType.Numeric columns.&quot;</span>
+                <span class="p">)</span>
+            <span class="n">cp</span><span class="o">.</span><span class="n">numeric_kind</span> <span class="o">=</span> <span class="n">override_kind</span>
+            <span class="k">if</span> <span class="n">TypeFlag</span><span class="o">.</span><span class="n">NumericKindOverride</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">cp</span><span class="o">.</span><span class="n">type_flags</span><span class="p">:</span>
+                <span class="n">cp</span><span class="o">.</span><span class="n">type_flags</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">TypeFlag</span><span class="o">.</span><span class="n">NumericKindOverride</span><span class="p">)</span>
+
+        <span class="c1"># ── 6. Per-column profiling routed by SemanticType ───────────────</span>
+        <span class="c1"># Batch all columns of the same SemanticType together and call each</span>
+        <span class="c1"># profiler once with (df, column_list) — matching the profiler API.</span>
+        <span class="n">type_to_cols</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">SemanticType</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">col_name</span> <span class="ow">in</span> <span class="n">active_cols</span><span class="p">:</span>
+            <span class="n">cp</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">col_name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">cp</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">cp</span><span class="o">.</span><span class="n">semantic_type</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">cp</span><span class="o">.</span><span class="n">semantic_type</span> <span class="o">==</span> <span class="n">SemanticType</span><span class="o">.</span><span class="n">Identifier</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">sem_type</span> <span class="o">=</span> <span class="n">cp</span><span class="o">.</span><span class="n">semantic_type</span>
+            <span class="n">type_to_cols</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">sem_type</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">col_name</span><span class="p">)</span>
+
+        <span class="n">pc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span>
+        <span class="k">for</span> <span class="n">sem_type</span><span class="p">,</span> <span class="n">cols</span> <span class="ow">in</span> <span class="n">type_to_cols</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">sem_type</span> <span class="o">==</span> <span class="n">SemanticType</span><span class="o">.</span><span class="n">Numeric</span><span class="p">:</span>
+                <span class="n">profiler</span> <span class="o">=</span> <span class="n">NumericProfiler</span><span class="p">(</span><span class="n">config</span><span class="o">=</span><span class="n">pc</span><span class="o">.</span><span class="n">numeric</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">sem_type</span> <span class="o">==</span> <span class="n">SemanticType</span><span class="o">.</span><span class="n">Categorical</span><span class="p">:</span>
+                <span class="n">profiler</span> <span class="o">=</span> <span class="n">CategoricalProfiler</span><span class="p">(</span><span class="n">config</span><span class="o">=</span><span class="n">pc</span><span class="o">.</span><span class="n">categorical</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">sem_type</span> <span class="o">==</span> <span class="n">SemanticType</span><span class="o">.</span><span class="n">Datetime</span><span class="p">:</span>
+                <span class="n">profiler</span> <span class="o">=</span> <span class="n">DatetimeProfiler</span><span class="p">(</span><span class="n">config</span><span class="o">=</span><span class="n">pc</span><span class="o">.</span><span class="n">datetime_</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">profiler_cls</span> <span class="o">=</span> <span class="n">_COLUMN_PROFILER_REGISTRY</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">sem_type</span><span class="p">)</span>  <span class="c1"># type: ignore[arg-type]</span>
+                <span class="k">if</span> <span class="n">profiler_cls</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">profiler</span> <span class="o">=</span> <span class="n">profiler_cls</span><span class="p">()</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">batch</span> <span class="o">=</span> <span class="n">profiler</span><span class="o">.</span><span class="n">profile</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">cols</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">col_name</span> <span class="ow">in</span> <span class="n">batch</span><span class="o">.</span><span class="n">analysed_columns</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">col_name</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+                        <span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">col_name</span><span class="p">]</span><span class="o">.</span><span class="n">stats</span> <span class="o">=</span> <span class="n">batch</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">col_name</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="k">pass</span>
+
+        <span class="c1"># ── 7. Target columns ────────────────────────────────────────────</span>
+        <span class="c1"># TargetProfiler produces target-specific analysis stored in</span>
+        <span class="c1"># result.targets.  cp.stats is NOT overwritten — step 6 already set it.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">target_columns</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">target</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">target_columns</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">target</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">target_result</span> <span class="o">=</span> <span class="n">TargetProfiler</span><span class="p">(</span>
+                    <span class="n">target_column</span><span class="o">=</span><span class="n">target</span><span class="p">,</span>
+                    <span class="n">config</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="p">,</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">profile</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">targets</span><span class="p">[</span><span class="n">target</span><span class="p">]</span> <span class="o">=</span> <span class="n">target_result</span>
+
+                <span class="c1"># setdefault returns the existing ColumnProfile.</span>
+                <span class="n">cp</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">ColumnProfile</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">target</span><span class="p">))</span>
+                <span class="n">cp</span><span class="o">.</span><span class="n">is_target</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="c1"># ── 8. Correlation ───────────────────────────────────────────────</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">compute_correlation</span><span class="p">:</span>
+            <span class="c1"># Resolve column lists by detected SemanticType (post-override).</span>
+            <span class="n">numeric_cols</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">c</span>
+                <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">active_cols</span>
+                <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+                <span class="ow">and</span> <span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">semantic_type</span> <span class="o">==</span> <span class="n">SemanticType</span><span class="o">.</span><span class="n">Numeric</span>
+            <span class="p">]</span>
+            <span class="n">categorical_cols</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">c</span>
+                <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">active_cols</span>
+                <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+                <span class="ow">and</span> <span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">semantic_type</span> <span class="o">==</span> <span class="n">SemanticType</span><span class="o">.</span><span class="n">Categorical</span>
+            <span class="p">]</span>
+
+            <span class="n">corr_profiler</span> <span class="o">=</span> <span class="n">CorrelationProfiler</span><span class="p">(</span>
+                <span class="n">numeric_columns</span><span class="o">=</span><span class="n">numeric_cols</span><span class="p">,</span>
+                <span class="n">categorical_columns</span><span class="o">=</span><span class="n">categorical_cols</span><span class="p">,</span>
+                <span class="n">config</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">correlation</span><span class="p">,</span>
+            <span class="p">)</span>
+
+            <span class="c1"># 8a. Feature-feature matrices — computed ONCE, target-independent.</span>
+            <span class="n">feature_corr</span> <span class="o">=</span> <span class="n">corr_profiler</span><span class="o">.</span><span class="n">profile_features</span><span class="p">(</span>
+                <span class="n">data</span><span class="p">,</span> <span class="n">numeric_cols</span><span class="p">,</span> <span class="n">categorical_cols</span>
+            <span class="p">)</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">dataset</span><span class="o">.</span><span class="n">feature_correlation</span> <span class="o">=</span> <span class="n">feature_corr</span>
+
+            <span class="c1"># 8b. Per-target analysis — matrices are NOT recomputed; each call</span>
+            <span class="c1">#     shallow-copies feature_corr and appends target-specific fields.</span>
+            <span class="k">for</span> <span class="n">target</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">target_columns</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">target</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">dataset</span><span class="o">.</span><span class="n">target_correlations</span><span class="p">[</span><span class="n">target</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="n">corr_profiler</span><span class="o">.</span><span class="n">profile_target</span><span class="p">(</span>
+                        <span class="n">data</span><span class="p">,</span> <span class="n">feature_corr</span><span class="p">,</span> <span class="n">numeric_cols</span><span class="p">,</span> <span class="n">categorical_cols</span><span class="p">,</span> <span class="n">target</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+
+        <span class="c1"># ── 9. Nonlinearity ──────────────────────────────────────────────</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">compute_nonlinearity</span><span class="p">:</span>
+            <span class="n">numeric_cols_nl</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">c</span>
+                <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">active_cols</span>
+                <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+                <span class="ow">and</span> <span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">semantic_type</span> <span class="o">==</span> <span class="n">SemanticType</span><span class="o">.</span><span class="n">Numeric</span>
+            <span class="p">]</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">numeric_cols_nl</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="n">p_mat</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="n">result</span><span class="o">.</span><span class="n">dataset</span><span class="o">.</span><span class="n">feature_correlation</span><span class="o">.</span><span class="n">pearson_matrix</span>
+                    <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">dataset</span><span class="o">.</span><span class="n">feature_correlation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                    <span class="k">else</span> <span class="kc">None</span>
+                <span class="p">)</span>
+                <span class="n">s_mat</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="n">result</span><span class="o">.</span><span class="n">dataset</span><span class="o">.</span><span class="n">feature_correlation</span><span class="o">.</span><span class="n">spearman_matrix</span>
+                    <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">dataset</span><span class="o">.</span><span class="n">feature_correlation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                    <span class="k">else</span> <span class="kc">None</span>
+                <span class="p">)</span>
+                <span class="n">nl_result</span> <span class="o">=</span> <span class="n">NonlinearityProfiler</span><span class="p">(</span>
+                    <span class="n">numeric_columns</span><span class="o">=</span><span class="n">numeric_cols_nl</span><span class="p">,</span>
+                    <span class="n">config</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">nonlinearity</span><span class="p">,</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">profile</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">pearson_matrix</span><span class="o">=</span><span class="n">p_mat</span><span class="p">,</span> <span class="n">spearman_matrix</span><span class="o">=</span><span class="n">s_mat</span><span class="p">)</span>
+
+                <span class="kn">from</span><span class="w"> </span><span class="nn">._numeric_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">NumericStats</span> <span class="k">as</span> <span class="n">_NumericStats</span>
+
+                <span class="k">for</span> <span class="n">col_name</span><span class="p">,</span> <span class="n">signals</span> <span class="ow">in</span> <span class="n">nl_result</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                    <span class="n">cp</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">col_name</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">cp</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cp</span><span class="o">.</span><span class="n">stats</span><span class="p">,</span> <span class="n">_NumericStats</span><span class="p">):</span>
+                        <span class="n">cp</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">nonlinearity_tag</span> <span class="o">=</span> <span class="n">signals</span><span class="o">.</span><span class="n">tag</span>
+                        <span class="n">cp</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">spearman_pearson_discrepancy</span> <span class="o">=</span> <span class="p">(</span>
+                            <span class="n">signals</span><span class="o">.</span><span class="n">spearman_pearson_discrepancy</span>
+                        <span class="p">)</span>
+                        <span class="n">cp</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">mean_mutual_information</span> <span class="o">=</span> <span class="n">signals</span><span class="o">.</span><span class="n">mean_mutual_information</span>
+                        <span class="n">cp</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">r2_gap</span> <span class="o">=</span> <span class="n">signals</span><span class="o">.</span><span class="n">r2_gap</span>
+                        <span class="n">cp</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">heteroscedasticity_p_value</span> <span class="o">=</span> <span class="p">(</span>
+                            <span class="n">signals</span><span class="o">.</span><span class="n">heteroscedasticity_p_value</span>
+                        <span class="p">)</span>
+
+        <span class="c1"># ── Soft-excluded placeholders ───────────────────────────────────────</span>
+        <span class="c1"># Columns soft-excluded for Profiling are not profiled but must still</span>
+        <span class="c1"># appear in the result so downstream phases can reference them.</span>
+        <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">soft_retained</span><span class="p">:</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">ColumnProfile</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">col</span><span class="p">))</span>
+
+        <span class="n">result</span><span class="o">.</span><span class="n">numeric_sentinels</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">numeric_sentinels</span><span class="p">)</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">string_sentinels</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">k</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">string_sentinels</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="p">}</span>
+
+        <span class="k">return</span> <span class="n">result</span></div>
+
+
+    <span class="c1"># ------------------------------------------------------------------</span>
+    <span class="c1"># Helpers</span>
+    <span class="c1"># ------------------------------------------------------------------</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_compute_row_distribution</span><span class="p">(</span>
+        <span class="n">df</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span>
+        <span class="n">cols</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+        <span class="n">n_rows</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">row_drop_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.50</span><span class="p">,</span>
+        <span class="n">numeric_sentinels</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">string_sentinels</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RowMissingnessDistribution</span><span class="p">:</span>
+        <span class="n">dist</span> <span class="o">=</span> <span class="n">RowMissingnessDistribution</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">n_rows</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">cols</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">dist</span>
+
+        <span class="n">n_cols</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">cols</span><span class="p">)</span>
+        <span class="n">subset</span> <span class="o">=</span> <span class="n">_resolve_effective_nulls</span><span class="p">(</span>
+            <span class="n">df</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">cols</span><span class="p">),</span>
+            <span class="n">numeric_sentinels</span><span class="o">=</span><span class="n">numeric_sentinels</span><span class="p">,</span>
+            <span class="n">string_sentinels</span><span class="o">=</span><span class="n">string_sentinels</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">row_missing</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">Series</span> <span class="o">=</span> <span class="n">subset</span><span class="o">.</span><span class="n">select</span><span class="p">(</span>
+            <span class="n">pl</span><span class="o">.</span><span class="n">sum_horizontal</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">all</span><span class="p">()</span><span class="o">.</span><span class="n">is_null</span><span class="p">())</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;row_missing&quot;</span><span class="p">)</span>
+        <span class="p">)[</span><span class="s2">&quot;row_missing&quot;</span><span class="p">]</span>
+
+        <span class="n">half_threshold</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">n_cols</span> <span class="o">*</span> <span class="n">row_drop_threshold</span><span class="p">)</span>
+
+        <span class="n">dist</span><span class="o">.</span><span class="n">pct_zero_missing</span> <span class="o">=</span> <span class="nb">float</span><span class="p">((</span><span class="n">row_missing</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span> <span class="o">/</span> <span class="n">n_rows</span>
+        <span class="n">dist</span><span class="o">.</span><span class="n">pct_one_to_two</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="nb">float</span><span class="p">(((</span><span class="n">row_missing</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">row_missing</span> <span class="o">&lt;=</span> <span class="mi">2</span><span class="p">))</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span> <span class="o">/</span> <span class="n">n_rows</span>
+        <span class="p">)</span>
+        <span class="n">dist</span><span class="o">.</span><span class="n">pct_three_to_five</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="nb">float</span><span class="p">(((</span><span class="n">row_missing</span> <span class="o">&gt;=</span> <span class="mi">3</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">row_missing</span> <span class="o">&lt;=</span> <span class="mi">5</span><span class="p">))</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span> <span class="o">/</span> <span class="n">n_rows</span>
+        <span class="p">)</span>
+        <span class="n">dist</span><span class="o">.</span><span class="n">pct_over_five</span> <span class="o">=</span> <span class="nb">float</span><span class="p">((</span><span class="n">row_missing</span> <span class="o">&gt;</span> <span class="mi">5</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span> <span class="o">/</span> <span class="n">n_rows</span>
+        <span class="n">dist</span><span class="o">.</span><span class="n">drop_candidate_row_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="n">row_missing</span> <span class="o">&gt;=</span> <span class="n">half_threshold</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+        <span class="n">dist</span><span class="o">.</span><span class="n">pct_over_half_missing</span> <span class="o">=</span> <span class="n">dist</span><span class="o">.</span><span class="n">drop_candidate_row_count</span> <span class="o">/</span> <span class="n">n_rows</span>
+        <span class="n">dist</span><span class="o">.</span><span class="n">row_missingness_p90</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">percentile</span><span class="p">(</span><span class="n">row_missing</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(),</span> <span class="mi">90</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">dist</span></div>
+
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.19.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

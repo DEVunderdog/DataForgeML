@@ -1,0 +1,2058 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Imputation &#8212; DataForgeML  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5" />
+
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'api/imputation';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Splitting" href="splitting.html" />
+    <link rel="prev" title="Profiling" href="profiling.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../_static/searchtools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script src="../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">DataForgeML  documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="pipeline.html">
+    Pipeline
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="profiling.html">
+    Profiling
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="#">
+    Imputation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="splitting.html">
+    Splitting
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="utilities.html">
+    Utilities
+  </a>
+</li>
+
+            <li class="nav-item dropdown">
+                <button class="btn dropdown-toggle nav-item" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false"
+                aria-controls="pst-nav-more-links">
+                    More
+                </button>
+                <ul id="pst-nav-more-links" class="dropdown-menu">
+                    
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0001-type-detection-no-external-library.html">
+    ADR 0001: Type detection without an external type-inference library
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0002-sub-processors-hold-no-config.html">
+    ADR 0002: Sub-processors hold no configuration — Phase Orchestrators own all routing and exclusion decisions
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0003-pipeline-config-at-package-root.html">
+    PipelineConfig lives at the package root, not inside the profiling module
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0004-impute-before-normalize.html">
+    ADR 0004: Impute missing values before normalizing distributions
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0005-imputation-registry-per-semantic-type.html">
+    ADR 0005: Imputation sub-processors registered per SemanticType
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0006-fitted-imputer-stateless-fit-returns-object.html">
+    ADR 0006: fit() returns a stateless FittedImputer rather than mutating the orchestrator
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0007-profile-stratified-split-full-profile-signals.html">
+    ADR 0007: Profile-stratified split uses full profile signals, not missingness only
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0008-stratification-signal-taxonomy-extension.html">
+    ADR 0008: Stratification signal taxonomy extension
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0009-phase2-effective-null-boundary-normalization.html">
+    ADR 0009: Phase 2 effective null boundary normalization
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0010-knn-nan-safe-manual-scaling.html">
+    ADR 0010: NaN-safe manual scaling for KNN rather than sklearn Pipeline
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0011-mice-estimator-most-complex-tag-wins.html">
+    ADR 0011: MICE estimator selection uses the most complex NonlinearityTag across the block
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0012-mice-sample-posterior-deferred.html">
+    ADR 0012: sample_posterior stays False in MICE; posterior sampling deferred
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0013-fit-quality-held-back-evaluation.html">
+    Held-back evaluation for ImputationFitDiagnostic R² — k-fold CV on complete rows
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0014-mcar-rmse-mae-shares-r2-holdback.html">
+    ADR 0014: MCAR RMSE/MAE evaluation shares the R² holdback pass — no separate masking pass
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0015-rmse-mae-diagnostic-only-excluded-from-suggest-refit.html">
+    ADR 0015: RMSE and MAE are diagnostic-only — not used for automated decisions
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0016-unpredictable-is-unconditional-pre-routing-guard.html">
+    ADR 0016: NonlinearityTag.Unpredictable is an unconditional pre-routing guard
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0017-distribution-shape-is-universal-routing-signal.html">
+    ADR 0017: Distribution shape (KurtosisTag + SkewSeverity) is a universal routing signal across all missingness paths
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0018-bounded-discrete-compound-classification.html">
+    ADR 0018: BoundedDiscrete replaces Discrete — compound four-signal classification
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0019-mnar-data-derived-fill-replaces-sentinel.html">
+    ADR 0019 — MNAR fill is data-derived (mean/median), not a user-configured sentinel
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0020-test-split-imbalance-check-in-transform.html">
+    ADR 0020: TestSplitImbalanceWarning lives in FittedImputer.transform(), not DataSplitter
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0021-fit-transform-returns-tuple.html">
+    ADR 0021: fit_transform returns tuple[FittedImputer, ImputationResult]
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0022-proportional-split-imbalance-check.html">
+    ADR 0022: Split imbalance check is proportional, not binary
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0023-dropcandiate-exclusion-propagation-caller-initiated-phase3-enforced.html">
+    ADR 0023: DropCandidate exclusion propagation is caller-initiated and Phase-3-enforced
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0024-records-is-full-train-schema-manifest.html">
+    ADR 0024: self.records is a complete manifest of the train schema
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0025-indicator-records-written-at-fit-time.html">
+    ADR 0025: Indicator column records are written into self.records at fit time
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0026-unseen-column-error-fires-regardless-of-missingness.html">
+    ADR 0026: UnseenColumnError fires on any column absent from self.records, regardless of missingness
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0027-regression-fitted-model-stores-target-idx.html">
+    ADR 0027: Regression fitted model stores target_idx explicitly alongside the fitted IterativeImputer
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0028-df-to-numpy-sentinel-ignorant-precondition.html">
+    ADR 0028: _df_to_numpy is sentinel-ignorant; normalization is the caller’s precondition
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0029-per-column-strategy-fires-after-dropcanidate-errors-on-size-guard.html">
+    ADR 0029: per_column_strategy fires after DropCandidate and raises at fit time when size guards fail
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0030-definitional-thresholds-promoted-to-phase-sub-configs.html">
+    ADR-0030: Definitional thresholds promoted to user-configurable Phase Sub-Configs
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0031-bimodality-dual-detection-dip-test-plus-gmm.html">
+    ADR 0031: Bimodality is detected with Hartigan’s Dip Test for the signal and 2-component GMM for peak locations
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0032-bimodal-imputation-framework.html">
+    ADR 0032: Bimodal columns follow a four-branch imputation framework ordered by available cluster evidence
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0033-tail-asymmetry-outlier-density-routing-signals.html">
+    ADR 0033: Tail asymmetry ratio and outlier density extend the universal distribution shape escalation from ADR-0017
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0034-documentation-strategy-docstrings-mkdocs.html">
+    ADR 0034: Documentation strategy — numpy-style docstrings as API contract, mkdocs + mkdocstrings for generation
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0035-bounded-discrete-model-based-routing-with-domain-snap.html">
+    ADR 0035: BoundedDiscrete model-based routing with domain-snap
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0036-remove-proportional-split-imbalance-checks.html">
+    ADR 0036: Remove proportional split imbalance checks
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0037-knn-mice-block-override-scalars.html">
+    KNN and MICE block overrides are scalars, not per-column dicts
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../adr/0038-sphinx-pydata-theme-replaces-mkdocs.html">
+    ADR 0038: Sphinx + PyData Sphinx Theme replaces MkDocs as the docs build toolchain
+  </a>
+</li>
+
+                </ul>
+            </li>
+            
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="pipeline.html">
+    Pipeline
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="profiling.html">
+    Profiling
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="#">
+    Imputation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="splitting.html">
+    Splitting
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="utilities.html">
+    Utilities
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0001-type-detection-no-external-library.html">
+    ADR 0001: Type detection without an external type-inference library
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0002-sub-processors-hold-no-config.html">
+    ADR 0002: Sub-processors hold no configuration — Phase Orchestrators own all routing and exclusion decisions
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0003-pipeline-config-at-package-root.html">
+    PipelineConfig lives at the package root, not inside the profiling module
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0004-impute-before-normalize.html">
+    ADR 0004: Impute missing values before normalizing distributions
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0005-imputation-registry-per-semantic-type.html">
+    ADR 0005: Imputation sub-processors registered per SemanticType
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0006-fitted-imputer-stateless-fit-returns-object.html">
+    ADR 0006: fit() returns a stateless FittedImputer rather than mutating the orchestrator
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0007-profile-stratified-split-full-profile-signals.html">
+    ADR 0007: Profile-stratified split uses full profile signals, not missingness only
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0008-stratification-signal-taxonomy-extension.html">
+    ADR 0008: Stratification signal taxonomy extension
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0009-phase2-effective-null-boundary-normalization.html">
+    ADR 0009: Phase 2 effective null boundary normalization
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0010-knn-nan-safe-manual-scaling.html">
+    ADR 0010: NaN-safe manual scaling for KNN rather than sklearn Pipeline
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0011-mice-estimator-most-complex-tag-wins.html">
+    ADR 0011: MICE estimator selection uses the most complex NonlinearityTag across the block
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0012-mice-sample-posterior-deferred.html">
+    ADR 0012: sample_posterior stays False in MICE; posterior sampling deferred
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0013-fit-quality-held-back-evaluation.html">
+    Held-back evaluation for ImputationFitDiagnostic R² — k-fold CV on complete rows
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0014-mcar-rmse-mae-shares-r2-holdback.html">
+    ADR 0014: MCAR RMSE/MAE evaluation shares the R² holdback pass — no separate masking pass
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0015-rmse-mae-diagnostic-only-excluded-from-suggest-refit.html">
+    ADR 0015: RMSE and MAE are diagnostic-only — not used for automated decisions
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0016-unpredictable-is-unconditional-pre-routing-guard.html">
+    ADR 0016: NonlinearityTag.Unpredictable is an unconditional pre-routing guard
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0017-distribution-shape-is-universal-routing-signal.html">
+    ADR 0017: Distribution shape (KurtosisTag + SkewSeverity) is a universal routing signal across all missingness paths
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0018-bounded-discrete-compound-classification.html">
+    ADR 0018: BoundedDiscrete replaces Discrete — compound four-signal classification
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0019-mnar-data-derived-fill-replaces-sentinel.html">
+    ADR 0019 — MNAR fill is data-derived (mean/median), not a user-configured sentinel
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0020-test-split-imbalance-check-in-transform.html">
+    ADR 0020: TestSplitImbalanceWarning lives in FittedImputer.transform(), not DataSplitter
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0021-fit-transform-returns-tuple.html">
+    ADR 0021: fit_transform returns tuple[FittedImputer, ImputationResult]
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0022-proportional-split-imbalance-check.html">
+    ADR 0022: Split imbalance check is proportional, not binary
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0023-dropcandiate-exclusion-propagation-caller-initiated-phase3-enforced.html">
+    ADR 0023: DropCandidate exclusion propagation is caller-initiated and Phase-3-enforced
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0024-records-is-full-train-schema-manifest.html">
+    ADR 0024: self.records is a complete manifest of the train schema
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0025-indicator-records-written-at-fit-time.html">
+    ADR 0025: Indicator column records are written into self.records at fit time
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0026-unseen-column-error-fires-regardless-of-missingness.html">
+    ADR 0026: UnseenColumnError fires on any column absent from self.records, regardless of missingness
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0027-regression-fitted-model-stores-target-idx.html">
+    ADR 0027: Regression fitted model stores target_idx explicitly alongside the fitted IterativeImputer
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0028-df-to-numpy-sentinel-ignorant-precondition.html">
+    ADR 0028: _df_to_numpy is sentinel-ignorant; normalization is the caller’s precondition
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0029-per-column-strategy-fires-after-dropcanidate-errors-on-size-guard.html">
+    ADR 0029: per_column_strategy fires after DropCandidate and raises at fit time when size guards fail
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0030-definitional-thresholds-promoted-to-phase-sub-configs.html">
+    ADR-0030: Definitional thresholds promoted to user-configurable Phase Sub-Configs
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0031-bimodality-dual-detection-dip-test-plus-gmm.html">
+    ADR 0031: Bimodality is detected with Hartigan’s Dip Test for the signal and 2-component GMM for peak locations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0032-bimodal-imputation-framework.html">
+    ADR 0032: Bimodal columns follow a four-branch imputation framework ordered by available cluster evidence
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0033-tail-asymmetry-outlier-density-routing-signals.html">
+    ADR 0033: Tail asymmetry ratio and outlier density extend the universal distribution shape escalation from ADR-0017
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0034-documentation-strategy-docstrings-mkdocs.html">
+    ADR 0034: Documentation strategy — numpy-style docstrings as API contract, mkdocs + mkdocstrings for generation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0035-bounded-discrete-model-based-routing-with-domain-snap.html">
+    ADR 0035: BoundedDiscrete model-based routing with domain-snap
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0036-remove-proportional-split-imbalance-checks.html">
+    ADR 0036: Remove proportional split imbalance checks
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0037-knn-mice-block-override-scalars.html">
+    KNN and MICE block overrides are scalars, not per-column dicts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../adr/0038-sphinx-pydata-theme-replaces-mkdocs.html">
+    ADR 0038: Sphinx + PyData Sphinx Theme replaces MkDocs as the docs build toolchain
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item pst-sidebar-collapse"><button id="pst-collapse-sidebar-button" aria-expanded="true" aria-controls="pst-primary-sidebar"><svg class="pst-icon svg-inline--fa" role="img" aria-hidden="true" focusable="false" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+    <path fill="currentColor" d="M3 15.5C2.36232 15.5 1.74874 15.2564 1.28478 14.8189C0.820828 14.3815 0.541576 13.7832 0.504167 13.1467L0.5 13L0.5 3C0.499965 2.36232 0.743605 1.74874 1.18107 1.28478C1.61854 0.820828 2.21676 0.541576 2.85333 0.504167L3 0.5L13 0.5C13.6377 0.499965 14.2513 0.743605 14.7152 1.18107C15.1792 1.61854 15.4584 2.21676 15.4958 2.85333L15.5 3L15.5 13C15.5 13.6377 15.2564 14.2513 14.8189 14.7152C14.3815 15.1792 13.7832 15.4584 13.1467 15.4958L13 15.5L3 15.5ZM3 13.8333L10.5 13.8333L10.5 2.16667L3 2.16667C2.79589 2.16669 2.59889 2.24163 2.44636 2.37726C2.29383 2.5129 2.19638 2.69979 2.1725 2.9025L2.16667 3L2.16667 13C2.16669 13.2041 2.24163 13.4011 2.37726 13.5536C2.5129 13.7062 2.69979 13.8036 2.9025 13.8275L3 13.8333ZM6.65583 10.325L6.5775 10.2558L4.91083 8.58917C4.76735 8.44567 4.68116 8.25476 4.66843 8.05223C4.65569 7.84971 4.71729 7.6495 4.84167 7.48917L4.91083 7.41083L6.5775 5.74417C6.72747 5.59471 6.9287 5.50794 7.14032 5.50148C7.35194 5.49502 7.55809 5.56935 7.7169 5.70937C7.8757 5.8494 7.97525 6.04463 7.99533 6.25539C8.01541 6.46616 7.95451 6.67667 7.825 6.84417L7.75583 6.9225L6.67917 8L7.75583 9.0775C7.89931 9.22099 7.98551 9.41191 7.99824 9.61443C8.01097 9.81695 7.94938 10.0172 7.825 10.1775L7.75583 10.2558C7.61234 10.3993 7.42142 10.4855 7.2189 10.4982C7.01638 10.511 6.81617 10.4494 6.65583 10.325Z"/>
+  </svg>
+  <span class="pst-collapse-sidebar-label">Collapse Sidebar</span>
+  <span class="pst-expand-sidebar-label">Expand Sidebar</span>
+</button></div>
+        <div class="sidebar-primary-item">
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"></div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Imputation</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="imputation">
+<h1>Imputation<a class="headerlink" href="#imputation" title="Link to this heading">#</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="dataforge_ml.imputation.orchestrator.ImputationOrchestrator">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.imputation.orchestrator.</span></span><span class="sig-name descname"><span class="pre">ImputationOrchestrator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/orchestrator.html#ImputationOrchestrator"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation.orchestrator.ImputationOrchestrator" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Stateless Phase 2 orchestrator.</p>
+<p>Does not store any fitted state itself — fit() returns a FittedImputer.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>config</strong> (<a class="reference internal" href="pipeline.html#dataforge_ml.config.PipelineConfig" title="dataforge_ml.config.PipelineConfig"><em>PipelineConfig</em></a><em>, </em><em>optional</em>) – Pipeline configuration.  Defaults to PipelineConfig() when omitted.</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="dataforge_ml.imputation.orchestrator.ImputationOrchestrator.fit">
+<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">train_df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">profile</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/orchestrator.html#ImputationOrchestrator.fit"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation.orchestrator.ImputationOrchestrator.fit" title="Link to this definition">#</a></dt>
+<dd><p>Select imputation strategies from the profile and learn fill values
+from train_df.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>train_df</strong> (<em>pl.DataFrame</em>) – Training split.  Fill parameters are computed exclusively here.</p></li>
+<li><p><strong>profile</strong> (<a class="reference internal" href="profiling.html#dataforge_ml.profiling._config.StructuralProfileResult" title="dataforge_ml.profiling._config.StructuralProfileResult"><em>StructuralProfileResult</em></a>) – Full-dataset profile from Phase 1.  Used for strategy routing only.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Stateless imputer that can transform any DataFrame.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#dataforge_ml.imputation._fitted_imputer.FittedImputer" title="dataforge_ml.imputation._fitted_imputer.FittedImputer">FittedImputer</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dataforge_ml.imputation.orchestrator.ImputationOrchestrator.fit_transform">
+<span class="sig-name descname"><span class="pre">fit_transform</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">train_df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">profile</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/orchestrator.html#ImputationOrchestrator.fit_transform"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation.orchestrator.ImputationOrchestrator.fit_transform" title="Link to this definition">#</a></dt>
+<dd><p>Fit the imputer on train_df and transform it in one step.</p>
+<p>Returns both the fitted imputer and the imputed training result so that
+callers are not forced to call <code class="docutils literal notranslate"><span class="pre">fit()</span></code> a second time to obtain the
+imputer for test-set transformation.  The natural next step after
+unpacking is <code class="docutils literal notranslate"><span class="pre">fitted_imputer.transform(test_df)</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>train_df</strong> (<em>pl.DataFrame</em>) – Training split.  Fill parameters are computed exclusively here.</p></li>
+<li><p><strong>profile</strong> (<a class="reference internal" href="profiling.html#dataforge_ml.profiling._config.StructuralProfileResult" title="dataforge_ml.profiling._config.StructuralProfileResult"><em>StructuralProfileResult</em></a>) – Full-dataset profile from Phase 1.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A two-element tuple <code class="docutils literal notranslate"><span class="pre">(fitted_imputer,</span> <span class="pre">imputation_result)</span></code>.
+<code class="docutils literal notranslate"><span class="pre">fitted_imputer</span></code> is identical to the object returned by a
+standalone <code class="docutils literal notranslate"><span class="pre">fit()</span></code> call on the same inputs.
+<code class="docutils literal notranslate"><span class="pre">imputation_result</span></code> contains the imputed DataFrame and audit
+records for the training split.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple[<a class="reference internal" href="#dataforge_ml.imputation._fitted_imputer.FittedImputer" title="dataforge_ml.imputation._fitted_imputer.FittedImputer">FittedImputer</a>, <a class="reference internal" href="#dataforge_ml.imputation._config.ImputationResult" title="dataforge_ml.imputation._config.ImputationResult">ImputationResult</a>]</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationConfig">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.imputation._config.</span></span><span class="sig-name descname"><span class="pre">ImputationConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">numeric</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mnar_columns</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">add_indicator_columns</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_config.html#ImputationConfig"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationConfig" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Cross-type Phase 2 configuration.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>numeric</strong> (<a class="reference internal" href="#dataforge_ml.imputation._config.NumericImputationConfig" title="dataforge_ml.imputation._config.NumericImputationConfig"><em>NumericImputationConfig</em></a>) – Thresholds and fill values for numeric imputation.</p></li>
+<li><p><strong>mnar_columns</strong> (<em>list</em><em>[</em><em>str</em><em>]</em>) – Columns declared by the user as Missing Not At Random.
+These receive a data-derived fill (observed mean or median, skew-driven)
+plus a binary missingness indicator, regardless of Phase 1 signals.</p></li>
+<li><p><strong>add_indicator_columns</strong> (<em>list</em><em>[</em><em>str</em><em>]</em>) – Columns for which a binary missingness indicator should be added
+even when they are not MNAR.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If any column appears in both <code class="docutils literal notranslate"><span class="pre">mnar_columns</span></code> and
+<code class="docutils literal notranslate"><span class="pre">numeric.per_column_strategy</span></code>.  These declarations are mutually
+exclusive: <code class="docutils literal notranslate"><span class="pre">mnar_columns</span></code> applies a data-derived fill plus an
+indicator; <code class="docutils literal notranslate"><span class="pre">per_column_strategy</span></code> directs the routing engine to a
+user-specified strategy.  Declaring the same column in both is
+contradictory and is caught at construction time before any data is
+touched.</p>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationConfig.add_indicator_columns">
+<span class="sig-name descname"><span class="pre">add_indicator_columns</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationConfig.add_indicator_columns" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationConfig.from_dict">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_config.html#ImputationConfig.from_dict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationConfig.from_dict" title="Link to this definition">#</a></dt>
+<dd><p>Construct an <code class="docutils literal notranslate"><span class="pre">ImputationConfig</span></code> from a plain dictionary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>data</strong> (<em>dict</em>) – Mapping produced by <code class="docutils literal notranslate"><span class="pre">to_dict()</span></code>. Missing keys fall back to field
+defaults.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Reconstructed config instance.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#dataforge_ml.imputation._config.ImputationConfig" title="dataforge_ml.imputation._config.ImputationConfig">ImputationConfig</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationConfig.mnar_columns">
+<span class="sig-name descname"><span class="pre">mnar_columns</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationConfig.mnar_columns" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationConfig.numeric">
+<span class="sig-name descname"><span class="pre">numeric</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#dataforge_ml.imputation._config.NumericImputationConfig" title="dataforge_ml.imputation._config.NumericImputationConfig"><span class="pre">NumericImputationConfig</span></a></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationConfig.numeric" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationConfig.to_dict">
+<span class="sig-name descname"><span class="pre">to_dict</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_config.html#ImputationConfig.to_dict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationConfig.to_dict" title="Link to this definition">#</a></dt>
+<dd><p>Serialise the config to a plain dictionary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>All field values keyed by field name, with <code class="docutils literal notranslate"><span class="pre">numeric</span></code> nested.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.imputation._config.</span></span><span class="sig-name descname"><span class="pre">NumericImputationConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">knn_max_rows</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">knn_max_features</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">regression_min_rows</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">500</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gradient_boost_min_rows</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">base_max_iter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">knn_min_neighbors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">knn_max_neighbors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">25</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">knn_distance_weight_max_null_ratio</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.15</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">knn_distance_weight_max_features</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mice_n_nearest_features_min_cols</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mice_max_nearest_features</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">20</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mice_correlation_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mcar_feature_predictability_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">per_column_strategy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">per_column_constant_fill</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">per_column_max_iter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">knn_n_neighbors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mice_max_iter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">refit_r2_min_complete_rows</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">refit_r2_cv_folds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bimodal_grouping_variables</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bimodal_min_correlated_features</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bimodal_correlation_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.2</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_config.html#NumericImputationConfig"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Operational thresholds for the numeric imputation sub-processor.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>knn_max_rows</strong> (<em>int</em>) – Maximum number of rows before KNN is skipped in favour of Regression.</p></li>
+<li><p><strong>knn_max_features</strong> (<em>int</em>) – Maximum number of features before KNN is skipped in favour of Regression.</p></li>
+<li><p><strong>regression_min_rows</strong> (<em>int</em>) – Minimum number of rows required to fit a stable Regression model.</p></li>
+<li><p><strong>gradient_boost_min_rows</strong> (<em>int</em>) – Row count threshold above which <code class="docutils literal notranslate"><span class="pre">GradientBoostingRegressor</span></code> is preferred
+over <code class="docutils literal notranslate"><span class="pre">RandomForestRegressor</span></code> for <code class="docutils literal notranslate"><span class="pre">ComplexNonlinear</span></code> columns. Below this
+threshold the cheaper <code class="docutils literal notranslate"><span class="pre">RandomForestRegressor</span></code> is used instead.</p></li>
+<li><p><strong>base_max_iter</strong> (<em>int</em>) – Base number of <code class="docutils literal notranslate"><span class="pre">IterativeImputer</span></code> iterations before dynamic signal
+adjustments are applied.  Increase this value for columns that exhibit
+convergence warnings in <code class="docutils literal notranslate"><span class="pre">ColumnImputationRecord.signals</span></code>.</p></li>
+<li><p><strong>knn_min_neighbors</strong> (<em>int</em>) – Floor on the adaptively computed <code class="docutils literal notranslate"><span class="pre">n_neighbors</span></code> value passed to
+<code class="docutils literal notranslate"><span class="pre">KNNImputer</span></code>. The computed k will never fall below this value.</p></li>
+<li><p><strong>knn_max_neighbors</strong> (<em>int</em>) – Cap on the adaptively computed <code class="docutils literal notranslate"><span class="pre">n_neighbors</span></code> value passed to
+<code class="docutils literal notranslate"><span class="pre">KNNImputer</span></code>. The computed k will never exceed this value.</p></li>
+<li><p><strong>knn_distance_weight_max_null_ratio</strong> (<em>float</em>) – Feature-matrix missingness fraction below which distance weighting is
+considered reliable. When <code class="docutils literal notranslate"><span class="pre">miss_frac</span></code> exceeds this threshold,
+<code class="docutils literal notranslate"><span class="pre">weights</span></code> is forced to <code class="docutils literal notranslate"><span class="pre">&quot;uniform&quot;</span></code>.</p></li>
+<li><p><strong>knn_distance_weight_max_features</strong> (<em>int</em>) – Dimensionality threshold below which distance weighting is considered
+reliable. When the number of KNN feature columns exceeds this value,
+<code class="docutils literal notranslate"><span class="pre">weights</span></code> is forced to <code class="docutils literal notranslate"><span class="pre">&quot;uniform&quot;</span></code>.</p></li>
+<li><p><strong>mice_n_nearest_features_min_cols</strong> (<em>int</em>) – MICE block size at or below which <code class="docutils literal notranslate"><span class="pre">n_nearest_features</span></code> is left unset,
+meaning all columns in the block are used as predictors for every
+imputation target. Above this threshold, <code class="docutils literal notranslate"><span class="pre">n_nearest_features</span></code> is
+derived from value-level Pearson correlations.</p></li>
+<li><p><strong>mice_max_nearest_features</strong> (<em>int</em>) – Upper cap on the <code class="docutils literal notranslate"><span class="pre">n_nearest_features</span></code> value computed for large MICE
+blocks. The correlation-derived count is clamped to this maximum before
+being passed to <code class="docutils literal notranslate"><span class="pre">IterativeImputer</span></code>.</p></li>
+<li><p><strong>mice_correlation_threshold</strong> (<em>float</em>) – Minimum absolute Pearson correlation <code class="docutils literal notranslate"><span class="pre">|r|</span></code> required for another MICE
+column to be counted as an informative predictor when computing
+<code class="docutils literal notranslate"><span class="pre">n_nearest_features</span></code>. Columns below this threshold are excluded from
+the count.</p></li>
+<li><p><strong>mcar_feature_predictability_threshold</strong> (<em>float</em>) – Maximum absolute Pearson correlation <code class="docutils literal notranslate"><span class="pre">|r|</span></code> below which MCAR
+model-based routing is skipped in favour of Median. When no numeric
+predictor exceeds this threshold against the target column, KNN and
+Regression are not attempted because the feature set contains no useful
+predictive signal. Applies only to MCAR paths; MAR paths are not
+affected. Default of <code class="docutils literal notranslate"><span class="pre">0.2</span></code> preserves existing behaviour (no check
+applied today).</p></li>
+<li><p><strong>per_column_strategy</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><a class="reference internal" href="#dataforge_ml.imputation._config.ImputationStrategy" title="dataforge_ml.imputation._config.ImputationStrategy"><em>ImputationStrategy</em></a><em>]</em>) – Explicit per-column strategy overrides that fire at Priority 1.5 in the
+routing chain — after <code class="docutils literal notranslate"><span class="pre">DropCandidate</span></code> but before MNAR routing.  A
+column listed here bypasses all routing priorities 2–7.  Defaults to
+empty dict (no overrides).  Allowed values: <code class="docutils literal notranslate"><span class="pre">Mean</span></code>, <code class="docutils literal notranslate"><span class="pre">Median</span></code>,
+<code class="docutils literal notranslate"><span class="pre">Mode</span></code>, <code class="docutils literal notranslate"><span class="pre">KNN</span></code>, <code class="docutils literal notranslate"><span class="pre">Regression</span></code>, <code class="docutils literal notranslate"><span class="pre">MICE</span></code>.  To route a column to a
+constant fill, use <code class="docutils literal notranslate"><span class="pre">per_column_constant_fill</span></code></p></li>
+<li><p><strong>per_column_constant_fill</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><em>float</em><em>]</em>) – Self-sufficient constant fill declarations.  Each column listed here
+is routed to <code class="docutils literal notranslate"><span class="pre">ImputationStrategy.Constant</span></code> at Priority 1.5,
+bypassing all routing priorities 2–7.  No companion entry in
+<code class="docutils literal notranslate"><span class="pre">per_column_strategy</span></code> is required or allowed.  Keyed by column name.
+Defaults to empty dict.</p></li>
+<li><p><strong>per_column_max_iter</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><em>int</em><em>]</em>) – Overrides the dynamically-computed <code class="docutils literal notranslate"><span class="pre">max_iter</span></code> for named Regression
+columns only.  Keys are column names; values replace whatever
+<code class="docutils literal notranslate"><span class="pre">_compute_max_iter</span></code> would produce.
+Set manually.  Defaults to empty dict (no overrides).</p></li>
+<li><p><strong>knn_n_neighbors</strong> (<em>int</em><em>, </em><em>optional</em>) – Overrides the dynamically-computed <code class="docutils literal notranslate"><span class="pre">n_neighbors</span></code> for the entire KNN
+block. A single value governs all KNN columns.</p></li>
+<li><p><strong>mice_max_iter</strong> (<em>int</em><em>, </em><em>optional</em>) – Overrides the dynamically-computed <code class="docutils literal notranslate"><span class="pre">max_iter</span></code> for the entire MICE
+block. A single value governs all MICE columns.</p></li>
+<li><p><strong>refit_r2_min_complete_rows</strong> (<em>int</em>) – Minimum number of complete rows required to attempt R² computation
+during fit.  When fewer complete rows are available, <code class="docutils literal notranslate"><span class="pre">r2_train</span></code> on
+<code class="docutils literal notranslate"><span class="pre">ImputationFitDiagnostic</span></code> is set to <code class="docutils literal notranslate"><span class="pre">None</span></code>.  With k-fold CV
+(<code class="docutils literal notranslate"><span class="pre">refit_r2_cv_folds=5</span></code>), each validation fold contains 1/k of the
+complete rows; the floor of 50 ensures at least 10 rows per fold.
+Default <code class="docutils literal notranslate"><span class="pre">50</span></code>.</p></li>
+<li><p><strong>refit_r2_cv_folds</strong> (<em>int</em>) – Number of folds for cross-validated R² computation.  Applied
+uniformly across Regression, KNN, and MICE diagnostics.  Default <code class="docutils literal notranslate"><span class="pre">5</span></code>.</p></li>
+<li><p><strong>bimodal_grouping_variables</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><em>str</em><em>]</em>) – Maps a bimodal column name to the name of the grouping column that
+explains the bimodal split (e.g. <code class="docutils literal notranslate"><span class="pre">{&quot;age&quot;:</span> <span class="pre">&quot;employment_status&quot;}</span></code>).</p></li>
+<li><p><strong>bimodal_min_correlated_features</strong> (<em>int</em>) – Minimum number of numeric features with <code class="docutils literal notranslate"><span class="pre">|r|</span> <span class="pre">&gt;</span> <span class="pre">0.2</span></code> required to
+qualify the Bimodal Imputation Framework for branch 2 (MICE/KNN);
+columns with fewer correlated features fall to branch 3 (Cluster-Conditional).</p></li>
+<li><p><strong>bimodal_correlation_threshold</strong> (<em>float</em>) – Minimum absolute Pearson correlation <code class="docutils literal notranslate"><span class="pre">|r|</span></code> a feature must have against
+a bimodal column for it to count toward the branch 2/3 feature tally in
+the Bimodal Imputation Framework.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If any column in <code class="docutils literal notranslate"><span class="pre">per_column_strategy</span></code> is mapped to
+<code class="docutils literal notranslate"><span class="pre">Passthrough</span></code>, <code class="docutils literal notranslate"><span class="pre">Indicator</span></code>, <code class="docutils literal notranslate"><span class="pre">Dropped</span></code>, or <code class="docutils literal notranslate"><span class="pre">MNAR</span></code>.  <code class="docutils literal notranslate"><span class="pre">Constant</span></code>
+columns should use <code class="docutils literal notranslate"><span class="pre">per_column_constant_fill</span></code>; <code class="docutils literal notranslate"><span class="pre">Dropped</span></code> columns
+should use <code class="docutils literal notranslate"><span class="pre">PipelineConfig.exclude_columns</span></code>; <code class="docutils literal notranslate"><span class="pre">MNAR</span></code> columns should
+use <code class="docutils literal notranslate"><span class="pre">mnar_columns</span></code>; <code class="docutils literal notranslate"><span class="pre">Passthrough</span></code> and <code class="docutils literal notranslate"><span class="pre">Indicator</span></code> are
+internal-only.</p>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig.base_max_iter">
+<span class="sig-name descname"><span class="pre">base_max_iter</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">10</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig.base_max_iter" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig.bimodal_correlation_threshold">
+<span class="sig-name descname"><span class="pre">bimodal_correlation_threshold</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.2</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig.bimodal_correlation_threshold" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig.bimodal_grouping_variables">
+<span class="sig-name descname"><span class="pre">bimodal_grouping_variables</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig.bimodal_grouping_variables" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig.bimodal_min_correlated_features">
+<span class="sig-name descname"><span class="pre">bimodal_min_correlated_features</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">3</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig.bimodal_min_correlated_features" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig.from_dict">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_config.html#NumericImputationConfig.from_dict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig.from_dict" title="Link to this definition">#</a></dt>
+<dd><p>Construct a <code class="docutils literal notranslate"><span class="pre">NumericImputationConfig</span></code> from a plain dictionary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>data</strong> (<em>dict</em>) – Mapping produced by <code class="docutils literal notranslate"><span class="pre">to_dict()</span></code>. Missing keys fall back to field
+defaults.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Reconstructed config instance.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#dataforge_ml.imputation._config.NumericImputationConfig" title="dataforge_ml.imputation._config.NumericImputationConfig">NumericImputationConfig</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig.gradient_boost_min_rows">
+<span class="sig-name descname"><span class="pre">gradient_boost_min_rows</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">10000</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig.gradient_boost_min_rows" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig.knn_distance_weight_max_features">
+<span class="sig-name descname"><span class="pre">knn_distance_weight_max_features</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">30</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig.knn_distance_weight_max_features" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig.knn_distance_weight_max_null_ratio">
+<span class="sig-name descname"><span class="pre">knn_distance_weight_max_null_ratio</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.15</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig.knn_distance_weight_max_null_ratio" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig.knn_max_features">
+<span class="sig-name descname"><span class="pre">knn_max_features</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">50</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig.knn_max_features" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig.knn_max_neighbors">
+<span class="sig-name descname"><span class="pre">knn_max_neighbors</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">25</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig.knn_max_neighbors" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig.knn_max_rows">
+<span class="sig-name descname"><span class="pre">knn_max_rows</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">50000</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig.knn_max_rows" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig.knn_min_neighbors">
+<span class="sig-name descname"><span class="pre">knn_min_neighbors</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">5</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig.knn_min_neighbors" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig.knn_n_neighbors">
+<span class="sig-name descname"><span class="pre">knn_n_neighbors</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig.knn_n_neighbors" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig.mcar_feature_predictability_threshold">
+<span class="sig-name descname"><span class="pre">mcar_feature_predictability_threshold</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.2</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig.mcar_feature_predictability_threshold" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig.mice_correlation_threshold">
+<span class="sig-name descname"><span class="pre">mice_correlation_threshold</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.1</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig.mice_correlation_threshold" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig.mice_max_iter">
+<span class="sig-name descname"><span class="pre">mice_max_iter</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig.mice_max_iter" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig.mice_max_nearest_features">
+<span class="sig-name descname"><span class="pre">mice_max_nearest_features</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">20</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig.mice_max_nearest_features" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig.mice_n_nearest_features_min_cols">
+<span class="sig-name descname"><span class="pre">mice_n_nearest_features_min_cols</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">10</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig.mice_n_nearest_features_min_cols" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig.per_column_constant_fill">
+<span class="sig-name descname"><span class="pre">per_column_constant_fill</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig.per_column_constant_fill" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig.per_column_max_iter">
+<span class="sig-name descname"><span class="pre">per_column_max_iter</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig.per_column_max_iter" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig.per_column_strategy">
+<span class="sig-name descname"><span class="pre">per_column_strategy</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#dataforge_ml.imputation._config.ImputationStrategy" title="dataforge_ml.imputation._config.ImputationStrategy"><span class="pre">ImputationStrategy</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig.per_column_strategy" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig.refit_r2_cv_folds">
+<span class="sig-name descname"><span class="pre">refit_r2_cv_folds</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">5</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig.refit_r2_cv_folds" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig.refit_r2_min_complete_rows">
+<span class="sig-name descname"><span class="pre">refit_r2_min_complete_rows</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">50</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig.refit_r2_min_complete_rows" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig.regression_min_rows">
+<span class="sig-name descname"><span class="pre">regression_min_rows</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">500</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig.regression_min_rows" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig.to_dict">
+<span class="sig-name descname"><span class="pre">to_dict</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_config.html#NumericImputationConfig.to_dict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig.to_dict" title="Link to this definition">#</a></dt>
+<dd><p>Serialise the config to a plain dictionary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>All field values keyed by field name.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationStrategy">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.imputation._config.</span></span><span class="sig-name descname"><span class="pre">ImputationStrategy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">values</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_config.html#ImputationStrategy"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationStrategy" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">StrEnum</span></code></p>
+<p>Imputation strategy assigned to a column after Phase 2 fitting.</p>
+<p>Members fall into two categories:</p>
+<p><strong>Input strategies</strong> — may be declared in <code class="docutils literal notranslate"><span class="pre">per_column_strategy</span></code> to
+override automatic routing: <code class="docutils literal notranslate"><span class="pre">Mean</span></code>, <code class="docutils literal notranslate"><span class="pre">Median</span></code>, <code class="docutils literal notranslate"><span class="pre">Mode</span></code>, <code class="docutils literal notranslate"><span class="pre">KNN</span></code>,
+<code class="docutils literal notranslate"><span class="pre">Regression</span></code>, <code class="docutils literal notranslate"><span class="pre">MICE</span></code>.</p>
+<p><strong>Output-only labels</strong> — assigned by the engine after <code class="docutils literal notranslate"><span class="pre">fit()</span></code> and
+recorded in <code class="docutils literal notranslate"><span class="pre">ColumnImputationRecord.strategy</span></code>; declaring them in
+<code class="docutils literal notranslate"><span class="pre">per_column_strategy</span></code> raises <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> at construction time:
+<code class="docutils literal notranslate"><span class="pre">Constant</span></code>, <code class="docutils literal notranslate"><span class="pre">MNAR</span></code>, <code class="docutils literal notranslate"><span class="pre">Dropped</span></code>, <code class="docutils literal notranslate"><span class="pre">Passthrough</span></code>, <code class="docutils literal notranslate"><span class="pre">Indicator</span></code>.
+<code class="docutils literal notranslate"><span class="pre">Constant</span></code> is produced when a column appears in
+<code class="docutils literal notranslate"><span class="pre">per_column_constant_fill</span></code>; use that field instead of declaring it in
+<code class="docutils literal notranslate"><span class="pre">per_column_strategy</span></code>.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationStrategy.ClusterConditional">
+<span class="sig-name descname"><span class="pre">ClusterConditional</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'cluster_conditional'</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationStrategy.ClusterConditional" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationStrategy.Constant">
+<span class="sig-name descname"><span class="pre">Constant</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'constant'</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationStrategy.Constant" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationStrategy.Dropped">
+<span class="sig-name descname"><span class="pre">Dropped</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'dropped'</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationStrategy.Dropped" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationStrategy.GMMSampling">
+<span class="sig-name descname"><span class="pre">GMMSampling</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'gmm_sampling'</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationStrategy.GMMSampling" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationStrategy.Indicator">
+<span class="sig-name descname"><span class="pre">Indicator</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'indicator'</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationStrategy.Indicator" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationStrategy.KNN">
+<span class="sig-name descname"><span class="pre">KNN</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'knn'</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationStrategy.KNN" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationStrategy.MICE">
+<span class="sig-name descname"><span class="pre">MICE</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'mice'</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationStrategy.MICE" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationStrategy.MNAR">
+<span class="sig-name descname"><span class="pre">MNAR</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'mnar'</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationStrategy.MNAR" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationStrategy.Mean">
+<span class="sig-name descname"><span class="pre">Mean</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'mean'</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationStrategy.Mean" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationStrategy.Median">
+<span class="sig-name descname"><span class="pre">Median</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'median'</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationStrategy.Median" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationStrategy.Mode">
+<span class="sig-name descname"><span class="pre">Mode</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'mode'</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationStrategy.Mode" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationStrategy.Passthrough">
+<span class="sig-name descname"><span class="pre">Passthrough</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'passthrough'</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationStrategy.Passthrough" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationStrategy.Regression">
+<span class="sig-name descname"><span class="pre">Regression</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'regression'</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationStrategy.Regression" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._fitted_imputer.FittedImputer">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.imputation._fitted_imputer.</span></span><span class="sig-name descname"><span class="pre">FittedImputer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">records</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">models</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_cols</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">numeric_sentinels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">string_sentinels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_fitted_imputer.html#FittedImputer"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._fitted_imputer.FittedImputer" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Stores per-column imputation records and fitted models; applies them to any DataFrame.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>records</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><a class="reference internal" href="#dataforge_ml.imputation._config.ColumnImputationRecord" title="dataforge_ml.imputation._config.ColumnImputationRecord"><em>ColumnImputationRecord</em></a><em>]</em>) – One record per column processed during fit().</p></li>
+<li><p><strong>models</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><em>Any</em><em>]</em>) – <p>Fitted sklearn model objects keyed by model name.</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;knn&quot;</span></code>           : <code class="docutils literal notranslate"><span class="pre">_FittedKNN</span></code> for KNN-assigned columns.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;mice&quot;</span></code>          : <code class="docutils literal notranslate"><span class="pre">IterativeImputer</span></code> for MICE-assigned columns.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;regression:{col}&quot;</span></code> : <code class="docutils literal notranslate"><span class="pre">FittedRegression</span></code> containing a fitted
+<code class="docutils literal notranslate"><span class="pre">IterativeImputer</span></code>.</p></li>
+</ul>
+</p></li>
+<li><p><strong>model_cols</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><em>list</em><em>[</em><em>str</em><em>]</em><em>]</em>) – Ordered column lists for each model entry in models.  Regression
+entries store the full <code class="docutils literal notranslate"><span class="pre">[col]</span> <span class="pre">+</span> <span class="pre">feat_cols</span></code> list (including the
+target at index 0).</p></li>
+<li><p><strong>numeric_sentinels</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><em>list</em><em>[</em><em>float</em><em>]</em><em>]</em>) – Per-column numeric sentinel declarations copied from
+<code class="docutils literal notranslate"><span class="pre">StructuralProfileResult.numeric_sentinels</span></code>.  Keys are column names;
+values are float-compatible sentinel values that are normalized to
+Polars-native null before any imputation operation.  Defaults to an
+empty dict — columns with no declaration are completely unaffected.
+Survives <code class="docutils literal notranslate"><span class="pre">to_dict()</span></code> / <code class="docutils literal notranslate"><span class="pre">from_dict()</span></code> round-trips.</p></li>
+<li><p><strong>string_sentinels</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><em>list</em><em>[</em><em>str</em><em>]</em><em>]</em>) – Per-column string sentinel declarations copied from
+<code class="docutils literal notranslate"><span class="pre">StructuralProfileResult.string_sentinels</span></code>.  Uses <strong>replace
+semantics</strong>: when a column name is present, only the declared values
+are matched (case-insensitive) and the hardcoded defaults
+(<code class="docutils literal notranslate"><span class="pre">&quot;NA&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;NAN&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;NULL&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;NONE&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;?&quot;</span></code>) are suppressed
+for that column.  Empty/whitespace strings are always treated as
+effective null regardless of any declaration.  Defaults to an empty
+dict — columns with no declaration continue to use the hardcoded
+defaults.  Survives <code class="docutils literal notranslate"><span class="pre">to_dict()</span></code> / <code class="docutils literal notranslate"><span class="pre">from_dict()</span></code> round-trips.</p></li>
+<li><p><strong>random_seed</strong> (<em>int</em><em> | </em><em>None</em>)</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._fitted_imputer.FittedImputer.apply_exclusions">
+<span class="sig-name descname"><span class="pre">apply_exclusions</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_fitted_imputer.html#FittedImputer.apply_exclusions"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._fitted_imputer.FittedImputer.apply_exclusions" title="Link to this definition">#</a></dt>
+<dd><p>Propagate dropped and indicator columns into the pipeline config.</p>
+<p>Hard Exclusions (ADR 0023): columns recorded with
+<code class="docutils literal notranslate"><span class="pre">ImputationStrategy.Dropped</span></code> are added to <code class="docutils literal notranslate"><span class="pre">config.exclude_columns</span></code>
+via <code class="docutils literal notranslate"><span class="pre">add_exclusions</span></code>, removing them from every downstream phase.</p>
+<p>Soft Exclusions: columns recorded with <code class="docutils literal notranslate"><span class="pre">ImputationStrategy.Indicator</span></code>
+are registered in <code class="docutils literal notranslate"><span class="pre">config.phase_exclusions</span></code> for Phases 3–6
+(OutlierDetection, Normalization, Encoding, Scaling), so those phases
+skip indicator columns without removing them from the dataset.</p>
+<p>Sets <code class="docutils literal notranslate"><span class="pre">_exclusions_applied</span></code> to <code class="docutils literal notranslate"><span class="pre">True</span></code> regardless of whether any
+excluded columns exist, so callers can invoke this method
+unconditionally without branching.</p>
+<p>Propagation is caller-initiated: <code class="docutils literal notranslate"><span class="pre">fit()</span></code> does not touch
+<code class="docutils literal notranslate"><span class="pre">PipelineConfig</span></code>, preserving re-fit idempotency. A fresh call is
+required after deserialising via <code class="docutils literal notranslate"><span class="pre">from_dict()</span></code> because
+<code class="docutils literal notranslate"><span class="pre">_exclusions_applied</span></code> is not persisted across serialisation.
+Duplicate calls are safe — both hard and soft exclusion registrations
+deduplicate automatically.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>config</strong> (<a class="reference internal" href="pipeline.html#dataforge_ml.config.PipelineConfig" title="dataforge_ml.config.PipelineConfig"><em>PipelineConfig</em></a>) – Pipeline config to update.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._fitted_imputer.FittedImputer.from_dict">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_fitted_imputer.html#FittedImputer.from_dict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._fitted_imputer.FittedImputer.from_dict" title="Link to this definition">#</a></dt>
+<dd><p>Deserialize a dictionary back into a FittedImputer instance.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>data</strong> (<em>dict</em>) – Mapping produced by <code class="docutils literal notranslate"><span class="pre">to_dict()</span></code>.  Payloads without a
+<code class="docutils literal notranslate"><span class="pre">&quot;numeric_sentinels&quot;</span></code> key (serialised before Scope 5 / issue #94)
+default to an empty dict for backwards compatibility.  Payloads
+without a <code class="docutils literal notranslate"><span class="pre">&quot;string_sentinels&quot;</span></code> key (serialised before issue #182)
+also default to an empty dict for backwards compatibility.
+Pre-Scope 8 payloads may contain <code class="docutils literal notranslate"><span class="pre">&quot;constant&quot;</span></code> as a strategy
+value; those records deserialise as <code class="docutils literal notranslate"><span class="pre">ImputationStrategy.Constant</span></code>
+(audit label only — fill behaviour is unchanged).  Payloads without
+a <code class="docutils literal notranslate"><span class="pre">&quot;diagnostic&quot;</span></code> key on individual records (serialised before
+Scope 3 / issue #214) default to <code class="docutils literal notranslate"><span class="pre">None</span></code> for backwards
+compatibility.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The deserialized FittedImputer instance.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#dataforge_ml.imputation._fitted_imputer.FittedImputer" title="dataforge_ml.imputation._fitted_imputer.FittedImputer">FittedImputer</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._fitted_imputer.FittedImputer.model_cols">
+<span class="sig-name descname"><span class="pre">model_cols</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#dataforge_ml.imputation._fitted_imputer.FittedImputer.model_cols" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._fitted_imputer.FittedImputer.models">
+<span class="sig-name descname"><span class="pre">models</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#dataforge_ml.imputation._fitted_imputer.FittedImputer.models" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._fitted_imputer.FittedImputer.numeric_sentinels">
+<span class="sig-name descname"><span class="pre">numeric_sentinels</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#dataforge_ml.imputation._fitted_imputer.FittedImputer.numeric_sentinels" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._fitted_imputer.FittedImputer.random_seed">
+<span class="sig-name descname"><span class="pre">random_seed</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.imputation._fitted_imputer.FittedImputer.random_seed" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._fitted_imputer.FittedImputer.records">
+<span class="sig-name descname"><span class="pre">records</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#dataforge_ml.imputation._config.ColumnImputationRecord" title="dataforge_ml.imputation._config.ColumnImputationRecord"><span class="pre">ColumnImputationRecord</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#dataforge_ml.imputation._fitted_imputer.FittedImputer.records" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._fitted_imputer.FittedImputer.string_sentinels">
+<span class="sig-name descname"><span class="pre">string_sentinels</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#dataforge_ml.imputation._fitted_imputer.FittedImputer.string_sentinels" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._fitted_imputer.FittedImputer.to_dict">
+<span class="sig-name descname"><span class="pre">to_dict</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_fitted_imputer.html#FittedImputer.to_dict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._fitted_imputer.FittedImputer.to_dict" title="Link to this definition">#</a></dt>
+<dd><p>Serialize the FittedImputer instance to a dictionary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Dictionary containing serialized records, models (as base64-encoded
+joblib bytes), model column lists, numeric sentinel declarations,
+and string sentinel declarations.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._fitted_imputer.FittedImputer.transform">
+<span class="sig-name descname"><span class="pre">transform</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_fitted_imputer.html#FittedImputer.transform"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._fitted_imputer.FittedImputer.transform" title="Link to this definition">#</a></dt>
+<dd><p>Apply train-time fill parameters and models to df.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><a class="reference internal" href="#dataforge_ml.imputation._fitted_imputer.UnseenColumnError" title="dataforge_ml.imputation._fitted_imputer.UnseenColumnError"><strong>UnseenColumnError</strong></a> – If df contains any column absent from <code class="docutils literal notranslate"><span class="pre">self.records</span></code>. Fires before
+any DataFrame mutations regardless of whether the unknown column has
+missing values. All unknown column names are reported in one raise.</p></li>
+<li><p><a class="reference internal" href="#dataforge_ml.imputation._fitted_imputer.FittedColumnAbsentError" title="dataforge_ml.imputation._fitted_imputer.FittedColumnAbsentError"><strong>FittedColumnAbsentError</strong></a> – If a column with an active imputation strategy (any strategy other
+than <code class="docutils literal notranslate"><span class="pre">Dropped</span></code> or <code class="docutils literal notranslate"><span class="pre">Indicator</span></code>) is absent from df. All absent
+column names are reported in one raise.</p></li>
+<li><p><a class="reference internal" href="#dataforge_ml.imputation._fitted_imputer.UnfittedColumnError" title="dataforge_ml.imputation._fitted_imputer.UnfittedColumnError"><strong>UnfittedColumnError</strong></a> – If df has missing values in a column that had no missingness during
+fit() (strategy == Passthrough).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Warns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>DroppedColumnAbsentWarning</strong> – If a column recorded as Dropped during fit() is already absent from
+df. One warning is emitted per absent column. Transform continues
+normally.</p>
+</dd>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>df</strong> (<em>DataFrame</em>)</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#dataforge_ml.imputation._config.ImputationResult" title="dataforge_ml.imputation._config.ImputationResult"><em>ImputationResult</em></a></p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationFitDiagnostic">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.imputation._config.</span></span><span class="sig-name descname"><span class="pre">ImputationFitDiagnostic</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">r2_train</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rmse</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mae</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">converged</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_iter</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">imputed_mean</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">imputed_std</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">observed_mean</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">observed_std</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">variance_ratio</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_neighbors_used</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k_capped</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_config.html#ImputationFitDiagnostic"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Fit quality diagnostic attached to each model-based column after fit().</p>
+<p>Present on <code class="docutils literal notranslate"><span class="pre">ColumnImputationRecord.diagnostic</span></code> for KNN, Regression, and
+MICE columns.  <code class="docutils literal notranslate"><span class="pre">None</span></code> for Passthrough, Dropped, Constant, and all scalar
+strategies (Mean, Median, Mode).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>r2_train</strong> (<em>float</em><em>, </em><em>optional</em>) – Mean R² across k cross-validation folds on complete rows (k =
+<code class="docutils literal notranslate"><span class="pre">refit_r2_cv_folds</span></code>).  <code class="docutils literal notranslate"><span class="pre">None</span></code> when fewer than
+<code class="docutils literal notranslate"><span class="pre">refit_r2_min_complete_rows</span></code> complete rows are available or when all
+folds are skipped due to zero variance in <code class="docutils literal notranslate"><span class="pre">y_true</span></code>.</p></li>
+<li><p><strong>converged</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether <code class="docutils literal notranslate"><span class="pre">IterativeImputer</span></code> halted before reaching <code class="docutils literal notranslate"><span class="pre">max_iter</span></code>.
+<code class="docutils literal notranslate"><span class="pre">None</span></code> for KNN columns (convergence is not applicable).</p></li>
+<li><p><strong>n_iter</strong> (<em>int</em><em>, </em><em>optional</em>) – Actual iteration count of <code class="docutils literal notranslate"><span class="pre">IterativeImputer</span></code>.  <code class="docutils literal notranslate"><span class="pre">None</span></code> for KNN
+columns.</p></li>
+<li><p><strong>imputed_mean</strong> (<em>float</em>) – Mean of the values imputed for null rows during fit.</p></li>
+<li><p><strong>imputed_std</strong> (<em>float</em>) – Standard deviation of the imputed values.</p></li>
+<li><p><strong>observed_mean</strong> (<em>float</em>) – Mean of non-null training values for this column.</p></li>
+<li><p><strong>observed_std</strong> (<em>float</em>) – Standard deviation of non-null training values for this column.</p></li>
+<li><p><strong>variance_ratio</strong> (<em>float</em>) – <code class="docutils literal notranslate"><span class="pre">imputed_std</span> <span class="pre">/</span> <span class="pre">observed_std</span></code>.  A value near zero indicates
+distribution collapse — the model is predicting near-constant values.</p></li>
+<li><p><strong>n_neighbors_used</strong> (<em>int</em><em>, </em><em>optional</em>) – Actual <code class="docutils literal notranslate"><span class="pre">n_neighbors</span></code> used by the KNN block.  <code class="docutils literal notranslate"><span class="pre">None</span></code> for Regression
+and MICE columns.</p></li>
+<li><p><strong>k_capped</strong> (<em>bool</em><em>, </em><em>optional</em>) – <code class="docutils literal notranslate"><span class="pre">True</span></code> when the adaptive k formula’s raw output exceeded <code class="docutils literal notranslate"><span class="pre">n_rows</span> <span class="pre">−</span> <span class="pre">1</span></code>
+and was forced to that bound (the model is averaging nearly all rows).
+<code class="docutils literal notranslate"><span class="pre">False</span></code> when the formula ran within bounds.  <code class="docutils literal notranslate"><span class="pre">None</span></code> when
+<code class="docutils literal notranslate"><span class="pre">knn_n_neighbors</span></code> override is active (adaptive formula was bypassed)
+or strategy is not KNN.</p></li>
+<li><p><strong>rmse</strong> (<em>float</em><em> | </em><em>None</em>)</p></li>
+<li><p><strong>mae</strong> (<em>float</em><em> | </em><em>None</em>)</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationFitDiagnostic.converged">
+<span class="sig-name descname"><span class="pre">converged</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic.converged" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationFitDiagnostic.from_dict">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_config.html#ImputationFitDiagnostic.from_dict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic.from_dict" title="Link to this definition">#</a></dt>
+<dd><p>Reconstruct an <code class="docutils literal notranslate"><span class="pre">ImputationFitDiagnostic</span></code> from a plain dictionary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>data</strong> (<em>dict</em>) – Mapping produced by <code class="docutils literal notranslate"><span class="pre">to_dict()</span></code>.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Reconstructed diagnostic instance.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic" title="dataforge_ml.imputation._config.ImputationFitDiagnostic">ImputationFitDiagnostic</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationFitDiagnostic.imputed_mean">
+<span class="sig-name descname"><span class="pre">imputed_mean</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic.imputed_mean" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationFitDiagnostic.imputed_std">
+<span class="sig-name descname"><span class="pre">imputed_std</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic.imputed_std" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationFitDiagnostic.k_capped">
+<span class="sig-name descname"><span class="pre">k_capped</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic.k_capped" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationFitDiagnostic.mae">
+<span class="sig-name descname"><span class="pre">mae</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic.mae" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationFitDiagnostic.n_iter">
+<span class="sig-name descname"><span class="pre">n_iter</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic.n_iter" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationFitDiagnostic.n_neighbors_used">
+<span class="sig-name descname"><span class="pre">n_neighbors_used</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic.n_neighbors_used" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationFitDiagnostic.observed_mean">
+<span class="sig-name descname"><span class="pre">observed_mean</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic.observed_mean" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationFitDiagnostic.observed_std">
+<span class="sig-name descname"><span class="pre">observed_std</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic.observed_std" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationFitDiagnostic.r2_train">
+<span class="sig-name descname"><span class="pre">r2_train</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic.r2_train" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationFitDiagnostic.rmse">
+<span class="sig-name descname"><span class="pre">rmse</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic.rmse" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationFitDiagnostic.to_dict">
+<span class="sig-name descname"><span class="pre">to_dict</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_config.html#ImputationFitDiagnostic.to_dict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic.to_dict" title="Link to this definition">#</a></dt>
+<dd><p>Serialise the diagnostic to a plain dictionary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>All ten field values keyed by field name.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationFitDiagnostic.variance_ratio">
+<span class="sig-name descname"><span class="pre">variance_ratio</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic.variance_ratio" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationResult">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.imputation._config.</span></span><span class="sig-name descname"><span class="pre">ImputationResult</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dataframe</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">records</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dropped_columns</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exclusions_applied</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_config.html#ImputationResult"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationResult" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Output of FittedImputer.transform().</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dataframe</strong> (<em>pl.DataFrame</em>) – DataFrame with imputed values (and any indicator columns appended).</p></li>
+<li><p><strong>records</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><a class="reference internal" href="#dataforge_ml.imputation._config.ColumnImputationRecord" title="dataforge_ml.imputation._config.ColumnImputationRecord"><em>ColumnImputationRecord</em></a><em>]</em>) – Per-column audit log keyed by column name.</p></li>
+<li><p><strong>dropped_columns</strong> (<em>list</em><em>[</em><em>str</em><em>]</em>) – Columns removed because they exceeded the drop threshold (&gt;50% missing).</p></li>
+<li><p><strong>exclusions_applied</strong> (<em>bool</em>) – <code class="docutils literal notranslate"><span class="pre">True</span></code> when <code class="docutils literal notranslate"><span class="pre">FittedImputer.apply_exclusions</span></code> was called before
+<code class="docutils literal notranslate"><span class="pre">transform()</span></code>, meaning dropped columns have been propagated into the
+pipeline config’s hard exclusion set. A future Phase 3 orchestrator
+will raise if this is <code class="docutils literal notranslate"><span class="pre">False</span></code> when it receives an
+<code class="docutils literal notranslate"><span class="pre">ImputationResult</span></code>.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationResult.dataframe">
+<span class="sig-name descname"><span class="pre">dataframe</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">DataFrame</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationResult.dataframe" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationResult.dropped_columns">
+<span class="sig-name descname"><span class="pre">dropped_columns</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationResult.dropped_columns" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationResult.exclusions_applied">
+<span class="sig-name descname"><span class="pre">exclusions_applied</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationResult.exclusions_applied" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationResult.records">
+<span class="sig-name descname"><span class="pre">records</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#dataforge_ml.imputation._config.ColumnImputationRecord" title="dataforge_ml.imputation._config.ColumnImputationRecord"><span class="pre">ColumnImputationRecord</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationResult.records" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ColumnImputationRecord">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.imputation._config.</span></span><span class="sig-name descname"><span class="pre">ColumnImputationRecord</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">semantic_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strategy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fill_value</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">indicator_added</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">signals</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">domain_snap_bounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">diagnostic</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_config.html#ColumnImputationRecord"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._config.ColumnImputationRecord" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Per-column audit entry produced after fit().</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>column</strong> (<em>str</em>) – Column name.</p></li>
+<li><p><strong>semantic_type</strong> (<a class="reference internal" href="pipeline.html#dataforge_ml.config.SemanticType" title="dataforge_ml.config.SemanticType"><em>SemanticType</em></a>) – Detected semantic type of the column.</p></li>
+<li><p><strong>strategy</strong> (<a class="reference internal" href="#dataforge_ml.imputation._config.ImputationStrategy" title="dataforge_ml.imputation._config.ImputationStrategy"><em>ImputationStrategy</em></a>) – Strategy applied to this column.</p></li>
+<li><p><strong>fill_value</strong> (<em>Any</em><em>, </em><em>optional</em>) – Scalar fill value learned from training data (None for model-based strategies).</p></li>
+<li><p><strong>indicator_added</strong> (<em>bool</em>) – Whether a binary missingness indicator column was appended.</p></li>
+<li><p><strong>signals</strong> (<em>list</em><em>[</em><em>str</em><em>]</em>) – Human-readable reasons that drove the strategy decision.</p></li>
+<li><p><strong>domain_snap_bounds</strong> (<em>tuple</em><em>[</em><em>float</em><em>, </em><em>float</em><em>]</em><em>, </em><em>optional</em>) – <code class="docutils literal notranslate"><span class="pre">(min,</span> <span class="pre">max)</span></code> bounds applied to snap model-based predictions for
+BoundedDiscrete columns.  <code class="docutils literal notranslate"><span class="pre">None</span></code> for all other columns.</p></li>
+<li><p><strong>diagnostic</strong> (<a class="reference internal" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic" title="dataforge_ml.imputation._config.ImputationFitDiagnostic"><em>ImputationFitDiagnostic</em></a><em>, </em><em>optional</em>) – Fit quality metrics for KNN, Regression, and MICE columns.  <code class="docutils literal notranslate"><span class="pre">None</span></code>
+for Passthrough, Dropped, Constant, and all scalar strategies.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ColumnImputationRecord.column">
+<span class="sig-name descname"><span class="pre">column</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ColumnImputationRecord.column" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ColumnImputationRecord.diagnostic">
+<span class="sig-name descname"><span class="pre">diagnostic</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic" title="dataforge_ml.imputation._config.ImputationFitDiagnostic"><span class="pre">ImputationFitDiagnostic</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ColumnImputationRecord.diagnostic" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ColumnImputationRecord.domain_snap_bounds">
+<span class="sig-name descname"><span class="pre">domain_snap_bounds</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ColumnImputationRecord.domain_snap_bounds" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ColumnImputationRecord.fill_value">
+<span class="sig-name descname"><span class="pre">fill_value</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Any</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ColumnImputationRecord.fill_value" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ColumnImputationRecord.indicator_added">
+<span class="sig-name descname"><span class="pre">indicator_added</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ColumnImputationRecord.indicator_added" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ColumnImputationRecord.semantic_type">
+<span class="sig-name descname"><span class="pre">semantic_type</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="pipeline.html#dataforge_ml.config.SemanticType" title="dataforge_ml.config.SemanticType"><span class="pre">SemanticType</span></a></span><a class="headerlink" href="#dataforge_ml.imputation._config.ColumnImputationRecord.semantic_type" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ColumnImputationRecord.signals">
+<span class="sig-name descname"><span class="pre">signals</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ColumnImputationRecord.signals" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ColumnImputationRecord.strategy">
+<span class="sig-name descname"><span class="pre">strategy</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#dataforge_ml.imputation._config.ImputationStrategy" title="dataforge_ml.imputation._config.ImputationStrategy"><span class="pre">ImputationStrategy</span></a></span><a class="headerlink" href="#dataforge_ml.imputation._config.ColumnImputationRecord.strategy" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ColumnImputationRecord.to_dict">
+<span class="sig-name descname"><span class="pre">to_dict</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_config.html#ColumnImputationRecord.to_dict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._config.ColumnImputationRecord.to_dict" title="Link to this definition">#</a></dt>
+<dd><p>Serialise the audit record to a plain dictionary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>All field values keyed by field name.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._fitted_imputer.UnfittedColumnError">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.imputation._fitted_imputer.</span></span><span class="sig-name descname"><span class="pre">UnfittedColumnError</span></span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_fitted_imputer.html#UnfittedColumnError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._fitted_imputer.UnfittedColumnError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code></p>
+<p>Raised by FittedImputer.transform() when the input DataFrame contains
+missing values in a column for which no fill strategy was learned during
+fit() — i.e. the column had zero missing values in the training split.</p>
+<p>Typically indicates that a non-profile-stratified split was used.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._fitted_imputer.UnseenColumnError">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.imputation._fitted_imputer.</span></span><span class="sig-name descname"><span class="pre">UnseenColumnError</span></span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_fitted_imputer.html#UnseenColumnError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._fitted_imputer.UnseenColumnError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code></p>
+<p>Raised by FittedImputer.transform() when the input DataFrame contains
+columns that were not present in the training DataFrame during fit().</p>
+<p>Fires before any DataFrame mutations regardless of whether the unknown
+columns contain missing values, so schema drift is caught at transform
+entry rather than silently propagating downstream (ADR 0026).</p>
+<p>All unknown column names are reported in a single raise so the caller
+can resolve all schema mismatches at once.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._fitted_imputer.FittedColumnAbsentError">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.imputation._fitted_imputer.</span></span><span class="sig-name descname"><span class="pre">FittedColumnAbsentError</span></span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_fitted_imputer.html#FittedColumnAbsentError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._fitted_imputer.FittedColumnAbsentError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code></p>
+<p>Raised by FittedImputer.transform() when a column that received an active
+imputation strategy during fit() is absent from the input DataFrame.</p>
+<p>Active strategies are any strategy other than <code class="docutils literal notranslate"><span class="pre">Dropped</span></code> or <code class="docutils literal notranslate"><span class="pre">Indicator</span></code>.
+Absence of such a column is always a pipeline bug — imputation was never
+applied — so this is escalated to an error rather than a warning.</p>
+<p>All absent column names are reported in a single raise.</p>
+</dd></dl>
+
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="profiling.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Profiling</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="splitting.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Splitting</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation.orchestrator.ImputationOrchestrator"><code class="docutils literal notranslate"><span class="pre">ImputationOrchestrator</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation.orchestrator.ImputationOrchestrator.fit"><code class="docutils literal notranslate"><span class="pre">ImputationOrchestrator.fit()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation.orchestrator.ImputationOrchestrator.fit_transform"><code class="docutils literal notranslate"><span class="pre">ImputationOrchestrator.fit_transform()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationConfig"><code class="docutils literal notranslate"><span class="pre">ImputationConfig</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationConfig.add_indicator_columns"><code class="docutils literal notranslate"><span class="pre">ImputationConfig.add_indicator_columns</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationConfig.from_dict"><code class="docutils literal notranslate"><span class="pre">ImputationConfig.from_dict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationConfig.mnar_columns"><code class="docutils literal notranslate"><span class="pre">ImputationConfig.mnar_columns</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationConfig.numeric"><code class="docutils literal notranslate"><span class="pre">ImputationConfig.numeric</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationConfig.to_dict"><code class="docutils literal notranslate"><span class="pre">ImputationConfig.to_dict()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.base_max_iter"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.base_max_iter</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.bimodal_correlation_threshold"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.bimodal_correlation_threshold</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.bimodal_grouping_variables"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.bimodal_grouping_variables</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.bimodal_min_correlated_features"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.bimodal_min_correlated_features</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.from_dict"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.from_dict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.gradient_boost_min_rows"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.gradient_boost_min_rows</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.knn_distance_weight_max_features"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.knn_distance_weight_max_features</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.knn_distance_weight_max_null_ratio"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.knn_distance_weight_max_null_ratio</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.knn_max_features"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.knn_max_features</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.knn_max_neighbors"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.knn_max_neighbors</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.knn_max_rows"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.knn_max_rows</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.knn_min_neighbors"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.knn_min_neighbors</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.knn_n_neighbors"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.knn_n_neighbors</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.mcar_feature_predictability_threshold"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.mcar_feature_predictability_threshold</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.mice_correlation_threshold"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.mice_correlation_threshold</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.mice_max_iter"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.mice_max_iter</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.mice_max_nearest_features"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.mice_max_nearest_features</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.mice_n_nearest_features_min_cols"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.mice_n_nearest_features_min_cols</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.per_column_constant_fill"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.per_column_constant_fill</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.per_column_max_iter"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.per_column_max_iter</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.per_column_strategy"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.per_column_strategy</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.refit_r2_cv_folds"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.refit_r2_cv_folds</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.refit_r2_min_complete_rows"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.refit_r2_min_complete_rows</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.regression_min_rows"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.regression_min_rows</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.to_dict"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.to_dict()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationStrategy"><code class="docutils literal notranslate"><span class="pre">ImputationStrategy</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationStrategy.ClusterConditional"><code class="docutils literal notranslate"><span class="pre">ImputationStrategy.ClusterConditional</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationStrategy.Constant"><code class="docutils literal notranslate"><span class="pre">ImputationStrategy.Constant</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationStrategy.Dropped"><code class="docutils literal notranslate"><span class="pre">ImputationStrategy.Dropped</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationStrategy.GMMSampling"><code class="docutils literal notranslate"><span class="pre">ImputationStrategy.GMMSampling</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationStrategy.Indicator"><code class="docutils literal notranslate"><span class="pre">ImputationStrategy.Indicator</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationStrategy.KNN"><code class="docutils literal notranslate"><span class="pre">ImputationStrategy.KNN</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationStrategy.MICE"><code class="docutils literal notranslate"><span class="pre">ImputationStrategy.MICE</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationStrategy.MNAR"><code class="docutils literal notranslate"><span class="pre">ImputationStrategy.MNAR</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationStrategy.Mean"><code class="docutils literal notranslate"><span class="pre">ImputationStrategy.Mean</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationStrategy.Median"><code class="docutils literal notranslate"><span class="pre">ImputationStrategy.Median</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationStrategy.Mode"><code class="docutils literal notranslate"><span class="pre">ImputationStrategy.Mode</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationStrategy.Passthrough"><code class="docutils literal notranslate"><span class="pre">ImputationStrategy.Passthrough</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationStrategy.Regression"><code class="docutils literal notranslate"><span class="pre">ImputationStrategy.Regression</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._fitted_imputer.FittedImputer"><code class="docutils literal notranslate"><span class="pre">FittedImputer</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._fitted_imputer.FittedImputer.apply_exclusions"><code class="docutils literal notranslate"><span class="pre">FittedImputer.apply_exclusions()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._fitted_imputer.FittedImputer.from_dict"><code class="docutils literal notranslate"><span class="pre">FittedImputer.from_dict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._fitted_imputer.FittedImputer.model_cols"><code class="docutils literal notranslate"><span class="pre">FittedImputer.model_cols</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._fitted_imputer.FittedImputer.models"><code class="docutils literal notranslate"><span class="pre">FittedImputer.models</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._fitted_imputer.FittedImputer.numeric_sentinels"><code class="docutils literal notranslate"><span class="pre">FittedImputer.numeric_sentinels</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._fitted_imputer.FittedImputer.random_seed"><code class="docutils literal notranslate"><span class="pre">FittedImputer.random_seed</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._fitted_imputer.FittedImputer.records"><code class="docutils literal notranslate"><span class="pre">FittedImputer.records</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._fitted_imputer.FittedImputer.string_sentinels"><code class="docutils literal notranslate"><span class="pre">FittedImputer.string_sentinels</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._fitted_imputer.FittedImputer.to_dict"><code class="docutils literal notranslate"><span class="pre">FittedImputer.to_dict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._fitted_imputer.FittedImputer.transform"><code class="docutils literal notranslate"><span class="pre">FittedImputer.transform()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic"><code class="docutils literal notranslate"><span class="pre">ImputationFitDiagnostic</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic.converged"><code class="docutils literal notranslate"><span class="pre">ImputationFitDiagnostic.converged</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic.from_dict"><code class="docutils literal notranslate"><span class="pre">ImputationFitDiagnostic.from_dict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic.imputed_mean"><code class="docutils literal notranslate"><span class="pre">ImputationFitDiagnostic.imputed_mean</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic.imputed_std"><code class="docutils literal notranslate"><span class="pre">ImputationFitDiagnostic.imputed_std</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic.k_capped"><code class="docutils literal notranslate"><span class="pre">ImputationFitDiagnostic.k_capped</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic.mae"><code class="docutils literal notranslate"><span class="pre">ImputationFitDiagnostic.mae</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic.n_iter"><code class="docutils literal notranslate"><span class="pre">ImputationFitDiagnostic.n_iter</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic.n_neighbors_used"><code class="docutils literal notranslate"><span class="pre">ImputationFitDiagnostic.n_neighbors_used</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic.observed_mean"><code class="docutils literal notranslate"><span class="pre">ImputationFitDiagnostic.observed_mean</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic.observed_std"><code class="docutils literal notranslate"><span class="pre">ImputationFitDiagnostic.observed_std</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic.r2_train"><code class="docutils literal notranslate"><span class="pre">ImputationFitDiagnostic.r2_train</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic.rmse"><code class="docutils literal notranslate"><span class="pre">ImputationFitDiagnostic.rmse</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic.to_dict"><code class="docutils literal notranslate"><span class="pre">ImputationFitDiagnostic.to_dict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationFitDiagnostic.variance_ratio"><code class="docutils literal notranslate"><span class="pre">ImputationFitDiagnostic.variance_ratio</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationResult"><code class="docutils literal notranslate"><span class="pre">ImputationResult</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationResult.dataframe"><code class="docutils literal notranslate"><span class="pre">ImputationResult.dataframe</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationResult.dropped_columns"><code class="docutils literal notranslate"><span class="pre">ImputationResult.dropped_columns</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationResult.exclusions_applied"><code class="docutils literal notranslate"><span class="pre">ImputationResult.exclusions_applied</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationResult.records"><code class="docutils literal notranslate"><span class="pre">ImputationResult.records</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ColumnImputationRecord"><code class="docutils literal notranslate"><span class="pre">ColumnImputationRecord</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ColumnImputationRecord.column"><code class="docutils literal notranslate"><span class="pre">ColumnImputationRecord.column</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ColumnImputationRecord.diagnostic"><code class="docutils literal notranslate"><span class="pre">ColumnImputationRecord.diagnostic</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ColumnImputationRecord.domain_snap_bounds"><code class="docutils literal notranslate"><span class="pre">ColumnImputationRecord.domain_snap_bounds</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ColumnImputationRecord.fill_value"><code class="docutils literal notranslate"><span class="pre">ColumnImputationRecord.fill_value</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ColumnImputationRecord.indicator_added"><code class="docutils literal notranslate"><span class="pre">ColumnImputationRecord.indicator_added</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ColumnImputationRecord.semantic_type"><code class="docutils literal notranslate"><span class="pre">ColumnImputationRecord.semantic_type</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ColumnImputationRecord.signals"><code class="docutils literal notranslate"><span class="pre">ColumnImputationRecord.signals</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ColumnImputationRecord.strategy"><code class="docutils literal notranslate"><span class="pre">ColumnImputationRecord.strategy</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ColumnImputationRecord.to_dict"><code class="docutils literal notranslate"><span class="pre">ColumnImputationRecord.to_dict()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._fitted_imputer.UnfittedColumnError"><code class="docutils literal notranslate"><span class="pre">UnfittedColumnError</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._fitted_imputer.UnseenColumnError"><code class="docutils literal notranslate"><span class="pre">UnseenColumnError</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._fitted_imputer.FittedColumnAbsentError"><code class="docutils literal notranslate"><span class="pre">FittedColumnAbsentError</span></code></a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  <div class="tocsection sourcelink">
+    <a href="../_sources/api/imputation.md.txt">
+      <i class="fa-solid fa-file-lines"></i> Show Source
+    </a>
+  </div>
+</div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.19.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>
