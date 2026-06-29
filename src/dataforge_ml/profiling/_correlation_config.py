@@ -39,7 +39,7 @@ class CorrelationProfileConfig:
     Parameters
     ----------
     near_redundant_pearson_threshold : float
-        Maximum absolute Pearson or Spearman |r| below which a numeric column
+        Maximum absolute Pearson or Spearman ``|r|`` below which a numeric column
         pair is *not* flagged ``near_redundant``.  Pairs whose
         ``max(|pearson_r|, |spearman_r|)`` exceeds this value are flagged.
     near_redundant_cramer_v_threshold : float
