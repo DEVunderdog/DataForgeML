@@ -17,3 +17,5 @@ __pycache__
 dataforge_ml.egg-info
 *.pyc
 ralph
+site
+docs/_build/

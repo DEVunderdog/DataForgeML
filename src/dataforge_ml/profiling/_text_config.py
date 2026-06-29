@@ -11,6 +11,14 @@ from dataclasses import dataclass, field
 
 @dataclass
 class TextStats:
+    """Lexical statistics for a single free-text column.
+
+    Token counts are whitespace-split approximations.  Character length
+    statistics cover all non-null values.  ``empty_ratio`` and
+    ``whitespace_ratio`` are computed over the total row count including
+    missing values.
+    """
+
     avg_token_count: float = 0.0
     median_token_count: float = 0.0
     vocabulary_size: int = 0
@@ -22,6 +30,13 @@ class TextStats:
     whitespace_ratio: float = 0.0
 
     def to_dict(self) -> dict:
+        """Serialise the text statistics to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            All fields keyed by field name.
+        """
         return {
             "avg_token_count": self.avg_token_count,
             "median_token_count": self.median_token_count,

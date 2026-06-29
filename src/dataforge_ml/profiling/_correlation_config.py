@@ -150,6 +150,15 @@ class CorrelationPair:
     near_redundant: bool = False
 
     def to_dict(self) -> dict:
+        """
+        Serialise this pair to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            Keys: ``col_a``, ``col_b``, ``pearson_r``, ``spearman_r``,
+            ``near_redundant``.
+        """
         return {
             "col_a": self.col_a,
             "col_b": self.col_b,
@@ -179,6 +188,14 @@ class CramerVPair:
     near_redundant: bool = False
 
     def to_dict(self) -> dict:
+        """
+        Serialise this pair to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            Keys: ``col_a``, ``col_b``, ``cramer_v``, ``near_redundant``.
+        """
         return {
             "col_a": self.col_a,
             "col_b": self.col_b,
@@ -209,6 +226,15 @@ class EtaSquaredPair:
     near_redundant: bool = False
 
     def to_dict(self) -> dict:
+        """
+        Serialise this pair to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            Keys: ``numeric_col``, ``categorical_col``, ``eta_squared``,
+            ``near_redundant``.
+        """
         return {
             "numeric_col": self.numeric_col,
             "categorical_col": self.categorical_col,
@@ -237,6 +263,14 @@ class NumericTargetCorrelation:
     pearson_r: Optional[float] = None
 
     def to_dict(self) -> dict:
+        """
+        Serialise this entry to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            Keys: ``feature``, ``pearson_r``.
+        """
         return {"feature": self.feature, "pearson_r": self.pearson_r}
 
 
@@ -265,6 +299,14 @@ class CategoricalTargetCorrelation:
     eta_squared: Optional[float] = None
 
     def to_dict(self) -> dict:
+        """
+        Serialise this entry to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            Keys: ``feature``, ``f_statistic``, ``p_value``, ``eta_squared``.
+        """
         return {
             "feature": self.feature,
             "f_statistic": self.f_statistic,
@@ -298,6 +340,14 @@ class MutualInformationEntry:
     rank: int = 0
 
     def to_dict(self) -> dict:
+        """
+        Serialise this entry to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            Keys: ``feature``, ``mi_score``, ``rank``.
+        """
         return {"feature": self.feature, "mi_score": self.mi_score, "rank": self.rank}
 
 
@@ -320,6 +370,14 @@ class NearRedundancyGroup:
     suggested_drop: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
+        """
+        Serialise this group to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            Keys: ``columns``, ``suggested_drop``.
+        """
         return {
             "columns": list(self.columns),
             "suggested_drop": list(self.suggested_drop),
@@ -404,16 +462,71 @@ class CorrelationProfileResult:
     # ------------------------------------------------------------------
 
     def top_mi(self, n: int = 10) -> list[MutualInformationEntry]:
-        """Return the top-n features by mutual information score."""
+        """
+        Return the top-n features by mutual information score.
+
+        Parameters
+        ----------
+        n : int
+            Number of top entries to return.  Defaults to 10.
+
+        Returns
+        -------
+        list[MutualInformationEntry]
+            The first ``n`` entries from ``mutual_information``, which is
+            already sorted by descending MI score (rank 1 = highest).
+        """
         return self.mutual_information[:n]
 
     def get_pearson(self, col_a: str, col_b: str) -> Optional[float]:
+        """
+        Look up the Pearson r between two numeric columns.
+
+        Parameters
+        ----------
+        col_a : str
+            First column name.
+        col_b : str
+            Second column name.
+
+        Returns
+        -------
+        float or None
+            Pearson r from the symmetric matrix, or ``None`` if the pair is
+            not present.
+        """
         return self.pearson_matrix.get(col_a, {}).get(col_b)
 
     def get_spearman(self, col_a: str, col_b: str) -> Optional[float]:
+        """
+        Look up the Spearman r between two numeric columns.
+
+        Parameters
+        ----------
+        col_a : str
+            First column name.
+        col_b : str
+            Second column name.
+
+        Returns
+        -------
+        float or None
+            Spearman r from the symmetric matrix, or ``None`` if the pair is
+            not present.
+        """
         return self.spearman_matrix.get(col_a, {}).get(col_b)
 
     def to_dict(self) -> dict:
+        """
+        Serialise the full correlation profile to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            All fields serialised recursively; nested objects call their own
+            ``to_dict`` methods.  Enum values are converted to their string
+            representations.
+        """
         return {
             "analysed_numeric_columns": list(self.analysed_numeric_columns),
             "analysed_categorical_columns": list(self.analysed_categorical_columns),

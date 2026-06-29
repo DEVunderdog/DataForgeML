@@ -33,6 +33,13 @@ class BimodalStats:
     center2: float
 
     def to_dict(self) -> dict:
+        """Serialise the bimodal statistics to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            All field values keyed by field name.
+        """
         return {
             "dip_statistic": self.dip_statistic,
             "dip_p_value": self.dip_p_value,
@@ -42,6 +49,18 @@ class BimodalStats:
 
     @classmethod
     def from_dict(cls, data: dict) -> "BimodalStats":
+        """Reconstruct a ``BimodalStats`` instance from a plain dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            Mapping produced by ``to_dict()``.
+
+        Returns
+        -------
+        BimodalStats
+            Reconstructed instance.
+        """
         return cls(
             dip_statistic=float(data["dip_statistic"]),
             dip_p_value=float(data["dip_p_value"]),
@@ -59,6 +78,26 @@ class TailAsymmetryTag(StrEnum):
 
 @dataclass
 class PercentileSnapshot:
+    """Snapshot of a numeric column's distribution at key percentile positions.
+
+    Attributes
+    ----------
+    p1 : float, optional
+        1st percentile value.
+    p5 : float, optional
+        5th percentile value.
+    p25 : float, optional
+        25th percentile value.
+    p50 : float, optional
+        50th percentile value (median).
+    p75 : float, optional
+        75th percentile value.
+    p95 : float, optional
+        95th percentile value.
+    p99 : float, optional
+        99th percentile value.
+    """
+
     p1: Optional[float] = None
     p5: Optional[float] = None
     p25: Optional[float] = None
@@ -69,11 +108,25 @@ class PercentileSnapshot:
 
     @property
     def iqr(self) -> Optional[float]:
+        """Compute the interquartile range from this snapshot.
+
+        Returns
+        -------
+        float or None
+            Difference between ``p75`` and ``p25``, or ``None`` if either is unset.
+        """
         if self.p25 is not None and self.p75 is not None:
             return self.p75 - self.p25
         return None
 
     def to_dict(self) -> dict:
+        """Serialise the percentile snapshot to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            All field values keyed by field name.
+        """
         return {
             "p1": self.p1, "p5": self.p5, "p25": self.p25, "p50": self.p50,
             "p75": self.p75, "p95": self.p95, "p99": self.p99,
@@ -111,22 +164,62 @@ class NumericFlag(StrEnum):
 
 @dataclass
 class NumericTopValueEntry:
+    """A single entry in the top-value frequency list for a numeric column.
+
+    Attributes
+    ----------
+    value : float
+        The numeric value.
+    count : int
+        Number of rows containing this value.
+    percentage : float
+        Fraction of total rows containing this value (range [0, 1]).
+    """
+
     value: float
     count: int
     percentage: float
 
     def to_dict(self) -> dict:
+        """Serialise this entry to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            All field values keyed by field name.
+        """
         return {"value": self.value, "count": self.count, "percentage": self.percentage}
 
 
 @dataclass
 class HistogramBin:
+    """A single bin in an equi-width histogram for a numeric column.
+
+    Attributes
+    ----------
+    lower_bound : float
+        Inclusive lower boundary of this bin.
+    upper_bound : float
+        Exclusive upper boundary of this bin.
+    count : int
+        Number of rows whose value falls within this bin.
+    percentage : float
+        Fraction of total rows within this bin (range [0, 1]).
+    """
+
     lower_bound: float
     upper_bound: float
     count: int
     percentage: float
 
     def to_dict(self) -> dict:
+        """Serialise this bin to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            All field values keyed by field name.
+        """
         return {
             "lower_bound": self.lower_bound, "upper_bound": self.upper_bound,
             "count": self.count, "percentage": self.percentage,

@@ -28,9 +28,15 @@ class TargetFlag(StrEnum):
 
 @dataclass
 class TargetProfileResult:
+    """Profile specific to the designated target variable.
+
+    Captures the inferred ``TargetProblemType``, missingness, and any
+    ``TargetFlag`` signals (imbalance, skew, identifier-like behaviour).
+    Delegates detailed statistics to ``ColumnNumericProfile`` for
+    ``Regression`` targets and to ``CategoricalColumnProfile`` for
+    classification targets.
     """
-    Profile specific to the designated target variable.
-    """
+
     column: str
     problem_type: TargetProblemType
 
@@ -45,9 +51,33 @@ class TargetProfileResult:
     flags: list[TargetFlag] = field(default_factory=list)
 
     def has_flag(self, flag: TargetFlag) -> bool:
+        """Check whether a specific ``TargetFlag`` is set on the target column.
+
+        Parameters
+        ----------
+        flag : TargetFlag
+            The flag to test.
+
+        Returns
+        -------
+        bool
+            ``True`` if ``flag`` is present in :attr:`flags`, ``False``
+            otherwise.
+        """
         return flag in self.flags
 
     def to_dict(self) -> dict:
+        """Serialise the target profile to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            All fields keyed by field name.  ``problem_type`` is serialised
+            as its string value; ``numeric_profile`` and
+            ``categorical_profile`` are expanded via their own ``to_dict()``
+            methods when present; ``flags`` are serialised as their string
+            values.
+        """
         return {
             "column": self.column,
             "problem_type": str(self.problem_type),
