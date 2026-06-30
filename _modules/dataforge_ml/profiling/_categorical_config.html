@@ -564,20 +564,20 @@
 
 <span class="sd">    Attributes</span>
 <span class="sd">    ----------</span>
-<span class="sd">    class_ratio : float</span>
-<span class="sd">        Ratio of the least-frequent to most-frequent class, in [0, 1].</span>
-<span class="sd">        A value of 1.0 indicates perfect balance.</span>
-<span class="sd">    shannon_entropy : float</span>
-<span class="sd">        Shannon entropy of the class distribution (nats).  Higher values</span>
-<span class="sd">        indicate more uniform distributions.</span>
-<span class="sd">    gini_impurity : float</span>
-<span class="sd">        Gini impurity of the class distribution, in [0, 1].  Zero means</span>
-<span class="sd">        a single class dominates entirely.</span>
+<span class="sd">    dominant_class_ratio : float, optional</span>
+<span class="sd">        Ratio of the most-frequent to second-most-frequent class frequency.</span>
+<span class="sd">        None when cardinality &lt; 2.</span>
+<span class="sd">    normalized_shannon_entropy : float, optional</span>
+<span class="sd">        Shannon entropy of the class distribution scaled to [0, 1] by dividing</span>
+<span class="sd">        by log2(cardinality). None when cardinality &lt; 2.</span>
+<span class="sd">    normalized_gini : float, optional</span>
+<span class="sd">        Gini impurity of the class distribution scaled to [0, 1] by dividing</span>
+<span class="sd">        by (1 - 1/cardinality). None when cardinality &lt; 2.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">class_ratio</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
-    <span class="n">shannon_entropy</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
-    <span class="n">gini_impurity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">dominant_class_ratio</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">normalized_shannon_entropy</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">normalized_gini</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -586,12 +586,12 @@
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
 <span class="sd">        dict</span>
-<span class="sd">            Keys: ``class_ratio``, ``shannon_entropy``, ``gini_impurity``.</span>
+<span class="sd">            Keys: ``dominant_class_ratio``, ``normalized_shannon_entropy``, ``normalized_gini``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="p">{</span>
-            <span class="s2">&quot;class_ratio&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">class_ratio</span><span class="p">,</span>
-            <span class="s2">&quot;shannon_entropy&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">shannon_entropy</span><span class="p">,</span>
-            <span class="s2">&quot;gini_impurity&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">gini_impurity</span><span class="p">,</span>
+            <span class="s2">&quot;dominant_class_ratio&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">dominant_class_ratio</span><span class="p">,</span>
+            <span class="s2">&quot;normalized_shannon_entropy&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">normalized_shannon_entropy</span><span class="p">,</span>
+            <span class="s2">&quot;normalized_gini&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">normalized_gini</span><span class="p">,</span>
         <span class="p">}</span>
 
 
