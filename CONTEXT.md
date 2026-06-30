@@ -286,3 +286,14 @@ The signals used to build the binary label matrix for profile-stratified splitti
 - **Target signal** — one label for the target column (if declared). Binary for classification; quantile-binned into 5 buckets for regression. Ensures class proportions are preserved alongside all distributional signals.
 
 When the total number of signals exceeds the cap (`_MAX_STRATIFICATION_LABELS = 50`), signals are ranked by ascending proportion of 1s — rarest signals first — and the rarest 50 are retained. Rarest signals are most at risk of being zeroed out in a naive random split.
+
+## Profile Serialization
+
+- **Compact Profile Report** — The human-readable serialization of `StructuralProfileResult`, produced by `to_markdown()`. Covers every information category but depth-limits list-heavy fields: `top_values` capped at 3 entries; correlation matrices replaced by top-5 highest absolute Pearson and top-5 highest absolute Spearman per column; histogram bins, `missingness_matrix`, `memory_breakdown`, and `total_rows` (per-column) dropped. All scalar fields are kept in full. Renders using two-tier column rendering. See ADR-0040.
+  _Avoid_: profile summary, readable profile, human profile
+
+- **Full Profile Report** — The lossless Markdown serialization of `StructuralProfileResult`, produced by `to_full_markdown()`. Equivalent in content to `to_dict()` / `to_json()`. Intended for debugging and archival, not routine human inspection. See ADR-0040.
+  _Avoid_: full markdown, complete profile
+
+- **Two-Tier Column Rendering** — The rendering strategy used by the Compact Profile Report. All columns appear in the Column Summary table. Columns meeting the **clean threshold** (no `MissingnessFlag`, no `NumericFlag`, `MissingSeverity` is `None` or `Minor`, `NonlinearityTag` is `None` or `Linear`) appear in the summary table only. All other columns receive a full detail section in the Flagged Columns block, ordered by descending severity then alphabetically. See ADR-0040.
+  _Avoid_: tiered rendering, anomaly-first rendering
