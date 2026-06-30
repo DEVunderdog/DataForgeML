@@ -74,6 +74,22 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
         data: pl.DataFrame,
         columns: list[str],
     ) -> NumericProfileResult:
+        """
+        Profile the specified numeric columns in a DataFrame.
+
+        Parameters
+        ----------
+        data : pl.DataFrame
+            The input Polars DataFrame containing the columns to profile.
+        columns : list[str]
+            A list of column names to profile. Non-numeric columns in this list
+            are skipped.
+
+        Returns
+        -------
+        NumericProfileResult
+            A result object containing distribution statistics for the profiled columns.
+        """
         return self._run(data, columns)
 
     # ------------------------------------------------------------------
@@ -128,7 +144,7 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
             profile.mean = mean
             profile.median = median
             if median == 0.0:
-                profile.mean_median_ratio = float("inf") if mean != 0.0 else 1.0
+                profile.mean_median_ratio = None if mean != 0.0 else 1.0
             else:
                 profile.mean_median_ratio = mean / median
 

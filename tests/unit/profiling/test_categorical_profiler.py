@@ -115,17 +115,28 @@ def test_imbalance_fields_present_for_multi_category():
     df = pl.DataFrame({"cat": pl.Series(data, dtype=pl.Utf8)})
     stats = CategoricalProfiler().profile(df, ["cat"]).columns["cat"]
     assert isinstance(stats.imbalance, ImbalanceMetrics)
-    assert stats.imbalance.shannon_entropy > 0.0
-    assert stats.imbalance.gini_impurity > 0.0
-    assert stats.imbalance.class_ratio >= 1.0
+    assert stats.imbalance.normalized_shannon_entropy is not None
+    assert stats.imbalance.normalized_shannon_entropy > 0.0
+    assert stats.imbalance.normalized_gini is not None
+    assert stats.imbalance.normalized_gini > 0.0
+    assert stats.imbalance.dominant_class_ratio == 1.5
 
 
 def test_imbalance_class_ratio_is_one_for_balanced():
-    # Equal counts → max_freq == min_freq → class_ratio = 1.0
+    # Equal counts → max_freq == second_max_freq → dominant_class_ratio = 1.0
     data = ["A"] * 20 + ["B"] * 20 + ["C"] * 20
     df = pl.DataFrame({"cat": pl.Series(data, dtype=pl.Utf8)})
     stats = CategoricalProfiler().profile(df, ["cat"]).columns["cat"]
-    assert abs(stats.imbalance.class_ratio - 1.0) < 1e-10
+    assert abs(stats.imbalance.dominant_class_ratio - 1.0) < 1e-10
+
+
+def test_imbalance_metrics_none_for_low_cardinality():
+    data = ["A"] * 20
+    df = pl.DataFrame({"cat": pl.Series(data, dtype=pl.Utf8)})
+    stats = CategoricalProfiler().profile(df, ["cat"]).columns["cat"]
+    assert stats.imbalance.dominant_class_ratio is None
+    assert stats.imbalance.normalized_shannon_entropy is None
+    assert stats.imbalance.normalized_gini is None
 
 
 # ---------------------------------------------------------------------------

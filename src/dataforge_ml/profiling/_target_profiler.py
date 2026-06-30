@@ -137,11 +137,12 @@ class TargetProfiler(DatasetLevelProfiler[TargetProfileResult]):
         result.categorical_profile = cat_profile
 
         # Flag Imbalances
-        ratio = cat_profile.imbalance.class_ratio
-        if ratio > 20.0:
-            result.flags.append(TargetFlag.SevereImbalance)
-        elif ratio > 5.0:
-            result.flags.append(TargetFlag.HighImbalance)
+        ratio = cat_profile.imbalance.dominant_class_ratio
+        if ratio is not None:
+            if ratio > 20.0:
+                result.flags.append(TargetFlag.SevereImbalance)
+            elif ratio > 5.0:
+                result.flags.append(TargetFlag.HighImbalance)
 
     def _profile_regression(
         self, series: pl.Series, n_rows: int, result: TargetProfileResult
