@@ -194,20 +194,20 @@ class ImbalanceMetrics:
 
     Attributes
     ----------
-    class_ratio : float
-        Ratio of the least-frequent to most-frequent class, in [0, 1].
-        A value of 1.0 indicates perfect balance.
-    shannon_entropy : float
-        Shannon entropy of the class distribution (nats).  Higher values
-        indicate more uniform distributions.
-    gini_impurity : float
-        Gini impurity of the class distribution, in [0, 1].  Zero means
-        a single class dominates entirely.
+    dominant_class_ratio : float, optional
+        Ratio of the most-frequent to second-most-frequent class frequency.
+        None when cardinality < 2.
+    normalized_shannon_entropy : float, optional
+        Shannon entropy of the class distribution scaled to [0, 1] by dividing
+        by log2(cardinality). None when cardinality < 2.
+    normalized_gini : float, optional
+        Gini impurity of the class distribution scaled to [0, 1] by dividing
+        by (1 - 1/cardinality). None when cardinality < 2.
     """
 
-    class_ratio: float = 0.0
-    shannon_entropy: float = 0.0
-    gini_impurity: float = 0.0
+    dominant_class_ratio: float | None = None
+    normalized_shannon_entropy: float | None = None
+    normalized_gini: float | None = None
 
     def to_dict(self) -> dict:
         """
@@ -216,12 +216,12 @@ class ImbalanceMetrics:
         Returns
         -------
         dict
-            Keys: ``class_ratio``, ``shannon_entropy``, ``gini_impurity``.
+            Keys: ``dominant_class_ratio``, ``normalized_shannon_entropy``, ``normalized_gini``.
         """
         return {
-            "class_ratio": self.class_ratio,
-            "shannon_entropy": self.shannon_entropy,
-            "gini_impurity": self.gini_impurity,
+            "dominant_class_ratio": self.dominant_class_ratio,
+            "normalized_shannon_entropy": self.normalized_shannon_entropy,
+            "normalized_gini": self.normalized_gini,
         }
 
 

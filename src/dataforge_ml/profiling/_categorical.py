@@ -11,9 +11,9 @@ Per-column metrics (opt-in via ProfileConfig.categorical_columns):
   7. Free-text / natural-language flag
         (avg word count >5 OR avg char length >50 OR avg token count >10)
   8. Imbalance metrics
-        – class ratio  (max_freq / min_freq)
-        – Shannon entropy
-        – Gini impurity
+        – dominant class ratio (max_freq / second_max_freq)
+        – normalized Shannon entropy
+        – normalized Gini impurity
 
 Integration
 -----------
@@ -221,24 +221,36 @@ class CategoricalProfiler(ColumnBatchProfiler[CategoricalProfileResult]):
         )
 
         # --- Imbalance metrics ---
-        # Class Ratio -> raw distribution
-        # Entropy -> randomness / information content
-        # Gini -> impurity / misclassification risk
+        # Dominant Class Ratio -> max_freq / second_max_freq
+        # Normalized Entropy -> scaled to [0, 1]
+        # Normalized Gini -> scaled to [0, 1]
         counts = vc["count"].cast(pl.Float64)
         total = float(counts.sum())
-        if total > 0:
+        card = len(counts)
+        if total > 0 and card >= 2:
             probs = counts / total
-            max_freq = float(probs.max())  # type: ignore[arg-type]
-            min_freq = float(probs.min())  # type: ignore[arg-type]
+            
+            max_freq = float(probs[0])
+            second_max_freq = float(probs[1])
 
-            class_ratio = max_freq / min_freq if min_freq > 0 else float("inf")
+            dominant_class_ratio = max_freq / second_max_freq if second_max_freq > 0 else float("inf")
+            
             entropy = float(-(probs * probs.log(base=2)).fill_nan(0.0).sum())
+            normalized_entropy = entropy / math.log2(card)
+            
             gini = float(1.0 - (probs**2).sum())
+            normalized_gini = gini / (1.0 - 1.0 / card)
 
             profile.imbalance = ImbalanceMetrics(
-                class_ratio=class_ratio,
-                shannon_entropy=entropy,
-                gini_impurity=gini,
+                dominant_class_ratio=dominant_class_ratio,
+                normalized_shannon_entropy=normalized_entropy,
+                normalized_gini=normalized_gini,
+            )
+        else:
+            profile.imbalance = ImbalanceMetrics(
+                dominant_class_ratio=None,
+                normalized_shannon_entropy=None,
+                normalized_gini=None,
             )
 
         return vc

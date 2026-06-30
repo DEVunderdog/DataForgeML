@@ -555,3 +555,38 @@ def test_near_constant_skips_bimodality():
     assert NumericFlag.NearConstant in stats.flags
     assert NumericFlag.Bimodal not in stats.flags
     assert stats.bimodal_stats is None
+
+# ---------------------------------------------------------------------------
+# mean_median_ratio behavior
+# ---------------------------------------------------------------------------
+
+def test_mean_median_ratio_zero_inflated():
+    # zero-inflated column: mode frequency > 50%, median = 0, mean > 0
+    # mean_median_ratio should be None
+    data = [0.0] * 60 + [100.0] * 40
+    df = pl.DataFrame({"v": pl.Series(data, dtype=pl.Float64)})
+    stats = NumericProfiler().profile(df, ["v"]).columns["v"]
+    
+    assert stats.median == 0.0
+    assert stats.mean > 0.0
+    assert stats.mean_median_ratio is None
+    
+    # Check serialization
+    import json
+    # Just asserting it's serializable without Infinity
+    serialized = json.dumps(stats.to_dict())
+    assert "Infinity" not in serialized
+    assert json.loads(serialized)
+
+
+def test_mean_median_ratio_all_zero():
+    # both mean and median are 0
+    # mean_median_ratio should be 1.0
+    data = [0.0] * 100
+    df = pl.DataFrame({"v": pl.Series(data, dtype=pl.Float64)})
+    stats = NumericProfiler().profile(df, ["v"]).columns["v"]
+    
+    assert stats.median == 0.0
+    assert stats.mean == 0.0
+    assert stats.mean_median_ratio == 1.0
+

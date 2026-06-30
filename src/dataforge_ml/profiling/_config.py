@@ -236,6 +236,79 @@ class StructuralProfileResult:
         """
         return json.dumps(self.to_dict(), indent=indent, default=str)
 
+    def to_markdown(self) -> str:
+        """
+        Produce a complete, lossless Markdown representation of the profiling result.
+
+        Returns
+        -------
+        str
+            Markdown string containing a summary table followed by per-column detail
+            sections and dataset-level statistics.
+        """
+        data = self.to_dict()
+        lines = ["# Structural Profile Report\n"]
+
+        # 1. Summary navigation table
+        lines.append("## Summary\n")
+        lines.append("| Column | Semantic Type | Missing % | Severity | Key Flags |")
+        lines.append("|---|---|---|---|---|")
+        
+        for col_name, col_data in data.get("columns", {}).items():
+            sem_type = col_data.get("semantic_type") or "None"
+            missingness = col_data.get("missingness") or {}
+            missing_pct = missingness.get("effective_null_ratio", 0.0) * 100
+            missing_str = f"{missing_pct:.2f}%"
+            severity = missingness.get("severity") or "None"
+            flags = ", ".join(col_data.get("type_flags", [])) or "None"
+            lines.append(f"| {col_name} | {sem_type} | {missing_str} | {severity} | {flags} |")
+        
+        lines.append("\n## Column Details\n")
+        
+        def _format_dict(d: dict, indent: int = 0) -> list[str]:
+            out = []
+            prefix = "  " * indent
+            for k, v in d.items():
+                if isinstance(v, dict):
+                    if not v:
+                        out.append(f"{prefix}- **{k}**: (empty)")
+                    else:
+                        out.append(f"{prefix}- **{k}**:")
+                        out.extend(_format_dict(v, indent + 1))
+                elif isinstance(v, list):
+                    if not v:
+                        out.append(f"{prefix}- **{k}**: (empty)")
+                    else:
+                        out.append(f"{prefix}- **{k}**:")
+                        for item in v:
+                            out.append(f"{prefix}  - {item}")
+                else:
+                    out.append(f"{prefix}- **{k}**: {v}")
+            return out
+
+        for col_name, col_data in data.get("columns", {}).items():
+            lines.append(f"### `{col_name}`\n")
+            lines.extend(_format_dict(col_data))
+            lines.append("")
+
+        lines.append("## Dataset\n")
+        lines.extend(_format_dict(data.get("dataset", {})))
+        lines.append("")
+        
+        lines.append("## Targets\n")
+        lines.extend(_format_dict(data.get("targets", {})))
+        lines.append("")
+
+        lines.append("## Numeric Sentinels\n")
+        lines.extend(_format_dict(data.get("numeric_sentinels", {})))
+        lines.append("")
+
+        lines.append("## String Sentinels\n")
+        lines.extend(_format_dict(data.get("string_sentinels", {})))
+        lines.append("")
+
+        return "\n".join(lines).strip() + "\n"
+
 
 # ---------------------------------------------------------------------------
 # ProfileConfig — clean break from per-profiler column lists
