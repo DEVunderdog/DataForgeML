@@ -1364,6 +1364,26 @@ keys, each recursively serialised.</p>
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="dataforge_ml.profiling._config.StructuralProfileResult.to_full_markdown">
+<span class="sig-name descname"><span class="pre">to_full_markdown</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/profiling/_config.html#StructuralProfileResult.to_full_markdown"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.profiling._config.StructuralProfileResult.to_full_markdown" title="Link to this definition">#</a></dt>
+<dd><p>Produce a complete, lossless Markdown serialization for debugging and archival use.</p>
+<p>Every field present in <code class="docutils literal notranslate"><span class="pre">to_dict()</span></code> — including histogram bins, full
+correlation matrices, memory breakdown, and all per-column fields —
+is rendered as Markdown. For an 82-column dataset this produces
+roughly 1 MB of text; for human inspection of large datasets prefer
+<code class="docutils literal notranslate"><span class="pre">to_markdown()</span></code> once the compact view lands (ADR-0040).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Markdown string containing a summary table followed by per-column detail
+sections and dataset-level statistics.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="dataforge_ml.profiling._config.StructuralProfileResult.to_json">
 <span class="sig-name descname"><span class="pre">to_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">indent</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/profiling/_config.html#StructuralProfileResult.to_json"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.profiling._config.StructuralProfileResult.to_json" title="Link to this definition">#</a></dt>
 <dd><p>Serialise the full profiling result to a JSON string.</p>
@@ -1383,11 +1403,29 @@ keys, each recursively serialised.</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="dataforge_ml.profiling._config.StructuralProfileResult.to_markdown">
 <span class="sig-name descname"><span class="pre">to_markdown</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/profiling/_config.html#StructuralProfileResult.to_markdown"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.profiling._config.StructuralProfileResult.to_markdown" title="Link to this definition">#</a></dt>
-<dd><p>Produce a complete, lossless Markdown representation of the profiling result.</p>
+<dd><p>Produce a compact, human-oriented Markdown view of the profiling result.</p>
+<p>The document contains a Dataset Overview section (scalar
+dataset-level fields only — <code class="docutils literal notranslate"><span class="pre">memory_breakdown</span></code> and
+<code class="docutils literal notranslate"><span class="pre">missingness_matrix</span></code> are omitted), a Column Summary table with one
+row per column, and a Flagged Columns section with a full detail
+subsection for every column that exceeds the clean threshold (see
+<code class="docutils literal notranslate"><span class="pre">_is_clean_column</span></code>), ordered severity-first then alphabetically
+(see <code class="docutils literal notranslate"><span class="pre">_flagged_column_tier</span></code>). Within each flagged column’s detail
+section, <code class="docutils literal notranslate"><span class="pre">histogram</span></code> bins and the missingness <code class="docutils literal notranslate"><span class="pre">total_rows</span></code> field
+are dropped, <code class="docutils literal notranslate"><span class="pre">top_values</span></code> is capped to 3 entries, and the full
+Pearson/Spearman correlation matrices are replaced by the top-5
+highest absolute correlations for that column (see
+<code class="docutils literal notranslate"><span class="pre">_compact_column_detail</span></code>); all other fields — including redundant
+scalar pairs, percentiles, bimodal stats, and <code class="docutils literal notranslate"><span class="pre">correlated_with</span></code> —
+are kept in full. A Target Analysis section follows with the top-5
+absolute Pearson and Spearman correlations per feature column for
+each declared target, and a Sentinels section renders
+<code class="docutils literal notranslate"><span class="pre">numeric_sentinels</span></code> / <code class="docutils literal notranslate"><span class="pre">string_sentinels</span></code> unchanged. Use
+<code class="docutils literal notranslate"><span class="pre">to_full_markdown()</span></code> for the complete lossless serialization.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Markdown string containing a summary table followed by per-column detail
-sections and dataset-level statistics.</p>
+<dd class="field-odd"><p>Markdown string containing the Dataset Overview, Column Summary,
+Flagged Columns, Target Analysis, and Sentinels sections.</p>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
 <dd class="field-even"><p>str</p>
@@ -1756,6 +1794,7 @@ representations.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.StructuralProfileResult.string_sentinels"><code class="docutils literal notranslate"><span class="pre">StructuralProfileResult.string_sentinels</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.StructuralProfileResult.targets"><code class="docutils literal notranslate"><span class="pre">StructuralProfileResult.targets</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.StructuralProfileResult.to_dict"><code class="docutils literal notranslate"><span class="pre">StructuralProfileResult.to_dict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.StructuralProfileResult.to_full_markdown"><code class="docutils literal notranslate"><span class="pre">StructuralProfileResult.to_full_markdown()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.StructuralProfileResult.to_json"><code class="docutils literal notranslate"><span class="pre">StructuralProfileResult.to_json()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.StructuralProfileResult.to_markdown"><code class="docutils literal notranslate"><span class="pre">StructuralProfileResult.to_markdown()</span></code></a></li>
 </ul>

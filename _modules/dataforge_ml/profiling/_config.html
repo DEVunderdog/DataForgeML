@@ -376,7 +376,9 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">..config</span><span class="w"> </span><span class="kn">import</span> <span class="n">SemanticType</span><span class="p">,</span> <span class="n">Modality</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._missingness_config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">ColumnMissingnessProfile</span><span class="p">,</span>
+    <span class="n">MissingnessFlag</span><span class="p">,</span>
     <span class="n">MissingnessProfileConfig</span><span class="p">,</span>
+    <span class="n">MissingSeverity</span><span class="p">,</span>
     <span class="n">RowMissingnessDistribution</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._correlation_config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
@@ -388,6 +390,8 @@
     <span class="n">CategoricalProfileConfig</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._numeric_config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">NonlinearityTag</span><span class="p">,</span>
+    <span class="n">NumericFlag</span><span class="p">,</span>
     <span class="n">NumericStats</span><span class="p">,</span>
     <span class="n">NumericProfileConfig</span><span class="p">,</span>
     <span class="n">NonlinearityProfileConfig</span><span class="p">,</span>
@@ -429,6 +433,121 @@
 <span class="c1"># ---------------------------------------------------------------------------</span>
 
 <span class="n">AnyStats</span> <span class="o">=</span> <span class="n">Union</span><span class="p">[</span><span class="n">NumericStats</span><span class="p">,</span> <span class="n">CategoricalStats</span><span class="p">,</span> <span class="n">DatetimeStats</span><span class="p">,</span> <span class="n">BooleanStats</span><span class="p">,</span> <span class="n">TextStats</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_format_dict_lines</span><span class="p">(</span><span class="n">d</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">indent</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">prefix</span> <span class="o">=</span> <span class="s2">&quot;  &quot;</span> <span class="o">*</span> <span class="n">indent</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">d</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">v</span><span class="p">:</span>
+                <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s2">- **</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">**: (empty)&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s2">- **</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">**:&quot;</span><span class="p">)</span>
+                <span class="n">out</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">_format_dict_lines</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">indent</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">v</span><span class="p">:</span>
+                <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s2">- **</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">**: (empty)&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s2">- **</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">**:&quot;</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">v</span><span class="p">:</span>
+                    <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s2">  - </span><span class="si">{</span><span class="n">item</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s2">- **</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">**: </span><span class="si">{</span><span class="n">v</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">out</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_top_n_abs_correlations</span><span class="p">(</span>
+    <span class="n">matrix</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]],</span> <span class="n">col_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">n</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]:</span>
+    <span class="n">row</span> <span class="o">=</span> <span class="n">matrix</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">col_name</span><span class="p">,</span> <span class="p">{})</span>
+    <span class="n">pairs</span> <span class="o">=</span> <span class="p">[(</span><span class="n">other</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span> <span class="k">for</span> <span class="n">other</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">row</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">other</span> <span class="o">!=</span> <span class="n">col_name</span><span class="p">]</span>
+    <span class="n">pairs</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">item</span><span class="p">:</span> <span class="nb">abs</span><span class="p">(</span><span class="n">item</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">pairs</span><span class="p">[:</span><span class="n">n</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_is_clean_column</span><span class="p">(</span><span class="n">col</span><span class="p">:</span> <span class="s2">&quot;ColumnProfile&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="n">missingness</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">missingness</span>
+    <span class="k">if</span> <span class="n">missingness</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">missingness</span><span class="o">.</span><span class="n">flags</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="n">severity</span> <span class="o">=</span> <span class="n">missingness</span><span class="o">.</span><span class="n">severity</span> <span class="k">if</span> <span class="n">missingness</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">severity</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">MissingSeverity</span><span class="o">.</span><span class="n">Minor</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">stats</span><span class="p">,</span> <span class="n">NumericStats</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">col</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">flags</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="n">col</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">nonlinearity_tag</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">NonlinearityTag</span><span class="o">.</span><span class="n">Linear</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="kc">True</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_compact_column_detail</span><span class="p">(</span>
+    <span class="n">col</span><span class="p">:</span> <span class="s2">&quot;ColumnProfile&quot;</span><span class="p">,</span>
+    <span class="n">feature_correlation</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">CorrelationProfileResult</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Build the per-column dict used in the Flagged Columns detail section.</span>
+
+<span class="sd">    Applies the compact-view field rules (ADR-0040) on top of</span>
+<span class="sd">    ``ColumnProfile.to_dict()``: drops ``total_rows`` from the missingness</span>
+<span class="sd">    subsection and ``histogram`` from the stats subsection, and caps</span>
+<span class="sd">    ``top_values`` (present on both ``NumericStats`` and ``CategoricalStats``)</span>
+<span class="sd">    to 3 entries. All other fields — including redundant scalar pairs,</span>
+<span class="sd">    percentiles, bimodal stats, and ``correlated_with`` — pass through</span>
+<span class="sd">    unchanged. When ``feature_correlation`` carries a row for this column,</span>
+<span class="sd">    a ``correlations`` entry is added with the top-5 highest absolute</span>
+<span class="sd">    Pearson and top-5 highest absolute Spearman correlations (descending</span>
+<span class="sd">    by absolute value) in place of the full N×N matrices.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    col : ColumnProfile</span>
+<span class="sd">        The column profile to render.</span>
+<span class="sd">    feature_correlation : CorrelationProfileResult or None</span>
+<span class="sd">        Dataset-level feature-feature correlation result, if computed.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dict</span>
+<span class="sd">        Trimmed dictionary suitable for ``_format_dict_lines``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
+    <span class="n">missingness</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;missingness&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">missingness</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">missingness</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;total_rows&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">stats</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;stats&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">stats</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">stats</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;histogram&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s2">&quot;top_values&quot;</span> <span class="ow">in</span> <span class="n">stats</span><span class="p">:</span>
+            <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;top_values&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;top_values&quot;</span><span class="p">][:</span><span class="mi">3</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">feature_correlation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">top_pearson</span> <span class="o">=</span> <span class="n">_top_n_abs_correlations</span><span class="p">(</span><span class="n">feature_correlation</span><span class="o">.</span><span class="n">pearson_matrix</span><span class="p">,</span> <span class="n">col</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="n">top_spearman</span> <span class="o">=</span> <span class="n">_top_n_abs_correlations</span><span class="p">(</span><span class="n">feature_correlation</span><span class="o">.</span><span class="n">spearman_matrix</span><span class="p">,</span> <span class="n">col</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">top_pearson</span> <span class="ow">or</span> <span class="n">top_spearman</span><span class="p">:</span>
+            <span class="n">data</span><span class="p">[</span><span class="s2">&quot;correlations&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s2">&quot;top_pearson&quot;</span><span class="p">:</span> <span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">value</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">top_pearson</span><span class="p">],</span>
+                <span class="s2">&quot;top_spearman&quot;</span><span class="p">:</span> <span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">value</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">top_spearman</span><span class="p">],</span>
+            <span class="p">}</span>
+    <span class="k">return</span> <span class="n">data</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_flagged_column_tier</span><span class="p">(</span><span class="n">col</span><span class="p">:</span> <span class="s2">&quot;ColumnProfile&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="n">missingness</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">missingness</span>
+    <span class="n">flags</span> <span class="o">=</span> <span class="n">missingness</span><span class="o">.</span><span class="n">flags</span> <span class="k">if</span> <span class="n">missingness</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">[]</span>
+    <span class="n">severity</span> <span class="o">=</span> <span class="n">missingness</span><span class="o">.</span><span class="n">severity</span> <span class="k">if</span> <span class="n">missingness</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+
+    <span class="k">if</span> <span class="n">MissingnessFlag</span><span class="o">.</span><span class="n">DropCandidate</span> <span class="ow">in</span> <span class="n">flags</span> <span class="ow">or</span> <span class="n">MissingnessFlag</span><span class="o">.</span><span class="n">FullyNull</span> <span class="ow">in</span> <span class="n">flags</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">0</span>
+    <span class="k">if</span> <span class="n">severity</span> <span class="o">==</span> <span class="n">MissingSeverity</span><span class="o">.</span><span class="n">Severe</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">1</span>
+    <span class="k">if</span> <span class="n">severity</span> <span class="o">==</span> <span class="n">MissingSeverity</span><span class="o">.</span><span class="n">High</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">2</span>
+    <span class="k">if</span> <span class="n">severity</span> <span class="o">==</span> <span class="n">MissingSeverity</span><span class="o">.</span><span class="n">Moderate</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">3</span>
+    <span class="k">if</span> <span class="n">flags</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">4</span>
+    <span class="k">return</span> <span class="mi">5</span>
 
 
 <div class="viewcode-block" id="ColumnProfile">
@@ -621,7 +740,146 @@
 <a class="viewcode-back" href="../../../api/profiling.html#dataforge_ml.profiling._config.StructuralProfileResult.to_markdown">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">to_markdown</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Produce a complete, lossless Markdown representation of the profiling result.</span>
+<span class="sd">        Produce a compact, human-oriented Markdown view of the profiling result.</span>
+
+<span class="sd">        The document contains a Dataset Overview section (scalar</span>
+<span class="sd">        dataset-level fields only — ``memory_breakdown`` and</span>
+<span class="sd">        ``missingness_matrix`` are omitted), a Column Summary table with one</span>
+<span class="sd">        row per column, and a Flagged Columns section with a full detail</span>
+<span class="sd">        subsection for every column that exceeds the clean threshold (see</span>
+<span class="sd">        ``_is_clean_column``), ordered severity-first then alphabetically</span>
+<span class="sd">        (see ``_flagged_column_tier``). Within each flagged column&#39;s detail</span>
+<span class="sd">        section, ``histogram`` bins and the missingness ``total_rows`` field</span>
+<span class="sd">        are dropped, ``top_values`` is capped to 3 entries, and the full</span>
+<span class="sd">        Pearson/Spearman correlation matrices are replaced by the top-5</span>
+<span class="sd">        highest absolute correlations for that column (see</span>
+<span class="sd">        ``_compact_column_detail``); all other fields — including redundant</span>
+<span class="sd">        scalar pairs, percentiles, bimodal stats, and ``correlated_with`` —</span>
+<span class="sd">        are kept in full. A Target Analysis section follows with the top-5</span>
+<span class="sd">        absolute Pearson and Spearman correlations per feature column for</span>
+<span class="sd">        each declared target, and a Sentinels section renders</span>
+<span class="sd">        ``numeric_sentinels`` / ``string_sentinels`` unchanged. Use</span>
+<span class="sd">        ``to_full_markdown()`` for the complete lossless serialization.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            Markdown string containing the Dataset Overview, Column Summary,</span>
+<span class="sd">            Flagged Columns, Target Analysis, and Sentinels sections.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;# Structural Profile Report (Compact)</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">]</span>
+
+        <span class="n">ds</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dataset</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;## Dataset Overview</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;- **modality**: </span><span class="si">{</span><span class="n">ds</span><span class="o">.</span><span class="n">modality</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;- **row_count**: </span><span class="si">{</span><span class="n">ds</span><span class="o">.</span><span class="n">row_count</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;- **column_count**: </span><span class="si">{</span><span class="n">ds</span><span class="o">.</span><span class="n">column_count</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;- **memory_bytes**: </span><span class="si">{</span><span class="n">ds</span><span class="o">.</span><span class="n">memory_bytes</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;- **duplicate_count**: </span><span class="si">{</span><span class="n">ds</span><span class="o">.</span><span class="n">duplicate_count</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;- **duplicate_ratio**: </span><span class="si">{</span><span class="n">ds</span><span class="o">.</span><span class="n">duplicate_ratio</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;- **overall_sparsity**: </span><span class="si">{</span><span class="n">ds</span><span class="o">.</span><span class="n">overall_sparsity</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;- **was_chunked**: </span><span class="si">{</span><span class="n">ds</span><span class="o">.</span><span class="n">was_chunked</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;- **row_distribution**:&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">ds</span><span class="o">.</span><span class="n">row_distribution</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  - **</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">**: </span><span class="si">{</span><span class="n">value</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;## Column Summary</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="s2">&quot;| Column | Semantic Type | Missing % | Severity | &quot;</span>
+            <span class="s2">&quot;Missingness Flags | Numeric Flags |&quot;</span>
+        <span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;|---|---|---|---|---|---|&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">col_name</span><span class="p">,</span> <span class="n">col</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">sem_type</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">semantic_type</span> <span class="k">if</span> <span class="n">col</span><span class="o">.</span><span class="n">semantic_type</span> <span class="k">else</span> <span class="s2">&quot;None&quot;</span>
+            <span class="n">missingness</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">missingness</span>
+            <span class="k">if</span> <span class="n">missingness</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">missing_str</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">missingness</span><span class="o">.</span><span class="n">effective_null_ratio</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">100</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">%&quot;</span>
+                <span class="n">severity</span> <span class="o">=</span> <span class="n">missingness</span><span class="o">.</span><span class="n">severity</span> <span class="k">if</span> <span class="n">missingness</span><span class="o">.</span><span class="n">severity</span> <span class="k">else</span> <span class="s2">&quot;None&quot;</span>
+                <span class="n">missingness_flags</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">missingness</span><span class="o">.</span><span class="n">flags</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">missingness</span><span class="o">.</span><span class="n">flags</span>
+                    <span class="k">else</span> <span class="s2">&quot;None&quot;</span>
+                <span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">missing_str</span> <span class="o">=</span> <span class="s2">&quot;0.00%&quot;</span>
+                <span class="n">severity</span> <span class="o">=</span> <span class="s2">&quot;None&quot;</span>
+                <span class="n">missingness_flags</span> <span class="o">=</span> <span class="s2">&quot;None&quot;</span>
+            <span class="n">numeric_flags</span> <span class="o">=</span> <span class="s2">&quot;None&quot;</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">stats</span><span class="p">,</span> <span class="n">NumericStats</span><span class="p">)</span> <span class="ow">and</span> <span class="n">col</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">flags</span><span class="p">:</span>
+                <span class="n">numeric_flags</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">col</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">flags</span><span class="p">)</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;| `</span><span class="si">{</span><span class="n">col_name</span><span class="si">}</span><span class="s2">` | </span><span class="si">{</span><span class="n">sem_type</span><span class="si">}</span><span class="s2"> | </span><span class="si">{</span><span class="n">missing_str</span><span class="si">}</span><span class="s2"> | </span><span class="si">{</span><span class="n">severity</span><span class="si">}</span><span class="s2"> | &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">missingness_flags</span><span class="si">}</span><span class="s2"> | </span><span class="si">{</span><span class="n">numeric_flags</span><span class="si">}</span><span class="s2"> |&quot;</span>
+            <span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;## Flagged Columns</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">flagged_columns</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">col</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">_is_clean_column</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
+        <span class="p">]</span>
+        <span class="n">flagged_columns</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">col</span><span class="p">:</span> <span class="p">(</span><span class="n">_flagged_column_tier</span><span class="p">(</span><span class="n">col</span><span class="p">),</span> <span class="n">col</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">flagged_columns</span><span class="p">:</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;### `</span><span class="si">{</span><span class="n">col</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">`</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span>
+                <span class="n">_format_dict_lines</span><span class="p">(</span>
+                    <span class="n">_compact_column_detail</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dataset</span><span class="o">.</span><span class="n">feature_correlation</span><span class="p">)</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dataset</span><span class="o">.</span><span class="n">target_correlations</span><span class="p">:</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;## Target Analysis</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">target_name</span><span class="p">,</span> <span class="n">corr</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dataset</span><span class="o">.</span><span class="n">target_correlations</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;### Target: `</span><span class="si">{</span><span class="n">target_name</span><span class="si">}</span><span class="s2">`</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">feature_cols</span> <span class="o">=</span> <span class="p">[</span>
+                    <span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">corr</span><span class="o">.</span><span class="n">analysed_numeric_columns</span> <span class="k">if</span> <span class="n">c</span> <span class="o">!=</span> <span class="n">target_name</span>
+                <span class="p">]</span>
+                <span class="k">for</span> <span class="n">feat</span> <span class="ow">in</span> <span class="n">feature_cols</span><span class="p">:</span>
+                    <span class="n">top_pearson</span> <span class="o">=</span> <span class="n">_top_n_abs_correlations</span><span class="p">(</span><span class="n">corr</span><span class="o">.</span><span class="n">pearson_matrix</span><span class="p">,</span> <span class="n">feat</span><span class="p">)</span>
+                    <span class="n">top_spearman</span> <span class="o">=</span> <span class="n">_top_n_abs_correlations</span><span class="p">(</span><span class="n">corr</span><span class="o">.</span><span class="n">spearman_matrix</span><span class="p">,</span> <span class="n">feat</span><span class="p">)</span>
+                    <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;#### `</span><span class="si">{</span><span class="n">feat</span><span class="si">}</span><span class="s2">`</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+                    <span class="n">lines</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span>
+                        <span class="n">_format_dict_lines</span><span class="p">(</span>
+                            <span class="p">{</span>
+                                <span class="s2">&quot;top_pearson&quot;</span><span class="p">:</span> <span class="p">[</span>
+                                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">value</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">top_pearson</span>
+                                <span class="p">],</span>
+                                <span class="s2">&quot;top_spearman&quot;</span><span class="p">:</span> <span class="p">[</span>
+                                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">value</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">top_spearman</span>
+                                <span class="p">],</span>
+                            <span class="p">}</span>
+                        <span class="p">)</span>
+                    <span class="p">)</span>
+                    <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;## Sentinels</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span>
+            <span class="n">_format_dict_lines</span><span class="p">(</span>
+                <span class="p">{</span>
+                    <span class="s2">&quot;numeric_sentinels&quot;</span><span class="p">:</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">numeric_sentinels</span><span class="p">),</span>
+                    <span class="s2">&quot;string_sentinels&quot;</span><span class="p">:</span> <span class="p">{</span>
+                        <span class="n">k</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">string_sentinels</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+                    <span class="p">},</span>
+                <span class="p">}</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span></div>
+
+
+<div class="viewcode-block" id="StructuralProfileResult.to_full_markdown">
+<a class="viewcode-back" href="../../../api/profiling.html#dataforge_ml.profiling._config.StructuralProfileResult.to_full_markdown">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_full_markdown</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Produce a complete, lossless Markdown serialization for debugging and archival use.</span>
+
+<span class="sd">        Every field present in ``to_dict()`` — including histogram bins, full</span>
+<span class="sd">        correlation matrices, memory breakdown, and all per-column fields —</span>
+<span class="sd">        is rendered as Markdown. For an 82-column dataset this produces</span>
+<span class="sd">        roughly 1 MB of text; for human inspection of large datasets prefer</span>
+<span class="sd">        ``to_markdown()`` once the compact view lands (ADR-0040).</span>
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
@@ -647,47 +905,26 @@
             <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;| </span><span class="si">{</span><span class="n">col_name</span><span class="si">}</span><span class="s2"> | </span><span class="si">{</span><span class="n">sem_type</span><span class="si">}</span><span class="s2"> | </span><span class="si">{</span><span class="n">missing_str</span><span class="si">}</span><span class="s2"> | </span><span class="si">{</span><span class="n">severity</span><span class="si">}</span><span class="s2"> | </span><span class="si">{</span><span class="n">flags</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">)</span>
         
         <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">## Column Details</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
-        
-        <span class="k">def</span><span class="w"> </span><span class="nf">_format_dict</span><span class="p">(</span><span class="n">d</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">indent</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-            <span class="n">out</span> <span class="o">=</span> <span class="p">[]</span>
-            <span class="n">prefix</span> <span class="o">=</span> <span class="s2">&quot;  &quot;</span> <span class="o">*</span> <span class="n">indent</span>
-            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">d</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-                    <span class="k">if</span> <span class="ow">not</span> <span class="n">v</span><span class="p">:</span>
-                        <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s2">- **</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">**: (empty)&quot;</span><span class="p">)</span>
-                    <span class="k">else</span><span class="p">:</span>
-                        <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s2">- **</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">**:&quot;</span><span class="p">)</span>
-                        <span class="n">out</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">_format_dict</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">indent</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
-                <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
-                    <span class="k">if</span> <span class="ow">not</span> <span class="n">v</span><span class="p">:</span>
-                        <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s2">- **</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">**: (empty)&quot;</span><span class="p">)</span>
-                    <span class="k">else</span><span class="p">:</span>
-                        <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s2">- **</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">**:&quot;</span><span class="p">)</span>
-                        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">v</span><span class="p">:</span>
-                            <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s2">  - </span><span class="si">{</span><span class="n">item</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s2">- **</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">**: </span><span class="si">{</span><span class="n">v</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-            <span class="k">return</span> <span class="n">out</span>
 
         <span class="k">for</span> <span class="n">col_name</span><span class="p">,</span> <span class="n">col_data</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;columns&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;### `</span><span class="si">{</span><span class="n">col_name</span><span class="si">}</span><span class="s2">`</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
-            <span class="n">lines</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">_format_dict</span><span class="p">(</span><span class="n">col_data</span><span class="p">))</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">_format_dict_lines</span><span class="p">(</span><span class="n">col_data</span><span class="p">))</span>
             <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
 
         <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;## Dataset</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="n">lines</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">_format_dict</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;dataset&quot;</span><span class="p">,</span> <span class="p">{})))</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">_format_dict_lines</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;dataset&quot;</span><span class="p">,</span> <span class="p">{})))</span>
         <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
-        
+
         <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;## Targets</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="n">lines</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">_format_dict</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;targets&quot;</span><span class="p">,</span> <span class="p">{})))</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">_format_dict_lines</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;targets&quot;</span><span class="p">,</span> <span class="p">{})))</span>
         <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
 
         <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;## Numeric Sentinels</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="n">lines</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">_format_dict</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;numeric_sentinels&quot;</span><span class="p">,</span> <span class="p">{})))</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">_format_dict_lines</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;numeric_sentinels&quot;</span><span class="p">,</span> <span class="p">{})))</span>
         <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
 
         <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;## String Sentinels</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="n">lines</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">_format_dict</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;string_sentinels&quot;</span><span class="p">,</span> <span class="p">{})))</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">_format_dict_lines</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;string_sentinels&quot;</span><span class="p">,</span> <span class="p">{})))</span>
         <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span></div>
