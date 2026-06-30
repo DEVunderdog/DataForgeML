@@ -15,7 +15,9 @@ from typing import Optional, Union
 from ..config import SemanticType, Modality
 from ._missingness_config import (
     ColumnMissingnessProfile,
+    MissingnessFlag,
     MissingnessProfileConfig,
+    MissingSeverity,
     RowMissingnessDistribution,
 )
 from ._correlation_config import (
@@ -27,6 +29,8 @@ from ._categorical_config import (
     CategoricalProfileConfig,
 )
 from ._numeric_config import (
+    NonlinearityTag,
+    NumericFlag,
     NumericStats,
     NumericProfileConfig,
     NonlinearityProfileConfig,
@@ -68,6 +72,121 @@ class TypeFlag(StrEnum):
 # ---------------------------------------------------------------------------
 
 AnyStats = Union[NumericStats, CategoricalStats, DatetimeStats, BooleanStats, TextStats]
+
+
+def _format_dict_lines(d: dict, indent: int = 0) -> list[str]:
+    out = []
+    prefix = "  " * indent
+    for k, v in d.items():
+        if isinstance(v, dict):
+            if not v:
+                out.append(f"{prefix}- **{k}**: (empty)")
+            else:
+                out.append(f"{prefix}- **{k}**:")
+                out.extend(_format_dict_lines(v, indent + 1))
+        elif isinstance(v, list):
+            if not v:
+                out.append(f"{prefix}- **{k}**: (empty)")
+            else:
+                out.append(f"{prefix}- **{k}**:")
+                for item in v:
+                    out.append(f"{prefix}  - {item}")
+        else:
+            out.append(f"{prefix}- **{k}**: {v}")
+    return out
+
+
+def _top_n_abs_correlations(
+    matrix: dict[str, dict[str, float]], col_name: str, n: int = 5
+) -> list[tuple[str, float]]:
+    row = matrix.get(col_name, {})
+    pairs = [(other, value) for other, value in row.items() if other != col_name]
+    pairs.sort(key=lambda item: abs(item[1]), reverse=True)
+    return pairs[:n]
+
+
+def _is_clean_column(col: "ColumnProfile") -> bool:
+    missingness = col.missingness
+    if missingness is not None and missingness.flags:
+        return False
+    severity = missingness.severity if missingness is not None else None
+    if severity not in (None, MissingSeverity.Minor):
+        return False
+    if isinstance(col.stats, NumericStats):
+        if col.stats.flags:
+            return False
+        if col.stats.nonlinearity_tag not in (None, NonlinearityTag.Linear):
+            return False
+    return True
+
+
+def _compact_column_detail(
+    col: "ColumnProfile",
+    feature_correlation: Optional[CorrelationProfileResult],
+) -> dict:
+    """
+    Build the per-column dict used in the Flagged Columns detail section.
+
+    Applies the compact-view field rules (ADR-0040) on top of
+    ``ColumnProfile.to_dict()``: drops ``total_rows`` from the missingness
+    subsection and ``histogram`` from the stats subsection, and caps
+    ``top_values`` (present on both ``NumericStats`` and ``CategoricalStats``)
+    to 3 entries. All other fields — including redundant scalar pairs,
+    percentiles, bimodal stats, and ``correlated_with`` — pass through
+    unchanged. When ``feature_correlation`` carries a row for this column,
+    a ``correlations`` entry is added with the top-5 highest absolute
+    Pearson and top-5 highest absolute Spearman correlations (descending
+    by absolute value) in place of the full N×N matrices.
+
+    Parameters
+    ----------
+    col : ColumnProfile
+        The column profile to render.
+    feature_correlation : CorrelationProfileResult or None
+        Dataset-level feature-feature correlation result, if computed.
+
+    Returns
+    -------
+    dict
+        Trimmed dictionary suitable for ``_format_dict_lines``.
+    """
+    data = col.to_dict()
+    missingness = data.get("missingness")
+    if missingness is not None:
+        missingness.pop("total_rows", None)
+    stats = data.get("stats")
+    if stats is not None:
+        stats.pop("histogram", None)
+        if "top_values" in stats:
+            stats["top_values"] = stats["top_values"][:3]
+
+    if feature_correlation is not None:
+        top_pearson = _top_n_abs_correlations(feature_correlation.pearson_matrix, col.name)
+        top_spearman = _top_n_abs_correlations(feature_correlation.spearman_matrix, col.name)
+        if top_pearson or top_spearman:
+            data["correlations"] = {
+                "top_pearson": [f"{name}: {value}" for name, value in top_pearson],
+                "top_spearman": [f"{name}: {value}" for name, value in top_spearman],
+            }
+    return data
+
+
+def _flagged_column_tier(col: "ColumnProfile") -> int:
+    missingness = col.missingness
+    flags = missingness.flags if missingness is not None else []
+    severity = missingness.severity if missingness is not None else None
+
+    if MissingnessFlag.DropCandidate in flags or MissingnessFlag.FullyNull in flags:
+        return 0
+    if severity == MissingSeverity.Severe:
+        return 1
+    if severity == MissingSeverity.High:
+        return 2
+    if severity == MissingSeverity.Moderate:
+        return 3
+    if flags:
+        return 4
+    return 5
 
 
 @dataclass
@@ -238,7 +357,143 @@ class StructuralProfileResult:
 
     def to_markdown(self) -> str:
         """
-        Produce a complete, lossless Markdown representation of the profiling result.
+        Produce a compact, human-oriented Markdown view of the profiling result.
+
+        The document contains a Dataset Overview section (scalar
+        dataset-level fields only — ``memory_breakdown`` and
+        ``missingness_matrix`` are omitted), a Column Summary table with one
+        row per column, and a Flagged Columns section with a full detail
+        subsection for every column that exceeds the clean threshold (see
+        ``_is_clean_column``), ordered severity-first then alphabetically
+        (see ``_flagged_column_tier``). Within each flagged column's detail
+        section, ``histogram`` bins and the missingness ``total_rows`` field
+        are dropped, ``top_values`` is capped to 3 entries, and the full
+        Pearson/Spearman correlation matrices are replaced by the top-5
+        highest absolute correlations for that column (see
+        ``_compact_column_detail``); all other fields — including redundant
+        scalar pairs, percentiles, bimodal stats, and ``correlated_with`` —
+        are kept in full. A Target Analysis section follows with the top-5
+        absolute Pearson and Spearman correlations per feature column for
+        each declared target, and a Sentinels section renders
+        ``numeric_sentinels`` / ``string_sentinels`` unchanged. Use
+        ``to_full_markdown()`` for the complete lossless serialization.
+
+        Returns
+        -------
+        str
+            Markdown string containing the Dataset Overview, Column Summary,
+            Flagged Columns, Target Analysis, and Sentinels sections.
+        """
+        lines = ["# Structural Profile Report (Compact)\n"]
+
+        ds = self.dataset
+        lines.append("## Dataset Overview\n")
+        lines.append(f"- **modality**: {ds.modality}")
+        lines.append(f"- **row_count**: {ds.row_count}")
+        lines.append(f"- **column_count**: {ds.column_count}")
+        lines.append(f"- **memory_bytes**: {ds.memory_bytes}")
+        lines.append(f"- **duplicate_count**: {ds.duplicate_count}")
+        lines.append(f"- **duplicate_ratio**: {ds.duplicate_ratio}")
+        lines.append(f"- **overall_sparsity**: {ds.overall_sparsity}")
+        lines.append(f"- **was_chunked**: {ds.was_chunked}")
+        lines.append("- **row_distribution**:")
+        for key, value in ds.row_distribution.to_dict().items():
+            lines.append(f"  - **{key}**: {value}")
+        lines.append("")
+
+        lines.append("## Column Summary\n")
+        lines.append(
+            "| Column | Semantic Type | Missing % | Severity | "
+            "Missingness Flags | Numeric Flags |"
+        )
+        lines.append("|---|---|---|---|---|---|")
+        for col_name, col in self.columns.items():
+            sem_type = col.semantic_type if col.semantic_type else "None"
+            missingness = col.missingness
+            if missingness is not None:
+                missing_str = f"{missingness.effective_null_ratio * 100:.2f}%"
+                severity = missingness.severity if missingness.severity else "None"
+                missingness_flags = (
+                    ", ".join(str(f) for f in missingness.flags)
+                    if missingness.flags
+                    else "None"
+                )
+            else:
+                missing_str = "0.00%"
+                severity = "None"
+                missingness_flags = "None"
+            numeric_flags = "None"
+            if isinstance(col.stats, NumericStats) and col.stats.flags:
+                numeric_flags = ", ".join(str(f) for f in col.stats.flags)
+            lines.append(
+                f"| `{col_name}` | {sem_type} | {missing_str} | {severity} | "
+                f"{missingness_flags} | {numeric_flags} |"
+            )
+        lines.append("")
+
+        lines.append("## Flagged Columns\n")
+        flagged_columns = [
+            col for col in self.columns.values() if not _is_clean_column(col)
+        ]
+        flagged_columns.sort(key=lambda col: (_flagged_column_tier(col), col.name))
+        for col in flagged_columns:
+            lines.append(f"### `{col.name}`\n")
+            lines.extend(
+                _format_dict_lines(
+                    _compact_column_detail(col, self.dataset.feature_correlation)
+                )
+            )
+            lines.append("")
+
+        if self.dataset.target_correlations:
+            lines.append("## Target Analysis\n")
+            for target_name, corr in self.dataset.target_correlations.items():
+                lines.append(f"### Target: `{target_name}`\n")
+                feature_cols = [
+                    c for c in corr.analysed_numeric_columns if c != target_name
+                ]
+                for feat in feature_cols:
+                    top_pearson = _top_n_abs_correlations(corr.pearson_matrix, feat)
+                    top_spearman = _top_n_abs_correlations(corr.spearman_matrix, feat)
+                    lines.append(f"#### `{feat}`\n")
+                    lines.extend(
+                        _format_dict_lines(
+                            {
+                                "top_pearson": [
+                                    f"{name}: {value}" for name, value in top_pearson
+                                ],
+                                "top_spearman": [
+                                    f"{name}: {value}" for name, value in top_spearman
+                                ],
+                            }
+                        )
+                    )
+                    lines.append("")
+
+        lines.append("## Sentinels\n")
+        lines.extend(
+            _format_dict_lines(
+                {
+                    "numeric_sentinels": dict(self.numeric_sentinels),
+                    "string_sentinels": {
+                        k: list(v) for k, v in self.string_sentinels.items()
+                    },
+                }
+            )
+        )
+        lines.append("")
+
+        return "\n".join(lines).strip() + "\n"
+
+    def to_full_markdown(self) -> str:
+        """
+        Produce a complete, lossless Markdown serialization for debugging and archival use.
+
+        Every field present in ``to_dict()`` — including histogram bins, full
+        correlation matrices, memory breakdown, and all per-column fields —
+        is rendered as Markdown. For an 82-column dataset this produces
+        roughly 1 MB of text; for human inspection of large datasets prefer
+        ``to_markdown()`` once the compact view lands (ADR-0040).
 
         Returns
         -------
@@ -264,47 +519,26 @@ class StructuralProfileResult:
             lines.append(f"| {col_name} | {sem_type} | {missing_str} | {severity} | {flags} |")
         
         lines.append("\n## Column Details\n")
-        
-        def _format_dict(d: dict, indent: int = 0) -> list[str]:
-            out = []
-            prefix = "  " * indent
-            for k, v in d.items():
-                if isinstance(v, dict):
-                    if not v:
-                        out.append(f"{prefix}- **{k}**: (empty)")
-                    else:
-                        out.append(f"{prefix}- **{k}**:")
-                        out.extend(_format_dict(v, indent + 1))
-                elif isinstance(v, list):
-                    if not v:
-                        out.append(f"{prefix}- **{k}**: (empty)")
-                    else:
-                        out.append(f"{prefix}- **{k}**:")
-                        for item in v:
-                            out.append(f"{prefix}  - {item}")
-                else:
-                    out.append(f"{prefix}- **{k}**: {v}")
-            return out
 
         for col_name, col_data in data.get("columns", {}).items():
             lines.append(f"### `{col_name}`\n")
-            lines.extend(_format_dict(col_data))
+            lines.extend(_format_dict_lines(col_data))
             lines.append("")
 
         lines.append("## Dataset\n")
-        lines.extend(_format_dict(data.get("dataset", {})))
+        lines.extend(_format_dict_lines(data.get("dataset", {})))
         lines.append("")
-        
+
         lines.append("## Targets\n")
-        lines.extend(_format_dict(data.get("targets", {})))
+        lines.extend(_format_dict_lines(data.get("targets", {})))
         lines.append("")
 
         lines.append("## Numeric Sentinels\n")
-        lines.extend(_format_dict(data.get("numeric_sentinels", {})))
+        lines.extend(_format_dict_lines(data.get("numeric_sentinels", {})))
         lines.append("")
 
         lines.append("## String Sentinels\n")
-        lines.extend(_format_dict(data.get("string_sentinels", {})))
+        lines.extend(_format_dict_lines(data.get("string_sentinels", {})))
         lines.append("")
 
         return "\n".join(lines).strip() + "\n"
