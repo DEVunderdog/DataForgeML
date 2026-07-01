@@ -86,20 +86,6 @@ class PipelineConfig:
         Single seed for all stochastic pipeline operations, including GMM
         Sampling during bimodal imputation. None produces non-deterministic
         output.
-
-    Attributes
-    ----------
-    exclude_columns : tuple[str, ...]
-        Hard exclusions — columns dropped globally from every phase.
-    phase_exclusions : MappingProxyType[PipelinePhase, tuple[str, ...]]
-        Soft exclusions — columns bypassed for a specific phase but retained
-        in the dataset.
-    column_overrides : MappingProxyType[str, SemanticType]
-        Explicit semantic type assignments respected by all downstream phases.
-    numeric_kind_overrides : MappingProxyType[str, NumericKind]
-        Explicit ``NumericKind`` assignments for individual columns, applied
-        after auto-detection in Phase 1. Only valid for columns whose final
-        ``SemanticType`` is ``Numeric``; raises at orchestrator time otherwise.
     """
 
     _exclude_columns: list[str] = field(default_factory=list, init=False)
@@ -149,6 +135,9 @@ class PipelineConfig:
     @property
     def numeric_kind_overrides(self) -> "MappingProxyType[str, NumericKind]":
         """Explicit NumericKind assignments for individual columns, applied after auto-detection in Phase 1.
+
+        Only valid for columns whose final ``SemanticType`` is ``Numeric``;
+        raises at orchestrator time otherwise.
 
         Returns
         -------

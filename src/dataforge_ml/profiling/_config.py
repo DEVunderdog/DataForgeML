@@ -628,27 +628,6 @@ class ProfileConfig:
         Default ``False``.
     nonlinearity : NonlinearityProfileConfig
         Threshold configuration for the nonlinearity sub-processor.
-
-    Attributes
-    ----------
-    numeric_sentinels : MappingProxyType[str, list[float]]
-        Per-column numeric sentinel declarations.  Keys are column names;
-        values are lists of float-compatible sentinel values that should be
-        treated as effective nulls (e.g. ``{"age": [-999.0, 9999.0]}``).
-        Applies to any column whose dtype passes ``_numeric_sentinel_eligible``
-        (all integer and float Polars dtypes).  Defaults to an empty dict —
-        columns with no declaration are completely unaffected.
-    string_sentinels : MappingProxyType[str, list[str]]
-        Per-column user-declared string sentinel declarations.  Keys are column
-        names; values are lists of string values that should be treated as
-        effective nulls for that column (e.g.
-        ``{"status": ["N/A", "missing"]}``).  Uses **replace semantics**: when
-        a declaration exists for a column, only the declared values are matched
-        (case-insensitive); the hardcoded defaults (``"NA"``, ``"NAN"``,
-        ``"NULL"``, ``"NONE"``, ``"?"``) are not applied for that column.
-        Empty/whitespace-only strings are always effective null regardless of
-        any declaration.  Defaults to an empty dict — columns with no
-        declaration continue to use the hardcoded defaults unchanged.
     """
 
     modality: Modality = Modality.Tabular
@@ -704,6 +683,13 @@ class ProfileConfig:
         """
         Get the per-column numeric sentinel declarations.
 
+        Keys are column names; values are lists of float-compatible sentinel
+        values that should be treated as effective nulls (e.g.
+        ``{"age": [-999.0, 9999.0]}``). Applies to any column whose dtype
+        passes ``_numeric_sentinel_eligible`` (all integer and float Polars
+        dtypes). Defaults to an empty dict — columns with no declaration are
+        completely unaffected.
+
         Returns
         -------
         MappingProxyType[str, list[float]]
@@ -715,6 +701,16 @@ class ProfileConfig:
     def string_sentinels(self) -> MappingProxyType[str, list[str]]:
         """
         Get the per-column user-declared string sentinel declarations.
+
+        Keys are column names; values are lists of string values that should
+        be treated as effective nulls for that column (e.g.
+        ``{"status": ["N/A", "missing"]}``). Uses **replace semantics**: when
+        a declaration exists for a column, only the declared values are
+        matched (case-insensitive); the hardcoded defaults (``"NA"``,
+        ``"NAN"``, ``"NULL"``, ``"NONE"``, ``"?"``) are not applied for that
+        column. Empty/whitespace-only strings are always effective null
+        regardless of any declaration. Defaults to an empty dict — columns
+        with no declaration continue to use the hardcoded defaults unchanged.
 
         Returns
         -------
