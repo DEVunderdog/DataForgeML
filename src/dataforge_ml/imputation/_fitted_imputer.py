@@ -232,7 +232,7 @@ class FittedImputer:
             col for col, rec in self.records.items()
             if rec.strategy == ImputationStrategy.Dropped
         ]
-        config.add_exclusions(dropped)
+        config.add_exclusion(dropped)
 
         indicator_cols = [
             col for col, rec in self.records.items()
@@ -245,10 +245,10 @@ class FittedImputer:
             PipelinePhase.Scaling,
         ]
         for phase in _soft_phases:
-            existing = set(config.phase_exclusions.get(phase, []))
+            existing = set(config.phase_exclusions.get(phase, ()))
             new_cols = [c for c in indicator_cols if c not in existing]
             if new_cols:
-                config.phase_exclusions.setdefault(phase, []).extend(new_cols)
+                config.add_phase_exclusion(phase, new_cols)
 
         self._exclusions_applied = True
 

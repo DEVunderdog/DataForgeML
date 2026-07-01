@@ -2001,7 +2001,7 @@ def test_constant_fill_column_has_no_diagnostic():
     cp_b.missingness = None
     profile = _make_profile(("a", cp_a), ("b", cp_b))
     config = NumericImputationConfig(
-        per_column_constant_fill={"a": 0.0},
+        _per_column_constant_fill={"a": 0.0},
     )
     bundle = _fit(df, ["a", "b"], profile, config=config)
     rec_a = next(r for r in bundle.records if r.column == "a")
@@ -2058,7 +2058,7 @@ def test_regression_final_model_unchanged_after_diagnostic_round_trip():
 
 
 def test_per_column_strategy_overrides_routing_to_median():
-    """Column in per_column_strategy=Median must be Median regardless of missingness."""
+    """Column in _per_column_strategy=Median must be Median regardless of missingness."""
     rng = np.random.default_rng(800)
     n = 500
     b = rng.normal(0, 1, n)
@@ -2078,7 +2078,7 @@ def test_per_column_strategy_overrides_routing_to_median():
     config = NumericImputationConfig(
         knn_max_rows=100,
         regression_min_rows=200,
-        per_column_strategy={"a": ImputationStrategy.Median},
+        _per_column_strategy={"a": ImputationStrategy.Median},
     )
     bundle = _fit(df, ["a", "b"], profile, config=config)
     rec = next(r for r in bundle.records if r.column == "a")
@@ -2089,7 +2089,7 @@ def test_per_column_strategy_overrides_routing_to_median():
 
 
 def test_per_column_strategy_mice_candidate_overridden_to_median_not_in_mice_block():
-    """Column with per_column_strategy=Median that would have been MICE is absent from MICE block."""
+    """Column with _per_column_strategy=Median that would have been MICE is absent from MICE block."""
     rng = np.random.default_rng(801)
     n = 300
     vals_a = [None if i % 5 == 0 else float(rng.normal()) for i in range(n)]
@@ -2110,7 +2110,7 @@ def test_per_column_strategy_mice_candidate_overridden_to_median_not_in_mice_blo
     )
     profile = _make_profile(("a", cp_a), ("b", cp_b))
     config = NumericImputationConfig(
-        per_column_strategy={"a": ImputationStrategy.Median},
+        _per_column_strategy={"a": ImputationStrategy.Median},
     )
     bundle = _fit(df, ["a", "b"], profile, config=config)
     rec_a = next(r for r in bundle.records if r.column == "a")
@@ -2142,7 +2142,7 @@ def test_per_column_max_iter_overrides_dynamically_computed_value():
     config = NumericImputationConfig(
         knn_max_rows=100,
         regression_min_rows=200,
-        per_column_max_iter={"a": override_iter},
+        _per_column_max_iter={"a": override_iter},
     )
     bundle = _fit(df, ["a", "b"], profile, config=config)
     rec = next(r for r in bundle.records if r.column == "a")
@@ -2263,7 +2263,7 @@ def test_knn_k_capped_true_when_adaptive_formula_exceeds_n_rows():
     # knn_min_neighbors=8 drives adaptive_raw above n_rows − 1 = 9 for a 1-feature KNN block
     config = NumericImputationConfig(
         knn_min_neighbors=8,
-        per_column_strategy={"a": ImputationStrategy.KNN},
+        _per_column_strategy={"a": ImputationStrategy.KNN},
     )
     bundle = _fit(df, ["a", "b"], profile, config=config)
     rec = next(r for r in bundle.records if r.column == "a")

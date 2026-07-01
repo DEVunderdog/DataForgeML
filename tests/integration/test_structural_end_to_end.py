@@ -155,7 +155,7 @@ def test_column_handoffs(mixed_df):
 
 
 def test_column_override_changes_stats_type(override_df):
-    config = PipelineConfig(column_overrides={"score": SemanticType.Categorical})
+    config = (cfg := PipelineConfig(), cfg.set_column_type("score", SemanticType.Categorical))[0]
     result = StructuralProfiler(config).profile(override_df)
     cp = result.columns["score"]
     assert isinstance(cp.stats, CategoricalStats)

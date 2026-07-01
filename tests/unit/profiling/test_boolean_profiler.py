@@ -99,3 +99,29 @@ def test_all_null_boolean_returns_default_stats_without_crashing():
     assert isinstance(stats, BooleanStats)
     assert stats.true_count == 0
     assert stats.false_count == 0
+
+
+def test_override_coercion_error_raised_for_total_failure():
+    import pytest
+    from dataforge_ml.profiling import OverrideCoercionError
+
+    df = pl.DataFrame({"bool_col": pl.Series(["apple", "banana", "cherry"])})
+    with pytest.raises(OverrideCoercionError, match="completely failed coercion"):
+        BooleanProfiler().profile(df, ["bool_col"], user_overrides={"bool_col"})
+
+
+def test_override_coercion_error_not_raised_for_partial_failure():
+    from dataforge_ml.profiling import OverrideCoercionError
+    # 1 valid true string, 2 invalid
+    df = pl.DataFrame({"bool_col": pl.Series(["true", "banana", "cherry"])})
+    result = BooleanProfiler().profile(df, ["bool_col"], user_overrides={"bool_col"})
+    assert "bool_col" in result.analysed_columns
+
+
+def test_override_coercion_error_not_raised_for_auto_detected_total_failure():
+    df = pl.DataFrame({"bool_col": pl.Series(["apple", "banana", "cherry"])})
+    result = BooleanProfiler().profile(df, ["bool_col"])
+    # bool column will be profiled, but length will be 0 -> it just returns empty stats
+    stats = result.columns["bool_col"]
+    assert stats.true_count == 0
+

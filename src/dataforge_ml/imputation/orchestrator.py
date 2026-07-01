@@ -62,6 +62,8 @@ class ImputationOrchestrator:
         FittedImputer
             Stateless imputer that can transform any DataFrame.
         """
+        self._config.imputation.validate()
+
         train_df = _resolve_effective_nulls(
             train_df,
             numeric_sentinels=profile.numeric_sentinels,

@@ -306,7 +306,7 @@ def test_indicator_record_present_in_records_after_fit_before_transform():
     profile = _make_profile({"income": _numeric_cp_mnar("income")})
 
     cfg = PipelineConfig()
-    cfg.imputation.mnar_columns = ["income"]
+    cfg.imputation.add_mnar_column("income")
     fi = ImputationOrchestrator(cfg).fit(df, profile)
 
     assert "income_missing" in fi.records
@@ -319,7 +319,7 @@ def test_indicator_record_has_strategy_indicator():
     profile = _make_profile({"income": _numeric_cp_mnar("income")})
 
     cfg = PipelineConfig()
-    cfg.imputation.mnar_columns = ["income"]
+    cfg.imputation.add_mnar_column("income")
     fi = ImputationOrchestrator(cfg).fit(df, profile)
 
     assert fi.records["income_missing"].strategy == ImputationStrategy.Indicator
@@ -332,7 +332,7 @@ def test_indicator_record_has_boolean_semantic_type():
     profile = _make_profile({"income": _numeric_cp_mnar("income")})
 
     cfg = PipelineConfig()
-    cfg.imputation.mnar_columns = ["income"]
+    cfg.imputation.add_mnar_column("income")
     fi = ImputationOrchestrator(cfg).fit(df, profile)
 
     assert fi.records["income_missing"].semantic_type == SemanticType.Boolean
@@ -345,7 +345,7 @@ def test_indicator_record_indicator_added_is_false():
     profile = _make_profile({"income": _numeric_cp_mnar("income")})
 
     cfg = PipelineConfig()
-    cfg.imputation.mnar_columns = ["income"]
+    cfg.imputation.add_mnar_column("income")
     fi = ImputationOrchestrator(cfg).fit(df, profile)
 
     assert fi.records["income_missing"].indicator_added is False
@@ -366,7 +366,7 @@ def test_indicator_record_round_trips_via_to_dict_from_dict():
     profile = _make_profile({"income": _numeric_cp_mnar("income")})
 
     cfg = PipelineConfig()
-    cfg.imputation.mnar_columns = ["income"]
+    cfg.imputation.add_mnar_column("income")
     fi = ImputationOrchestrator(cfg).fit(df, profile)
 
     from dataforge_ml.imputation._fitted_imputer import FittedImputer
@@ -415,7 +415,7 @@ def test_per_column_strategy_regression_size_guard_raises_below_min_rows():
     cfg = PipelineConfig()
     cfg.imputation.numeric = NumericImputationConfig(
         regression_min_rows=10,
-        per_column_strategy={"a": ImputationStrategy.Regression},
+        _per_column_strategy={"a": ImputationStrategy.Regression},
     )
     with pytest.raises(ValueError):
         ImputationOrchestrator(cfg).fit(df, profile)
@@ -428,7 +428,7 @@ def test_per_column_strategy_regression_size_guard_error_message_content():
     cfg = PipelineConfig()
     cfg.imputation.numeric = NumericImputationConfig(
         regression_min_rows=threshold,
-        per_column_strategy={"a": ImputationStrategy.Regression},
+        _per_column_strategy={"a": ImputationStrategy.Regression},
     )
     with pytest.raises(ValueError) as exc_info:
         ImputationOrchestrator(cfg).fit(df, profile)
@@ -446,7 +446,7 @@ def test_per_column_strategy_knn_size_guard_raises_above_max_rows():
     cfg = PipelineConfig()
     cfg.imputation.numeric = NumericImputationConfig(
         knn_max_rows=3,
-        per_column_strategy={"a": ImputationStrategy.KNN},
+        _per_column_strategy={"a": ImputationStrategy.KNN},
     )
     with pytest.raises(ValueError):
         ImputationOrchestrator(cfg).fit(df, profile)
@@ -459,7 +459,7 @@ def test_per_column_strategy_knn_size_guard_error_message_content():
     cfg = PipelineConfig()
     cfg.imputation.numeric = NumericImputationConfig(
         knn_max_rows=threshold,
-        per_column_strategy={"a": ImputationStrategy.KNN},
+        _per_column_strategy={"a": ImputationStrategy.KNN},
     )
     with pytest.raises(ValueError) as exc_info:
         ImputationOrchestrator(cfg).fit(df, profile)
@@ -477,7 +477,7 @@ def test_per_column_strategy_regression_no_error_when_size_guard_met():
     cfg = PipelineConfig()
     cfg.imputation.numeric = NumericImputationConfig(
         regression_min_rows=3,
-        per_column_strategy={"a": ImputationStrategy.Regression},
+        _per_column_strategy={"a": ImputationStrategy.Regression},
     )
     # n_rows=5 >= regression_min_rows=3 — guard passes, no ValueError
     ImputationOrchestrator(cfg).fit(df, profile)
@@ -489,9 +489,31 @@ def test_per_column_strategy_knn_no_error_when_size_guard_met():
     cfg = PipelineConfig()
     cfg.imputation.numeric = NumericImputationConfig(
         knn_max_rows=10,
-        per_column_strategy={"a": ImputationStrategy.KNN},
+        _per_column_strategy={"a": ImputationStrategy.KNN},
     )
     # n_rows=3 <= knn_max_rows=10 — guard passes, no ValueError
     ImputationOrchestrator(cfg).fit(df, profile)
 
 
+# ---------------------------------------------------------------------------
+# fit() — validate() called before processing
+# ---------------------------------------------------------------------------
+
+
+def test_imputation_orchestrator_raises_on_invalid_config_before_processing():
+    """
+    Ensure the orchestrator calls config.imputation.validate() before processing.
+    We construct a conflicting config via legitimate setters and verify it raises.
+    """
+    df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
+    profile = _make_profile({"a": _numeric_cp_with_nulls("a")})
+    
+    cfg = PipelineConfig()
+    # Add MNAR column first
+    cfg.imputation.add_mnar_column("a")
+    # Set per_column_strategy using legitimate setter, creating conflict
+    cfg.imputation.numeric.set_per_column_strategy("a", ImputationStrategy.Median)
+    
+    orch = ImputationOrchestrator(cfg)
+    with pytest.raises(ValueError, match="mutually exclusive: 'a'"):
+        orch.fit(df, profile)

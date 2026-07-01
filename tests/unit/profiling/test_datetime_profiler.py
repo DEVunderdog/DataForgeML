@@ -235,3 +235,65 @@ def test_datetime_profile_config_round_trip_custom_values():
 def test_datetime_profile_config_exported_from_profiling_api():
     from dataforge_ml.profiling import DatetimeProfileConfig as _Exported
     assert _Exported is DatetimeProfileConfig
+
+
+def test_override_coercion_error_raised_for_total_failure():
+    import pytest
+    from dataforge_ml.profiling import OverrideCoercionError
+
+    df = pl.DataFrame({"ts": pl.Series(["abc", "def", "ghi"])})
+    with pytest.raises(OverrideCoercionError, match="completely failed coercion"):
+        DatetimeProfiler().profile(df, ["ts"], user_overrides={"ts"})
+
+
+def test_override_coercion_error_not_raised_for_partial_failure():
+    from dataforge_ml.profiling import OverrideCoercionError
+    # 1 valid, 2 invalid
+    df = pl.DataFrame({"ts": pl.Series(["2024-01-01", "abc", "def"])})
+    result = DatetimeProfiler().profile(df, ["ts"], user_overrides={"ts"})
+    assert "ts" in result.analysed_columns
+
+
+def test_override_coercion_error_not_raised_for_auto_detected_total_failure():
+    df = pl.DataFrame({"ts": pl.Series(["abc", "def", "ghi"])})
+    result = DatetimeProfiler().profile(df, ["ts"])
+    assert "ts" not in result.analysed_columns
+
+
+# ---------------------------------------------------------------------------
+# Epoch Units (ADR-0045)
+# ---------------------------------------------------------------------------
+
+
+def test_datetime_profiler_with_epoch_units():
+    df = pl.DataFrame({
+        "ts_s": pl.Series([1700000000, 1700000060], dtype=pl.Int64),
+        "ts_ms": pl.Series([1700000000000, 1700000060000], dtype=pl.Int64)
+    })
+    
+    from dataforge_ml.profiling._config import EpochUnit
+    epoch_units = {"ts_s": EpochUnit("s"), "ts_ms": EpochUnit("ms")}
+    
+    result = DatetimeProfiler(epoch_units=epoch_units).profile(df, ["ts_s", "ts_ms"])
+    
+    assert "ts_s" in result.analysed_columns
+    assert "ts_ms" in result.analysed_columns
+    
+    stats_s = result.columns["ts_s"]
+    stats_ms = result.columns["ts_ms"]
+    
+    assert stats_s.min_date is not None
+    assert stats_s.min_date.year == 2023
+    assert stats_ms.min_date is not None
+    assert stats_ms.min_date.year == 2023
+    assert stats_s.date_range_days == stats_ms.date_range_days
+
+
+def test_numeric_override_without_epoch_unit_raises_error():
+    import pytest
+    from dataforge_ml.profiling import OverrideCoercionError
+    
+    df = pl.DataFrame({"ts": pl.Series([1700000000, 1700000060], dtype=pl.Int64)})
+    
+    with pytest.raises(OverrideCoercionError, match="completely failed coercion"):
+        DatetimeProfiler().profile(df, ["ts"], user_overrides={"ts"})

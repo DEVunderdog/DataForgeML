@@ -900,7 +900,7 @@ def test_apply_exclusions_with_no_dropped_columns_is_no_op_on_config():
     })
     config = PipelineConfig()
     imputer.apply_exclusions(config)
-    assert config.exclude_columns == []
+    assert config.exclude_columns == ()
 
 
 def test_apply_exclusions_with_no_dropped_columns_still_sets_flag():

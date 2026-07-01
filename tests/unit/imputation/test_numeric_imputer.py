@@ -2100,7 +2100,7 @@ def test_router_bimodal_branch_1_grouping_var():
     """Branch 1 fires when grouping variable declared (overrides feature count)."""
     cp = _numeric_cp(null_count=2, total_rows=100, severity=MissingSeverity.Minor,
                      numeric_flags=[NumericFlag.Bimodal])
-    config = NumericImputationConfig(bimodal_grouping_variables={_COL: "group_col"})
+    config = NumericImputationConfig(_bimodal_grouping_variables={_COL: "group_col"})
     from dataforge_ml.profiling._correlation_config import CorrelationProfileResult
     feature_correlation = CorrelationProfileResult(pearson_matrix={_COL: {"f1": 0.9, "f2": 0.8, "f3": 0.7, "f4": 0.6}})
     strategy, signals = _router_route(cp, config=config, feature_correlation=feature_correlation)
@@ -2171,7 +2171,7 @@ def test_router_bimodal_per_column_strategy_override():
     """per_column_strategy override at Priority 1.5 bypasses the bimodal framework entirely."""
     cp = _numeric_cp(null_count=20, total_rows=1000, severity=MissingSeverity.High,
                      numeric_flags=[NumericFlag.Bimodal])
-    config = NumericImputationConfig(per_column_strategy={_COL: ImputationStrategy.Mean})
+    config = NumericImputationConfig(_per_column_strategy={_COL: ImputationStrategy.Mean})
     strategy, signals = _router_route(cp, config=config, feature_correlation=None)
     assert strategy == ImputationStrategy.Mean
     assert any("per_column_strategy_override" in s for s in signals)
@@ -2202,7 +2202,7 @@ def _fit_one_with_config(
 
 
 def test_per_column_strategy_overrides_mcar_minor_to_regression():
-    """MCAR Minor profile with per_column_strategy=Regression produces strategy=Regression."""
+    """MCAR Minor profile with _per_column_strategy=Regression produces strategy=Regression."""
     rng = np.random.default_rng(0)
     n = 600
     values = [None if i % 10 == 0 else rng.standard_normal() for i in range(n)]
@@ -2226,7 +2226,7 @@ def test_per_column_strategy_overrides_mcar_minor_to_regression():
     profile.columns[_COL] = cp
     profile.columns["feat"] = feat_cp
     config = NumericImputationConfig(
-        per_column_strategy={_COL: ImputationStrategy.Regression},
+        _per_column_strategy={_COL: ImputationStrategy.Regression},
         regression_min_rows=500,
     )
     bundle = NumericImputer().fit(
@@ -2242,7 +2242,7 @@ def test_per_column_strategy_fires_before_mnar():
     df = pl.DataFrame({_COL: pl.Series([1.0, None, 3.0, None], dtype=pl.Float64)})
     cp = _numeric_cp(null_count=2, total_rows=4, severity=MissingSeverity.Moderate)
     config = NumericImputationConfig(
-        per_column_strategy={_COL: ImputationStrategy.Median},
+        _per_column_strategy={_COL: ImputationStrategy.Median},
     )
     # mnar_columns does NOT include _COL — so no MNAR conflict; just checking priority
     rec = _fit_one_with_config(df, cp, config)
@@ -2258,7 +2258,7 @@ def test_per_column_strategy_drop_candidate_still_dropped():
         flags=[MissingnessFlag.DropCandidate],
     )
     config = NumericImputationConfig(
-        per_column_strategy={_COL: ImputationStrategy.Median},
+        _per_column_strategy={_COL: ImputationStrategy.Median},
     )
     rec = _fit_one_with_config(df, cp, config)
     assert rec.strategy == ImputationStrategy.Dropped
@@ -2269,7 +2269,7 @@ def test_per_column_strategy_signal_is_recorded():
     df = pl.DataFrame({_COL: pl.Series([1.0, None, 3.0, 4.0], dtype=pl.Float64)})
     cp = _numeric_cp(null_count=1, total_rows=4, severity=MissingSeverity.Minor)
     config = NumericImputationConfig(
-        per_column_strategy={_COL: ImputationStrategy.Median},
+        _per_column_strategy={_COL: ImputationStrategy.Median},
     )
     rec = _fit_one_with_config(df, cp, config)
     assert any("per_column_strategy_override" in s for s in rec.signals)
@@ -2281,7 +2281,7 @@ def test_per_column_constant_fill_alone_routes_to_constant():
     df = pl.DataFrame({_COL: pl.Series([1.0, None, 3.0, 4.0], dtype=pl.Float64)})
     cp = _numeric_cp(null_count=1, total_rows=4, severity=MissingSeverity.Minor)
     config = NumericImputationConfig(
-        per_column_constant_fill={_COL: 0.0},
+        _per_column_constant_fill={_COL: 0.0},
     )
     rec = _fit_one_with_config(df, cp, config)
     assert rec.strategy == ImputationStrategy.Constant
@@ -2293,7 +2293,7 @@ def test_per_column_constant_fill_nonzero_value_stored_correctly():
     df = pl.DataFrame({_COL: pl.Series([1.0, None, 3.0, 4.0], dtype=pl.Float64)})
     cp = _numeric_cp(null_count=1, total_rows=4, severity=MissingSeverity.Minor)
     config = NumericImputationConfig(
-        per_column_constant_fill={_COL: -99.0},
+        _per_column_constant_fill={_COL: -99.0},
     )
     rec = _fit_one_with_config(df, cp, config)
     assert rec.strategy == ImputationStrategy.Constant
@@ -2305,21 +2305,21 @@ def test_per_column_constant_fill_signal_is_recorded():
     df = pl.DataFrame({_COL: pl.Series([1.0, None, 3.0, 4.0], dtype=pl.Float64)})
     cp = _numeric_cp(null_count=1, total_rows=4, severity=MissingSeverity.Minor)
     config = NumericImputationConfig(
-        per_column_constant_fill={_COL: 0.0},
+        _per_column_constant_fill={_COL: 0.0},
     )
     rec = _fit_one_with_config(df, cp, config)
     assert any("per_column_constant_fill_override" in s for s in rec.signals)
 
 
 def test_per_column_strategy_override_forced_median_is_mean_and_not_mnar():
-    """Column with per_column_strategy=Mean gets Mean strategy, not the auto-routed strategy."""
+    """Column with _per_column_strategy=Mean gets Mean strategy, not the auto-routed strategy."""
     df = pl.DataFrame({_COL: pl.Series([10.0, 20.0, None, 40.0, 50.0], dtype=pl.Float64)})
     cp = _numeric_cp(
         null_count=1, total_rows=5, severity=MissingSeverity.Moderate,
         skewness_severity=SkewSeverity.Severe,
     )
     config = NumericImputationConfig(
-        per_column_strategy={_COL: ImputationStrategy.Mean},
+        _per_column_strategy={_COL: ImputationStrategy.Mean},
     )
     rec = _fit_one_with_config(df, cp, config)
     assert rec.strategy == ImputationStrategy.Mean
@@ -2333,7 +2333,7 @@ def test_per_column_strategy_non_overridden_column_unchanged():
         skewness_severity=SkewSeverity.Normal,
     )
     config = NumericImputationConfig(
-        per_column_strategy={"other_col": ImputationStrategy.Median},
+        _per_column_strategy={"other_col": ImputationStrategy.Median},
     )
     rec = _fit_one_with_config(df, cp, config)
     # MCAR Minor + Normal skew auto-routes to Mean
@@ -2346,11 +2346,11 @@ def test_per_column_strategy_non_overridden_column_unchanged():
 
 
 def test_per_column_strategy_regression_raises_when_too_few_rows():
-    """ValueError raised before fit when per_column_strategy=Regression and n_rows < regression_min_rows."""
+    """ValueError raised before fit when _per_column_strategy=Regression and n_rows < regression_min_rows."""
     df = pl.DataFrame({_COL: pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
     cp = _numeric_cp(null_count=1, total_rows=3, severity=MissingSeverity.Minor)
     config = NumericImputationConfig(
-        per_column_strategy={_COL: ImputationStrategy.Regression},
+        _per_column_strategy={_COL: ImputationStrategy.Regression},
         regression_min_rows=500,
     )
     with pytest.raises(ValueError, match="regression_min_rows"):
@@ -2358,11 +2358,11 @@ def test_per_column_strategy_regression_raises_when_too_few_rows():
 
 
 def test_per_column_strategy_knn_raises_when_too_many_rows():
-    """ValueError raised before fit when per_column_strategy=KNN and n_rows > knn_max_rows."""
+    """ValueError raised before fit when _per_column_strategy=KNN and n_rows > knn_max_rows."""
     df = pl.DataFrame({_COL: pl.Series([float(i) for i in range(19)] + [None], dtype=pl.Float64)})
     cp = _numeric_cp(null_count=1, total_rows=20, severity=MissingSeverity.Minor)
     config = NumericImputationConfig(
-        per_column_strategy={_COL: ImputationStrategy.KNN},
+        _per_column_strategy={_COL: ImputationStrategy.KNN},
         knn_max_rows=10,
     )
     with pytest.raises(ValueError, match="knn_max_rows"):
@@ -2370,7 +2370,7 @@ def test_per_column_strategy_knn_raises_when_too_many_rows():
 
 
 def test_per_column_strategy_knn_raises_when_too_many_features():
-    """ValueError raised before fit when per_column_strategy=KNN and n_features > knn_max_features."""
+    """ValueError raised before fit when _per_column_strategy=KNN and n_features > knn_max_features."""
     df = pl.DataFrame({
         _COL: pl.Series([1.0, None, 3.0], dtype=pl.Float64),
         "feat1": pl.Series([1.0, 2.0, 3.0], dtype=pl.Float64),
@@ -2387,7 +2387,7 @@ def test_per_column_strategy_knn_raises_when_too_many_features():
         numeric_kind=NumericKind.Continuous, missingness=None, stats=NumericStats(),
     )
     config = NumericImputationConfig(
-        per_column_strategy={_COL: ImputationStrategy.KNN},
+        _per_column_strategy={_COL: ImputationStrategy.KNN},
         knn_max_features=2,  # 3 columns > 2 → guard fires
     )
     with pytest.raises(ValueError, match="knn_max_features"):
@@ -2405,7 +2405,7 @@ def test_per_column_strategy_size_guard_error_names_column_strategy_guard_and_va
     df = pl.DataFrame({_COL: pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
     cp = _numeric_cp(null_count=1, total_rows=3, severity=MissingSeverity.Minor)
     config = NumericImputationConfig(
-        per_column_strategy={_COL: ImputationStrategy.Regression},
+        _per_column_strategy={_COL: ImputationStrategy.Regression},
         regression_min_rows=500,
     )
     with pytest.raises(ValueError) as exc_info:
@@ -2423,7 +2423,7 @@ def test_per_column_strategy_size_guards_pass_does_not_raise():
     df = pl.DataFrame({_COL: pl.Series([1.0, None, 3.0, 4.0, 5.0], dtype=pl.Float64)})
     cp = _numeric_cp(null_count=1, total_rows=5, severity=MissingSeverity.Minor)
     config = NumericImputationConfig(
-        per_column_strategy={_COL: ImputationStrategy.KNN},
+        _per_column_strategy={_COL: ImputationStrategy.KNN},
         knn_max_rows=50_000,
         knn_max_features=50,
     )
@@ -2436,7 +2436,7 @@ def test_per_column_strategy_scalar_overrides_not_checked_by_size_guard():
     cp = _numeric_cp(null_count=1, total_rows=3, severity=MissingSeverity.Minor)
     for strategy in (ImputationStrategy.Mean, ImputationStrategy.Median, ImputationStrategy.Mode):
         config = NumericImputationConfig(
-            per_column_strategy={_COL: strategy},
+            _per_column_strategy={_COL: strategy},
             knn_max_rows=0,
             knn_max_features=0,
             regression_min_rows=999_999,
@@ -2445,7 +2445,7 @@ def test_per_column_strategy_scalar_overrides_not_checked_by_size_guard():
 
     # Constant via per_column_constant_fill also skips size-guard validation
     config_const = NumericImputationConfig(
-        per_column_constant_fill={_COL: 0.0},
+        _per_column_constant_fill={_COL: 0.0},
         knn_max_rows=0,
         knn_max_features=0,
         regression_min_rows=999_999,
@@ -2490,7 +2490,7 @@ def test_numeric_imputer_bimodal_smoke_test():
     
     config = ImputationConfig(
         numeric=NumericImputationConfig(
-            bimodal_grouping_variables={"col_cluster": "group_var"}
+            _bimodal_grouping_variables={"col_cluster": "group_var"}
         )
     )
 
@@ -2518,7 +2518,7 @@ def test_router_bounded_discrete_bimodal_branch_1():
     cp = _numeric_cp(null_count=20, total_rows=1000, severity=MissingSeverity.High,
                      numeric_kind=NumericKind.BoundedDiscrete,
                      numeric_flags=[NumericFlag.Bimodal])
-    config = NumericImputationConfig(bimodal_grouping_variables={_COL: "group_col"})
+    config = NumericImputationConfig(_bimodal_grouping_variables={_COL: "group_col"})
     from dataforge_ml.profiling._correlation_config import CorrelationProfileResult
     feature_correlation = CorrelationProfileResult(pearson_matrix={_COL: {"f1": 0.9, "f2": 0.8, "f3": 0.7, "f4": 0.6}})
     strategy, signals = _router_route(cp, config=config, feature_correlation=feature_correlation)

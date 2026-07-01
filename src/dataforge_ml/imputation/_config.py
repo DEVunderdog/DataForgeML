@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
+from types import MappingProxyType
 from typing import Any, Optional
 
 import polars as pl
@@ -176,16 +177,203 @@ class NumericImputationConfig:
     mice_max_nearest_features: int = 20
     mice_correlation_threshold: float = 0.1
     mcar_feature_predictability_threshold: float = 0.2
-    per_column_strategy: dict[str, ImputationStrategy] = field(default_factory=dict)
-    per_column_constant_fill: dict[str, float] = field(default_factory=dict)
-    per_column_max_iter: dict[str, int] = field(default_factory=dict)
+    _per_column_strategy: dict[str, ImputationStrategy] = field(default_factory=dict)
+    _per_column_constant_fill: dict[str, float] = field(default_factory=dict)
+    _per_column_max_iter: dict[str, int] = field(default_factory=dict)
     knn_n_neighbors: Optional[int] = None
     mice_max_iter: Optional[int] = None
     refit_r2_min_complete_rows: int = 50
     refit_r2_cv_folds: int = 5
-    bimodal_grouping_variables: dict[str, str] = field(default_factory=dict)
+    _bimodal_grouping_variables: dict[str, str] = field(default_factory=dict)
     bimodal_min_correlated_features: int = 3
     bimodal_correlation_threshold: float = 0.2
+
+    @property
+    def per_column_strategy(self) -> MappingProxyType[str, ImputationStrategy]:
+        """
+        Explicit per-column strategy overrides that fire at Priority 1.5 in the
+        routing chain — after ``DropCandidate`` but before MNAR routing.
+
+        Returns
+        -------
+        MappingProxyType[str, ImputationStrategy]
+            Read-only view of per-column strategy overrides.
+        """
+        return MappingProxyType(self._per_column_strategy)
+
+    @property
+    def per_column_constant_fill(self) -> MappingProxyType[str, float]:
+        """
+        Self-sufficient constant fill declarations.
+
+        Returns
+        -------
+        MappingProxyType[str, float]
+            Read-only view of per-column constant fill values.
+        """
+        return MappingProxyType(self._per_column_constant_fill)
+
+    @property
+    def per_column_max_iter(self) -> MappingProxyType[str, int]:
+        """
+        Overrides the dynamically-computed ``max_iter`` for named Regression
+        columns only.
+
+        Returns
+        -------
+        MappingProxyType[str, int]
+            Read-only view of per-column max iteration overrides.
+        """
+        return MappingProxyType(self._per_column_max_iter)
+
+    @property
+    def bimodal_grouping_variables(self) -> MappingProxyType[str, str]:
+        """
+        Maps a bimodal column name to the name of the grouping column that
+        explains the bimodal split.
+
+        Returns
+        -------
+        MappingProxyType[str, str]
+            Read-only view of bimodal grouping variables.
+        """
+        return MappingProxyType(self._bimodal_grouping_variables)
+
+    def set_per_column_strategy(self, column: str | list[str], strategy: str | ImputationStrategy) -> None:
+        """
+        Set the imputation strategy for one or more columns.
+
+        Parameters
+        ----------
+        column : str | list[str]
+            A single column name or list of column names.
+        strategy : str | ImputationStrategy
+            The strategy to assign to the column(s).
+
+        Raises
+        ------
+        ValueError
+            If the strategy is an output-only label (e.g. 'MNAR', 'Dropped').
+            If 'Constant' is set but no corresponding fill value exists in
+            ``per_column_constant_fill``.
+        """
+        if isinstance(column, str):
+            column = [column]
+            
+        strategy = ImputationStrategy(strategy)
+        
+        _BLOCKED = {
+            ImputationStrategy.Passthrough,
+            ImputationStrategy.Indicator,
+            ImputationStrategy.Dropped,
+            ImputationStrategy.MNAR,
+            ImputationStrategy.ClusterConditional,
+            ImputationStrategy.GMMSampling,
+        }
+        
+        if strategy in _BLOCKED:
+            for col in column:
+                if strategy == ImputationStrategy.Dropped:
+                    raise ValueError(
+                        f"Column '{col}': 'Dropped' cannot be used in per_column_strategy. "
+                        f"To exclude a column, use PipelineConfig.exclude_columns."
+                    )
+                if strategy == ImputationStrategy.MNAR:
+                    raise ValueError(
+                        f"Column '{col}': 'MNAR' cannot be used in per_column_strategy. "
+                        f"To declare MNAR semantics, use mnar_columns."
+                    )
+                raise ValueError(
+                    f"Column '{col}': '{strategy}' is an internal-only strategy and cannot "
+                    f"be used in per_column_strategy."
+                )
+
+        if strategy == ImputationStrategy.Constant:
+            for col in column:
+                if col not in self._per_column_constant_fill:
+                    raise ValueError(
+                        f"Column '{col}': strategy is 'Constant' but no fill value was provided. "
+                        f"Add an entry to per_column_constant_fill."
+                    )
+                    
+        for col in column:
+            self._per_column_strategy[col] = strategy
+
+    def set_per_column_constant_fill(self, column: str | list[str], value: float) -> None:
+        """
+        Set a constant fill value for one or more columns.
+
+        Parameters
+        ----------
+        column : str | list[str]
+            A single column name or list of column names.
+        value : float
+            The constant fill value.
+
+        Raises
+        ------
+        ValueError
+            If the value is NaN or infinity.
+        """
+        import math
+        if math.isnan(value) or math.isinf(value):
+            raise ValueError(f"Fill value cannot be NaN or infinity, got {value}.")
+            
+        if isinstance(column, str):
+            column = [column]
+            
+        for col in column:
+            self._per_column_constant_fill[col] = value
+
+    def set_per_column_max_iter(self, column: str | list[str], value: int) -> None:
+        """
+        Set the maximum iterations for regression models on one or more columns.
+
+        Parameters
+        ----------
+        column : str | list[str]
+            A single column name or list of column names.
+        value : int
+            The maximum iterations count.
+
+        Raises
+        ------
+        ValueError
+            If the value is less than or equal to 0.
+        """
+        if value <= 0:
+            raise ValueError(f"Max iterations must be > 0, got {value}.")
+            
+        if isinstance(column, str):
+            column = [column]
+            
+        for col in column:
+            self._per_column_max_iter[col] = value
+
+    def set_bimodal_grouping_variable(self, column: str | list[str], grouping_variable: str) -> None:
+        """
+        Set the grouping variable for one or more bimodal columns.
+
+        Parameters
+        ----------
+        column : str | list[str]
+            A single column name or list of column names.
+        grouping_variable : str
+            The name of the grouping column.
+
+        Raises
+        ------
+        ValueError
+            If the grouping variable is empty or purely whitespace.
+        """
+        if not grouping_variable or not grouping_variable.strip():
+            raise ValueError("Grouping variable cannot be empty or purely whitespace.")
+            
+        if isinstance(column, str):
+            column = [column]
+            
+        for col in column:
+            self._bimodal_grouping_variables[col] = grouping_variable
 
     def __post_init__(self) -> None:
         _BLOCKED = {
@@ -196,7 +384,7 @@ class NumericImputationConfig:
             ImputationStrategy.ClusterConditional,
             ImputationStrategy.GMMSampling,
         }
-        for col, strategy in self.per_column_strategy.items():
+        for col, strategy in self._per_column_strategy.items():
             if strategy in _BLOCKED:
                 if strategy == ImputationStrategy.Dropped:
                     raise ValueError(
@@ -213,7 +401,7 @@ class NumericImputationConfig:
                     f"be used in per_column_strategy."
                 )
             if strategy == ImputationStrategy.Constant:
-                if col not in self.per_column_constant_fill:
+                if col not in self._per_column_constant_fill:
                     raise ValueError(
                         f"Column '{col}': strategy is 'Constant' but no fill value was provided. "
                         f"Add an entry to per_column_constant_fill."
@@ -242,14 +430,14 @@ class NumericImputationConfig:
             "mice_max_nearest_features": self.mice_max_nearest_features,
             "mice_correlation_threshold": self.mice_correlation_threshold,
             "mcar_feature_predictability_threshold": self.mcar_feature_predictability_threshold,
-            "per_column_strategy": {k: str(v) for k, v in self.per_column_strategy.items()},
-            "per_column_constant_fill": dict(self.per_column_constant_fill),
-            "per_column_max_iter": dict(self.per_column_max_iter),
+            "per_column_strategy": {k: str(v) for k, v in self._per_column_strategy.items()},
+            "per_column_constant_fill": dict(self._per_column_constant_fill),
+            "per_column_max_iter": dict(self._per_column_max_iter),
             "knn_n_neighbors": self.knn_n_neighbors,
             "mice_max_iter": self.mice_max_iter,
             "refit_r2_min_complete_rows": self.refit_r2_min_complete_rows,
             "refit_r2_cv_folds": self.refit_r2_cv_folds,
-            "bimodal_grouping_variables": dict(self.bimodal_grouping_variables),
+            "bimodal_grouping_variables": dict(self._bimodal_grouping_variables),
             "bimodal_min_correlated_features": self.bimodal_min_correlated_features,
             "bimodal_correlation_threshold": self.bimodal_correlation_threshold,
         }
@@ -270,7 +458,7 @@ class NumericImputationConfig:
         NumericImputationConfig
             Reconstructed config instance.
         """
-        return cls(
+        config = cls(
             knn_max_rows=int(data.get("knn_max_rows", 50_000)),
             knn_max_features=int(data.get("knn_max_features", 50)),
             regression_min_rows=int(data.get("regression_min_rows", 500)),
@@ -294,18 +482,9 @@ class NumericImputationConfig:
             mcar_feature_predictability_threshold=float(
                 data.get("mcar_feature_predictability_threshold", 0.2)
             ),
-            per_column_strategy={
-                k: ImputationStrategy(v)
-                for k, v in data.get("per_column_strategy", {}).items()
-            },
-            per_column_constant_fill={
-                k: float(v)
-                for k, v in data.get("per_column_constant_fill", {}).items()
-            },
-            per_column_max_iter={
-                k: int(v)
-                for k, v in data.get("per_column_max_iter", {}).items()
-            },
+            _per_column_strategy={},
+            _per_column_constant_fill={},
+            _per_column_max_iter={},
             knn_n_neighbors=(
                 int(data["knn_n_neighbors"]) if data.get("knn_n_neighbors") is not None else None
             ),
@@ -314,10 +493,7 @@ class NumericImputationConfig:
             ),
             refit_r2_min_complete_rows=int(data.get("refit_r2_min_complete_rows", 50)),
             refit_r2_cv_folds=int(data.get("refit_r2_cv_folds", 5)),
-            bimodal_grouping_variables={
-                k: str(v)
-                for k, v in data.get("bimodal_grouping_variables", {}).items()
-            },
+            _bimodal_grouping_variables={},
             bimodal_min_correlated_features=int(
                 data.get("bimodal_min_correlated_features", 3)
             ),
@@ -325,6 +501,17 @@ class NumericImputationConfig:
                 data.get("bimodal_correlation_threshold", 0.2)
             ),
         )
+        
+        for col, val in data.get("per_column_constant_fill", {}).items():
+            config.set_per_column_constant_fill(col, float(val))
+        for col, val in data.get("per_column_strategy", {}).items():
+            config.set_per_column_strategy(col, ImputationStrategy(val))
+        for col, val in data.get("per_column_max_iter", {}).items():
+            config.set_per_column_max_iter(col, int(val))
+        for col, val in data.get("bimodal_grouping_variables", {}).items():
+            config.set_bimodal_grouping_variable(col, str(val))
+            
+        return config
 
 
 @dataclass
@@ -357,12 +544,93 @@ class ImputationConfig:
     """
 
     numeric: NumericImputationConfig = field(default_factory=NumericImputationConfig)
-    mnar_columns: list[str] = field(default_factory=list)
-    add_indicator_columns: list[str] = field(default_factory=list)
+    _mnar_columns: list[str] = field(default_factory=list, init=False)
+    _add_indicator_columns: list[str] = field(default_factory=list, init=False)
 
-    def __post_init__(self) -> None:
+    @property
+    def mnar_columns(self) -> tuple[str, ...]:
+        """
+        Get the columns declared as Missing Not At Random.
+
+        Returns
+        -------
+        tuple[str, ...]
+            Columns declared by the user as MNAR.
+        """
+        return tuple(self._mnar_columns)
+
+    @property
+    def add_indicator_columns(self) -> tuple[str, ...]:
+        """
+        Get the columns for which a binary missingness indicator should be added.
+
+        Returns
+        -------
+        tuple[str, ...]
+            Columns for which a binary missingness indicator is forced.
+        """
+        return tuple(self._add_indicator_columns)
+
+    def add_mnar_column(self, column: str | list[str]) -> None:
+        """
+        Declare one or more columns as Missing Not At Random.
+
+        Parameters
+        ----------
+        column : str | list[str]
+            Column name or list of column names to mark as MNAR.
+
+        Raises
+        ------
+        ValueError
+            If any specified column already has a strategy in ``numeric.per_column_strategy``.
+        """
+        if isinstance(column, str):
+            column = [column]
+            
         conflicts = sorted(
-            set(self.mnar_columns) & set(self.numeric.per_column_strategy.keys())
+            set(column) & set(self.numeric.per_column_strategy.keys())
+        )
+        if conflicts:
+            names = ", ".join(f"'{c}'" for c in conflicts)
+            raise ValueError(
+                f"Columns appear in both mnar_columns and numeric.per_column_strategy, "
+                f"which are mutually exclusive: {names}. "
+                f"Use mnar_columns for MNAR semantics (data-derived fill + indicator) "
+                f"or per_column_strategy for a user-specified strategy, not both."
+            )
+            
+        for c in column:
+            if c not in self._mnar_columns:
+                self._mnar_columns.append(c)
+
+    def add_indicator_column(self, column: str | list[str]) -> None:
+        """
+        Force a binary missingness indicator for one or more columns.
+
+        Parameters
+        ----------
+        column : str | list[str]
+            Column name or list of column names.
+        """
+        if isinstance(column, str):
+            column = [column]
+        for c in column:
+            if c not in self._add_indicator_columns:
+                self._add_indicator_columns.append(c)
+
+    def validate(self) -> None:
+        """
+        Validate the configuration for cross-field conflicts.
+
+        Raises
+        ------
+        ValueError
+            If any column appears in both ``mnar_columns`` and
+            ``numeric.per_column_strategy``.
+        """
+        conflicts = sorted(
+            set(self._mnar_columns) & set(self.numeric.per_column_strategy.keys())
         )
         if conflicts:
             names = ", ".join(f"'{c}'" for c in conflicts)
@@ -384,8 +652,8 @@ class ImputationConfig:
         """
         return {
             "numeric": self.numeric.to_dict(),
-            "mnar_columns": list(self.mnar_columns),
-            "add_indicator_columns": list(self.add_indicator_columns),
+            "mnar_columns": list(self._mnar_columns),
+            "add_indicator_columns": list(self._add_indicator_columns),
         }
 
     @classmethod
@@ -404,11 +672,14 @@ class ImputationConfig:
         ImputationConfig
             Reconstructed config instance.
         """
-        return cls(
-            numeric=NumericImputationConfig.from_dict(data.get("numeric", {})),
-            mnar_columns=list(data.get("mnar_columns", [])),
-            add_indicator_columns=list(data.get("add_indicator_columns", [])),
+        config = cls(
+            numeric=NumericImputationConfig.from_dict(data.get("numeric", {}))
         )
+        if "mnar_columns" in data:
+            config.add_mnar_column(data["mnar_columns"])
+        if "add_indicator_columns" in data:
+            config.add_indicator_column(data["add_indicator_columns"])
+        return config
 
 
 @dataclass

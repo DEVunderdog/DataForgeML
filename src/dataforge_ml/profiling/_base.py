@@ -19,7 +19,6 @@ Profiling[R]                    — root: thin ABC, provides _resolve_columns
 └── ModalityProfiler            — dataset-shape tier: profile(df) → DatasetStats
     └── TabularProfiler
 """
-
 from __future__ import annotations
 
 import polars as pl
@@ -31,6 +30,16 @@ from ._config import DatasetStats
 R = TypeVar("R")
 
 
+class OverrideCoercionError(Exception):
+    """
+    Raised when a user-overridden column completely fails coercion.
+
+    This exception is triggered when zero usable values remain after coercion,
+    despite the original column having at least one non-null value.
+    """
+    pass
+
+
 class Profiling(ABC, Generic[R]):
     """
     Root base for all profilers. Thin ABC — no config state.
@@ -40,7 +49,23 @@ class Profiling(ABC, Generic[R]):
     """
 
     @abstractmethod
-    def profile(self, data: pl.DataFrame, **kwargs) -> R: ...
+    def profile(self, data: pl.DataFrame, **kwargs) -> R:
+        """
+        Execute the profiling operation.
+
+        Parameters
+        ----------
+        data : pl.DataFrame
+            The dataset to profile.
+        **kwargs : dict
+            Additional arguments for specific profilers.
+
+        Returns
+        -------
+        R
+            The profiling result.
+        """
+        ...
 
     def _resolve_columns(
         self,
@@ -69,7 +94,30 @@ class ColumnBatchProfiler(Profiling[R]):
     """
 
     @abstractmethod
-    def profile(self, data: pl.DataFrame, columns: list[str]) -> R: ...  # type: ignore[override]
+    def profile(self, data: pl.DataFrame, columns: list[str], user_overrides: set[str] | None = None) -> R:
+        """
+        Profile a batch of columns of the same semantic type.
+
+        Parameters
+        ----------
+        data : pl.DataFrame
+            The dataset containing the columns to profile.
+        columns : list[str]
+            A list of column names to profile.
+        user_overrides : set[str] | None, optional
+            A set of column names that have been manually overridden by the user.
+
+        Returns
+        -------
+        R
+            The profiling result containing column statistics.
+
+        Raises
+        ------
+        OverrideCoercionError
+            If a column in user_overrides completely fails coercion.
+        """
+        ...  # type: ignore[override]
 
 
 class DatasetLevelProfiler(Profiling[R]):
@@ -82,7 +130,23 @@ class DatasetLevelProfiler(Profiling[R]):
     """
 
     @abstractmethod
-    def profile(self, data: pl.DataFrame, **kwargs) -> R: ...
+    def profile(self, data: pl.DataFrame, **kwargs) -> R:
+        """
+        Execute the dataset-level profiling operation.
+
+        Parameters
+        ----------
+        data : pl.DataFrame
+            The dataset to profile.
+        **kwargs : dict
+            Additional arguments for specific profilers.
+
+        Returns
+        -------
+        R
+            The profiling result.
+        """
+        ...
 
 
 class ModalityProfiler(Profiling[DatasetStats]):
@@ -95,4 +159,20 @@ class ModalityProfiler(Profiling[DatasetStats]):
     """
 
     @abstractmethod
-    def profile(self, data: pl.DataFrame, **kwargs) -> DatasetStats: ...  # type: ignore[override]
+    def profile(self, data: pl.DataFrame, **kwargs) -> DatasetStats:
+        """
+        Execute the dataset-shape profiling operation.
+
+        Parameters
+        ----------
+        data : pl.DataFrame
+            The dataset to profile.
+        **kwargs : dict
+            Additional arguments for specific profilers.
+
+        Returns
+        -------
+        DatasetStats
+            The dataset statistics.
+        """
+        ...  # type: ignore[override]

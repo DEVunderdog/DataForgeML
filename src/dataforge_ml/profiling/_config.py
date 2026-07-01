@@ -8,8 +8,9 @@ Stats dataclasses hold per-column and dataset-level profiling results.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, InitVar
 from enum import StrEnum
+from types import MappingProxyType
 from typing import Optional, Union
 
 from ..config import SemanticType, Modality
@@ -65,6 +66,14 @@ class TypeFlag(StrEnum):
     FreeTextCandidate = "free_text_candidate"
     UserOverride = "user_override"
     NumericKindOverride = "numeric_kind_override"
+
+
+class EpochUnit(StrEnum):
+    s = "s"
+    ms = "ms"
+    us = "us"
+    ns = "ns"
+    d = "d"
 
 
 # ---------------------------------------------------------------------------
@@ -619,14 +628,17 @@ class ProfileConfig:
         Default ``False``.
     nonlinearity : NonlinearityProfileConfig
         Threshold configuration for the nonlinearity sub-processor.
-    numeric_sentinels : dict[str, list[float]]
+
+    Attributes
+    ----------
+    numeric_sentinels : MappingProxyType[str, list[float]]
         Per-column numeric sentinel declarations.  Keys are column names;
         values are lists of float-compatible sentinel values that should be
         treated as effective nulls (e.g. ``{"age": [-999.0, 9999.0]}``).
         Applies to any column whose dtype passes ``_numeric_sentinel_eligible``
         (all integer and float Polars dtypes).  Defaults to an empty dict —
         columns with no declaration are completely unaffected.
-    string_sentinels : dict[str, list[str]]
+    string_sentinels : MappingProxyType[str, list[str]]
         Per-column user-declared string sentinel declarations.  Keys are column
         names; values are lists of string values that should be treated as
         effective nulls for that column (e.g.
@@ -664,8 +676,142 @@ class ProfileConfig:
     nonlinearity: NonlinearityProfileConfig = field(
         default_factory=_default_nonlinearity_config
     )
-    numeric_sentinels: dict[str, list[float]] = field(default_factory=dict)
-    string_sentinels: dict[str, list[str]] = field(default_factory=dict)
+    numeric_sentinels: InitVar[Optional[dict[str, list[float]]]] = None
+    string_sentinels: InitVar[Optional[dict[str, list[str]]]] = None
+    datetime_epoch_units: InitVar[Optional[dict[str, Union[str, EpochUnit]]]] = None
+    _numeric_sentinels: dict[str, list[float]] = field(default_factory=dict, init=False)
+    _string_sentinels: dict[str, list[str]] = field(default_factory=dict, init=False)
+    _datetime_epoch_units: dict[str, EpochUnit] = field(default_factory=dict, init=False)
+
+    def __post_init__(
+        self,
+        numeric_sentinels: Optional[dict[str, list[float]]],
+        string_sentinels: Optional[dict[str, list[str]]],
+        datetime_epoch_units: Optional[dict[str, Union[str, EpochUnit]]] = None,
+    ) -> None:
+        if numeric_sentinels is not None and not isinstance(numeric_sentinels, property):
+            for k, vals in numeric_sentinels.items():
+                self.set_numeric_sentinel(k, vals)
+        if string_sentinels is not None and not isinstance(string_sentinels, property):
+            for k, vals in string_sentinels.items():
+                self.set_string_sentinel(k, vals)
+        if datetime_epoch_units is not None and not isinstance(datetime_epoch_units, property):
+            for k, val in datetime_epoch_units.items():
+                self.set_datetime_epoch_unit(k, val)
+
+    @property
+    def numeric_sentinels(self) -> MappingProxyType[str, list[float]]:
+        """
+        Get the per-column numeric sentinel declarations.
+
+        Returns
+        -------
+        MappingProxyType[str, list[float]]
+            Read-only mapping of column names to numeric sentinel values.
+        """
+        return MappingProxyType(self._numeric_sentinels)
+
+    @property
+    def string_sentinels(self) -> MappingProxyType[str, list[str]]:
+        """
+        Get the per-column user-declared string sentinel declarations.
+
+        Returns
+        -------
+        MappingProxyType[str, list[str]]
+            Read-only mapping of column names to string sentinel values.
+        """
+        return MappingProxyType(self._string_sentinels)
+
+    @property
+    def datetime_epoch_units(self) -> MappingProxyType[str, EpochUnit]:
+        """
+        Get the per-column datetime epoch units.
+
+        Returns
+        -------
+        MappingProxyType[str, EpochUnit]
+            Read-only mapping of column names to epoch units.
+        """
+        return MappingProxyType(self._datetime_epoch_units)
+
+    def set_numeric_sentinel(self, column: str | list[str], values: list[float]) -> None:
+        """
+        Set numeric sentinel values for one or more columns.
+
+        Parameters
+        ----------
+        column : str or list of str
+            Column name or list of column names to apply the sentinels to.
+        values : list of float
+            List of sentinel values. Must be numeric and non-empty.
+
+        Raises
+        ------
+        ValueError
+            If the `values` list is empty, or if any element is not numeric.
+        """
+        if not values:
+            raise ValueError("values list cannot be empty.")
+        for v in values:
+            if not isinstance(v, (int, float)) or isinstance(v, bool):
+                raise ValueError(f"Value {v!r} is not numeric.")
+        
+        columns = [column] if isinstance(column, str) else column
+        for c in columns:
+            self._numeric_sentinels[c] = [float(v) for v in values]
+
+    def set_string_sentinel(self, column: str | list[str], values: list[str]) -> None:
+        """
+        Set string sentinel values for one or more columns.
+
+        Parameters
+        ----------
+        column : str or list of str
+            Column name or list of column names to apply the sentinels to.
+        values : list of str
+            List of string sentinel values. Must be strings and non-empty.
+
+        Raises
+        ------
+        ValueError
+            If the `values` list is empty, or if any element is not a string.
+        """
+        if not values:
+            raise ValueError("values list cannot be empty.")
+        for v in values:
+            if not isinstance(v, str):
+                raise ValueError(f"Value {v!r} is not a string.")
+        
+        columns = [column] if isinstance(column, str) else column
+        for c in columns:
+            self._string_sentinels[c] = list(values)
+
+    def set_datetime_epoch_unit(self, column: str | list[str], unit: str | EpochUnit) -> None:
+        """
+        Set epoch unit for one or more columns.
+
+        Parameters
+        ----------
+        column : str or list of str
+            Column name or list of column names to apply the epoch unit to.
+        unit : str or EpochUnit
+            Epoch unit (e.g. "s", "ms").
+
+        Raises
+        ------
+        ValueError
+            If the unit is not a valid EpochUnit.
+        """
+        try:
+            enum_unit = EpochUnit(unit)
+        except ValueError:
+            valid_units = ", ".join([u.value for u in EpochUnit])
+            raise ValueError(f"Unknown epoch unit {unit!r}. Valid options are: {valid_units}")
+        
+        columns = [column] if isinstance(column, str) else column
+        for c in columns:
+            self._datetime_epoch_units[c] = enum_unit
 
     def to_dict(self) -> dict:
         """
@@ -694,6 +840,7 @@ class ProfileConfig:
             "nonlinearity": self.nonlinearity.to_dict(),
             "numeric_sentinels": {k: list(v) for k, v in self.numeric_sentinels.items()},
             "string_sentinels": {k: list(v) for k, v in self.string_sentinels.items()},
+            "datetime_epoch_units": {k: v.value for k, v in self.datetime_epoch_units.items()},
         }
 
     @classmethod
@@ -712,7 +859,7 @@ class ProfileConfig:
         ProfileConfig
             Reconstructed config instance with all sub-configs deserialised.
         """
-        return cls(
+        config = cls(
             modality=Modality(data.get("modality", Modality.Tabular)),
             target_columns=list(data.get("target_columns", [])),
             compute_correlation=bool(data.get("compute_correlation", False)),
@@ -738,15 +885,12 @@ class ProfileConfig:
             nonlinearity=NonlinearityProfileConfig.from_dict(
                 data.get("nonlinearity", {})
             ),
-            numeric_sentinels={
-                k: [float(v) for v in vals]
-                for k, vals in data.get("numeric_sentinels", {}).items()
-            },
-            string_sentinels={
-                k: [str(v) for v in vals]
-                for k, vals in data.get("string_sentinels", {}).items()
-            },
+            numeric_sentinels=data.get("numeric_sentinels", {}),
+            string_sentinels=data.get("string_sentinels", {}),
+            datetime_epoch_units=data.get("datetime_epoch_units", {}),
         )
+
+        return config
 
     def to_json(self) -> str:
         """

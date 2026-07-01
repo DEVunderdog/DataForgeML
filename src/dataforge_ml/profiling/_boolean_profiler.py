@@ -50,8 +50,31 @@ class BooleanProfiler(ColumnBatchProfiler[BooleanProfileResult]):
         self,
         data: pl.DataFrame,
         columns: list[str],
+        user_overrides: set[str] | None = None,
     ) -> BooleanProfileResult:
-        return self._run(data, columns)
+        """
+        Profile the specified boolean columns in a DataFrame.
+
+        Parameters
+        ----------
+        data : pl.DataFrame
+            The input Polars DataFrame containing the columns to profile.
+        columns : list[str]
+            A list of column names to profile.
+        user_overrides : set[str] | None, optional
+            A set of column names that have been manually overridden by the user.
+
+        Returns
+        -------
+        BooleanProfileResult
+            A result object containing distribution statistics for the profiled columns.
+
+        Raises
+        ------
+        OverrideCoercionError
+            If a column in user_overrides completely fails coercion to Boolean.
+        """
+        return self._run(data, columns, user_overrides)
 
     # ------------------------------------------------------------------
     # Orchestration
@@ -61,14 +84,16 @@ class BooleanProfiler(ColumnBatchProfiler[BooleanProfileResult]):
         self,
         df: pl.DataFrame,
         columns: list[str],
+        user_overrides: set[str] | None = None,
     ) -> BooleanProfileResult:
         result = BooleanProfileResult()
+        user_overrides = user_overrides or set()
 
         available = self._resolve_columns(df.columns, columns)
         result.analysed_columns = available
 
         for col_name in available:
-            result.columns[col_name] = self._profile_column(df[col_name], df.height)
+            result.columns[col_name] = self._profile_column(df[col_name], col_name, df.height, user_overrides)
 
         return result
 
@@ -79,7 +104,9 @@ class BooleanProfiler(ColumnBatchProfiler[BooleanProfileResult]):
     def _profile_column(
         self,
         series: pl.Series,
+        col_name: str,
         n_rows: int,
+        user_overrides: set[str],
     ) -> BooleanStats:
         profile = BooleanStats()
 
@@ -88,6 +115,11 @@ class BooleanProfiler(ColumnBatchProfiler[BooleanProfileResult]):
         non_null_count = bool_series.len()
 
         if non_null_count == 0:
+            if series.drop_nulls().len() > 0 and col_name in user_overrides:
+                from ._base import OverrideCoercionError
+                raise OverrideCoercionError(
+                    f"Column {col_name!r} with TypeFlag.UserOverride completely failed coercion to Boolean."
+                )
             return profile
 
         true_count = int(bool_series.sum())
