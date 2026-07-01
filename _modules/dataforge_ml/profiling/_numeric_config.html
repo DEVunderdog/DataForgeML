@@ -641,8 +641,8 @@
 <span class="sd">        Statistics related to bimodality detected by Hartigan&#39;s Dip Test.</span>
 <span class="sd">    tail_asymmetry_tag : TailAsymmetryTag, optional</span>
 <span class="sd">        Categorized tag for the tail asymmetry of the distribution.</span>
-<span class="sd">    tail_asymmetry_ratio : float, optional</span>
-<span class="sd">        Ratio of the right tail spread to the left tail spread.</span>
+<span class="sd">    tail_asymmetry_share : float, optional</span>
+<span class="sd">        Bounded share of the right tail spread against total extreme tail spread, range [0, 1].</span>
 <span class="sd">    outlier_density : float, optional</span>
 <span class="sd">        Proportion of values considered as extreme outliers.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -671,7 +671,7 @@
     <span class="n">heteroscedasticity_p_value</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">bimodal_stats</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">BimodalStats</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">tail_asymmetry_tag</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">TailAsymmetryTag</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">tail_asymmetry_ratio</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">tail_asymmetry_share</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">outlier_density</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 
     <span class="nd">@property</span>
@@ -733,7 +733,7 @@
             <span class="s2">&quot;heteroscedasticity_p_value&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">heteroscedasticity_p_value</span><span class="p">,</span>
             <span class="s2">&quot;bimodal_stats&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">bimodal_stats</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">bimodal_stats</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
             <span class="s2">&quot;tail_asymmetry_tag&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tail_asymmetry_tag</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">tail_asymmetry_tag</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
-            <span class="s2">&quot;tail_asymmetry_ratio&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">tail_asymmetry_ratio</span><span class="p">,</span>
+            <span class="s2">&quot;tail_asymmetry_share&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">tail_asymmetry_share</span><span class="p">,</span>
             <span class="s2">&quot;outlier_density&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">outlier_density</span><span class="p">,</span>
         <span class="p">}</span>
 
@@ -776,7 +776,7 @@
             <span class="n">heteroscedasticity_p_value</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;heteroscedasticity_p_value&quot;</span><span class="p">),</span>
             <span class="n">bimodal_stats</span><span class="o">=</span><span class="n">BimodalStats</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;bimodal_stats&quot;</span><span class="p">])</span> <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;bimodal_stats&quot;</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
             <span class="n">tail_asymmetry_tag</span><span class="o">=</span><span class="n">TailAsymmetryTag</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;tail_asymmetry_tag&quot;</span><span class="p">])</span> <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;tail_asymmetry_tag&quot;</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
-            <span class="n">tail_asymmetry_ratio</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;tail_asymmetry_ratio&quot;</span><span class="p">),</span>
+            <span class="n">tail_asymmetry_share</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;tail_asymmetry_share&quot;</span><span class="p">),</span>
             <span class="n">outlier_density</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;outlier_density&quot;</span><span class="p">),</span>
         <span class="p">)</span>
 
@@ -999,10 +999,10 @@
 <span class="sd">        column to receive ``NumericFlag.ScaleAnomaly`` (i.e. ratio &gt;= 10^n).</span>
 <span class="sd">    bimodal_dip_p_value_threshold : float</span>
 <span class="sd">        P-value threshold for Hartigan&#39;s Dip Test to classify as bimodal. Default 0.05.</span>
-<span class="sd">    tail_asymmetry_right_threshold : float</span>
-<span class="sd">        Threshold for tail asymmetry ratio above which the distribution is RightHeavy. Default 2.0.</span>
-<span class="sd">    tail_asymmetry_left_threshold : float</span>
-<span class="sd">        Threshold for tail asymmetry ratio below which the distribution is LeftHeavy. Default 0.5.</span>
+<span class="sd">    tail_asymmetry_right_share_threshold : float</span>
+<span class="sd">        Threshold for tail asymmetry share above which the distribution is RightHeavy. Default 2/3.</span>
+<span class="sd">    tail_asymmetry_left_share_threshold : float</span>
+<span class="sd">        Threshold for tail asymmetry share below which the distribution is LeftHeavy. Default 1/3.</span>
 <span class="sd">    outlier_sigma_threshold : float</span>
 <span class="sd">        Sigma threshold for outlier detection. Default 3.0.</span>
 <span class="sd">    high_outlier_density_threshold : float</span>
@@ -1017,8 +1017,8 @@
     <span class="n">near_constant_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.90</span>
     <span class="n">scale_orders_of_magnitude</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span>
     <span class="n">bimodal_dip_p_value_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.05</span>
-    <span class="n">tail_asymmetry_right_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">2.0</span>
-    <span class="n">tail_asymmetry_left_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span>
+    <span class="n">tail_asymmetry_right_share_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">2.0</span> <span class="o">/</span> <span class="mf">3.0</span>
+    <span class="n">tail_asymmetry_left_share_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="mf">3.0</span>
     <span class="n">outlier_sigma_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">3.0</span>
     <span class="n">high_outlier_density_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.05</span>
 
@@ -1042,8 +1042,8 @@
             <span class="s2">&quot;near_constant_threshold&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">near_constant_threshold</span><span class="p">,</span>
             <span class="s2">&quot;scale_orders_of_magnitude&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale_orders_of_magnitude</span><span class="p">,</span>
             <span class="s2">&quot;bimodal_dip_p_value_threshold&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">bimodal_dip_p_value_threshold</span><span class="p">,</span>
-            <span class="s2">&quot;tail_asymmetry_right_threshold&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">tail_asymmetry_right_threshold</span><span class="p">,</span>
-            <span class="s2">&quot;tail_asymmetry_left_threshold&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">tail_asymmetry_left_threshold</span><span class="p">,</span>
+            <span class="s2">&quot;tail_asymmetry_right_share_threshold&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">tail_asymmetry_right_share_threshold</span><span class="p">,</span>
+            <span class="s2">&quot;tail_asymmetry_left_share_threshold&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">tail_asymmetry_left_share_threshold</span><span class="p">,</span>
             <span class="s2">&quot;outlier_sigma_threshold&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">outlier_sigma_threshold</span><span class="p">,</span>
             <span class="s2">&quot;high_outlier_density_threshold&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">high_outlier_density_threshold</span><span class="p">,</span>
         <span class="p">}</span></div>
@@ -1076,8 +1076,8 @@
             <span class="n">near_constant_threshold</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;near_constant_threshold&quot;</span><span class="p">,</span> <span class="mf">0.90</span><span class="p">)),</span>
             <span class="n">scale_orders_of_magnitude</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;scale_orders_of_magnitude&quot;</span><span class="p">,</span> <span class="mi">3</span><span class="p">)),</span>
             <span class="n">bimodal_dip_p_value_threshold</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;bimodal_dip_p_value_threshold&quot;</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">)),</span>
-            <span class="n">tail_asymmetry_right_threshold</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;tail_asymmetry_right_threshold&quot;</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">)),</span>
-            <span class="n">tail_asymmetry_left_threshold</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;tail_asymmetry_left_threshold&quot;</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">)),</span>
+            <span class="n">tail_asymmetry_right_share_threshold</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;tail_asymmetry_right_share_threshold&quot;</span><span class="p">,</span> <span class="mf">2.0</span> <span class="o">/</span> <span class="mf">3.0</span><span class="p">)),</span>
+            <span class="n">tail_asymmetry_left_share_threshold</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;tail_asymmetry_left_share_threshold&quot;</span><span class="p">,</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="mf">3.0</span><span class="p">)),</span>
             <span class="n">outlier_sigma_threshold</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;outlier_sigma_threshold&quot;</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">)),</span>
             <span class="n">high_outlier_density_threshold</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;high_outlier_density_threshold&quot;</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">)),</span>
         <span class="p">)</span></div>
