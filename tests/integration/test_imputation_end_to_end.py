@@ -139,11 +139,9 @@ def test_mnar_column_receives_data_derived_fill_and_indicator():
             dtype=pl.Float64,
         ),
     })
-    config = PipelineConfig(
-        imputation=ImputationConfig(
-            mnar_columns=["salary"],
-        )
-    )
+    imputation_config = ImputationConfig()
+    imputation_config.add_mnar_column("salary")
+    config = PipelineConfig(imputation=imputation_config)
     profile = StructuralProfiler(PipelineConfig()).profile(data)
     orch = ImputationOrchestrator(config=config)
     _fitted, result = orch.fit_transform(data, profile)

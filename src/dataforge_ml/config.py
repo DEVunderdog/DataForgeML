@@ -336,6 +336,7 @@ class PipelineConfig:
             Fully populated configuration instance with all nested sub-configs
             restored.
         """
+        from dataforge_ml.profiling._config import ProfileConfig
         from dataforge_ml.imputation._config import ImputationConfig
         from dataforge_ml.splitting._config import SplitConfig
         cfg = cls(
