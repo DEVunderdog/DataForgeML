@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dataforge-ml"
-version = "2.0.2"
+version = "2.0.3"
 description = "A automated feature engineering and designing pipeline library"
 readme = "README.md"
 requires-python = ">3.10"
