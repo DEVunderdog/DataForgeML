@@ -369,8 +369,9 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">InitVar</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">StrEnum</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">types</span><span class="w"> </span><span class="kn">import</span> <span class="n">MappingProxyType</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Union</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">..config</span><span class="w"> </span><span class="kn">import</span> <span class="n">SemanticType</span><span class="p">,</span> <span class="n">Modality</span>
@@ -426,6 +427,14 @@
     <span class="n">FreeTextCandidate</span> <span class="o">=</span> <span class="s2">&quot;free_text_candidate&quot;</span>
     <span class="n">UserOverride</span> <span class="o">=</span> <span class="s2">&quot;user_override&quot;</span>
     <span class="n">NumericKindOverride</span> <span class="o">=</span> <span class="s2">&quot;numeric_kind_override&quot;</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">EpochUnit</span><span class="p">(</span><span class="n">StrEnum</span><span class="p">):</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="s2">&quot;s&quot;</span>
+    <span class="n">ms</span> <span class="o">=</span> <span class="s2">&quot;ms&quot;</span>
+    <span class="n">us</span> <span class="o">=</span> <span class="s2">&quot;us&quot;</span>
+    <span class="n">ns</span> <span class="o">=</span> <span class="s2">&quot;ns&quot;</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="s2">&quot;d&quot;</span>
 
 
 <span class="c1"># ---------------------------------------------------------------------------</span>
@@ -1009,24 +1018,6 @@
 <span class="sd">        Default ``False``.</span>
 <span class="sd">    nonlinearity : NonlinearityProfileConfig</span>
 <span class="sd">        Threshold configuration for the nonlinearity sub-processor.</span>
-<span class="sd">    numeric_sentinels : dict[str, list[float]]</span>
-<span class="sd">        Per-column numeric sentinel declarations.  Keys are column names;</span>
-<span class="sd">        values are lists of float-compatible sentinel values that should be</span>
-<span class="sd">        treated as effective nulls (e.g. ``{&quot;age&quot;: [-999.0, 9999.0]}``).</span>
-<span class="sd">        Applies to any column whose dtype passes ``_numeric_sentinel_eligible``</span>
-<span class="sd">        (all integer and float Polars dtypes).  Defaults to an empty dict —</span>
-<span class="sd">        columns with no declaration are completely unaffected.</span>
-<span class="sd">    string_sentinels : dict[str, list[str]]</span>
-<span class="sd">        Per-column user-declared string sentinel declarations.  Keys are column</span>
-<span class="sd">        names; values are lists of string values that should be treated as</span>
-<span class="sd">        effective nulls for that column (e.g.</span>
-<span class="sd">        ``{&quot;status&quot;: [&quot;N/A&quot;, &quot;missing&quot;]}``).  Uses **replace semantics**: when</span>
-<span class="sd">        a declaration exists for a column, only the declared values are matched</span>
-<span class="sd">        (case-insensitive); the hardcoded defaults (``&quot;NA&quot;``, ``&quot;NAN&quot;``,</span>
-<span class="sd">        ``&quot;NULL&quot;``, ``&quot;NONE&quot;``, ``&quot;?&quot;``) are not applied for that column.</span>
-<span class="sd">        Empty/whitespace-only strings are always effective null regardless of</span>
-<span class="sd">        any declaration.  Defaults to an empty dict — columns with no</span>
-<span class="sd">        declaration continue to use the hardcoded defaults unchanged.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">modality</span><span class="p">:</span> <span class="n">Modality</span> <span class="o">=</span> <span class="n">Modality</span><span class="o">.</span><span class="n">Tabular</span>
@@ -1054,8 +1045,168 @@
     <span class="n">nonlinearity</span><span class="p">:</span> <span class="n">NonlinearityProfileConfig</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span>
         <span class="n">default_factory</span><span class="o">=</span><span class="n">_default_nonlinearity_config</span>
     <span class="p">)</span>
-    <span class="n">numeric_sentinels</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
-    <span class="n">string_sentinels</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">numeric_sentinels</span><span class="p">:</span> <span class="n">InitVar</span><span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]]]]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">string_sentinels</span><span class="p">:</span> <span class="n">InitVar</span><span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]]]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">datetime_epoch_units</span><span class="p">:</span> <span class="n">InitVar</span><span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">EpochUnit</span><span class="p">]]]]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">_numeric_sentinels</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">,</span> <span class="n">init</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">_string_sentinels</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">,</span> <span class="n">init</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">_datetime_epoch_units</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">EpochUnit</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">,</span> <span class="n">init</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">numeric_sentinels</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]]],</span>
+        <span class="n">string_sentinels</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]],</span>
+        <span class="n">datetime_epoch_units</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">EpochUnit</span><span class="p">]]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">numeric_sentinels</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">numeric_sentinels</span><span class="p">,</span> <span class="nb">property</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">vals</span> <span class="ow">in</span> <span class="n">numeric_sentinels</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">set_numeric_sentinel</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">vals</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">string_sentinels</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">string_sentinels</span><span class="p">,</span> <span class="nb">property</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">vals</span> <span class="ow">in</span> <span class="n">string_sentinels</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">set_string_sentinel</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">vals</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">datetime_epoch_units</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">datetime_epoch_units</span><span class="p">,</span> <span class="nb">property</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">datetime_epoch_units</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">set_datetime_epoch_unit</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">numeric_sentinels</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MappingProxyType</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get the per-column numeric sentinel declarations.</span>
+
+<span class="sd">        Keys are column names; values are lists of float-compatible sentinel</span>
+<span class="sd">        values that should be treated as effective nulls (e.g.</span>
+<span class="sd">        ``{&quot;age&quot;: [-999.0, 9999.0]}``). Applies to any column whose dtype</span>
+<span class="sd">        passes ``_numeric_sentinel_eligible`` (all integer and float Polars</span>
+<span class="sd">        dtypes). Defaults to an empty dict — columns with no declaration are</span>
+<span class="sd">        completely unaffected.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        MappingProxyType[str, list[float]]</span>
+<span class="sd">            Read-only mapping of column names to numeric sentinel values.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">MappingProxyType</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_numeric_sentinels</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">string_sentinels</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MappingProxyType</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get the per-column user-declared string sentinel declarations.</span>
+
+<span class="sd">        Keys are column names; values are lists of string values that should</span>
+<span class="sd">        be treated as effective nulls for that column (e.g.</span>
+<span class="sd">        ``{&quot;status&quot;: [&quot;N/A&quot;, &quot;missing&quot;]}``). Uses **replace semantics**: when</span>
+<span class="sd">        a declaration exists for a column, only the declared values are</span>
+<span class="sd">        matched (case-insensitive); the hardcoded defaults (``&quot;NA&quot;``,</span>
+<span class="sd">        ``&quot;NAN&quot;``, ``&quot;NULL&quot;``, ``&quot;NONE&quot;``, ``&quot;?&quot;``) are not applied for that</span>
+<span class="sd">        column. Empty/whitespace-only strings are always effective null</span>
+<span class="sd">        regardless of any declaration. Defaults to an empty dict — columns</span>
+<span class="sd">        with no declaration continue to use the hardcoded defaults unchanged.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        MappingProxyType[str, list[str]]</span>
+<span class="sd">            Read-only mapping of column names to string sentinel values.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">MappingProxyType</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_string_sentinels</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">datetime_epoch_units</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MappingProxyType</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">EpochUnit</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get the per-column datetime epoch units.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        MappingProxyType[str, EpochUnit]</span>
+<span class="sd">            Read-only mapping of column names to epoch units.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">MappingProxyType</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_datetime_epoch_units</span><span class="p">)</span>
+
+<div class="viewcode-block" id="ProfileConfig.set_numeric_sentinel">
+<a class="viewcode-back" href="../../../api/profiling.html#dataforge_ml.profiling._config.ProfileConfig.set_numeric_sentinel">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_numeric_sentinel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">values</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set numeric sentinel values for one or more columns.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        column : str or list of str</span>
+<span class="sd">            Column name or list of column names to apply the sentinels to.</span>
+<span class="sd">        values : list of float</span>
+<span class="sd">            List of sentinel values. Must be numeric and non-empty.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If the `values` list is empty, or if any element is not numeric.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">values</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;values list cannot be empty.&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">values</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">))</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">bool</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Value </span><span class="si">{</span><span class="n">v</span><span class="si">!r}</span><span class="s2"> is not numeric.&quot;</span><span class="p">)</span>
+        
+        <span class="n">columns</span> <span class="o">=</span> <span class="p">[</span><span class="n">column</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">column</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="n">column</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_numeric_sentinels</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">values</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="ProfileConfig.set_string_sentinel">
+<a class="viewcode-back" href="../../../api/profiling.html#dataforge_ml.profiling._config.ProfileConfig.set_string_sentinel">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_string_sentinel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">values</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set string sentinel values for one or more columns.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        column : str or list of str</span>
+<span class="sd">            Column name or list of column names to apply the sentinels to.</span>
+<span class="sd">        values : list of str</span>
+<span class="sd">            List of string sentinel values. Must be strings and non-empty.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If the `values` list is empty, or if any element is not a string.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">values</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;values list cannot be empty.&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">values</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Value </span><span class="si">{</span><span class="n">v</span><span class="si">!r}</span><span class="s2"> is not a string.&quot;</span><span class="p">)</span>
+        
+        <span class="n">columns</span> <span class="o">=</span> <span class="p">[</span><span class="n">column</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">column</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="n">column</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_string_sentinels</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">values</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ProfileConfig.set_datetime_epoch_unit">
+<a class="viewcode-back" href="../../../api/profiling.html#dataforge_ml.profiling._config.ProfileConfig.set_datetime_epoch_unit">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_datetime_epoch_unit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">unit</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">EpochUnit</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set epoch unit for one or more columns.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        column : str or list of str</span>
+<span class="sd">            Column name or list of column names to apply the epoch unit to.</span>
+<span class="sd">        unit : str or EpochUnit</span>
+<span class="sd">            Epoch unit (e.g. &quot;s&quot;, &quot;ms&quot;).</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If the unit is not a valid EpochUnit.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">enum_unit</span> <span class="o">=</span> <span class="n">EpochUnit</span><span class="p">(</span><span class="n">unit</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="n">valid_units</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">u</span><span class="o">.</span><span class="n">value</span> <span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="n">EpochUnit</span><span class="p">])</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unknown epoch unit </span><span class="si">{</span><span class="n">unit</span><span class="si">!r}</span><span class="s2">. Valid options are: </span><span class="si">{</span><span class="n">valid_units</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        
+        <span class="n">columns</span> <span class="o">=</span> <span class="p">[</span><span class="n">column</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">column</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="n">column</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_datetime_epoch_units</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="o">=</span> <span class="n">enum_unit</span></div>
+
 
 <div class="viewcode-block" id="ProfileConfig.to_dict">
 <a class="viewcode-back" href="../../../api/profiling.html#dataforge_ml.profiling._config.ProfileConfig.to_dict">[docs]</a>
@@ -1086,6 +1237,7 @@
             <span class="s2">&quot;nonlinearity&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">nonlinearity</span><span class="o">.</span><span class="n">to_dict</span><span class="p">(),</span>
             <span class="s2">&quot;numeric_sentinels&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">numeric_sentinels</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span>
             <span class="s2">&quot;string_sentinels&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">string_sentinels</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span>
+            <span class="s2">&quot;datetime_epoch_units&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">value</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">datetime_epoch_units</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span>
         <span class="p">}</span></div>
 
 
@@ -1107,7 +1259,7 @@
 <span class="sd">        ProfileConfig</span>
 <span class="sd">            Reconstructed config instance with all sub-configs deserialised.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+        <span class="n">config</span> <span class="o">=</span> <span class="bp">cls</span><span class="p">(</span>
             <span class="n">modality</span><span class="o">=</span><span class="n">Modality</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;modality&quot;</span><span class="p">,</span> <span class="n">Modality</span><span class="o">.</span><span class="n">Tabular</span><span class="p">)),</span>
             <span class="n">target_columns</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;target_columns&quot;</span><span class="p">,</span> <span class="p">[])),</span>
             <span class="n">compute_correlation</span><span class="o">=</span><span class="nb">bool</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;compute_correlation&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)),</span>
@@ -1133,15 +1285,12 @@
             <span class="n">nonlinearity</span><span class="o">=</span><span class="n">NonlinearityProfileConfig</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span>
                 <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;nonlinearity&quot;</span><span class="p">,</span> <span class="p">{})</span>
             <span class="p">),</span>
-            <span class="n">numeric_sentinels</span><span class="o">=</span><span class="p">{</span>
-                <span class="n">k</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">vals</span><span class="p">]</span>
-                <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">vals</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;numeric_sentinels&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-            <span class="p">},</span>
-            <span class="n">string_sentinels</span><span class="o">=</span><span class="p">{</span>
-                <span class="n">k</span><span class="p">:</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">vals</span><span class="p">]</span>
-                <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">vals</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;string_sentinels&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-            <span class="p">},</span>
-        <span class="p">)</span></div>
+            <span class="n">numeric_sentinels</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;numeric_sentinels&quot;</span><span class="p">,</span> <span class="p">{}),</span>
+            <span class="n">string_sentinels</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;string_sentinels&quot;</span><span class="p">,</span> <span class="p">{}),</span>
+            <span class="n">datetime_epoch_units</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;datetime_epoch_units&quot;</span><span class="p">,</span> <span class="p">{}),</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">config</span></div>
 
 
 <div class="viewcode-block" id="ProfileConfig.to_json">

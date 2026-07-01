@@ -365,6 +365,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">StrEnum</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Union</span><span class="p">,</span> <span class="n">Optional</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">types</span><span class="w"> </span><span class="kn">import</span> <span class="n">MappingProxyType</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">dataforge_ml.profiling._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProfileConfig</span><span class="p">,</span> <span class="n">NumericKind</span>
@@ -447,17 +448,6 @@
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
-<span class="sd">    exclude_columns : list[str]</span>
-<span class="sd">        Hard exclusions — columns dropped globally from every phase.</span>
-<span class="sd">    phase_exclusions : dict[PipelinePhase, list[str]]</span>
-<span class="sd">        Soft exclusions — columns bypassed for a specific phase but retained</span>
-<span class="sd">        in the dataset.</span>
-<span class="sd">    column_overrides : dict[str, SemanticType]</span>
-<span class="sd">        Explicit semantic type assignments respected by all downstream phases.</span>
-<span class="sd">    numeric_kind_overrides : dict[str, NumericKind]</span>
-<span class="sd">        Explicit ``NumericKind`` assignments for individual columns, applied</span>
-<span class="sd">        after auto-detection in Phase 1. Only valid for columns whose final</span>
-<span class="sd">        ``SemanticType`` is ``Numeric``; raises at orchestrator time otherwise.</span>
 <span class="sd">    profiling : ProfileConfig</span>
 <span class="sd">        Phase 1-specific parameters (correlation, chunking, memory threshold).</span>
 <span class="sd">    imputation : ImputationConfig</span>
@@ -470,14 +460,64 @@
 <span class="sd">        output.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">exclude_columns</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
-    <span class="n">phase_exclusions</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">PipelinePhase</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
-    <span class="n">column_overrides</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">SemanticType</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
-    <span class="n">numeric_kind_overrides</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">NumericKind</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">_exclude_columns</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">,</span> <span class="n">init</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">_phase_exclusions</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">PipelinePhase</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">,</span> <span class="n">init</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">_column_overrides</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">SemanticType</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">,</span> <span class="n">init</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">_numeric_kind_overrides</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">NumericKind</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">,</span> <span class="n">init</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
     <span class="n">profiling</span><span class="p">:</span> <span class="n">ProfileConfig</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">_default_profile_config</span><span class="p">)</span>
     <span class="n">imputation</span><span class="p">:</span> <span class="n">ImputationConfig</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">_default_imputation_config</span><span class="p">)</span>
     <span class="n">split</span><span class="p">:</span> <span class="n">SplitConfig</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">_default_split_config</span><span class="p">)</span>
     <span class="n">random_seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">exclude_columns</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Hard exclusions — columns dropped globally from every phase.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tuple[str, ...]</span>
+<span class="sd">            A snapshot tuple of columns registered as hard exclusions.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_exclude_columns</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">phase_exclusions</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;MappingProxyType[PipelinePhase, tuple[str, ...]]&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Soft exclusions — columns bypassed for a specific phase but retained in the dataset.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        MappingProxyType[PipelinePhase, tuple[str, ...]]</span>
+<span class="sd">            A read-only view mapping each phase to a tuple of excluded columns.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">types</span><span class="w"> </span><span class="kn">import</span> <span class="n">MappingProxyType</span>
+        <span class="k">return</span> <span class="n">MappingProxyType</span><span class="p">({</span><span class="n">k</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_phase_exclusions</span><span class="o">.</span><span class="n">items</span><span class="p">()})</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">column_overrides</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;MappingProxyType[str, SemanticType]&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Explicit semantic type assignments respected by all downstream phases.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        MappingProxyType[str, SemanticType]</span>
+<span class="sd">            A read-only view mapping columns to their explicitly assigned SemanticType.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">types</span><span class="w"> </span><span class="kn">import</span> <span class="n">MappingProxyType</span>
+        <span class="k">return</span> <span class="n">MappingProxyType</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_column_overrides</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">numeric_kind_overrides</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;MappingProxyType[str, NumericKind]&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Explicit NumericKind assignments for individual columns, applied after auto-detection in Phase 1.</span>
+
+<span class="sd">        Only valid for columns whose final ``SemanticType`` is ``Numeric``;</span>
+<span class="sd">        raises at orchestrator time otherwise.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        MappingProxyType[str, NumericKind]</span>
+<span class="sd">            A read-only view mapping columns to their explicitly assigned NumericKind.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">types</span><span class="w"> </span><span class="kn">import</span> <span class="n">MappingProxyType</span>
+        <span class="k">return</span> <span class="n">MappingProxyType</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_numeric_kind_overrides</span><span class="p">)</span>
 
 <div class="viewcode-block" id="PipelineConfig.resolve_active_columns">
 <a class="viewcode-back" href="../../api/pipeline.html#dataforge_ml.config.PipelineConfig.resolve_active_columns">[docs]</a>
@@ -505,44 +545,70 @@
 <span class="sd">            original order.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">hard_set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exclude_columns</span><span class="p">)</span>
-        <span class="n">soft_set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">phase_exclusions</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">phase</span><span class="p">,</span> <span class="p">[]))</span>
+        <span class="n">soft_set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">phase_exclusions</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">phase</span><span class="p">,</span> <span class="p">()))</span>
         <span class="n">excluded</span> <span class="o">=</span> <span class="n">hard_set</span> <span class="o">|</span> <span class="n">soft_set</span>
         <span class="k">return</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">available_columns</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">excluded</span><span class="p">]</span></div>
 
 
-<div class="viewcode-block" id="PipelineConfig.add_exclusions">
-<a class="viewcode-back" href="../../api/pipeline.html#dataforge_ml.config.PipelineConfig.add_exclusions">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">add_exclusions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cols</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<div class="viewcode-block" id="PipelineConfig.add_exclusion">
+<a class="viewcode-back" href="../../api/pipeline.html#dataforge_ml.config.PipelineConfig.add_exclusion">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_exclusion</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Add columns to the hard exclusion set, deduplicating automatically.</span>
 
-<span class="sd">        Columns already present in ``exclude_columns`` and duplicate entries</span>
-<span class="sd">        within ``cols`` are silently ignored. Calling with an empty list is a</span>
+<span class="sd">        Columns already present in the exclusion list and duplicate entries</span>
+<span class="sd">        within the input are silently ignored. Calling with an empty list is a</span>
 <span class="sd">        no-op.</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        cols : list[str]</span>
-<span class="sd">            Column names to register as hard exclusions. Deduplication is</span>
+<span class="sd">        column : str or list[str]</span>
+<span class="sd">            Column name(s) to register as hard exclusions. Deduplication is</span>
 <span class="sd">            handled here; callers do not need to pre-deduplicate.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">existing</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exclude_columns</span><span class="p">)</span>
+        <span class="n">cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">column</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">column</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="n">column</span>
+        <span class="n">existing</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_exclude_columns</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">cols</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">existing</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">exclude_columns</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_exclude_columns</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
+                <span class="n">existing</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">col</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="PipelineConfig.add_phase_exclusion">
+<a class="viewcode-back" href="../../api/pipeline.html#dataforge_ml.config.PipelineConfig.add_phase_exclusion">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_phase_exclusion</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">phase</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">PipelinePhase</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="n">column</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Add columns to the soft exclusion set for a specific phase.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        phase : PipelinePhase or str</span>
+<span class="sd">            The phase for which to exclude the column(s).</span>
+<span class="sd">        column : str or list[str]</span>
+<span class="sd">            Column name(s) to register as soft exclusions for this phase.</span>
+<span class="sd">            Deduplication is handled automatically.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">phase</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">phase</span> <span class="o">=</span> <span class="n">PipelinePhase</span><span class="p">(</span><span class="n">phase</span><span class="p">)</span>
+            
+        <span class="n">cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">column</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">column</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="n">column</span>
+        <span class="n">phase_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_phase_exclusions</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">phase</span><span class="p">,</span> <span class="p">[])</span>
+        <span class="n">existing</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">phase_list</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">cols</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">existing</span><span class="p">:</span>
+                <span class="n">phase_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
                 <span class="n">existing</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">col</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="PipelineConfig.set_column_type">
 <a class="viewcode-back" href="../../api/pipeline.html#dataforge_ml.config.PipelineConfig.set_column_type">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">set_column_type</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">semantic_type</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">SemanticType</span><span class="p">]</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]],</span> <span class="n">semantic_type</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">SemanticType</span><span class="p">]</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Explicitly set the semantic type for a column, overriding auto-detection.</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Explicitly set the semantic type for one or more columns, overriding auto-detection.</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        column : str</span>
-<span class="sd">            Name of the column to override.</span>
+<span class="sd">        column : str or list[str]</span>
+<span class="sd">            Name of the column(s) to override.</span>
 <span class="sd">        semantic_type : str or SemanticType</span>
 <span class="sd">            The desired semantic type. Accepts enum values or their string</span>
 <span class="sd">            equivalents (e.g. ``&quot;numeric&quot;``, ``&quot;categorical&quot;``).</span>
@@ -562,38 +628,22 @@
                     <span class="sa">f</span><span class="s2">&quot;Unknown semantic type </span><span class="si">{</span><span class="n">semantic_type</span><span class="si">!r}</span><span class="s2">. &quot;</span>
                     <span class="sa">f</span><span class="s2">&quot;Valid values: </span><span class="si">{</span><span class="n">valid</span><span class="si">}</span><span class="s2">&quot;</span>
                 <span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">column_overrides</span><span class="p">[</span><span class="n">column</span><span class="p">]</span> <span class="o">=</span> <span class="n">semantic_type</span></div>
-
-
-<div class="viewcode-block" id="PipelineConfig.set_columns_type">
-<a class="viewcode-back" href="../../api/pipeline.html#dataforge_ml.config.PipelineConfig.set_columns_type">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">set_columns_type</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span> <span class="n">columns</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">semantic_type</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">SemanticType</span><span class="p">]</span>
-    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Assign the same semantic type to every column in the list.</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">        columns : list[str]</span>
-<span class="sd">            Column names to override.</span>
-<span class="sd">        semantic_type : str or SemanticType</span>
-<span class="sd">            The desired semantic type applied to every column in the list.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">for</span> <span class="n">column</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">set_column_type</span><span class="p">(</span><span class="n">column</span><span class="p">,</span> <span class="n">semantic_type</span><span class="p">)</span></div>
+        <span class="n">cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">column</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">column</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="n">column</span>
+        <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">cols</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_column_overrides</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">semantic_type</span></div>
 
 
 <div class="viewcode-block" id="PipelineConfig.set_numeric_kind">
 <a class="viewcode-back" href="../../api/pipeline.html#dataforge_ml.config.PipelineConfig.set_numeric_kind">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">set_numeric_kind</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">kind</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">NumericKind</span><span class="p">]</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]],</span> <span class="n">kind</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">NumericKind</span><span class="p">]</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Explicitly set the ``NumericKind`` for a single column.</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Explicitly set the ``NumericKind`` for one or more columns.</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        column : str</span>
-<span class="sd">            Name of the column to override.</span>
+<span class="sd">        column : str or list[str]</span>
+<span class="sd">            Name of the column(s) to override.</span>
 <span class="sd">        kind : str or NumericKind</span>
 <span class="sd">            The desired numeric kind. Accepts enum values or their string</span>
 <span class="sd">            equivalents (``&quot;continuous&quot;``, ``&quot;bounded_discrete&quot;``).</span>
@@ -613,25 +663,9 @@
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
                     <span class="sa">f</span><span class="s2">&quot;Unknown NumericKind </span><span class="si">{</span><span class="n">kind</span><span class="si">!r}</span><span class="s2">. Valid values: </span><span class="si">{</span><span class="n">valid</span><span class="si">}</span><span class="s2">&quot;</span>
                 <span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">numeric_kind_overrides</span><span class="p">[</span><span class="n">column</span><span class="p">]</span> <span class="o">=</span> <span class="n">kind</span></div>
-
-
-<div class="viewcode-block" id="PipelineConfig.set_columns_numeric_kind">
-<a class="viewcode-back" href="../../api/pipeline.html#dataforge_ml.config.PipelineConfig.set_columns_numeric_kind">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">set_columns_numeric_kind</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span> <span class="n">columns</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">kind</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">NumericKind</span><span class="p">]</span>
-    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Assign the same ``NumericKind`` to every column in the list.</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">        columns : list[str]</span>
-<span class="sd">            Column names to override.</span>
-<span class="sd">        kind : str or NumericKind</span>
-<span class="sd">            The desired numeric kind applied to every column in the list.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">for</span> <span class="n">column</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">set_numeric_kind</span><span class="p">(</span><span class="n">column</span><span class="p">,</span> <span class="n">kind</span><span class="p">)</span></div>
+        <span class="n">cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">column</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">column</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="n">column</span>
+        <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">cols</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_numeric_kind_overrides</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">kind</span></div>
 
 
 <div class="viewcode-block" id="PipelineConfig.to_dict">
@@ -683,28 +717,28 @@
 <span class="sd">            Fully populated configuration instance with all nested sub-configs</span>
 <span class="sd">            restored.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="kn">from</span><span class="w"> </span><span class="nn">dataforge_ml.profiling._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProfileConfig</span><span class="p">,</span> <span class="n">NumericKind</span> <span class="k">as</span> <span class="n">_NumericKind</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">dataforge_ml.profiling._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProfileConfig</span>
         <span class="kn">from</span><span class="w"> </span><span class="nn">dataforge_ml.imputation._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">ImputationConfig</span>
         <span class="kn">from</span><span class="w"> </span><span class="nn">dataforge_ml.splitting._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">SplitConfig</span>
-        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
-            <span class="n">exclude_columns</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;exclude_columns&quot;</span><span class="p">,</span> <span class="p">[])),</span>
-            <span class="n">phase_exclusions</span><span class="o">=</span><span class="p">{</span>
-                <span class="n">PipelinePhase</span><span class="p">(</span><span class="n">phase_str</span><span class="p">):</span> <span class="nb">list</span><span class="p">(</span><span class="n">cols</span><span class="p">)</span>
-                <span class="k">for</span> <span class="n">phase_str</span><span class="p">,</span> <span class="n">cols</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;phase_exclusions&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-            <span class="p">},</span>
-            <span class="n">column_overrides</span><span class="o">=</span><span class="p">{</span>
-                <span class="n">col</span><span class="p">:</span> <span class="n">SemanticType</span><span class="p">(</span><span class="n">sem_str</span><span class="p">)</span>
-                <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">sem_str</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;column_overrides&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-            <span class="p">},</span>
-            <span class="n">numeric_kind_overrides</span><span class="o">=</span><span class="p">{</span>
-                <span class="n">col</span><span class="p">:</span> <span class="n">_NumericKind</span><span class="p">(</span><span class="n">kind_str</span><span class="p">)</span>
-                <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">kind_str</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;numeric_kind_overrides&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-            <span class="p">},</span>
+        <span class="n">cfg</span> <span class="o">=</span> <span class="bp">cls</span><span class="p">(</span>
             <span class="n">profiling</span><span class="o">=</span><span class="n">ProfileConfig</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;profiling&quot;</span><span class="p">,</span> <span class="p">{})),</span>
             <span class="n">imputation</span><span class="o">=</span><span class="n">ImputationConfig</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;imputation&quot;</span><span class="p">,</span> <span class="p">{})),</span>
             <span class="n">split</span><span class="o">=</span><span class="n">SplitConfig</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;split&quot;</span><span class="p">,</span> <span class="p">{})),</span>
             <span class="n">random_seed</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;random_seed&quot;</span><span class="p">),</span>
-        <span class="p">)</span></div>
+        <span class="p">)</span>
+        
+        <span class="n">cfg</span><span class="o">.</span><span class="n">add_exclusion</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;exclude_columns&quot;</span><span class="p">,</span> <span class="p">[]))</span>
+        
+        <span class="k">for</span> <span class="n">phase_str</span><span class="p">,</span> <span class="n">cols</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;phase_exclusions&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">cfg</span><span class="o">.</span><span class="n">add_phase_exclusion</span><span class="p">(</span><span class="n">phase_str</span><span class="p">,</span> <span class="n">cols</span><span class="p">)</span>
+            
+        <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">sem_str</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;column_overrides&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">cfg</span><span class="o">.</span><span class="n">set_column_type</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">sem_str</span><span class="p">)</span>
+            
+        <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">kind_str</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;numeric_kind_overrides&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">cfg</span><span class="o">.</span><span class="n">set_numeric_kind</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">kind_str</span><span class="p">)</span>
+            
+        <span class="k">return</span> <span class="n">cfg</span></div>
 
 
 <div class="viewcode-block" id="PipelineConfig.to_json">

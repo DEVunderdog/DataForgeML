@@ -474,19 +474,12 @@ Exclusions are applied.</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="dataforge_ml.config.PipelineConfig">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.config.</span></span><span class="sig-name descname"><span class="pre">PipelineConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">exclude_columns</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">phase_exclusions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">column_overrides</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">numeric_kind_overrides</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">profiling</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">imputation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">split</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/config.html#PipelineConfig"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.config.PipelineConfig" title="Link to this definition">#</a></dt>
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.config.</span></span><span class="sig-name descname"><span class="pre">PipelineConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">profiling</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">imputation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">split</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/config.html#PipelineConfig"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.config.PipelineConfig" title="Link to this definition">#</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Master configuration for the full 6-phase feature engineering pipeline.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>exclude_columns</strong> (<em>list</em><em>[</em><em>str</em><em>]</em>) – Hard exclusions — columns dropped globally from every phase.</p></li>
-<li><p><strong>phase_exclusions</strong> (<em>dict</em><em>[</em><a class="reference internal" href="#dataforge_ml.config.PipelinePhase" title="dataforge_ml.config.PipelinePhase"><em>PipelinePhase</em></a><em>, </em><em>list</em><em>[</em><em>str</em><em>]</em><em>]</em>) – Soft exclusions — columns bypassed for a specific phase but retained
-in the dataset.</p></li>
-<li><p><strong>column_overrides</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><a class="reference internal" href="#dataforge_ml.config.SemanticType" title="dataforge_ml.config.SemanticType"><em>SemanticType</em></a><em>]</em>) – Explicit semantic type assignments respected by all downstream phases.</p></li>
-<li><p><strong>numeric_kind_overrides</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><em>NumericKind</em><em>]</em>) – Explicit <code class="docutils literal notranslate"><span class="pre">NumericKind</span></code> assignments for individual columns, applied
-after auto-detection in Phase 1. Only valid for columns whose final
-<code class="docutils literal notranslate"><span class="pre">SemanticType</span></code> is <code class="docutils literal notranslate"><span class="pre">Numeric</span></code>; raises at orchestrator time otherwise.</p></li>
 <li><p><strong>profiling</strong> (<a class="reference internal" href="profiling.html#dataforge_ml.profiling._config.ProfileConfig" title="dataforge_ml.profiling._config.ProfileConfig"><em>ProfileConfig</em></a>) – Phase 1-specific parameters (correlation, chunking, memory threshold).</p></li>
 <li><p><strong>imputation</strong> (<a class="reference internal" href="imputation.html#dataforge_ml.imputation._config.ImputationConfig" title="dataforge_ml.imputation._config.ImputationConfig"><em>ImputationConfig</em></a>) – Phase 2-specific parameters (strategy thresholds, size guards).</p></li>
 <li><p><strong>split</strong> (<a class="reference internal" href="splitting.html#dataforge_ml.splitting._config.SplitConfig" title="dataforge_ml.splitting._config.SplitConfig"><em>SplitConfig</em></a>) – Splitting thresholds (stratification signal cap, boolean minority bar).</p></li>
@@ -497,15 +490,15 @@ output.</p></li>
 </dd>
 </dl>
 <dl class="py method">
-<dt class="sig sig-object py" id="dataforge_ml.config.PipelineConfig.add_exclusions">
-<span class="sig-name descname"><span class="pre">add_exclusions</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cols</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/config.html#PipelineConfig.add_exclusions"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.config.PipelineConfig.add_exclusions" title="Link to this definition">#</a></dt>
+<dt class="sig sig-object py" id="dataforge_ml.config.PipelineConfig.add_exclusion">
+<span class="sig-name descname"><span class="pre">add_exclusion</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/config.html#PipelineConfig.add_exclusion"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.config.PipelineConfig.add_exclusion" title="Link to this definition">#</a></dt>
 <dd><p>Add columns to the hard exclusion set, deduplicating automatically.</p>
-<p>Columns already present in <code class="docutils literal notranslate"><span class="pre">exclude_columns</span></code> and duplicate entries
-within <code class="docutils literal notranslate"><span class="pre">cols</span></code> are silently ignored. Calling with an empty list is a
+<p>Columns already present in the exclusion list and duplicate entries
+within the input are silently ignored. Calling with an empty list is a
 no-op.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>cols</strong> (<em>list</em><em>[</em><em>str</em><em>]</em>) – Column names to register as hard exclusions. Deduplication is
+<dd class="field-odd"><p><strong>column</strong> (<em>str</em><em> or </em><em>list</em><em>[</em><em>str</em><em>]</em>) – Column name(s) to register as hard exclusions. Deduplication is
 handled here; callers do not need to pre-deduplicate.</p>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
@@ -514,15 +507,51 @@ handled here; callers do not need to pre-deduplicate.</p>
 </dl>
 </dd></dl>
 
-<dl class="py attribute">
-<dt class="sig sig-object py" id="dataforge_ml.config.PipelineConfig.column_overrides">
-<span class="sig-name descname"><span class="pre">column_overrides</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#dataforge_ml.config.SemanticType" title="dataforge_ml.config.SemanticType"><span class="pre">SemanticType</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#dataforge_ml.config.PipelineConfig.column_overrides" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="dataforge_ml.config.PipelineConfig.add_phase_exclusion">
+<span class="sig-name descname"><span class="pre">add_phase_exclusion</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">phase</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">column</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/config.html#PipelineConfig.add_phase_exclusion"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.config.PipelineConfig.add_phase_exclusion" title="Link to this definition">#</a></dt>
+<dd><p>Add columns to the soft exclusion set for a specific phase.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>phase</strong> (<a class="reference internal" href="#dataforge_ml.config.PipelinePhase" title="dataforge_ml.config.PipelinePhase"><em>PipelinePhase</em></a><em> or </em><em>str</em>) – The phase for which to exclude the column(s).</p></li>
+<li><p><strong>column</strong> (<em>str</em><em> or </em><em>list</em><em>[</em><em>str</em><em>]</em>) – Column name(s) to register as soft exclusions for this phase.
+Deduplication is handled automatically.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
 
-<dl class="py attribute">
+<dl class="py property">
+<dt class="sig sig-object py" id="dataforge_ml.config.PipelineConfig.column_overrides">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">column_overrides</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">MappingProxyType</span></span><a class="headerlink" href="#dataforge_ml.config.PipelineConfig.column_overrides" title="Link to this definition">#</a></dt>
+<dd><p>Explicit semantic type assignments respected by all downstream phases.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A read-only view mapping columns to their explicitly assigned SemanticType.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>MappingProxyType[str, <a class="reference internal" href="#dataforge_ml.config.SemanticType" title="dataforge_ml.config.SemanticType">SemanticType</a>]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
 <dt class="sig sig-object py" id="dataforge_ml.config.PipelineConfig.exclude_columns">
-<span class="sig-name descname"><span class="pre">exclude_columns</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#dataforge_ml.config.PipelineConfig.exclude_columns" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">exclude_columns</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#dataforge_ml.config.PipelineConfig.exclude_columns" title="Link to this definition">#</a></dt>
+<dd><p>Hard exclusions — columns dropped globally from every phase.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A snapshot tuple of columns registered as hard exclusions.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>tuple[str, …]</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="dataforge_ml.config.PipelineConfig.from_dict">
@@ -564,15 +593,35 @@ restored.</p>
 <span class="sig-name descname"><span class="pre">imputation</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="imputation.html#dataforge_ml.imputation._config.ImputationConfig" title="dataforge_ml.imputation._config.ImputationConfig"><span class="pre">ImputationConfig</span></a></span><a class="headerlink" href="#dataforge_ml.config.PipelineConfig.imputation" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
-<dl class="py attribute">
+<dl class="py property">
 <dt class="sig sig-object py" id="dataforge_ml.config.PipelineConfig.numeric_kind_overrides">
-<span class="sig-name descname"><span class="pre">numeric_kind_overrides</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">NumericKind</span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#dataforge_ml.config.PipelineConfig.numeric_kind_overrides" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">numeric_kind_overrides</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">MappingProxyType</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">NumericKind</span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#dataforge_ml.config.PipelineConfig.numeric_kind_overrides" title="Link to this definition">#</a></dt>
+<dd><p>Explicit NumericKind assignments for individual columns, applied after auto-detection in Phase 1.</p>
+<p>Only valid for columns whose final <code class="docutils literal notranslate"><span class="pre">SemanticType</span></code> is <code class="docutils literal notranslate"><span class="pre">Numeric</span></code>;
+raises at orchestrator time otherwise.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A read-only view mapping columns to their explicitly assigned NumericKind.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>MappingProxyType[str, NumericKind]</p>
+</dd>
+</dl>
+</dd></dl>
 
-<dl class="py attribute">
+<dl class="py property">
 <dt class="sig sig-object py" id="dataforge_ml.config.PipelineConfig.phase_exclusions">
-<span class="sig-name descname"><span class="pre">phase_exclusions</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#dataforge_ml.config.PipelinePhase" title="dataforge_ml.config.PipelinePhase"><span class="pre">PipelinePhase</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#dataforge_ml.config.PipelineConfig.phase_exclusions" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">phase_exclusions</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">MappingProxyType</span></span><a class="headerlink" href="#dataforge_ml.config.PipelineConfig.phase_exclusions" title="Link to this definition">#</a></dt>
+<dd><p>Soft exclusions — columns bypassed for a specific phase but retained in the dataset.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A read-only view mapping each phase to a tuple of excluded columns.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>MappingProxyType[<a class="reference internal" href="#dataforge_ml.config.PipelinePhase" title="dataforge_ml.config.PipelinePhase">PipelinePhase</a>, tuple[str, …]]</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="dataforge_ml.config.PipelineConfig.profiling">
@@ -612,11 +661,11 @@ original order.</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="dataforge_ml.config.PipelineConfig.set_column_type">
 <span class="sig-name descname"><span class="pre">set_column_type</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">semantic_type</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/config.html#PipelineConfig.set_column_type"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.config.PipelineConfig.set_column_type" title="Link to this definition">#</a></dt>
-<dd><p>Explicitly set the semantic type for a column, overriding auto-detection.</p>
+<dd><p>Explicitly set the semantic type for one or more columns, overriding auto-detection.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>column</strong> (<em>str</em>) – Name of the column to override.</p></li>
+<li><p><strong>column</strong> (<em>str</em><em> or </em><em>list</em><em>[</em><em>str</em><em>]</em>) – Name of the column(s) to override.</p></li>
 <li><p><strong>semantic_type</strong> (<em>str</em><em> or </em><a class="reference internal" href="#dataforge_ml.config.SemanticType" title="dataforge_ml.config.SemanticType"><em>SemanticType</em></a>) – The desired semantic type. Accepts enum values or their string
 equivalents (e.g. <code class="docutils literal notranslate"><span class="pre">&quot;numeric&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;categorical&quot;</span></code>).</p></li>
 </ul>
@@ -632,47 +681,13 @@ equivalents (e.g. <code class="docutils literal notranslate"><span class="pre">&
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="dataforge_ml.config.PipelineConfig.set_columns_numeric_kind">
-<span class="sig-name descname"><span class="pre">set_columns_numeric_kind</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">columns</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">kind</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/config.html#PipelineConfig.set_columns_numeric_kind"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.config.PipelineConfig.set_columns_numeric_kind" title="Link to this definition">#</a></dt>
-<dd><p>Assign the same <code class="docutils literal notranslate"><span class="pre">NumericKind</span></code> to every column in the list.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>columns</strong> (<em>list</em><em>[</em><em>str</em><em>]</em>) – Column names to override.</p></li>
-<li><p><strong>kind</strong> (<em>str</em><em> or </em><em>NumericKind</em>) – The desired numeric kind applied to every column in the list.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p>None</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="dataforge_ml.config.PipelineConfig.set_columns_type">
-<span class="sig-name descname"><span class="pre">set_columns_type</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">columns</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">semantic_type</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/config.html#PipelineConfig.set_columns_type"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.config.PipelineConfig.set_columns_type" title="Link to this definition">#</a></dt>
-<dd><p>Assign the same semantic type to every column in the list.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>columns</strong> (<em>list</em><em>[</em><em>str</em><em>]</em>) – Column names to override.</p></li>
-<li><p><strong>semantic_type</strong> (<em>str</em><em> or </em><a class="reference internal" href="#dataforge_ml.config.SemanticType" title="dataforge_ml.config.SemanticType"><em>SemanticType</em></a>) – The desired semantic type applied to every column in the list.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p>None</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
 <dt class="sig sig-object py" id="dataforge_ml.config.PipelineConfig.set_numeric_kind">
 <span class="sig-name descname"><span class="pre">set_numeric_kind</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">kind</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/config.html#PipelineConfig.set_numeric_kind"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.config.PipelineConfig.set_numeric_kind" title="Link to this definition">#</a></dt>
-<dd><p>Explicitly set the <code class="docutils literal notranslate"><span class="pre">NumericKind</span></code> for a single column.</p>
+<dd><p>Explicitly set the <code class="docutils literal notranslate"><span class="pre">NumericKind</span></code> for one or more columns.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>column</strong> (<em>str</em>) – Name of the column to override.</p></li>
+<li><p><strong>column</strong> (<em>str</em><em> or </em><em>list</em><em>[</em><em>str</em><em>]</em>) – Name of the column(s) to override.</p></li>
 <li><p><strong>kind</strong> (<em>str</em><em> or </em><em>NumericKind</em>) – The desired numeric kind. Accepts enum values or their string
 equivalents (<code class="docutils literal notranslate"><span class="pre">&quot;continuous&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;bounded_discrete&quot;</span></code>).</p></li>
 </ul>
@@ -798,7 +813,8 @@ recursively serialised via their own <code class="docutils literal notranslate">
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.config.PipelineConfig"><code class="docutils literal notranslate"><span class="pre">PipelineConfig</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.config.PipelineConfig.add_exclusions"><code class="docutils literal notranslate"><span class="pre">PipelineConfig.add_exclusions()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.config.PipelineConfig.add_exclusion"><code class="docutils literal notranslate"><span class="pre">PipelineConfig.add_exclusion()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.config.PipelineConfig.add_phase_exclusion"><code class="docutils literal notranslate"><span class="pre">PipelineConfig.add_phase_exclusion()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.config.PipelineConfig.column_overrides"><code class="docutils literal notranslate"><span class="pre">PipelineConfig.column_overrides</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.config.PipelineConfig.exclude_columns"><code class="docutils literal notranslate"><span class="pre">PipelineConfig.exclude_columns</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.config.PipelineConfig.from_dict"><code class="docutils literal notranslate"><span class="pre">PipelineConfig.from_dict()</span></code></a></li>
@@ -810,8 +826,6 @@ recursively serialised via their own <code class="docutils literal notranslate">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.config.PipelineConfig.random_seed"><code class="docutils literal notranslate"><span class="pre">PipelineConfig.random_seed</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.config.PipelineConfig.resolve_active_columns"><code class="docutils literal notranslate"><span class="pre">PipelineConfig.resolve_active_columns()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.config.PipelineConfig.set_column_type"><code class="docutils literal notranslate"><span class="pre">PipelineConfig.set_column_type()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.config.PipelineConfig.set_columns_numeric_kind"><code class="docutils literal notranslate"><span class="pre">PipelineConfig.set_columns_numeric_kind()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.config.PipelineConfig.set_columns_type"><code class="docutils literal notranslate"><span class="pre">PipelineConfig.set_columns_type()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.config.PipelineConfig.set_numeric_kind"><code class="docutils literal notranslate"><span class="pre">PipelineConfig.set_numeric_kind()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.config.PipelineConfig.split"><code class="docutils literal notranslate"><span class="pre">PipelineConfig.split</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.config.PipelineConfig.to_dict"><code class="docutils literal notranslate"><span class="pre">PipelineConfig.to_dict()</span></code></a></li>

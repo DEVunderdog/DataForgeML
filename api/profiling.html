@@ -418,7 +418,7 @@ from the nested sub-configs on <code class="docutils literal notranslate"><span 
 
 <dl class="py class">
 <dt class="sig sig-object py" id="dataforge_ml.profiling._config.ProfileConfig">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.profiling._config.</span></span><span class="sig-name descname"><span class="pre">ProfileConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">modality</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">Modality.Tabular</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_columns</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">compute_correlation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">correlation_target_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">memory_threshold_mb</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">500.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chunk_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">row_drop_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">missingness</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">numeric</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type_detection</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">categorical</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">correlation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datetime_</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">compute_nonlinearity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nonlinearity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">numeric_sentinels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">string_sentinels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/profiling/_config.html#ProfileConfig"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.profiling._config.ProfileConfig" title="Link to this definition">#</a></dt>
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.profiling._config.</span></span><span class="sig-name descname"><span class="pre">ProfileConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">modality</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">Modality.Tabular</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_columns</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">compute_correlation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">correlation_target_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">memory_threshold_mb</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">500.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chunk_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">row_drop_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">missingness</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">numeric</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type_detection</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">categorical</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">correlation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datetime_</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">compute_nonlinearity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nonlinearity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">numeric_sentinels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;property</span> <span class="pre">object&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">string_sentinels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;property</span> <span class="pre">object&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datetime_epoch_units</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;property</span> <span class="pre">object&gt;</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/profiling/_config.html#ProfileConfig"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.profiling._config.ProfileConfig" title="Link to this definition">#</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Controls the structural profiler’s behaviour.</p>
 <dl class="field-list simple">
@@ -444,23 +444,10 @@ nonlinearity signal fields on <code class="docutils literal notranslate"><span c
 are reused from the correlation step rather than recomputed.
 Default <code class="docutils literal notranslate"><span class="pre">False</span></code>.</p></li>
 <li><p><strong>nonlinearity</strong> (<a class="reference internal" href="#dataforge_ml.profiling._numeric_config.NonlinearityProfileConfig" title="dataforge_ml.profiling._numeric_config.NonlinearityProfileConfig"><em>NonlinearityProfileConfig</em></a>) – Threshold configuration for the nonlinearity sub-processor.</p></li>
-<li><p><strong>numeric_sentinels</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><em>list</em><em>[</em><em>float</em><em>]</em><em>]</em>) – Per-column numeric sentinel declarations.  Keys are column names;
-values are lists of float-compatible sentinel values that should be
-treated as effective nulls (e.g. <code class="docutils literal notranslate"><span class="pre">{&quot;age&quot;:</span> <span class="pre">[-999.0,</span> <span class="pre">9999.0]}</span></code>).
-Applies to any column whose dtype passes <code class="docutils literal notranslate"><span class="pre">_numeric_sentinel_eligible</span></code>
-(all integer and float Polars dtypes).  Defaults to an empty dict —
-columns with no declaration are completely unaffected.</p></li>
-<li><p><strong>string_sentinels</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><em>list</em><em>[</em><em>str</em><em>]</em><em>]</em>) – Per-column user-declared string sentinel declarations.  Keys are column
-names; values are lists of string values that should be treated as
-effective nulls for that column (e.g.
-<code class="docutils literal notranslate"><span class="pre">{&quot;status&quot;:</span> <span class="pre">[&quot;N/A&quot;,</span> <span class="pre">&quot;missing&quot;]}</span></code>).  Uses <strong>replace semantics</strong>: when
-a declaration exists for a column, only the declared values are matched
-(case-insensitive); the hardcoded defaults (<code class="docutils literal notranslate"><span class="pre">&quot;NA&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;NAN&quot;</span></code>,
-<code class="docutils literal notranslate"><span class="pre">&quot;NULL&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;NONE&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;?&quot;</span></code>) are not applied for that column.
-Empty/whitespace-only strings are always effective null regardless of
-any declaration.  Defaults to an empty dict — columns with no
-declaration continue to use the hardcoded defaults unchanged.</p></li>
 <li><p><strong>datetime_</strong> (<a class="reference internal" href="#dataforge_ml.profiling._datetime_config.DatetimeProfileConfig" title="dataforge_ml.profiling._datetime_config.DatetimeProfileConfig"><em>DatetimeProfileConfig</em></a>)</p></li>
+<li><p><strong>numeric_sentinels</strong> (<em>dataclasses.InitVar</em><em>[</em><em>Optional</em><em>[</em><em>dict</em><em>[</em><em>str</em><em>, </em><em>list</em><em>[</em><em>float</em><em>]</em><em>]</em><em>]</em><em>]</em>)</p></li>
+<li><p><strong>string_sentinels</strong> (<em>dataclasses.InitVar</em><em>[</em><em>Optional</em><em>[</em><em>dict</em><em>[</em><em>str</em><em>, </em><em>list</em><em>[</em><em>str</em><em>]</em><em>]</em><em>]</em><em>]</em>)</p></li>
+<li><p><strong>datetime_epoch_units</strong> (<em>dataclasses.InitVar</em><em>[</em><em>Optional</em><em>[</em><em>dict</em><em>[</em><em>str</em><em>, </em><em>Union</em><em>[</em><em>str</em><em>, </em><em>dataforge_ml.profiling._config.EpochUnit</em><em>]</em><em>]</em><em>]</em><em>]</em>)</p></li>
 </ul>
 </dd>
 </dl>
@@ -498,6 +485,20 @@ declaration continue to use the hardcoded defaults unchanged.</p></li>
 <dt class="sig sig-object py" id="dataforge_ml.profiling._config.ProfileConfig.datetime_">
 <span class="sig-name descname"><span class="pre">datetime_</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#dataforge_ml.profiling._datetime_config.DatetimeProfileConfig" title="dataforge_ml.profiling._datetime_config.DatetimeProfileConfig"><span class="pre">DatetimeProfileConfig</span></a></span><a class="headerlink" href="#dataforge_ml.profiling._config.ProfileConfig.datetime_" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="dataforge_ml.profiling._config.ProfileConfig.datetime_epoch_units">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">datetime_epoch_units</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">MappingProxyType</span></span><a class="headerlink" href="#dataforge_ml.profiling._config.ProfileConfig.datetime_epoch_units" title="Link to this definition">#</a></dt>
+<dd><p>Get the per-column datetime epoch units.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Read-only mapping of column names to epoch units.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>MappingProxyType[str, EpochUnit]</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="dataforge_ml.profiling._config.ProfileConfig.from_dict">
@@ -559,20 +560,113 @@ defaults.</p>
 <span class="sig-name descname"><span class="pre">numeric</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#dataforge_ml.profiling._numeric_config.NumericProfileConfig" title="dataforge_ml.profiling._numeric_config.NumericProfileConfig"><span class="pre">NumericProfileConfig</span></a></span><a class="headerlink" href="#dataforge_ml.profiling._config.ProfileConfig.numeric" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
-<dl class="py attribute">
+<dl class="py property">
 <dt class="sig sig-object py" id="dataforge_ml.profiling._config.ProfileConfig.numeric_sentinels">
-<span class="sig-name descname"><span class="pre">numeric_sentinels</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#dataforge_ml.profiling._config.ProfileConfig.numeric_sentinels" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">numeric_sentinels</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">MappingProxyType</span></span><a class="headerlink" href="#dataforge_ml.profiling._config.ProfileConfig.numeric_sentinels" title="Link to this definition">#</a></dt>
+<dd><p>Get the per-column numeric sentinel declarations.</p>
+<p>Keys are column names; values are lists of float-compatible sentinel
+values that should be treated as effective nulls (e.g.
+<code class="docutils literal notranslate"><span class="pre">{&quot;age&quot;:</span> <span class="pre">[-999.0,</span> <span class="pre">9999.0]}</span></code>). Applies to any column whose dtype
+passes <code class="docutils literal notranslate"><span class="pre">_numeric_sentinel_eligible</span></code> (all integer and float Polars
+dtypes). Defaults to an empty dict — columns with no declaration are
+completely unaffected.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Read-only mapping of column names to numeric sentinel values.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>MappingProxyType[str, list[float]]</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="dataforge_ml.profiling._config.ProfileConfig.row_drop_threshold">
 <span class="sig-name descname"><span class="pre">row_drop_threshold</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.5</span></span><a class="headerlink" href="#dataforge_ml.profiling._config.ProfileConfig.row_drop_threshold" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
-<dl class="py attribute">
+<dl class="py method">
+<dt class="sig sig-object py" id="dataforge_ml.profiling._config.ProfileConfig.set_datetime_epoch_unit">
+<span class="sig-name descname"><span class="pre">set_datetime_epoch_unit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unit</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/profiling/_config.html#ProfileConfig.set_datetime_epoch_unit"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.profiling._config.ProfileConfig.set_datetime_epoch_unit" title="Link to this definition">#</a></dt>
+<dd><p>Set epoch unit for one or more columns.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>column</strong> (<em>str</em><em> or </em><em>list</em><em> of </em><em>str</em>) – Column name or list of column names to apply the epoch unit to.</p></li>
+<li><p><strong>unit</strong> (<em>str</em><em> or </em><em>EpochUnit</em>) – Epoch unit (e.g. “s”, “ms”).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If the unit is not a valid EpochUnit.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dataforge_ml.profiling._config.ProfileConfig.set_numeric_sentinel">
+<span class="sig-name descname"><span class="pre">set_numeric_sentinel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">values</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/profiling/_config.html#ProfileConfig.set_numeric_sentinel"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.profiling._config.ProfileConfig.set_numeric_sentinel" title="Link to this definition">#</a></dt>
+<dd><p>Set numeric sentinel values for one or more columns.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>column</strong> (<em>str</em><em> or </em><em>list</em><em> of </em><em>str</em>) – Column name or list of column names to apply the sentinels to.</p></li>
+<li><p><strong>values</strong> (<em>list</em><em> of </em><em>float</em>) – List of sentinel values. Must be numeric and non-empty.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If the <cite>values</cite> list is empty, or if any element is not numeric.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dataforge_ml.profiling._config.ProfileConfig.set_string_sentinel">
+<span class="sig-name descname"><span class="pre">set_string_sentinel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">values</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/profiling/_config.html#ProfileConfig.set_string_sentinel"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.profiling._config.ProfileConfig.set_string_sentinel" title="Link to this definition">#</a></dt>
+<dd><p>Set string sentinel values for one or more columns.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>column</strong> (<em>str</em><em> or </em><em>list</em><em> of </em><em>str</em>) – Column name or list of column names to apply the sentinels to.</p></li>
+<li><p><strong>values</strong> (<em>list</em><em> of </em><em>str</em>) – List of string sentinel values. Must be strings and non-empty.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If the <cite>values</cite> list is empty, or if any element is not a string.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
 <dt class="sig sig-object py" id="dataforge_ml.profiling._config.ProfileConfig.string_sentinels">
-<span class="sig-name descname"><span class="pre">string_sentinels</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#dataforge_ml.profiling._config.ProfileConfig.string_sentinels" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">string_sentinels</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">MappingProxyType</span></span><a class="headerlink" href="#dataforge_ml.profiling._config.ProfileConfig.string_sentinels" title="Link to this definition">#</a></dt>
+<dd><p>Get the per-column user-declared string sentinel declarations.</p>
+<p>Keys are column names; values are lists of string values that should
+be treated as effective nulls for that column (e.g.
+<code class="docutils literal notranslate"><span class="pre">{&quot;status&quot;:</span> <span class="pre">[&quot;N/A&quot;,</span> <span class="pre">&quot;missing&quot;]}</span></code>). Uses <strong>replace semantics</strong>: when
+a declaration exists for a column, only the declared values are
+matched (case-insensitive); the hardcoded defaults (<code class="docutils literal notranslate"><span class="pre">&quot;NA&quot;</span></code>,
+<code class="docutils literal notranslate"><span class="pre">&quot;NAN&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;NULL&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;NONE&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;?&quot;</span></code>) are not applied for that
+column. Empty/whitespace-only strings are always effective null
+regardless of any declaration. Defaults to an empty dict — columns
+with no declaration continue to use the hardcoded defaults unchanged.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Read-only mapping of column names to string sentinel values.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>MappingProxyType[str, list[str]]</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="dataforge_ml.profiling._config.ProfileConfig.target_columns">
@@ -698,7 +792,7 @@ defaults.</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="dataforge_ml.profiling._numeric_config.NumericProfileConfig">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.profiling._numeric_config.</span></span><span class="sig-name descname"><span class="pre">NumericProfileConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">skew_normal</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">skew_moderate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">skew_high</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">kurt_platykurtic_upper</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">kurt_leptokurtic_lower</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">near_constant_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.9</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale_orders_of_magnitude</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bimodal_dip_p_value_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tail_asymmetry_right_share_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.6666666666666666</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tail_asymmetry_left_share_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.3333333333333333</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outlier_sigma_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">high_outlier_density_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.05</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/profiling/_numeric_config.html#NumericProfileConfig"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.profiling._numeric_config.NumericProfileConfig" title="Link to this definition">#</a></dt>
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.profiling._numeric_config.</span></span><span class="sig-name descname"><span class="pre">NumericProfileConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">skew_normal</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">skew_moderate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">skew_high</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">kurt_platykurtic_upper</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">kurt_leptokurtic_lower</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">near_constant_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.9</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale_orders_of_magnitude</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bimodal_dip_p_value_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bimodal_min_separation_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bimodal_min_component_weight</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tail_asymmetry_right_share_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.6666666666666666</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tail_asymmetry_left_share_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.3333333333333333</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outlier_sigma_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">high_outlier_density_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.05</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/profiling/_numeric_config.html#NumericProfileConfig"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.profiling._numeric_config.NumericProfileConfig" title="Link to this definition">#</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Threshold configuration for the numeric distribution sub-processor.</p>
 <p>All fields default to the library’s original hard-coded constants so that
@@ -724,6 +818,8 @@ Expressed as a fraction of total rows (e.g. 0.90 = 90%).</p></li>
 <li><p><strong>scale_orders_of_magnitude</strong> (<em>int</em>) – Number of orders of magnitude the absolute value range must span for a
 column to receive <code class="docutils literal notranslate"><span class="pre">NumericFlag.ScaleAnomaly</span></code> (i.e. ratio &gt;= 10^n).</p></li>
 <li><p><strong>bimodal_dip_p_value_threshold</strong> (<em>float</em>) – P-value threshold for Hartigan’s Dip Test to classify as bimodal. Default 0.05.</p></li>
+<li><p><strong>bimodal_min_separation_threshold</strong> (<em>float</em>) – Ashman’s D separation threshold above which bimodality is confirmed. Default 2.0.</p></li>
+<li><p><strong>bimodal_min_component_weight</strong> (<em>float</em>) – Minimum mixing weight for the smaller component to confirm bimodality. Default 0.05.</p></li>
 <li><p><strong>tail_asymmetry_right_share_threshold</strong> (<em>float</em>) – Threshold for tail asymmetry share above which the distribution is RightHeavy. Default 2/3.</p></li>
 <li><p><strong>tail_asymmetry_left_share_threshold</strong> (<em>float</em>) – Threshold for tail asymmetry share below which the distribution is LeftHeavy. Default 1/3.</p></li>
 <li><p><strong>outlier_sigma_threshold</strong> (<em>float</em>) – Sigma threshold for outlier detection. Default 3.0.</p></li>
@@ -734,6 +830,16 @@ column to receive <code class="docutils literal notranslate"><span class="pre">N
 <dl class="py attribute">
 <dt class="sig sig-object py" id="dataforge_ml.profiling._numeric_config.NumericProfileConfig.bimodal_dip_p_value_threshold">
 <span class="sig-name descname"><span class="pre">bimodal_dip_p_value_threshold</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.05</span></span><a class="headerlink" href="#dataforge_ml.profiling._numeric_config.NumericProfileConfig.bimodal_dip_p_value_threshold" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.profiling._numeric_config.NumericProfileConfig.bimodal_min_component_weight">
+<span class="sig-name descname"><span class="pre">bimodal_min_component_weight</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.05</span></span><a class="headerlink" href="#dataforge_ml.profiling._numeric_config.NumericProfileConfig.bimodal_min_component_weight" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.profiling._numeric_config.NumericProfileConfig.bimodal_min_separation_threshold">
+<span class="sig-name descname"><span class="pre">bimodal_min_separation_threshold</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">2.0</span></span><a class="headerlink" href="#dataforge_ml.profiling._numeric_config.NumericProfileConfig.bimodal_min_separation_threshold" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
@@ -1689,6 +1795,7 @@ representations.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.ProfileConfig.correlation"><code class="docutils literal notranslate"><span class="pre">ProfileConfig.correlation</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.ProfileConfig.correlation_target_column"><code class="docutils literal notranslate"><span class="pre">ProfileConfig.correlation_target_column</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.ProfileConfig.datetime_"><code class="docutils literal notranslate"><span class="pre">ProfileConfig.datetime_</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.ProfileConfig.datetime_epoch_units"><code class="docutils literal notranslate"><span class="pre">ProfileConfig.datetime_epoch_units</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.ProfileConfig.from_dict"><code class="docutils literal notranslate"><span class="pre">ProfileConfig.from_dict()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.ProfileConfig.from_json"><code class="docutils literal notranslate"><span class="pre">ProfileConfig.from_json()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.ProfileConfig.memory_threshold_mb"><code class="docutils literal notranslate"><span class="pre">ProfileConfig.memory_threshold_mb</span></code></a></li>
@@ -1698,6 +1805,9 @@ representations.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.ProfileConfig.numeric"><code class="docutils literal notranslate"><span class="pre">ProfileConfig.numeric</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.ProfileConfig.numeric_sentinels"><code class="docutils literal notranslate"><span class="pre">ProfileConfig.numeric_sentinels</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.ProfileConfig.row_drop_threshold"><code class="docutils literal notranslate"><span class="pre">ProfileConfig.row_drop_threshold</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.ProfileConfig.set_datetime_epoch_unit"><code class="docutils literal notranslate"><span class="pre">ProfileConfig.set_datetime_epoch_unit()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.ProfileConfig.set_numeric_sentinel"><code class="docutils literal notranslate"><span class="pre">ProfileConfig.set_numeric_sentinel()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.ProfileConfig.set_string_sentinel"><code class="docutils literal notranslate"><span class="pre">ProfileConfig.set_string_sentinel()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.ProfileConfig.string_sentinels"><code class="docutils literal notranslate"><span class="pre">ProfileConfig.string_sentinels</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.ProfileConfig.target_columns"><code class="docutils literal notranslate"><span class="pre">ProfileConfig.target_columns</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.ProfileConfig.to_dict"><code class="docutils literal notranslate"><span class="pre">ProfileConfig.to_dict()</span></code></a></li>
@@ -1717,6 +1827,8 @@ representations.</p>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._numeric_config.NumericProfileConfig"><code class="docutils literal notranslate"><span class="pre">NumericProfileConfig</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._numeric_config.NumericProfileConfig.bimodal_dip_p_value_threshold"><code class="docutils literal notranslate"><span class="pre">NumericProfileConfig.bimodal_dip_p_value_threshold</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._numeric_config.NumericProfileConfig.bimodal_min_component_weight"><code class="docutils literal notranslate"><span class="pre">NumericProfileConfig.bimodal_min_component_weight</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._numeric_config.NumericProfileConfig.bimodal_min_separation_threshold"><code class="docutils literal notranslate"><span class="pre">NumericProfileConfig.bimodal_min_separation_threshold</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._numeric_config.NumericProfileConfig.from_dict"><code class="docutils literal notranslate"><span class="pre">NumericProfileConfig.from_dict()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._numeric_config.NumericProfileConfig.high_outlier_density_threshold"><code class="docutils literal notranslate"><span class="pre">NumericProfileConfig.high_outlier_density_threshold</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._numeric_config.NumericProfileConfig.kurt_leptokurtic_lower"><code class="docutils literal notranslate"><span class="pre">NumericProfileConfig.kurt_leptokurtic_lower</span></code></a></li>

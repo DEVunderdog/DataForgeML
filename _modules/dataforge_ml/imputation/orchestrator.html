@@ -427,6 +427,8 @@
 <span class="sd">        FittedImputer</span>
 <span class="sd">            Stateless imputer that can transform any DataFrame.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="o">.</span><span class="n">imputation</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
+
         <span class="n">train_df</span> <span class="o">=</span> <span class="n">_resolve_effective_nulls</span><span class="p">(</span>
             <span class="n">train_df</span><span class="p">,</span>
             <span class="n">numeric_sentinels</span><span class="o">=</span><span class="n">profile</span><span class="o">.</span><span class="n">numeric_sentinels</span><span class="p">,</span>

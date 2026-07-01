@@ -386,12 +386,18 @@
 <span class="sd">        The estimated location of the first mode.</span>
 <span class="sd">    center2 : float</span>
 <span class="sd">        The estimated location of the second mode.</span>
+<span class="sd">    cluster_separation : float</span>
+<span class="sd">        Ashman&#39;s D cluster separation metric (distance between cluster centers relative to dispersion).</span>
+<span class="sd">    minority_weight : float</span>
+<span class="sd">        Mixing weight of the smaller Gaussian component.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">dip_statistic</span><span class="p">:</span> <span class="nb">float</span>
     <span class="n">dip_p_value</span><span class="p">:</span> <span class="nb">float</span>
     <span class="n">center1</span><span class="p">:</span> <span class="nb">float</span>
     <span class="n">center2</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">cluster_separation</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">minority_weight</span><span class="p">:</span> <span class="nb">float</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Serialise the bimodal statistics to a plain dictionary.</span>
@@ -406,6 +412,8 @@
             <span class="s2">&quot;dip_p_value&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">dip_p_value</span><span class="p">,</span>
             <span class="s2">&quot;center1&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">center1</span><span class="p">,</span>
             <span class="s2">&quot;center2&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">center2</span><span class="p">,</span>
+            <span class="s2">&quot;cluster_separation&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">cluster_separation</span><span class="p">,</span>
+            <span class="s2">&quot;minority_weight&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">minority_weight</span><span class="p">,</span>
         <span class="p">}</span>
 
     <span class="nd">@classmethod</span>
@@ -427,6 +435,8 @@
             <span class="n">dip_p_value</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;dip_p_value&quot;</span><span class="p">]),</span>
             <span class="n">center1</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;center1&quot;</span><span class="p">]),</span>
             <span class="n">center2</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;center2&quot;</span><span class="p">]),</span>
+            <span class="n">cluster_separation</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;cluster_separation&quot;</span><span class="p">]),</span>
+            <span class="n">minority_weight</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;minority_weight&quot;</span><span class="p">]),</span>
         <span class="p">)</span>
 
 
@@ -999,6 +1009,10 @@
 <span class="sd">        column to receive ``NumericFlag.ScaleAnomaly`` (i.e. ratio &gt;= 10^n).</span>
 <span class="sd">    bimodal_dip_p_value_threshold : float</span>
 <span class="sd">        P-value threshold for Hartigan&#39;s Dip Test to classify as bimodal. Default 0.05.</span>
+<span class="sd">    bimodal_min_separation_threshold : float</span>
+<span class="sd">        Ashman&#39;s D separation threshold above which bimodality is confirmed. Default 2.0.</span>
+<span class="sd">    bimodal_min_component_weight : float</span>
+<span class="sd">        Minimum mixing weight for the smaller component to confirm bimodality. Default 0.05.</span>
 <span class="sd">    tail_asymmetry_right_share_threshold : float</span>
 <span class="sd">        Threshold for tail asymmetry share above which the distribution is RightHeavy. Default 2/3.</span>
 <span class="sd">    tail_asymmetry_left_share_threshold : float</span>
@@ -1017,6 +1031,8 @@
     <span class="n">near_constant_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.90</span>
     <span class="n">scale_orders_of_magnitude</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span>
     <span class="n">bimodal_dip_p_value_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.05</span>
+    <span class="n">bimodal_min_separation_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">2.0</span>
+    <span class="n">bimodal_min_component_weight</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.05</span>
     <span class="n">tail_asymmetry_right_share_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">2.0</span> <span class="o">/</span> <span class="mf">3.0</span>
     <span class="n">tail_asymmetry_left_share_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="mf">3.0</span>
     <span class="n">outlier_sigma_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">3.0</span>
@@ -1042,6 +1058,8 @@
             <span class="s2">&quot;near_constant_threshold&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">near_constant_threshold</span><span class="p">,</span>
             <span class="s2">&quot;scale_orders_of_magnitude&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale_orders_of_magnitude</span><span class="p">,</span>
             <span class="s2">&quot;bimodal_dip_p_value_threshold&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">bimodal_dip_p_value_threshold</span><span class="p">,</span>
+            <span class="s2">&quot;bimodal_min_separation_threshold&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">bimodal_min_separation_threshold</span><span class="p">,</span>
+            <span class="s2">&quot;bimodal_min_component_weight&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">bimodal_min_component_weight</span><span class="p">,</span>
             <span class="s2">&quot;tail_asymmetry_right_share_threshold&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">tail_asymmetry_right_share_threshold</span><span class="p">,</span>
             <span class="s2">&quot;tail_asymmetry_left_share_threshold&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">tail_asymmetry_left_share_threshold</span><span class="p">,</span>
             <span class="s2">&quot;outlier_sigma_threshold&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">outlier_sigma_threshold</span><span class="p">,</span>
@@ -1076,6 +1094,8 @@
             <span class="n">near_constant_threshold</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;near_constant_threshold&quot;</span><span class="p">,</span> <span class="mf">0.90</span><span class="p">)),</span>
             <span class="n">scale_orders_of_magnitude</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;scale_orders_of_magnitude&quot;</span><span class="p">,</span> <span class="mi">3</span><span class="p">)),</span>
             <span class="n">bimodal_dip_p_value_threshold</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;bimodal_dip_p_value_threshold&quot;</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">)),</span>
+            <span class="n">bimodal_min_separation_threshold</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;bimodal_min_separation_threshold&quot;</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">)),</span>
+            <span class="n">bimodal_min_component_weight</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;bimodal_min_component_weight&quot;</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">)),</span>
             <span class="n">tail_asymmetry_right_share_threshold</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;tail_asymmetry_right_share_threshold&quot;</span><span class="p">,</span> <span class="mf">2.0</span> <span class="o">/</span> <span class="mf">3.0</span><span class="p">)),</span>
             <span class="n">tail_asymmetry_left_share_threshold</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;tail_asymmetry_left_share_threshold&quot;</span><span class="p">,</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="mf">3.0</span><span class="p">)),</span>
             <span class="n">outlier_sigma_threshold</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;outlier_sigma_threshold&quot;</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">)),</span>
