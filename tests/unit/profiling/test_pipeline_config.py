@@ -25,7 +25,8 @@ _ALL_PHASES = list(PipelinePhase)
 
 def test_hard_excluded_column_absent_from_every_phase():
     available = ["a", "b", "c", "d"]
-    cfg = PipelineConfig(exclude_columns=["b"])
+    cfg = PipelineConfig()
+    cfg.add_exclusion("b")
 
     for phase in _ALL_PHASES:
         result = cfg.resolve_active_columns(phase, available)
@@ -35,7 +36,8 @@ def test_hard_excluded_column_absent_from_every_phase():
 
 def test_hard_exclusion_on_nonexistent_column_is_silently_ignored():
     available = ["x", "y"]
-    cfg = PipelineConfig(exclude_columns=["z"])
+    cfg = PipelineConfig()
+    cfg.add_exclusion("z")
 
     for phase in _ALL_PHASES:
         assert cfg.resolve_active_columns(phase, available) == ["x", "y"]
@@ -48,7 +50,8 @@ def test_hard_exclusion_on_nonexistent_column_is_silently_ignored():
 
 def test_soft_excluded_column_absent_from_its_phase():
     available = ["a", "b", "c"]
-    cfg = PipelineConfig(phase_exclusions={PipelinePhase.Scaling: ["b"]})
+    cfg = PipelineConfig()
+    cfg.add_phase_exclusion(PipelinePhase.Scaling, "b")
 
     result = cfg.resolve_active_columns(PipelinePhase.Scaling, available)
     assert "b" not in result
@@ -56,7 +59,8 @@ def test_soft_excluded_column_absent_from_its_phase():
 
 def test_soft_excluded_column_present_in_all_other_phases():
     available = ["a", "b", "c"]
-    cfg = PipelineConfig(phase_exclusions={PipelinePhase.Scaling: ["b"]})
+    cfg = PipelineConfig()
+    cfg.add_phase_exclusion(PipelinePhase.Scaling, "b")
 
     for phase in _ALL_PHASES:
         if phase == PipelinePhase.Scaling:
@@ -72,10 +76,9 @@ def test_soft_excluded_column_present_in_all_other_phases():
 
 def test_column_in_both_hard_and_soft_always_absent():
     available = ["a", "b", "c"]
-    cfg = PipelineConfig(
-        exclude_columns=["b"],
-        phase_exclusions={PipelinePhase.Profiling: ["b"]},
-    )
+    cfg = PipelineConfig()
+    cfg.add_exclusion("b")
+    cfg.add_phase_exclusion(PipelinePhase.Profiling, "b")
 
     for phase in _ALL_PHASES:
         result = cfg.resolve_active_columns(phase, available)
@@ -98,7 +101,9 @@ def test_no_exclusions_returns_available_columns_unchanged():
 
 
 def test_empty_available_columns_returns_empty():
-    cfg = PipelineConfig(exclude_columns=["a"], phase_exclusions={PipelinePhase.Encoding: ["b"]})
+    cfg = PipelineConfig()
+    cfg.add_exclusion("a")
+    cfg.add_phase_exclusion(PipelinePhase.Encoding, "b")
 
     for phase in _ALL_PHASES:
         assert cfg.resolve_active_columns(phase, []) == []
@@ -111,7 +116,8 @@ def test_empty_available_columns_returns_empty():
 
 def test_active_columns_preserve_input_order():
     available = ["c", "a", "b", "d"]
-    cfg = PipelineConfig(exclude_columns=["b"])
+    cfg = PipelineConfig()
+    cfg.add_exclusion("b")
 
     result = cfg.resolve_active_columns(PipelinePhase.Profiling, available)
     assert result == ["c", "a", "d"]
@@ -123,16 +129,16 @@ def test_active_columns_preserve_input_order():
 
 
 def test_to_dict_serialises_phase_exclusion_keys_as_strings():
-    cfg = PipelineConfig(
-        phase_exclusions={PipelinePhase.Scaling: ["age"]},
-    )
+    cfg = PipelineConfig()
+    cfg.add_phase_exclusion(PipelinePhase.Scaling, "age")
     d = cfg.to_dict()
     assert all(isinstance(k, str) for k in d["phase_exclusions"])
     assert "scaling" in d["phase_exclusions"]
 
 
 def test_to_dict_serialises_column_override_values_as_strings():
-    cfg = PipelineConfig(column_overrides={"score": SemanticType.Categorical})
+    cfg = PipelineConfig()
+    cfg.set_column_type("score", SemanticType.Categorical)
     d = cfg.to_dict()
     assert d["column_overrides"]["score"] == "categorical"
     assert isinstance(d["column_overrides"]["score"], str)
@@ -147,7 +153,7 @@ def test_from_dict_restores_pipeline_phase_enum_keys():
     }
     cfg = PipelineConfig.from_dict(d)
     assert PipelinePhase.OutlierDetection in cfg.phase_exclusions
-    assert cfg.phase_exclusions[PipelinePhase.OutlierDetection] == ["postcode"]
+    assert cfg.phase_exclusions[PipelinePhase.OutlierDetection] == ("postcode",)
 
 
 def test_from_dict_restores_semantic_type_enum_values():
@@ -189,12 +195,6 @@ def test_from_dict_reconstructs_nested_profile_config():
 
 def test_round_trip_preserves_complex_config():
     original = PipelineConfig(
-        exclude_columns=["id", "internal_key"],
-        phase_exclusions={
-            PipelinePhase.Scaling: ["year_of_birth"],
-            PipelinePhase.OutlierDetection: ["postcode"],
-        },
-        column_overrides={"score": SemanticType.Categorical},
         profiling=ProfileConfig(
             compute_correlation=True,
             target_columns=["label"],
@@ -202,6 +202,10 @@ def test_round_trip_preserves_complex_config():
             chunk_size=50_000,
         ),
     )
+    original.add_exclusion(["id", "internal_key"])
+    original.add_phase_exclusion(PipelinePhase.Scaling, ["year_of_birth"])
+    original.add_phase_exclusion(PipelinePhase.OutlierDetection, ["postcode"])
+    original.set_column_type("score", SemanticType.Categorical)
 
     restored = PipelineConfig.from_json(original.to_json())
 
@@ -221,7 +225,7 @@ def test_round_trip_empty_config():
     original = PipelineConfig()
     restored = PipelineConfig.from_json(original.to_json())
 
-    assert restored.exclude_columns == []
+    assert restored.exclude_columns == ()
     assert restored.phase_exclusions == {}
     assert restored.column_overrides == {}
 
@@ -373,17 +377,17 @@ def test_set_numeric_kind_invalid_string_lists_valid_options():
 # ---------------------------------------------------------------------------
 
 
-def test_set_columns_numeric_kind_sets_all_columns():
+def test_set_numeric_kind_bulk_sets_all_columns():
     cfg = PipelineConfig()
-    cfg.set_columns_numeric_kind(["a", "b", "c"], NumericKind.Continuous)
+    cfg.set_numeric_kind(["a", "b", "c"], NumericKind.Continuous)
     assert cfg.numeric_kind_overrides["a"] == NumericKind.Continuous
     assert cfg.numeric_kind_overrides["b"] == NumericKind.Continuous
     assert cfg.numeric_kind_overrides["c"] == NumericKind.Continuous
 
 
-def test_set_columns_numeric_kind_with_string():
+def test_set_numeric_kind_bulk_with_string():
     cfg = PipelineConfig()
-    cfg.set_columns_numeric_kind(["x", "y"], "bounded_discrete")
+    cfg.set_numeric_kind(["x", "y"], "bounded_discrete")
     assert cfg.numeric_kind_overrides["x"] == NumericKind.BoundedDiscrete
     assert cfg.numeric_kind_overrides["y"] == NumericKind.BoundedDiscrete
 
@@ -455,7 +459,9 @@ def test_profile_config_numeric_sentinels_defaults_to_empty_dict():
 
 
 def test_profile_config_to_dict_includes_numeric_sentinels():
-    cfg = ProfileConfig(numeric_sentinels={"age": [-999.0], "score": [-999.0, 9999.0]})
+    cfg = ProfileConfig()
+    cfg.set_numeric_sentinel("age", [-999.0])
+    cfg.set_numeric_sentinel("score", [-999.0, 9999.0])
     d = cfg.to_dict()
     assert "numeric_sentinels" in d
     assert d["numeric_sentinels"] == {"age": [-999.0], "score": [-999.0, 9999.0]}
@@ -479,9 +485,11 @@ def test_profile_config_from_dict_missing_key_defaults_to_empty_dict():
 
 
 def test_profile_config_round_trip_with_sentinels():
-    original = ProfileConfig(numeric_sentinels={"income": [-1.0], "age": [-999.0, 9999.0]})
+    original = ProfileConfig()
+    original.set_numeric_sentinel("income", [-1.0])
+    original.set_numeric_sentinel("age", [-999.0, 9999.0])
     restored = ProfileConfig.from_dict(original.to_dict())
-    assert restored.numeric_sentinels == original.numeric_sentinels
+    assert dict(restored.numeric_sentinels) == dict(original.numeric_sentinels)
 
 
 def test_profile_config_round_trip_no_sentinels_unchanged():
@@ -501,7 +509,9 @@ def test_profile_config_string_sentinels_defaults_to_empty_dict():
 
 
 def test_profile_config_to_dict_includes_string_sentinels():
-    cfg = ProfileConfig(string_sentinels={"status": ["N/A", "missing"], "grade": ["?"]})
+    cfg = ProfileConfig()
+    cfg.set_string_sentinel("status", ["N/A", "missing"])
+    cfg.set_string_sentinel("grade", ["?"])
     d = cfg.to_dict()
     assert "string_sentinels" in d
     assert d["string_sentinels"] == {"status": ["N/A", "missing"], "grade": ["?"]}
@@ -525,9 +535,11 @@ def test_profile_config_from_dict_missing_key_defaults_to_empty_dict():
 
 
 def test_profile_config_round_trip_with_string_sentinels():
-    original = ProfileConfig(string_sentinels={"status": ["N/A", "missing"], "grade": ["?"]})
+    original = ProfileConfig()
+    original.set_string_sentinel("status", ["N/A", "missing"])
+    original.set_string_sentinel("grade", ["?"])
     restored = ProfileConfig.from_dict(original.to_dict())
-    assert restored.string_sentinels == original.string_sentinels
+    assert dict(restored.string_sentinels) == dict(original.string_sentinels)
 
 
 def test_profile_config_round_trip_no_string_sentinels_unchanged():
@@ -537,10 +549,89 @@ def test_profile_config_round_trip_no_string_sentinels_unchanged():
 
 
 def test_profile_config_numeric_and_string_sentinels_coexist():
-    cfg = ProfileConfig(
-        numeric_sentinels={"age": [-999.0]},
-        string_sentinels={"status": ["N/A"]},
-    )
+    cfg = ProfileConfig()
+    cfg.set_numeric_sentinel("age", [-999.0])
+    cfg.set_string_sentinel("status", ["N/A"])
     restored = ProfileConfig.from_dict(cfg.to_dict())
-    assert restored.numeric_sentinels == {"age": [-999.0]}
-    assert restored.string_sentinels == {"status": ["N/A"]}
+    assert dict(restored.numeric_sentinels) == {"age": [-999.0]}
+    assert dict(restored.string_sentinels) == {"status": ["N/A"]}
+
+
+def test_profile_config_from_dict_raises_on_invalid_numeric_entry():
+    d = {"numeric_sentinels": {"age": ["not_a_number"]}}
+    with pytest.raises(ValueError, match="not numeric"):
+        ProfileConfig.from_dict(d)
+
+    d_empty = {"numeric_sentinels": {"age": []}}
+    with pytest.raises(ValueError, match="cannot be empty"):
+        ProfileConfig.from_dict(d_empty)
+
+
+def test_profile_config_from_dict_raises_on_invalid_string_entry():
+    d = {"string_sentinels": {"status": [123]}}
+    with pytest.raises(ValueError, match="not a string"):
+        ProfileConfig.from_dict(d)
+
+    d_empty = {"string_sentinels": {"status": []}}
+    with pytest.raises(ValueError, match="cannot be empty"):
+        ProfileConfig.from_dict(d_empty)
+
+
+# ---------------------------------------------------------------------------
+# ProfileConfig.datetime_epoch_units — field, serialisation, round-trip
+# ---------------------------------------------------------------------------
+
+
+def test_profile_config_datetime_epoch_units_defaults_to_empty_dict():
+    cfg = ProfileConfig()
+    assert cfg.datetime_epoch_units == {}
+
+
+def test_profile_config_to_dict_includes_datetime_epoch_units():
+    cfg = ProfileConfig()
+    cfg.set_datetime_epoch_unit("ts_s", "s")
+    cfg.set_datetime_epoch_unit("ts_ms", "ms")
+    d = cfg.to_dict()
+    assert "datetime_epoch_units" in d
+    assert d["datetime_epoch_units"] == {"ts_s": "s", "ts_ms": "ms"}
+
+
+def test_profile_config_to_dict_datetime_epoch_units_empty_when_unset():
+    cfg = ProfileConfig()
+    d = cfg.to_dict()
+    assert d.get("datetime_epoch_units") == {}
+
+
+def test_profile_config_from_dict_restores_datetime_epoch_units():
+    d = {"datetime_epoch_units": {"ts_s": "s", "ts_ms": "ms"}}
+    cfg = ProfileConfig.from_dict(d)
+    assert cfg.datetime_epoch_units["ts_s"].value == "s"
+    assert cfg.datetime_epoch_units["ts_ms"].value == "ms"
+
+
+def test_profile_config_from_dict_missing_key_defaults_to_empty_dict():
+    cfg = ProfileConfig.from_dict({})
+    assert cfg.datetime_epoch_units == {}
+
+
+def test_profile_config_round_trip_with_datetime_epoch_units():
+    from dataforge_ml.profiling._config import EpochUnit
+    original = ProfileConfig()
+    original.set_datetime_epoch_unit("ts_s", EpochUnit.s)
+    original.set_datetime_epoch_unit("ts_ms", "ms")
+    restored = ProfileConfig.from_dict(original.to_dict())
+    assert restored.datetime_epoch_units["ts_s"] == EpochUnit.s
+    assert restored.datetime_epoch_units["ts_ms"] == EpochUnit.ms
+
+
+def test_profile_config_round_trip_no_datetime_epoch_units_unchanged():
+    original = ProfileConfig()
+    restored = ProfileConfig.from_dict(original.to_dict())
+    assert restored.datetime_epoch_units == {}
+
+
+def test_profile_config_from_dict_raises_on_invalid_datetime_epoch_unit():
+    d = {"datetime_epoch_units": {"ts": "invalid_unit"}}
+    with pytest.raises(ValueError, match="Unknown epoch unit 'invalid_unit'. Valid options are: s, ms, us, ns, d"):
+        ProfileConfig.from_dict(d)
+

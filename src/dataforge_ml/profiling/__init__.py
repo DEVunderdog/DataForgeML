@@ -13,7 +13,7 @@ from ._config import (
     DatasetStats,
     StructuralProfileResult,
 )
-from ._base import ModalityProfiler
+from ._base import ModalityProfiler, OverrideCoercionError
 from ._missingness_config import MissingnessProfileConfig
 from ._numeric_config import NumericProfileConfig, NonlinearityProfileConfig
 from ._type_detection_config import TypeDetectionConfig
@@ -39,6 +39,7 @@ __all__ = [
     "DatasetStats",
     "StructuralProfileResult",
     "ModalityProfiler",
+    "OverrideCoercionError",
     "MissingnessProfileConfig",
     "NumericProfileConfig",
     "NonlinearityProfileConfig",

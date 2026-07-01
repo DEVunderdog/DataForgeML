@@ -77,8 +77,26 @@ class TextProfiler(ColumnBatchProfiler[TextProfileResult]):
         self,
         data: pl.DataFrame,
         columns: list[str],
+        user_overrides: set[str] | None = None,
     ) -> TextProfileResult:
-        return self._run(data, columns)
+        """
+        Profile the specified text columns in a DataFrame.
+
+        Parameters
+        ----------
+        data : pl.DataFrame
+            The input Polars DataFrame containing the columns to profile.
+        columns : list[str]
+            A list of column names to profile.
+        user_overrides : set[str] | None, optional
+            A set of column names that have been manually overridden by the user.
+
+        Returns
+        -------
+        TextProfileResult
+            A result object containing distribution statistics for the profiled columns.
+        """
+        return self._run(data, columns, user_overrides)
 
     # ------------------------------------------------------------------
     # Orchestration
@@ -88,6 +106,7 @@ class TextProfiler(ColumnBatchProfiler[TextProfileResult]):
         self,
         df: pl.DataFrame,
         columns: list[str],
+        user_overrides: set[str] | None = None,
     ) -> TextProfileResult:
         result = TextProfileResult()
 

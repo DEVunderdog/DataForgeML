@@ -35,15 +35,16 @@ Override the auto-detected type for any column before profiling:
 ```python
 config = PipelineConfig()
 config.set_column_type("PassengerId", "identifier")           # skip stats entirely
-config.set_columns_type(["Survived", "Pclass"], "categorical")
+config.set_column_type(["Survived", "Pclass"], "categorical")
 
 result = StructuralProfiler(config).profile(df)
 ```
 
-To drop a column from all processing entirely, use `exclude_columns`:
+To drop a column from all processing entirely, use `add_exclusion`:
 
 ```python
-config = PipelineConfig(exclude_columns=["PassengerId", "Name"])
+config = PipelineConfig()
+config.add_exclusion(["PassengerId", "Name"])
 ```
 
 ## Splitting

@@ -4,6 +4,7 @@ import json
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Union, Optional
+from types import MappingProxyType
 
 if TYPE_CHECKING:
     from dataforge_ml.profiling._config import ProfileConfig, NumericKind
@@ -75,17 +76,6 @@ class PipelineConfig:
 
     Parameters
     ----------
-    exclude_columns : list[str]
-        Hard exclusions — columns dropped globally from every phase.
-    phase_exclusions : dict[PipelinePhase, list[str]]
-        Soft exclusions — columns bypassed for a specific phase but retained
-        in the dataset.
-    column_overrides : dict[str, SemanticType]
-        Explicit semantic type assignments respected by all downstream phases.
-    numeric_kind_overrides : dict[str, NumericKind]
-        Explicit ``NumericKind`` assignments for individual columns, applied
-        after auto-detection in Phase 1. Only valid for columns whose final
-        ``SemanticType`` is ``Numeric``; raises at orchestrator time otherwise.
     profiling : ProfileConfig
         Phase 1-specific parameters (correlation, chunking, memory threshold).
     imputation : ImputationConfig
@@ -96,16 +86,77 @@ class PipelineConfig:
         Single seed for all stochastic pipeline operations, including GMM
         Sampling during bimodal imputation. None produces non-deterministic
         output.
+
+    Attributes
+    ----------
+    exclude_columns : tuple[str, ...]
+        Hard exclusions — columns dropped globally from every phase.
+    phase_exclusions : MappingProxyType[PipelinePhase, tuple[str, ...]]
+        Soft exclusions — columns bypassed for a specific phase but retained
+        in the dataset.
+    column_overrides : MappingProxyType[str, SemanticType]
+        Explicit semantic type assignments respected by all downstream phases.
+    numeric_kind_overrides : MappingProxyType[str, NumericKind]
+        Explicit ``NumericKind`` assignments for individual columns, applied
+        after auto-detection in Phase 1. Only valid for columns whose final
+        ``SemanticType`` is ``Numeric``; raises at orchestrator time otherwise.
     """
 
-    exclude_columns: list[str] = field(default_factory=list)
-    phase_exclusions: dict[PipelinePhase, list[str]] = field(default_factory=dict)
-    column_overrides: dict[str, SemanticType] = field(default_factory=dict)
-    numeric_kind_overrides: dict[str, NumericKind] = field(default_factory=dict)
+    _exclude_columns: list[str] = field(default_factory=list, init=False)
+    _phase_exclusions: dict[PipelinePhase, list[str]] = field(default_factory=dict, init=False)
+    _column_overrides: dict[str, SemanticType] = field(default_factory=dict, init=False)
+    _numeric_kind_overrides: dict[str, NumericKind] = field(default_factory=dict, init=False)
     profiling: ProfileConfig = field(default_factory=_default_profile_config)
     imputation: ImputationConfig = field(default_factory=_default_imputation_config)
     split: SplitConfig = field(default_factory=_default_split_config)
     random_seed: Optional[int] = None
+
+    @property
+    def exclude_columns(self) -> tuple[str, ...]:
+        """Hard exclusions — columns dropped globally from every phase.
+
+        Returns
+        -------
+        tuple[str, ...]
+            A snapshot tuple of columns registered as hard exclusions.
+        """
+        return tuple(self._exclude_columns)
+
+    @property
+    def phase_exclusions(self) -> "MappingProxyType[PipelinePhase, tuple[str, ...]]":
+        """Soft exclusions — columns bypassed for a specific phase but retained in the dataset.
+
+        Returns
+        -------
+        MappingProxyType[PipelinePhase, tuple[str, ...]]
+            A read-only view mapping each phase to a tuple of excluded columns.
+        """
+        from types import MappingProxyType
+        return MappingProxyType({k: tuple(v) for k, v in self._phase_exclusions.items()})
+
+    @property
+    def column_overrides(self) -> "MappingProxyType[str, SemanticType]":
+        """Explicit semantic type assignments respected by all downstream phases.
+
+        Returns
+        -------
+        MappingProxyType[str, SemanticType]
+            A read-only view mapping columns to their explicitly assigned SemanticType.
+        """
+        from types import MappingProxyType
+        return MappingProxyType(self._column_overrides)
+
+    @property
+    def numeric_kind_overrides(self) -> "MappingProxyType[str, NumericKind]":
+        """Explicit NumericKind assignments for individual columns, applied after auto-detection in Phase 1.
+
+        Returns
+        -------
+        MappingProxyType[str, NumericKind]
+            A read-only view mapping columns to their explicitly assigned NumericKind.
+        """
+        from types import MappingProxyType
+        return MappingProxyType(self._numeric_kind_overrides)
 
     def resolve_active_columns(
         self, phase: PipelinePhase, available_columns: list[str]
@@ -131,38 +182,61 @@ class PipelineConfig:
             original order.
         """
         hard_set = set(self.exclude_columns)
-        soft_set = set(self.phase_exclusions.get(phase, []))
+        soft_set = set(self.phase_exclusions.get(phase, ()))
         excluded = hard_set | soft_set
         return [c for c in available_columns if c not in excluded]
 
-    def add_exclusions(self, cols: list[str]) -> None:
+    def add_exclusion(self, column: Union[str, list[str]]) -> None:
         """Add columns to the hard exclusion set, deduplicating automatically.
 
-        Columns already present in ``exclude_columns`` and duplicate entries
-        within ``cols`` are silently ignored. Calling with an empty list is a
+        Columns already present in the exclusion list and duplicate entries
+        within the input are silently ignored. Calling with an empty list is a
         no-op.
 
         Parameters
         ----------
-        cols : list[str]
-            Column names to register as hard exclusions. Deduplication is
+        column : str or list[str]
+            Column name(s) to register as hard exclusions. Deduplication is
             handled here; callers do not need to pre-deduplicate.
         """
-        existing = set(self.exclude_columns)
+        cols = [column] if isinstance(column, str) else column
+        existing = set(self._exclude_columns)
         for col in cols:
             if col not in existing:
-                self.exclude_columns.append(col)
+                self._exclude_columns.append(col)
                 existing.add(col)
 
-    def set_column_type(
-        self, column: str, semantic_type: Union[str, SemanticType]
-    ) -> None:
-        """Explicitly set the semantic type for a column, overriding auto-detection.
+    def add_phase_exclusion(self, phase: Union[PipelinePhase, str], column: Union[str, list[str]]) -> None:
+        """Add columns to the soft exclusion set for a specific phase.
 
         Parameters
         ----------
-        column : str
-            Name of the column to override.
+        phase : PipelinePhase or str
+            The phase for which to exclude the column(s).
+        column : str or list[str]
+            Column name(s) to register as soft exclusions for this phase.
+            Deduplication is handled automatically.
+        """
+        if isinstance(phase, str):
+            phase = PipelinePhase(phase)
+            
+        cols = [column] if isinstance(column, str) else column
+        phase_list = self._phase_exclusions.setdefault(phase, [])
+        existing = set(phase_list)
+        for col in cols:
+            if col not in existing:
+                phase_list.append(col)
+                existing.add(col)
+
+    def set_column_type(
+        self, column: Union[str, list[str]], semantic_type: Union[str, SemanticType]
+    ) -> None:
+        """Explicitly set the semantic type for one or more columns, overriding auto-detection.
+
+        Parameters
+        ----------
+        column : str or list[str]
+            Name of the column(s) to override.
         semantic_type : str or SemanticType
             The desired semantic type. Accepts enum values or their string
             equivalents (e.g. ``"numeric"``, ``"categorical"``).
@@ -182,32 +256,19 @@ class PipelineConfig:
                     f"Unknown semantic type {semantic_type!r}. "
                     f"Valid values: {valid}"
                 )
-        self.column_overrides[column] = semantic_type
-
-    def set_columns_type(
-        self, columns: list[str], semantic_type: Union[str, SemanticType]
-    ) -> None:
-        """Assign the same semantic type to every column in the list.
-
-        Parameters
-        ----------
-        columns : list[str]
-            Column names to override.
-        semantic_type : str or SemanticType
-            The desired semantic type applied to every column in the list.
-        """
-        for column in columns:
-            self.set_column_type(column, semantic_type)
+        cols = [column] if isinstance(column, str) else column
+        for col in cols:
+            self._column_overrides[col] = semantic_type
 
     def set_numeric_kind(
-        self, column: str, kind: Union[str, NumericKind]
+        self, column: Union[str, list[str]], kind: Union[str, NumericKind]
     ) -> None:
-        """Explicitly set the ``NumericKind`` for a single column.
+        """Explicitly set the ``NumericKind`` for one or more columns.
 
         Parameters
         ----------
-        column : str
-            Name of the column to override.
+        column : str or list[str]
+            Name of the column(s) to override.
         kind : str or NumericKind
             The desired numeric kind. Accepts enum values or their string
             equivalents (``"continuous"``, ``"bounded_discrete"``).
@@ -227,22 +288,9 @@ class PipelineConfig:
                 raise ValueError(
                     f"Unknown NumericKind {kind!r}. Valid values: {valid}"
                 )
-        self.numeric_kind_overrides[column] = kind
-
-    def set_columns_numeric_kind(
-        self, columns: list[str], kind: Union[str, NumericKind]
-    ) -> None:
-        """Assign the same ``NumericKind`` to every column in the list.
-
-        Parameters
-        ----------
-        columns : list[str]
-            Column names to override.
-        kind : str or NumericKind
-            The desired numeric kind applied to every column in the list.
-        """
-        for column in columns:
-            self.set_numeric_kind(column, kind)
+        cols = [column] if isinstance(column, str) else column
+        for col in cols:
+            self._numeric_kind_overrides[col] = kind
 
     def to_dict(self) -> dict:
         """Serialise the pipeline configuration to a plain dictionary.
@@ -288,28 +336,28 @@ class PipelineConfig:
             Fully populated configuration instance with all nested sub-configs
             restored.
         """
-        from dataforge_ml.profiling._config import ProfileConfig, NumericKind as _NumericKind
+        from dataforge_ml.profiling._config import ProfileConfig
         from dataforge_ml.imputation._config import ImputationConfig
         from dataforge_ml.splitting._config import SplitConfig
-        return cls(
-            exclude_columns=list(data.get("exclude_columns", [])),
-            phase_exclusions={
-                PipelinePhase(phase_str): list(cols)
-                for phase_str, cols in data.get("phase_exclusions", {}).items()
-            },
-            column_overrides={
-                col: SemanticType(sem_str)
-                for col, sem_str in data.get("column_overrides", {}).items()
-            },
-            numeric_kind_overrides={
-                col: _NumericKind(kind_str)
-                for col, kind_str in data.get("numeric_kind_overrides", {}).items()
-            },
+        cfg = cls(
             profiling=ProfileConfig.from_dict(data.get("profiling", {})),
             imputation=ImputationConfig.from_dict(data.get("imputation", {})),
             split=SplitConfig.from_dict(data.get("split", {})),
             random_seed=data.get("random_seed"),
         )
+        
+        cfg.add_exclusion(data.get("exclude_columns", []))
+        
+        for phase_str, cols in data.get("phase_exclusions", {}).items():
+            cfg.add_phase_exclusion(phase_str, cols)
+            
+        for col, sem_str in data.get("column_overrides", {}).items():
+            cfg.set_column_type(col, sem_str)
+            
+        for col, kind_str in data.get("numeric_kind_overrides", {}).items():
+            cfg.set_numeric_kind(col, kind_str)
+            
+        return cfg
 
     def to_json(self, indent: int = 2) -> str:
         """Serialise the pipeline configuration to a JSON string.

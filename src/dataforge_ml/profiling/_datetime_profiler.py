@@ -64,8 +64,13 @@ class DatetimeProfiler(ColumnBatchProfiler[DatetimeProfileResult]):
     All detection thresholds are controlled by ``DatetimeProfileConfig``.
     """
 
-    def __init__(self, config: DatetimeProfileConfig | None = None) -> None:
+    def __init__(
+        self,
+        config: DatetimeProfileConfig | None = None,
+        epoch_units: dict[str, str] | None = None,
+    ) -> None:
         self._config = config if config is not None else DatetimeProfileConfig()
+        self._epoch_units = epoch_units or {}
 
     # ------------------------------------------------------------------
     # Public API
@@ -75,32 +80,76 @@ class DatetimeProfiler(ColumnBatchProfiler[DatetimeProfileResult]):
         self,
         data: pl.DataFrame,
         columns: list[str],
+        user_overrides: set[str] | None = None,
     ) -> DatetimeProfileResult:
-        return self._run(data, columns)
+        """
+        Profile the specified datetime columns in a DataFrame.
+
+        Parameters
+        ----------
+        data : pl.DataFrame
+            The input Polars DataFrame containing the columns to profile.
+        columns : list[str]
+            A list of column names to profile.
+        user_overrides : set[str] | None, optional
+            A set of column names that have been manually overridden by the user.
+
+        Returns
+        -------
+        DatetimeProfileResult
+            A result object containing distribution statistics for the profiled columns.
+
+        Raises
+        ------
+        OverrideCoercionError
+            If a column in user_overrides completely fails coercion to Datetime.
+        """
+        return self._run(data, columns, user_overrides)
 
     # ------------------------------------------------------------------
     # Orchestration
     # ------------------------------------------------------------------
 
-    def _coerce_to_datetime(self, series: pl.Series) -> pl.Series | None:
+    def _coerce_to_datetime(self, series: pl.Series, col_name: str) -> pl.Series | None:
         if series.dtype in (pl.Utf8, pl.String):
-            coerced = series.str.to_datetime(strict=False)
-            return coerced if coerced.drop_nulls().len() > 0 else None
+            try:
+                coerced = series.str.to_datetime(strict=False)
+                return coerced if coerced.drop_nulls().len() > 0 else None
+            except pl.exceptions.ComputeError:
+                return None
+        if series.dtype.is_numeric():
+            if col_name in self._epoch_units:
+                unit = self._epoch_units[col_name]
+                try:
+                    unit_val = unit.value if hasattr(unit, "value") else unit
+                    coerced = pl.from_epoch(series, time_unit=unit_val)
+                    return coerced if coerced.drop_nulls().len() > 0 else None
+                except (pl.exceptions.ComputeError, TypeError, ValueError):
+                    return None
+            else:
+                return None
         if _is_datetime_dtype(series.dtype):
             return series
         return None
 
-    def _run(self, df: pl.DataFrame, columns: list[str]) -> DatetimeProfileResult:
+    def _run(self, df: pl.DataFrame, columns: list[str], user_overrides: set[str] | None = None) -> DatetimeProfileResult:
         result = DatetimeProfileResult()
         now = datetime.now(tz=timezone.utc)
+        user_overrides = user_overrides or set()
 
         available = []
         coerced_cache = {}
         for col_name in self._resolve_columns(df.columns, columns):
-            series = self._coerce_to_datetime(df[col_name])
+            series = self._coerce_to_datetime(df[col_name], col_name)
             if series is not None:
                 available.append(col_name)
                 coerced_cache[col_name] = series
+            elif col_name in user_overrides:
+                if df[col_name].drop_nulls().len() > 0:
+                    from ._base import OverrideCoercionError
+                    raise OverrideCoercionError(
+                        f"Column {col_name!r} with TypeFlag.UserOverride completely failed coercion to Datetime."
+                    )
 
         result.analysed_columns = available
 

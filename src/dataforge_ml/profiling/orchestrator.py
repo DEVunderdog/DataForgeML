@@ -226,14 +226,18 @@ class StructuralProfiler:
             elif sem_type == SemanticType.Categorical:
                 profiler = CategoricalProfiler(config=pc.categorical)
             elif sem_type == SemanticType.Datetime:
-                profiler = DatetimeProfiler(config=pc.datetime_)
+                profiler = DatetimeProfiler(config=pc.datetime_, epoch_units=pc.datetime_epoch_units)
             else:
                 profiler_cls = _COLUMN_PROFILER_REGISTRY.get(sem_type)  # type: ignore[arg-type]
                 if profiler_cls is None:
                     continue
                 profiler = profiler_cls()
             try:
-                batch = profiler.profile(data, columns=cols)
+                user_overrides = {
+                    c for c in cols
+                    if result.columns.get(c) and TypeFlag.UserOverride in result.columns[c].type_flags
+                }
+                batch = profiler.profile(data, columns=cols, user_overrides=user_overrides)
                 for col_name in batch.analysed_columns:
                     if col_name in result.columns:
                         result.columns[col_name].stats = batch.columns.get(col_name)

@@ -73,6 +73,7 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
         self,
         data: pl.DataFrame,
         columns: list[str],
+        user_overrides: set[str] | None = None,
     ) -> NumericProfileResult:
         """
         Profile the specified numeric columns in a DataFrame.
@@ -84,13 +85,20 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
         columns : list[str]
             A list of column names to profile. Non-numeric columns in this list
             are skipped.
+        user_overrides : set[str] | None, optional
+            A set of column names that have been manually overridden by the user.
 
         Returns
         -------
         NumericProfileResult
             A result object containing distribution statistics for the profiled columns.
+
+        Raises
+        ------
+        OverrideCoercionError
+            If a column in user_overrides completely fails coercion to Numeric.
         """
-        return self._run(data, columns)
+        return self._run(data, columns, user_overrides)
 
     # ------------------------------------------------------------------
     # Orchestration
@@ -100,9 +108,11 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
         self,
         df: pl.DataFrame,
         columns: list[str],
+        user_overrides: set[str] | None = None,
     ) -> NumericProfileResult:
         result = NumericProfileResult()
         n_rows = df.height
+        user_overrides = user_overrides or set()
 
         available = self._resolve_columns(df.columns, columns)
         result.analysed_columns = available
@@ -135,6 +145,11 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
             profile = NumericStats()
 
             if clean.len() == 0:
+                if series.drop_nulls().len() > 0 and col in user_overrides:
+                    from ._base import OverrideCoercionError
+                    raise OverrideCoercionError(
+                        f"Column {col!r} with TypeFlag.UserOverride completely failed coercion to Numeric."
+                    )
                 result.columns[col] = profile
                 continue
 

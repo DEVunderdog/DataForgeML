@@ -29,14 +29,14 @@ def sample_df() -> pl.DataFrame:
 
 
 def test_hard_excluded_column_absent_from_result(sample_df):
-    cfg = PipelineConfig(exclude_columns=["id"])
+    cfg = (cfg := PipelineConfig(), cfg.add_exclusion("id"))[0]
     result = StructuralProfiler(cfg).profile(sample_df)
 
     assert "id" not in result.columns
 
 
 def test_hard_excluded_column_does_not_affect_other_columns(sample_df):
-    cfg = PipelineConfig(exclude_columns=["id"])
+    cfg = (cfg := PipelineConfig(), cfg.add_exclusion("id"))[0]
     result = StructuralProfiler(cfg).profile(sample_df)
 
     assert "age" in result.columns
@@ -45,7 +45,7 @@ def test_hard_excluded_column_does_not_affect_other_columns(sample_df):
 
 
 def test_multiple_hard_exclusions_all_absent(sample_df):
-    cfg = PipelineConfig(exclude_columns=["id", "age"])
+    cfg = (cfg := PipelineConfig(), cfg.add_exclusion(["id", "age"]))[0]
     result = StructuralProfiler(cfg).profile(sample_df)
 
     assert "id" not in result.columns
@@ -59,28 +59,28 @@ def test_multiple_hard_exclusions_all_absent(sample_df):
 
 
 def test_soft_excluded_column_present_in_result(sample_df):
-    cfg = PipelineConfig(phase_exclusions={PipelinePhase.Profiling: ["age"]})
+    cfg = (cfg := PipelineConfig(), cfg.add_phase_exclusion(PipelinePhase.Profiling, "age"))[0]
     result = StructuralProfiler(cfg).profile(sample_df)
 
     assert "age" in result.columns
 
 
 def test_soft_excluded_column_has_stats_none(sample_df):
-    cfg = PipelineConfig(phase_exclusions={PipelinePhase.Profiling: ["age"]})
+    cfg = (cfg := PipelineConfig(), cfg.add_phase_exclusion(PipelinePhase.Profiling, "age"))[0]
     result = StructuralProfiler(cfg).profile(sample_df)
 
     assert result.columns["age"].stats is None
 
 
 def test_soft_excluded_column_not_type_detected(sample_df):
-    cfg = PipelineConfig(phase_exclusions={PipelinePhase.Profiling: ["age"]})
+    cfg = (cfg := PipelineConfig(), cfg.add_phase_exclusion(PipelinePhase.Profiling, "age"))[0]
     result = StructuralProfiler(cfg).profile(sample_df)
 
     assert result.columns["age"].semantic_type is None
 
 
 def test_soft_exclusion_does_not_affect_other_columns(sample_df):
-    cfg = PipelineConfig(phase_exclusions={PipelinePhase.Profiling: ["age"]})
+    cfg = (cfg := PipelineConfig(), cfg.add_phase_exclusion(PipelinePhase.Profiling, "age"))[0]
     result = StructuralProfiler(cfg).profile(sample_df)
 
     assert result.columns["income"].stats is not None
@@ -93,10 +93,9 @@ def test_soft_exclusion_does_not_affect_other_columns(sample_df):
 
 
 def test_column_in_both_hard_and_soft_is_absent(sample_df):
-    cfg = PipelineConfig(
-        exclude_columns=["age"],
-        phase_exclusions={PipelinePhase.Profiling: ["age"]},
-    )
+    cfg = PipelineConfig()
+    cfg.add_exclusion("age")
+    cfg.add_phase_exclusion(PipelinePhase.Profiling, "age")
     result = StructuralProfiler(cfg).profile(sample_df)
 
     assert "age" not in result.columns
@@ -110,7 +109,7 @@ def test_column_in_both_hard_and_soft_is_absent(sample_df):
 
 
 def test_pipeline_config_exclude_columns_act_as_hard_exclusions(sample_df):
-    cfg = PipelineConfig(exclude_columns=["id"])
+    cfg = (cfg := PipelineConfig(), cfg.add_exclusion("id"))[0]
     result = StructuralProfiler(cfg).profile(sample_df)
 
     assert "id" not in result.columns
@@ -124,14 +123,14 @@ def test_pipeline_config_exclude_columns_act_as_hard_exclusions(sample_df):
 
 
 def test_dataset_column_count_reflects_raw_dataframe_with_hard_exclusion(sample_df):
-    cfg = PipelineConfig(exclude_columns=["id"])
+    cfg = (cfg := PipelineConfig(), cfg.add_exclusion("id"))[0]
     result = StructuralProfiler(cfg).profile(sample_df)
 
     assert result.dataset.column_count == sample_df.width
 
 
 def test_dataset_column_count_reflects_raw_dataframe_with_soft_exclusion(sample_df):
-    cfg = PipelineConfig(phase_exclusions={PipelinePhase.Profiling: ["age"]})
+    cfg = (cfg := PipelineConfig(), cfg.add_phase_exclusion(PipelinePhase.Profiling, "age"))[0]
     result = StructuralProfiler(cfg).profile(sample_df)
 
     assert result.dataset.column_count == sample_df.width

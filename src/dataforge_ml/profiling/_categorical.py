@@ -76,8 +76,26 @@ class CategoricalProfiler(ColumnBatchProfiler[CategoricalProfileResult]):
         self,
         data: pl.DataFrame,
         columns: list[str],
+        user_overrides: set[str] | None = None,
     ) -> CategoricalProfileResult:
-        return self._run(data, columns)
+        """
+        Profile the specified categorical columns in a DataFrame.
+
+        Parameters
+        ----------
+        data : pl.DataFrame
+            The input Polars DataFrame containing the columns to profile.
+        columns : list[str]
+            A list of column names to profile.
+        user_overrides : set[str] | None, optional
+            A set of column names that have been manually overridden by the user.
+
+        Returns
+        -------
+        CategoricalProfileResult
+            A result object containing distribution statistics for the profiled columns.
+        """
+        return self._run(data, columns, user_overrides)
 
     # ------------------------------------------------------------------
     # Orchestration
@@ -87,6 +105,7 @@ class CategoricalProfiler(ColumnBatchProfiler[CategoricalProfileResult]):
         self,
         df: pl.DataFrame,
         columns: list[str],
+        user_overrides: set[str] | None = None,
     ) -> CategoricalProfileResult:
         result = CategoricalProfileResult()
 

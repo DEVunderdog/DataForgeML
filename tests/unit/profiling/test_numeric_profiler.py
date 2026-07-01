@@ -652,3 +652,29 @@ def test_mean_median_ratio_all_zero():
     assert stats.mean == 0.0
     assert stats.mean_median_ratio == 1.0
 
+
+def test_override_coercion_error_raised_for_total_failure():
+    import pytest
+    from dataforge_ml.profiling import OverrideCoercionError
+
+    df = pl.DataFrame({"num_col": pl.Series(["apple", "banana", "cherry"])})
+    with pytest.raises(OverrideCoercionError, match="completely failed coercion"):
+        NumericProfiler().profile(df, ["num_col"], user_overrides={"num_col"})
+
+
+def test_override_coercion_error_not_raised_for_partial_failure():
+    from dataforge_ml.profiling import OverrideCoercionError
+    # 1 valid numeric, 2 invalid
+    df = pl.DataFrame({"num_col": pl.Series(["1.23", "banana", "cherry"])})
+    result = NumericProfiler().profile(df, ["num_col"], user_overrides={"num_col"})
+    assert "num_col" in result.analysed_columns
+
+
+def test_override_coercion_error_not_raised_for_auto_detected_total_failure():
+    df = pl.DataFrame({"num_col": pl.Series(["apple", "banana", "cherry"])})
+    result = NumericProfiler().profile(df, ["num_col"])
+    # Returns empty profile
+    stats = result.columns["num_col"]
+    assert stats.mean is None
+
+
