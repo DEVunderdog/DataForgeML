@@ -441,12 +441,35 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
             gmm.fit(arr.reshape(-1, 1))
             
             centers = gmm.means_.flatten()
-            centers.sort()
-            
-            profile.bimodal_stats = BimodalStats(
-                dip_statistic=float(dip_stat),
-                dip_p_value=float(dip_p_value),
-                center1=float(centers[0]),
-                center2=float(centers[1]),
-            )
-            profile.flags.append(NumericFlag.Bimodal)
+            weights = gmm.weights_.flatten()
+            covariances = gmm.covariances_.flatten()
+
+            idx = centers.argsort()
+            sorted_centers = centers[idx]
+            sorted_weights = weights[idx]
+            sorted_covariances = covariances[idx]
+
+            import math
+            var1 = sorted_covariances[0]
+            var2 = sorted_covariances[1]
+
+            if var1 + var2 > 0:
+                cluster_separation = abs(sorted_centers[1] - sorted_centers[0]) / math.sqrt((var1 + var2) / 2)
+            else:
+                # If both variances are 0 and centers differ, separation is effectively infinite.
+                # In practice, GMM shouldn't yield exact 0 variance unless forced.
+                cluster_separation = float('inf') if sorted_centers[1] != sorted_centers[0] else 0.0
+
+            minority_weight = min(sorted_weights[0], sorted_weights[1])
+
+            if (cluster_separation >= config.bimodal_min_separation_threshold and 
+                minority_weight >= config.bimodal_min_component_weight):
+                profile.bimodal_stats = BimodalStats(
+                    dip_statistic=float(dip_stat),
+                    dip_p_value=float(dip_p_value),
+                    center1=float(sorted_centers[0]),
+                    center2=float(sorted_centers[1]),
+                    cluster_separation=float(cluster_separation),
+                    minority_weight=float(minority_weight),
+                )
+                profile.flags.append(NumericFlag.Bimodal)

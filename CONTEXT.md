@@ -73,7 +73,7 @@ A set of per-column diagnostic annotations computed by Phase 1 (`NumericProfiler
 
 - **ScaleAnomaly** — column values span an anomalous number of orders of magnitude, suggesting unit mixing or data quality issues.
 - **NearConstant** — mode frequency exceeds `near_constant_threshold` (default 90%): 90%+ of values share the same value. Caps distribution shape escalation in Phase 2 — model-based imputation learns near-constant predictions regardless of tail shape, so escalation is wasted. De-escalation takes priority over all distribution shape signals.
-- **Bimodal** — the column's distribution has two distinct peaks, detected via Hartigan's Dip Test (`p < bimodal_dip_p_value_threshold`, configurable in `NumericProfileConfig`). When set, `NumericStats.bimodal_stats` is populated with `BimodalStats`. Routes to the Bimodal Imputation Framework in Phase 2. Mutually exclusive with `NearConstant` (a 90%-mode column cannot be bimodal). See ADR-0031, ADR-0032.
+- **Bimodal** — the column's distribution has two distinct peaks, detected by a compound three-gate test (all three must pass): (1) Hartigan's Dip Test (`p < bimodal_dip_p_value_threshold`); (2) component separation via Ashman's D (`cluster_separation > bimodal_separation_threshold`, default 2.0); and (3) minimum component weight (`minority_weight > bimodal_minority_weight_threshold`, default 0.05). When set, `NumericStats.bimodal_stats` is populated with `BimodalStats`. Routes to the Bimodal Imputation Framework in Phase 2. Mutually exclusive with `NearConstant` (a 90%-mode column cannot be bimodal). See ADR-0031, ADR-0032, ADR-0042.
 - **HighOutlierDensity** — the fraction of values beyond `outlier_sigma_threshold` standard deviations from the mean exceeds `high_outlier_density_threshold` (default 0.05). Stored as `NumericStats.outlier_density`. An independent escalation trigger in Phase 2's Priority 7 distribution shape condition, alongside `KurtosisTag.Leptokurtic`. See ADR-0033.
 
 ## BimodalStats
@@ -83,8 +83,10 @@ A dataclass stored as `NumericStats.bimodal_stats`. Present (non-`None`) when an
 - **`dip_statistic`** — the raw dip statistic from Hartigan's Dip Test
 - **`dip_p_value`** — the p-value from Hartigan's Dip Test; the detection threshold is `NumericProfileConfig.bimodal_dip_p_value_threshold`
 - **`center1`**, **`center2`** — the two cluster means from the 2-component GMM fitted after the dip test fires. Used by the Bimodal Imputation Framework for cluster-conditional fill assignment and domain-constrained GMM Sampling.
+- **`cluster_separation`** — Ashman's D separation score between the two GMM components.
+- **`minority_weight`** — the weight of the smaller component from the 2-component GMM (range `[0, 0.5]`).
 
-The invariant is bidirectional: `NumericFlag.Bimodal` present ↔ `bimodal_stats` is not `None`. Part of the Phase 1 output; consumed by Phase 2 without re-computation.
+The invariant is bidirectional: `NumericFlag.Bimodal` present ↔ `bimodal_stats` is not `None`. Part of the Phase 1 output; consumed by Phase 2 without re-computation. See ADR-0042.
   _Avoid_: GMM stats, bimodal metadata
 
 ## SemanticType

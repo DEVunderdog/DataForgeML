@@ -418,6 +418,9 @@ def test_config_round_trip_preserves_all_fields():
         skew_high=1.5,
         kurt_platykurtic_upper=-2.0,
         kurt_leptokurtic_lower=5.0,
+        bimodal_dip_p_value_threshold=0.01,
+        bimodal_min_separation_threshold=3.0,
+        bimodal_min_component_weight=0.1,
         near_constant_threshold=0.85,
         scale_orders_of_magnitude=4,
     )
@@ -429,6 +432,8 @@ def test_config_round_trip_preserves_all_fields():
     assert restored.kurt_leptokurtic_lower == cfg.kurt_leptokurtic_lower
     assert restored.near_constant_threshold == cfg.near_constant_threshold
     assert restored.scale_orders_of_magnitude == cfg.scale_orders_of_magnitude
+    assert restored.bimodal_min_separation_threshold == cfg.bimodal_min_separation_threshold
+    assert restored.bimodal_min_component_weight == cfg.bimodal_min_component_weight
 
 
 def test_config_from_dict_uses_defaults_for_missing_keys():
@@ -439,6 +444,8 @@ def test_config_from_dict_uses_defaults_for_missing_keys():
     assert restored.kurt_leptokurtic_lower == default.kurt_leptokurtic_lower
     assert restored.near_constant_threshold == default.near_constant_threshold
     assert restored.scale_orders_of_magnitude == default.scale_orders_of_magnitude
+    assert restored.bimodal_min_separation_threshold == default.bimodal_min_separation_threshold
+    assert restored.bimodal_min_component_weight == default.bimodal_min_component_weight
 
 
 def test_config_to_dict_contains_all_keys():
@@ -453,6 +460,8 @@ def test_config_to_dict_contains_all_keys():
         "near_constant_threshold",
         "scale_orders_of_magnitude",
         "bimodal_dip_p_value_threshold",
+        "bimodal_min_separation_threshold",
+        "bimodal_min_component_weight",
         "tail_asymmetry_right_share_threshold",
         "tail_asymmetry_left_share_threshold",
         "outlier_sigma_threshold",
@@ -547,6 +556,8 @@ def test_bimodality_detected():
     assert stats.bimodal_stats.center1 is not None
     assert stats.bimodal_stats.center2 is not None
     assert stats.bimodal_stats.center1 < stats.bimodal_stats.center2
+    assert stats.bimodal_stats.cluster_separation >= 2.0
+    assert stats.bimodal_stats.minority_weight >= 0.05
 
 
 def test_unimodal_not_bimodal():
@@ -569,6 +580,43 @@ def test_near_constant_skips_bimodality():
     assert NumericFlag.NearConstant in stats.flags
     assert NumericFlag.Bimodal not in stats.flags
     assert stats.bimodal_stats is None
+
+
+def test_bimodality_gate_fails_separation():
+    import numpy as np
+    rng = np.random.default_rng(42)
+    # Dip test often fires on highly skewed/boundary-pileup distributions,
+    # but the separation should be low (e.g. Ashman's D < 2.0)
+    data = [0.0] * 100 + list(rng.normal(0.5, 2.0, 100))
+    df = pl.DataFrame({"v": pl.Series(data, dtype=pl.Float64)})
+    stats = NumericProfiler().profile(df, ["v"]).columns["v"]
+    
+    assert NumericFlag.Bimodal not in stats.flags
+    assert stats.bimodal_stats is None
+
+
+def test_bimodality_gate_fails_minority_weight():
+    import numpy as np
+    rng = np.random.default_rng(42)
+    # Two well separated clusters, but one is very small (e.g. 2% of data)
+    data = list(rng.normal(0, 1, 980)) + list(rng.normal(20, 1, 20))
+    df = pl.DataFrame({"v": pl.Series(data, dtype=pl.Float64)})
+    stats = NumericProfiler().profile(df, ["v"]).columns["v"]
+    
+    assert NumericFlag.Bimodal not in stats.flags
+    assert stats.bimodal_stats is None
+
+
+def test_bimodal_stats_round_trip():
+    from dataforge_ml.profiling._numeric_config import BimodalStats
+    stats = BimodalStats(dip_statistic=0.1, dip_p_value=0.01, center1=1.0, center2=5.0, cluster_separation=3.5, minority_weight=0.25)
+    restored = BimodalStats.from_dict(stats.to_dict())
+    assert restored.dip_statistic == 0.1
+    assert restored.dip_p_value == 0.01
+    assert restored.center1 == 1.0
+    assert restored.center2 == 5.0
+    assert restored.cluster_separation == 3.5
+    assert restored.minority_weight == 0.25
 
 # ---------------------------------------------------------------------------
 # mean_median_ratio behavior

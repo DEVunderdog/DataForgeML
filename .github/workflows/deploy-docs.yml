@@ -1,14 +1,19 @@
 name: Deploy Docs
 
+# Deploys docs only after a real PyPI release, not on every merge to main.
+# Coupled by name to the "Publish to PyPI" workflow (publish.yml) -- if that
+# workflow is renamed, update the `workflows:` list below to match.
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows: ["Publish to PyPI"]
+    types:
+      - completed
 
 jobs:
   deploy:
     name: Build and deploy Sphinx docs
     runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
 
     permissions:
       contents: write
@@ -16,6 +21,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
 
       # Python version matches the upper bound tested in CI (pyproject.toml requires >3.10)
       - name: Set up Python 3.12
