@@ -25,12 +25,18 @@ class BimodalStats:
         The estimated location of the first mode.
     center2 : float
         The estimated location of the second mode.
+    cluster_separation : float
+        Ashman's D cluster separation metric (distance between cluster centers relative to dispersion).
+    minority_weight : float
+        Mixing weight of the smaller Gaussian component.
     """
 
     dip_statistic: float
     dip_p_value: float
     center1: float
     center2: float
+    cluster_separation: float
+    minority_weight: float
 
     def to_dict(self) -> dict:
         """Serialise the bimodal statistics to a plain dictionary.
@@ -45,6 +51,8 @@ class BimodalStats:
             "dip_p_value": self.dip_p_value,
             "center1": self.center1,
             "center2": self.center2,
+            "cluster_separation": self.cluster_separation,
+            "minority_weight": self.minority_weight,
         }
 
     @classmethod
@@ -66,6 +74,8 @@ class BimodalStats:
             dip_p_value=float(data["dip_p_value"]),
             center1=float(data["center1"]),
             center2=float(data["center2"]),
+            cluster_separation=float(data["cluster_separation"]),
+            minority_weight=float(data["minority_weight"]),
         )
 
 
@@ -627,6 +637,10 @@ class NumericProfileConfig:
         column to receive ``NumericFlag.ScaleAnomaly`` (i.e. ratio >= 10^n).
     bimodal_dip_p_value_threshold : float
         P-value threshold for Hartigan's Dip Test to classify as bimodal. Default 0.05.
+    bimodal_min_separation_threshold : float
+        Ashman's D separation threshold above which bimodality is confirmed. Default 2.0.
+    bimodal_min_component_weight : float
+        Minimum mixing weight for the smaller component to confirm bimodality. Default 0.05.
     tail_asymmetry_right_share_threshold : float
         Threshold for tail asymmetry share above which the distribution is RightHeavy. Default 2/3.
     tail_asymmetry_left_share_threshold : float
@@ -645,6 +659,8 @@ class NumericProfileConfig:
     near_constant_threshold: float = 0.90
     scale_orders_of_magnitude: int = 3
     bimodal_dip_p_value_threshold: float = 0.05
+    bimodal_min_separation_threshold: float = 2.0
+    bimodal_min_component_weight: float = 0.05
     tail_asymmetry_right_share_threshold: float = 2.0 / 3.0
     tail_asymmetry_left_share_threshold: float = 1.0 / 3.0
     outlier_sigma_threshold: float = 3.0
@@ -668,6 +684,8 @@ class NumericProfileConfig:
             "near_constant_threshold": self.near_constant_threshold,
             "scale_orders_of_magnitude": self.scale_orders_of_magnitude,
             "bimodal_dip_p_value_threshold": self.bimodal_dip_p_value_threshold,
+            "bimodal_min_separation_threshold": self.bimodal_min_separation_threshold,
+            "bimodal_min_component_weight": self.bimodal_min_component_weight,
             "tail_asymmetry_right_share_threshold": self.tail_asymmetry_right_share_threshold,
             "tail_asymmetry_left_share_threshold": self.tail_asymmetry_left_share_threshold,
             "outlier_sigma_threshold": self.outlier_sigma_threshold,
@@ -699,6 +717,8 @@ class NumericProfileConfig:
             near_constant_threshold=float(data.get("near_constant_threshold", 0.90)),
             scale_orders_of_magnitude=int(data.get("scale_orders_of_magnitude", 3)),
             bimodal_dip_p_value_threshold=float(data.get("bimodal_dip_p_value_threshold", 0.05)),
+            bimodal_min_separation_threshold=float(data.get("bimodal_min_separation_threshold", 2.0)),
+            bimodal_min_component_weight=float(data.get("bimodal_min_component_weight", 0.05)),
             tail_asymmetry_right_share_threshold=float(data.get("tail_asymmetry_right_share_threshold", 2.0 / 3.0)),
             tail_asymmetry_left_share_threshold=float(data.get("tail_asymmetry_left_share_threshold", 1.0 / 3.0)),
             outlier_sigma_threshold=float(data.get("outlier_sigma_threshold", 3.0)),

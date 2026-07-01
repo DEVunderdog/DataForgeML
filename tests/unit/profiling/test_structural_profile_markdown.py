@@ -443,7 +443,7 @@ def _numeric_stats_rich(**overrides) -> NumericStats:
         mean_mutual_information=0.33,
         r2_gap=0.15,
         heteroscedasticity_p_value=0.02,
-        bimodal_stats=BimodalStats(dip_statistic=0.05, dip_p_value=0.01, center1=2.0, center2=8.0),
+        bimodal_stats=BimodalStats(dip_statistic=0.05, dip_p_value=0.01, center1=2.0, center2=8.0, cluster_separation=3.0, minority_weight=0.4),
         tail_asymmetry_share=1.8,
         outlier_density=0.04,
     )

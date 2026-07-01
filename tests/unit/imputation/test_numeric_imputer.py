@@ -2472,7 +2472,7 @@ def test_numeric_imputer_bimodal_smoke_test():
     )
     cp_gmm.name = "col_gmm"
     cp_gmm.stats = NumericStats(flags=[NumericFlag.Bimodal], min=1.0, max=6.0, mean=3.6, std=1.8)
-    cp_gmm.stats.bimodal_stats = BimodalStats(center1=1.5, center2=5.0, dip_statistic=0.1, dip_p_value=0.01)
+    cp_gmm.stats.bimodal_stats = BimodalStats(center1=1.5, center2=5.0, dip_statistic=0.1, dip_p_value=0.01, cluster_separation=3.0, minority_weight=0.4)
     
     cp_cluster = _numeric_cp(
         null_count=1, total_rows=6, severity=MissingSeverity.Minor,
@@ -2480,7 +2480,7 @@ def test_numeric_imputer_bimodal_smoke_test():
     )
     cp_cluster.name = "col_cluster"
     cp_cluster.stats = NumericStats(flags=[NumericFlag.Bimodal], min=1.0, max=6.0, mean=3.6, std=1.8)
-    cp_cluster.stats.bimodal_stats = BimodalStats(center1=1.5, center2=5.0, dip_statistic=0.1, dip_p_value=0.01)
+    cp_cluster.stats.bimodal_stats = BimodalStats(center1=1.5, center2=5.0, dip_statistic=0.1, dip_p_value=0.01, cluster_separation=3.0, minority_weight=0.4)
     
     cp_group = _numeric_cp(null_count=0, total_rows=6)
     cp_group.name = "group_var"
