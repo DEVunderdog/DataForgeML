@@ -444,7 +444,7 @@ def _numeric_stats_rich(**overrides) -> NumericStats:
         r2_gap=0.15,
         heteroscedasticity_p_value=0.02,
         bimodal_stats=BimodalStats(dip_statistic=0.05, dip_p_value=0.01, center1=2.0, center2=8.0),
-        tail_asymmetry_ratio=1.8,
+        tail_asymmetry_share=1.8,
         outlier_density=0.04,
     )
     defaults.update(overrides)
@@ -538,14 +538,14 @@ def test_to_markdown_flagged_column_keeps_all_numeric_scalars():
     for field_name in (
         "mean", "median", "std", "variance", "skewness", "kurtosis",
         "min", "max", "mode", "mode_frequency", "mean_median_ratio",
-        "outlier_density", "tail_asymmetry_ratio",
+        "outlier_density", "tail_asymmetry_share",
     ):
         assert f"**{field_name}**" in detail, f"missing scalar field: {field_name}"
 
     for value in (
         stats.mean, stats.median, stats.std, stats.variance, stats.skewness,
         stats.kurtosis, stats.min, stats.max, stats.mode, stats.mode_frequency,
-        stats.mean_median_ratio, stats.outlier_density, stats.tail_asymmetry_ratio,
+        stats.mean_median_ratio, stats.outlier_density, stats.tail_asymmetry_share,
     ):
         assert str(value) in detail
 
