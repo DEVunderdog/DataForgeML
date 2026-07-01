@@ -58,14 +58,14 @@ The discrete/continuous classification of a numeric column, computed by `Numeric
 
 ## TailAsymmetryTag
 
-A per-column signal computed by Phase 1 (`NumericProfiler`) and stored in `NumericStats.tail_asymmetry_tag`. Captures the asymmetry between the extreme right and extreme left tails, derived from the existing `PercentileSnapshot` as `(p99 - p95) / (p5 - p1)`. The raw ratio is stored as `NumericStats.tail_asymmetry_ratio`; `None` when `p5 == p1` (flat left tail — division undefined).
+A per-column signal computed by Phase 1 (`NumericProfiler`) and stored in `NumericStats.tail_asymmetry_tag`. Captures the asymmetry between the extreme right and extreme left tails, derived from the existing `PercentileSnapshot` as a bounded share: `(p99 - p95) / ((p99 - p95) + (p5 - p1))`. The raw share is stored as `NumericStats.tail_asymmetry_share` (range `[0, 1]`); `None` when both bands are flat (`p5 == p1` and `p99 == p95` — no spread on either side to compare). A flat left band alone (`p5 == p1`) with a non-flat right band is well-defined (`share = 1.0`, maximal `RightHeavy`) and does not produce `None`.
 
-- **RightHeavy** — right extreme tail is significantly heavier than the left (ratio > `tail_asymmetry_right_threshold`, configurable in `NumericProfileConfig`)
-- **LeftHeavy** — left extreme tail is significantly heavier than the right (ratio < `tail_asymmetry_left_threshold`, configurable in `NumericProfileConfig`)
+- **RightHeavy** — right extreme tail is significantly heavier than the left (share > `tail_asymmetry_right_share_threshold`, default `2/3`, configurable in `NumericProfileConfig`)
+- **LeftHeavy** — left extreme tail is significantly heavier than the right (share < `tail_asymmetry_left_share_threshold`, default `1/3`, configurable in `NumericProfileConfig`)
 - **Symmetric** — both extreme tails are balanced
 
-For routing: `RightHeavy` or `LeftHeavy` upgrades the effective `SkewSeverity` by one level at routing time (stored severity unchanged). Provides finer signal than `SkewSeverity` alone — a `SkewSeverity.Moderate` column with a disproportionately heavy extreme tail is escalated to KNN the same as `SkewSeverity.Severe`. See ADR-0033.
-  _Avoid_: tail ratio, asymmetry ratio
+For routing: `RightHeavy` or `LeftHeavy` upgrades the effective `SkewSeverity` by one level at routing time (stored severity unchanged). Provides finer signal than `SkewSeverity` alone — a `SkewSeverity.Moderate` column with a disproportionately heavy extreme tail is escalated to KNN the same as `SkewSeverity.Severe`. See ADR-0033, ADR-0041.
+  _Avoid_: tail ratio, asymmetry ratio, tail_asymmetry_ratio
 
 ## NumericFlag
 

@@ -280,8 +280,8 @@ class NumericStats:
         Statistics related to bimodality detected by Hartigan's Dip Test.
     tail_asymmetry_tag : TailAsymmetryTag, optional
         Categorized tag for the tail asymmetry of the distribution.
-    tail_asymmetry_ratio : float, optional
-        Ratio of the right tail spread to the left tail spread.
+    tail_asymmetry_share : float, optional
+        Bounded share of the right tail spread against total extreme tail spread, range [0, 1].
     outlier_density : float, optional
         Proportion of values considered as extreme outliers.
     """
@@ -310,7 +310,7 @@ class NumericStats:
     heteroscedasticity_p_value: Optional[float] = None
     bimodal_stats: Optional[BimodalStats] = None
     tail_asymmetry_tag: Optional[TailAsymmetryTag] = None
-    tail_asymmetry_ratio: Optional[float] = None
+    tail_asymmetry_share: Optional[float] = None
     outlier_density: Optional[float] = None
 
     @property
@@ -372,7 +372,7 @@ class NumericStats:
             "heteroscedasticity_p_value": self.heteroscedasticity_p_value,
             "bimodal_stats": self.bimodal_stats.to_dict() if self.bimodal_stats else None,
             "tail_asymmetry_tag": str(self.tail_asymmetry_tag) if self.tail_asymmetry_tag else None,
-            "tail_asymmetry_ratio": self.tail_asymmetry_ratio,
+            "tail_asymmetry_share": self.tail_asymmetry_share,
             "outlier_density": self.outlier_density,
         }
 
@@ -415,7 +415,7 @@ class NumericStats:
             heteroscedasticity_p_value=data.get("heteroscedasticity_p_value"),
             bimodal_stats=BimodalStats.from_dict(data["bimodal_stats"]) if data.get("bimodal_stats") else None,
             tail_asymmetry_tag=TailAsymmetryTag(data["tail_asymmetry_tag"]) if data.get("tail_asymmetry_tag") else None,
-            tail_asymmetry_ratio=data.get("tail_asymmetry_ratio"),
+            tail_asymmetry_share=data.get("tail_asymmetry_share"),
             outlier_density=data.get("outlier_density"),
         )
 
@@ -627,10 +627,10 @@ class NumericProfileConfig:
         column to receive ``NumericFlag.ScaleAnomaly`` (i.e. ratio >= 10^n).
     bimodal_dip_p_value_threshold : float
         P-value threshold for Hartigan's Dip Test to classify as bimodal. Default 0.05.
-    tail_asymmetry_right_threshold : float
-        Threshold for tail asymmetry ratio above which the distribution is RightHeavy. Default 2.0.
-    tail_asymmetry_left_threshold : float
-        Threshold for tail asymmetry ratio below which the distribution is LeftHeavy. Default 0.5.
+    tail_asymmetry_right_share_threshold : float
+        Threshold for tail asymmetry share above which the distribution is RightHeavy. Default 2/3.
+    tail_asymmetry_left_share_threshold : float
+        Threshold for tail asymmetry share below which the distribution is LeftHeavy. Default 1/3.
     outlier_sigma_threshold : float
         Sigma threshold for outlier detection. Default 3.0.
     high_outlier_density_threshold : float
@@ -645,8 +645,8 @@ class NumericProfileConfig:
     near_constant_threshold: float = 0.90
     scale_orders_of_magnitude: int = 3
     bimodal_dip_p_value_threshold: float = 0.05
-    tail_asymmetry_right_threshold: float = 2.0
-    tail_asymmetry_left_threshold: float = 0.5
+    tail_asymmetry_right_share_threshold: float = 2.0 / 3.0
+    tail_asymmetry_left_share_threshold: float = 1.0 / 3.0
     outlier_sigma_threshold: float = 3.0
     high_outlier_density_threshold: float = 0.05
 
@@ -668,8 +668,8 @@ class NumericProfileConfig:
             "near_constant_threshold": self.near_constant_threshold,
             "scale_orders_of_magnitude": self.scale_orders_of_magnitude,
             "bimodal_dip_p_value_threshold": self.bimodal_dip_p_value_threshold,
-            "tail_asymmetry_right_threshold": self.tail_asymmetry_right_threshold,
-            "tail_asymmetry_left_threshold": self.tail_asymmetry_left_threshold,
+            "tail_asymmetry_right_share_threshold": self.tail_asymmetry_right_share_threshold,
+            "tail_asymmetry_left_share_threshold": self.tail_asymmetry_left_share_threshold,
             "outlier_sigma_threshold": self.outlier_sigma_threshold,
             "high_outlier_density_threshold": self.high_outlier_density_threshold,
         }
@@ -699,8 +699,8 @@ class NumericProfileConfig:
             near_constant_threshold=float(data.get("near_constant_threshold", 0.90)),
             scale_orders_of_magnitude=int(data.get("scale_orders_of_magnitude", 3)),
             bimodal_dip_p_value_threshold=float(data.get("bimodal_dip_p_value_threshold", 0.05)),
-            tail_asymmetry_right_threshold=float(data.get("tail_asymmetry_right_threshold", 2.0)),
-            tail_asymmetry_left_threshold=float(data.get("tail_asymmetry_left_threshold", 0.5)),
+            tail_asymmetry_right_share_threshold=float(data.get("tail_asymmetry_right_share_threshold", 2.0 / 3.0)),
+            tail_asymmetry_left_share_threshold=float(data.get("tail_asymmetry_left_share_threshold", 1.0 / 3.0)),
             outlier_sigma_threshold=float(data.get("outlier_sigma_threshold", 3.0)),
             high_outlier_density_threshold=float(data.get("high_outlier_density_threshold", 0.05)),
         )

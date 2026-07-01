@@ -361,18 +361,20 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
         if p1 is None or p5 is None or p95 is None or p99 is None:
             return
 
-        denominator = p5 - p1
-        if denominator == 0.0:
-            profile.tail_asymmetry_ratio = None
+        numerator = p99 - p95
+        left_band = p5 - p1
+        denominator_sum = numerator + left_band
+        if denominator_sum == 0.0:
+            profile.tail_asymmetry_share = None
             profile.tail_asymmetry_tag = None
             return
 
-        ratio = (p99 - p95) / denominator
-        profile.tail_asymmetry_ratio = ratio
+        share = numerator / denominator_sum
+        profile.tail_asymmetry_share = share
 
-        if ratio > config.tail_asymmetry_right_threshold:
+        if share > config.tail_asymmetry_right_share_threshold:
             profile.tail_asymmetry_tag = TailAsymmetryTag.RightHeavy
-        elif ratio < config.tail_asymmetry_left_threshold:
+        elif share < config.tail_asymmetry_left_share_threshold:
             profile.tail_asymmetry_tag = TailAsymmetryTag.LeftHeavy
         else:
             profile.tail_asymmetry_tag = TailAsymmetryTag.Symmetric

@@ -453,8 +453,8 @@ def test_config_to_dict_contains_all_keys():
         "near_constant_threshold",
         "scale_orders_of_magnitude",
         "bimodal_dip_p_value_threshold",
-        "tail_asymmetry_right_threshold",
-        "tail_asymmetry_left_threshold",
+        "tail_asymmetry_right_share_threshold",
+        "tail_asymmetry_left_share_threshold",
         "outlier_sigma_threshold",
         "high_outlier_density_threshold",
     }
@@ -470,17 +470,19 @@ def test_tail_asymmetry_symmetric():
     df = pl.DataFrame({"v": pl.Series(data, dtype=pl.Float64)})
     stats = NumericProfiler().profile(df, ["v"]).columns["v"]
     assert stats.tail_asymmetry_tag == TailAsymmetryTag.Symmetric
-    assert stats.tail_asymmetry_ratio is not None
-    assert 0.5 <= stats.tail_asymmetry_ratio <= 2.0
+    assert stats.tail_asymmetry_share is not None
+    assert 1.0 / 3.0 <= stats.tail_asymmetry_share <= 2.0 / 3.0
 
 
 def test_tail_asymmetry_right_heavy():
-    # (1000 - 95) / (5 - 1) = 905 / 4 = 226.25 > 2.0
+    # numerator = 1000 - 95 = 905, left_band = 5 - 1 = 4
+    # denominator_sum = 909
+    # share = 905 / 909 = 0.995... > 2/3
     data = list(range(1, 96)) + [100, 200, 500, 800, 1000]
     df = pl.DataFrame({"v": pl.Series(data, dtype=pl.Float64)})
     stats = NumericProfiler().profile(df, ["v"]).columns["v"]
     assert stats.tail_asymmetry_tag == TailAsymmetryTag.RightHeavy
-    assert stats.tail_asymmetry_ratio > 2.0
+    assert stats.tail_asymmetry_share > 2.0 / 3.0
 
 
 def test_tail_asymmetry_left_heavy():
@@ -489,29 +491,41 @@ def test_tail_asymmetry_left_heavy():
     df = pl.DataFrame({"v": pl.Series(data, dtype=pl.Float64)})
     stats = NumericProfiler().profile(df, ["v"]).columns["v"]
     assert stats.tail_asymmetry_tag == TailAsymmetryTag.LeftHeavy
-    assert stats.tail_asymmetry_ratio < 0.5
+    assert stats.tail_asymmetry_share < 1.0 / 3.0
 
 
 def test_tail_asymmetry_flat_left_tail():
-    # p5 == p1 => denominator is zero
+    # p5 == p1 => left band is 0, right band is non-zero
+    # Therefore denominator_sum = numerator
+    # share = numerator / numerator = 1.0
     data = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] + list(range(1, 91))
     df = pl.DataFrame({"v": pl.Series(data, dtype=pl.Float64)})
     stats = NumericProfiler().profile(df, ["v"]).columns["v"]
     assert stats.percentiles.p5 == stats.percentiles.p1
-    assert stats.tail_asymmetry_ratio is None
+    assert stats.tail_asymmetry_share == 1.0
+    assert stats.tail_asymmetry_tag == TailAsymmetryTag.RightHeavy
+
+def test_tail_asymmetry_true_zero():
+    # p5 == p1 and p99 == p95 => both bands flat
+    data = [0] * 10 + list(range(10, 90)) + [100] * 10
+    df = pl.DataFrame({"v": pl.Series(data, dtype=pl.Float64)})
+    stats = NumericProfiler().profile(df, ["v"]).columns["v"]
+    assert stats.percentiles.p5 == stats.percentiles.p1
+    assert stats.percentiles.p99 == stats.percentiles.p95
+    assert stats.tail_asymmetry_share is None
     assert stats.tail_asymmetry_tag is None
 
 
 def test_tail_asymmetry_configurable_thresholds():
     data_right = list(range(1, 96)) + [100, 200, 500, 800, 1000]
     df_right = pl.DataFrame({"v": pl.Series(data_right, dtype=pl.Float64)})
-    cfg1 = NumericProfileConfig(tail_asymmetry_right_threshold=500.0)
+    cfg1 = NumericProfileConfig(tail_asymmetry_right_share_threshold=1.0)
     stats_right = NumericProfiler(config=cfg1).profile(df_right, ["v"]).columns["v"]
     assert stats_right.tail_asymmetry_tag == TailAsymmetryTag.Symmetric
 
     data_left = [-1000, -500, -200, -100, -50] + list(range(-40, 55))
     df_left = pl.DataFrame({"v": pl.Series(data_left, dtype=pl.Float64)})
-    cfg2 = NumericProfileConfig(tail_asymmetry_left_threshold=-1.0)
+    cfg2 = NumericProfileConfig(tail_asymmetry_left_share_threshold=-0.1)
     stats_left = NumericProfiler(config=cfg2).profile(df_left, ["v"]).columns["v"]
     assert stats_left.tail_asymmetry_tag == TailAsymmetryTag.Symmetric
 
