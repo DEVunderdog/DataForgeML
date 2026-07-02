@@ -28,7 +28,7 @@ from typing import Any
 import numpy as np
 import polars as pl
 
-from ._base import ModalityProfiler, ColumnBatchProfiler
+from ._base import ModalityProfiler, ColumnBatchProfiler, OverrideCoercionError
 from ._tabular import TabularProfiler
 from ._categorical import CategoricalProfiler
 from ._datetime_profiler import DatetimeProfiler
@@ -114,6 +114,10 @@ class StructuralProfiler:
         ------
         TypeError
             When ``data`` is not a ``polars.DataFrame``.
+        OverrideCoercionError
+            When a column carrying ``TypeFlag.UserOverride`` completely fails
+            coercion to its overridden ``SemanticType`` (zero usable values
+            remain despite the original column having non-null data).
         """
         if not isinstance(data, pl.DataFrame):
             raise TypeError(
@@ -241,6 +245,8 @@ class StructuralProfiler:
                 for col_name in batch.analysed_columns:
                     if col_name in result.columns:
                         result.columns[col_name].stats = batch.columns.get(col_name)
+            except OverrideCoercionError:
+                raise
             except Exception:
                 pass
 
