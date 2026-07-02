@@ -409,7 +409,12 @@ from the nested sub-configs on <code class="docutils literal notranslate"><span 
 <dd class="field-odd"><p><a class="reference internal" href="#dataforge_ml.profiling._config.StructuralProfileResult" title="dataforge_ml.profiling._config.StructuralProfileResult">StructuralProfileResult</a></p>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><p><strong>TypeError</strong> – When <code class="docutils literal notranslate"><span class="pre">data</span></code> is not a <code class="docutils literal notranslate"><span class="pre">polars.DataFrame</span></code>.</p>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>TypeError</strong> – When <code class="docutils literal notranslate"><span class="pre">data</span></code> is not a <code class="docutils literal notranslate"><span class="pre">polars.DataFrame</span></code>.</p></li>
+<li><p><strong>OverrideCoercionError</strong> – When a column carrying <code class="docutils literal notranslate"><span class="pre">TypeFlag.UserOverride</span></code> completely fails
+coercion to its overridden <code class="docutils literal notranslate"><span class="pre">SemanticType</span></code> (zero usable values
+remain despite the original column having non-null data).</p></li>
+</ul>
 </dd>
 </dl>
 </dd></dl>

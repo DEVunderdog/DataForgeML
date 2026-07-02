@@ -389,7 +389,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">._base</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModalityProfiler</span><span class="p">,</span> <span class="n">ColumnBatchProfiler</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._base</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModalityProfiler</span><span class="p">,</span> <span class="n">ColumnBatchProfiler</span><span class="p">,</span> <span class="n">OverrideCoercionError</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._tabular</span><span class="w"> </span><span class="kn">import</span> <span class="n">TabularProfiler</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._categorical</span><span class="w"> </span><span class="kn">import</span> <span class="n">CategoricalProfiler</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._datetime_profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">DatetimeProfiler</span>
@@ -479,6 +479,10 @@
 <span class="sd">        ------</span>
 <span class="sd">        TypeError</span>
 <span class="sd">            When ``data`` is not a ``polars.DataFrame``.</span>
+<span class="sd">        OverrideCoercionError</span>
+<span class="sd">            When a column carrying ``TypeFlag.UserOverride`` completely fails</span>
+<span class="sd">            coercion to its overridden ``SemanticType`` (zero usable values</span>
+<span class="sd">            remain despite the original column having non-null data).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">):</span>
             <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
@@ -606,6 +610,8 @@
                 <span class="k">for</span> <span class="n">col_name</span> <span class="ow">in</span> <span class="n">batch</span><span class="o">.</span><span class="n">analysed_columns</span><span class="p">:</span>
                     <span class="k">if</span> <span class="n">col_name</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
                         <span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">col_name</span><span class="p">]</span><span class="o">.</span><span class="n">stats</span> <span class="o">=</span> <span class="n">batch</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">col_name</span><span class="p">)</span>
+            <span class="k">except</span> <span class="n">OverrideCoercionError</span><span class="p">:</span>
+                <span class="k">raise</span>
             <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
                 <span class="k">pass</span>
 
