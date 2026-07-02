@@ -393,76 +393,11 @@
 
 
 <span class="nd">@dataclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">TemporalSignals</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Which time-component features are present in a Datetime column.</span>
-
-<span class="sd">    Each boolean field indicates that the corresponding granularity was</span>
-<span class="sd">    detected as non-constant, making it a candidate for feature extraction</span>
-<span class="sd">    in Phase 5 Encoding.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="n">has_year</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">has_month</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">has_day</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">has_day_of_week</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">has_hour</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">has_is_weekend</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">has_is_month_end</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">extractable_features</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the names of all time-component features that can be extracted.</span>
-
-<span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-<span class="sd">        list[str]</span>
-<span class="sd">            Feature names corresponding to every ``has_*`` field that is</span>
-<span class="sd">            ``True``.  An empty list means no temporal variation was detected.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">features</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_year</span><span class="p">:</span>
-            <span class="n">features</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;year&quot;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_month</span><span class="p">:</span>
-            <span class="n">features</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;month&quot;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_day</span><span class="p">:</span>
-            <span class="n">features</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;day_of_month&quot;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_day_of_week</span><span class="p">:</span>
-            <span class="n">features</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;day_of_week&quot;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_hour</span><span class="p">:</span>
-            <span class="n">features</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;hour&quot;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_is_weekend</span><span class="p">:</span>
-            <span class="n">features</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;is_weekend&quot;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_is_month_end</span><span class="p">:</span>
-            <span class="n">features</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;is_month_end&quot;</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">features</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Serialise the temporal signals to a plain dictionary.</span>
-
-<span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-<span class="sd">        dict</span>
-<span class="sd">            All ``has_*`` flags plus an ``extractable_features`` key</span>
-<span class="sd">            containing the result of :meth:`extractable_features`.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="p">{</span>
-            <span class="s2">&quot;has_year&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_year</span><span class="p">,</span>
-            <span class="s2">&quot;has_month&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_month</span><span class="p">,</span>
-            <span class="s2">&quot;has_day&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_day</span><span class="p">,</span>
-            <span class="s2">&quot;has_day_of_week&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_day_of_week</span><span class="p">,</span>
-            <span class="s2">&quot;has_hour&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_hour</span><span class="p">,</span>
-            <span class="s2">&quot;has_is_weekend&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_is_weekend</span><span class="p">,</span>
-            <span class="s2">&quot;has_is_month_end&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_is_month_end</span><span class="p">,</span>
-            <span class="s2">&quot;extractable_features&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">extractable_features</span><span class="p">(),</span>
-        <span class="p">}</span>
-
-
-<span class="nd">@dataclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">DatetimeStats</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Statistical summary of a single Datetime column.</span>
 
 <span class="sd">    Produced by ``DatetimeProfiler`` for each opted-in column.  Stores</span>
-<span class="sd">    range, gap regularity, inferred granularity, and ``TemporalSignals``</span>
-<span class="sd">    indicating which time components are available for feature extraction.</span>
+<span class="sd">    range, gap regularity, and inferred granularity.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">min_date</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
@@ -472,7 +407,6 @@
     <span class="n">inferred_granularity</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">InferredGranularity</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">median_gap_seconds</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">gap_cv</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">signals</span><span class="p">:</span> <span class="n">TemporalSignals</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">TemporalSignals</span><span class="p">)</span>
     <span class="n">flags</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">DatetimeFlag</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">has_flag</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">flag</span><span class="p">:</span> <span class="n">DatetimeFlag</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
@@ -498,8 +432,7 @@
 <span class="sd">        -------</span>
 <span class="sd">        dict</span>
 <span class="sd">            All fields keyed by field name.  ``inferred_granularity`` is</span>
-<span class="sd">            serialised as its string value; ``signals`` is expanded via</span>
-<span class="sd">            :meth:`TemporalSignals.to_dict`; ``flags`` are serialised as</span>
+<span class="sd">            serialised as its string value; ``flags`` are serialised as</span>
 <span class="sd">            their string values.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="p">{</span>
@@ -510,7 +443,6 @@
             <span class="s2">&quot;inferred_granularity&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inferred_granularity</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">inferred_granularity</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
             <span class="s2">&quot;median_gap_seconds&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">median_gap_seconds</span><span class="p">,</span>
             <span class="s2">&quot;gap_cv&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">gap_cv</span><span class="p">,</span>
-            <span class="s2">&quot;signals&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">signals</span><span class="o">.</span><span class="n">to_dict</span><span class="p">(),</span>
             <span class="s2">&quot;flags&quot;</span><span class="p">:</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">flags</span><span class="p">],</span>
         <span class="p">}</span>
 
