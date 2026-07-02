@@ -635,3 +635,100 @@ def test_profile_config_from_dict_raises_on_invalid_datetime_epoch_unit():
     with pytest.raises(ValueError, match="Unknown epoch unit 'invalid_unit'. Valid options are: s, ms, us, ns, d"):
         ProfileConfig.from_dict(d)
 
+
+# ---------------------------------------------------------------------------
+# ProfileConfig.datetime_formats — field, setter, read-only view, round-trip
+# ---------------------------------------------------------------------------
+
+
+def test_profile_config_datetime_formats_defaults_to_empty_dict():
+    cfg = ProfileConfig()
+    assert cfg.datetime_formats == {}
+
+
+def test_set_datetime_format_stores_value():
+    cfg = ProfileConfig()
+    cfg.set_datetime_format("Year", "%Y")
+    assert cfg.datetime_formats["Year"] == "%Y"
+
+
+def test_set_datetime_format_accepts_list_of_columns():
+    cfg = ProfileConfig()
+    cfg.set_datetime_format(["a", "b"], "%Y-%m")
+    assert cfg.datetime_formats["a"] == "%Y-%m"
+    assert cfg.datetime_formats["b"] == "%Y-%m"
+
+
+def test_set_datetime_format_overwrites_existing():
+    cfg = ProfileConfig()
+    cfg.set_datetime_format("Year", "%Y")
+    cfg.set_datetime_format("Year", "%y")
+    assert cfg.datetime_formats["Year"] == "%y"
+
+
+def test_set_datetime_format_does_not_validate_strftime_grammar():
+    # A garbage format is accepted at set time — validation is deferred to
+    # profiling time, consistent with set_column_type / set_datetime_epoch_unit.
+    cfg = ProfileConfig()
+    cfg.set_datetime_format("Year", "not-a-real-format")
+    assert cfg.datetime_formats["Year"] == "not-a-real-format"
+
+
+def test_set_datetime_format_rejects_empty_format():
+    cfg = ProfileConfig()
+    with pytest.raises(ValueError, match="format must be a non-empty string"):
+        cfg.set_datetime_format("Year", "")
+
+
+def test_set_datetime_format_rejects_non_string_format():
+    cfg = ProfileConfig()
+    with pytest.raises(ValueError, match="format must be a non-empty string"):
+        cfg.set_datetime_format("Year", 123)  # type: ignore[arg-type]
+
+
+def test_set_datetime_format_rejects_empty_column_name():
+    cfg = ProfileConfig()
+    with pytest.raises(ValueError, match="column name must be a non-empty string"):
+        cfg.set_datetime_format("", "%Y")
+
+
+def test_datetime_formats_view_is_read_only():
+    cfg = ProfileConfig()
+    cfg.set_datetime_format("Year", "%Y")
+    with pytest.raises(TypeError):
+        cfg.datetime_formats["Year"] = "%y"  # type: ignore[index]
+
+
+def test_profile_config_to_dict_includes_datetime_formats():
+    cfg = ProfileConfig()
+    cfg.set_datetime_format("Year", "%Y")
+    cfg.set_datetime_format("month", "%Y-%m")
+    d = cfg.to_dict()
+    assert d["datetime_formats"] == {"Year": "%Y", "month": "%Y-%m"}
+
+
+def test_profile_config_to_dict_datetime_formats_empty_when_unset():
+    cfg = ProfileConfig()
+    assert cfg.to_dict().get("datetime_formats") == {}
+
+
+def test_profile_config_from_dict_restores_datetime_formats():
+    d = {"datetime_formats": {"Year": "%Y"}}
+    cfg = ProfileConfig.from_dict(d)
+    assert cfg.datetime_formats["Year"] == "%Y"
+
+
+def test_profile_config_from_dict_missing_datetime_formats_defaults_empty():
+    cfg = ProfileConfig.from_dict({})
+    assert cfg.datetime_formats == {}
+
+
+def test_profile_config_round_trip_with_datetime_formats():
+    original = ProfileConfig()
+    original.set_datetime_format("Year", "%Y")
+    original.set_datetime_format(["a", "b"], "%Y-%m")
+    restored = ProfileConfig.from_dict(original.to_dict())
+    assert restored.datetime_formats["Year"] == "%Y"
+    assert restored.datetime_formats["a"] == "%Y-%m"
+    assert restored.datetime_formats["b"] == "%Y-%m"
+

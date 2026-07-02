@@ -658,15 +658,18 @@ class ProfileConfig:
     numeric_sentinels: InitVar[Optional[dict[str, list[float]]]] = None
     string_sentinels: InitVar[Optional[dict[str, list[str]]]] = None
     datetime_epoch_units: InitVar[Optional[dict[str, Union[str, EpochUnit]]]] = None
+    datetime_formats: InitVar[Optional[dict[str, str]]] = None
     _numeric_sentinels: dict[str, list[float]] = field(default_factory=dict, init=False)
     _string_sentinels: dict[str, list[str]] = field(default_factory=dict, init=False)
     _datetime_epoch_units: dict[str, EpochUnit] = field(default_factory=dict, init=False)
+    _datetime_formats: dict[str, str] = field(default_factory=dict, init=False)
 
     def __post_init__(
         self,
         numeric_sentinels: Optional[dict[str, list[float]]],
         string_sentinels: Optional[dict[str, list[str]]],
         datetime_epoch_units: Optional[dict[str, Union[str, EpochUnit]]] = None,
+        datetime_formats: Optional[dict[str, str]] = None,
     ) -> None:
         if numeric_sentinels is not None and not isinstance(numeric_sentinels, property):
             for k, vals in numeric_sentinels.items():
@@ -677,6 +680,9 @@ class ProfileConfig:
         if datetime_epoch_units is not None and not isinstance(datetime_epoch_units, property):
             for k, val in datetime_epoch_units.items():
                 self.set_datetime_epoch_unit(k, val)
+        if datetime_formats is not None and not isinstance(datetime_formats, property):
+            for k, fmt in datetime_formats.items():
+                self.set_datetime_format(k, fmt)
 
     @property
     def numeric_sentinels(self) -> MappingProxyType[str, list[float]]:
@@ -730,6 +736,27 @@ class ProfileConfig:
             Read-only mapping of column names to epoch units.
         """
         return MappingProxyType(self._datetime_epoch_units)
+
+    @property
+    def datetime_formats(self) -> MappingProxyType[str, str]:
+        """
+        Get the per-column declared datetime format strings.
+
+        Keys are column names; values are strftime-style format strings (e.g.
+        ``{"Year": "%Y"}``) applied by ``DatetimeProfiler`` with
+        ``strict=False`` when coercing that column to Datetime. A declaration
+        applies to any column profiled as Datetime, whether overridden or
+        auto-detected. Format strings are not validated against strftime
+        grammar at declaration time — a bad format surfaces at profiling time.
+        Defaults to an empty dict — columns with no declaration fall back to
+        Polars format inference.
+
+        Returns
+        -------
+        MappingProxyType[str, str]
+            Read-only mapping of column names to declared datetime formats.
+        """
+        return MappingProxyType(self._datetime_formats)
 
     def set_numeric_sentinel(self, column: str | list[str], values: list[float]) -> None:
         """
@@ -809,6 +836,38 @@ class ProfileConfig:
         for c in columns:
             self._datetime_epoch_units[c] = enum_unit
 
+    def set_datetime_format(self, column: str | list[str], format: str) -> None:
+        """
+        Declare a datetime format string for one or more columns.
+
+        The format is applied by ``DatetimeProfiler`` with ``strict=False``
+        when coercing the column to Datetime, and is not validated against
+        strftime grammar or the data at declaration time — a bad format
+        surfaces at profiling time, consistent with ``set_column_type`` and
+        ``set_datetime_epoch_unit``.
+
+        Parameters
+        ----------
+        column : str or list of str
+            Column name or list of column names to apply the format to.
+        format : str
+            A non-empty strftime-style format string (e.g. ``"%Y"``).
+
+        Raises
+        ------
+        ValueError
+            If any column name is empty, or if `format` is not a non-empty
+            string.
+        """
+        if not isinstance(format, str) or not format:
+            raise ValueError("format must be a non-empty string.")
+
+        columns = [column] if isinstance(column, str) else column
+        for c in columns:
+            if not isinstance(c, str) or not c:
+                raise ValueError("column name must be a non-empty string.")
+            self._datetime_formats[c] = format
+
     def to_dict(self) -> dict:
         """
         Serialise the config to a plain dictionary.
@@ -837,6 +896,7 @@ class ProfileConfig:
             "numeric_sentinels": {k: list(v) for k, v in self.numeric_sentinels.items()},
             "string_sentinels": {k: list(v) for k, v in self.string_sentinels.items()},
             "datetime_epoch_units": {k: v.value for k, v in self.datetime_epoch_units.items()},
+            "datetime_formats": {k: v for k, v in self.datetime_formats.items()},
         }
 
     @classmethod
@@ -884,6 +944,7 @@ class ProfileConfig:
             numeric_sentinels=data.get("numeric_sentinels", {}),
             string_sentinels=data.get("string_sentinels", {}),
             datetime_epoch_units=data.get("datetime_epoch_units", {}),
+            datetime_formats=data.get("datetime_formats", {}),
         )
 
         return config

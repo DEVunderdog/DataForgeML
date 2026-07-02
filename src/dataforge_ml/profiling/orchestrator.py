@@ -224,13 +224,22 @@ class StructuralProfiler:
             type_to_cols.setdefault(sem_type, []).append(col_name)
 
         pc = self.config.profiling
+        profiling_frame = _resolve_effective_nulls(
+            data,
+            numeric_sentinels=dict(pc.numeric_sentinels),
+            string_sentinels=dict(pc.string_sentinels),
+        )
         for sem_type, cols in type_to_cols.items():
             if sem_type == SemanticType.Numeric:
                 profiler = NumericProfiler(config=pc.numeric)
             elif sem_type == SemanticType.Categorical:
                 profiler = CategoricalProfiler(config=pc.categorical)
             elif sem_type == SemanticType.Datetime:
-                profiler = DatetimeProfiler(config=pc.datetime_, epoch_units=pc.datetime_epoch_units)
+                profiler = DatetimeProfiler(
+                    config=pc.datetime_,
+                    epoch_units=pc.datetime_epoch_units,
+                    formats=pc.datetime_formats,
+                )
             else:
                 profiler_cls = _COLUMN_PROFILER_REGISTRY.get(sem_type)  # type: ignore[arg-type]
                 if profiler_cls is None:
@@ -241,7 +250,7 @@ class StructuralProfiler:
                     c for c in cols
                     if result.columns.get(c) and TypeFlag.UserOverride in result.columns[c].type_flags
                 }
-                batch = profiler.profile(data, columns=cols, user_overrides=user_overrides)
+                batch = profiler.profile(profiling_frame, columns=cols, user_overrides=user_overrides)
                 for col_name in batch.analysed_columns:
                     if col_name in result.columns:
                         result.columns[col_name].stats = batch.columns.get(col_name)

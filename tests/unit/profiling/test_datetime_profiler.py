@@ -297,3 +297,101 @@ def test_numeric_override_without_epoch_unit_raises_error():
     
     with pytest.raises(OverrideCoercionError, match="completely failed coercion"):
         DatetimeProfiler().profile(df, ["ts"], user_overrides={"ts"})
+
+
+# ---------------------------------------------------------------------------
+# Declared per-column datetime format (formats constructor arg)
+# ---------------------------------------------------------------------------
+
+
+def test_declared_format_parses_bare_year_column():
+    df = pl.DataFrame({"Year": pl.Series(["2013", "2014", "2015"], dtype=pl.Utf8)})
+    result = DatetimeProfiler(formats={"Year": "%Y"}).profile(df, ["Year"])
+    assert "Year" in result.analysed_columns
+    stats = result.columns["Year"]
+    assert stats.min_date is not None
+    assert stats.min_date.year == 2013
+    assert stats.max_date.year == 2015
+
+
+def test_bare_year_without_declared_format_is_not_analysed():
+    df = pl.DataFrame({"Year": pl.Series(["2013", "2014", "2015"], dtype=pl.Utf8)})
+    result = DatetimeProfiler().profile(df, ["Year"])
+    assert "Year" not in result.analysed_columns
+
+
+def test_declared_format_partial_match_parses_good_rows():
+    # "%Y" matches the bare years; "banana" fails coercion → null (strict=False).
+    df = pl.DataFrame(
+        {"Year": pl.Series(["2013", "banana", "2015"], dtype=pl.Utf8)}
+    )
+    result = DatetimeProfiler(formats={"Year": "%Y"}).profile(df, ["Year"])
+    assert "Year" in result.analysed_columns
+    stats = result.columns["Year"]
+    assert stats.min_date.year == 2013
+    assert stats.max_date.year == 2015
+
+
+def test_declared_format_matching_zero_rows_raises_for_override():
+    from dataforge_ml.profiling import OverrideCoercionError
+    import pytest as _pytest
+
+    df = pl.DataFrame({"Year": pl.Series(["2013", "2014"], dtype=pl.Utf8)})
+    with _pytest.raises(OverrideCoercionError, match="set_datetime_format"):
+        DatetimeProfiler(formats={"Year": "%H:%M:%S"}).profile(
+            df, ["Year"], user_overrides={"Year"}
+        )
+
+
+def test_declared_format_matching_zero_rows_auto_detected_yields_empty():
+    df = pl.DataFrame({"Year": pl.Series(["2013", "2014"], dtype=pl.Utf8)})
+    result = DatetimeProfiler(formats={"Year": "%H:%M:%S"}).profile(df, ["Year"])
+    assert "Year" not in result.analysed_columns
+
+
+# ---------------------------------------------------------------------------
+# FormatMismatch flag (present-but-uncoercible values)
+# ---------------------------------------------------------------------------
+
+
+def test_format_mismatch_flag_fires_on_dirty_inference_column():
+    df = pl.DataFrame(
+        {"d": pl.Series(["2024-01-01", "banana", "2024-03-01"], dtype=pl.Utf8)}
+    )
+    result = DatetimeProfiler().profile(df, ["d"])
+    stats = result.columns["d"]
+    assert stats.has_flag(DatetimeFlag.FormatMismatch)
+
+
+def test_format_mismatch_flag_absent_on_clean_inference_column():
+    df = pl.DataFrame(
+        {"d": pl.Series(["2024-01-01", "2024-02-01", "2024-03-01"], dtype=pl.Utf8)}
+    )
+    result = DatetimeProfiler().profile(df, ["d"])
+    stats = result.columns["d"]
+    assert not stats.has_flag(DatetimeFlag.FormatMismatch)
+
+
+def test_format_mismatch_flag_fires_on_declared_format_partial_failure():
+    df = pl.DataFrame({"Year": pl.Series(["2013", "banana", "2015"], dtype=pl.Utf8)})
+    result = DatetimeProfiler(formats={"Year": "%Y"}).profile(df, ["Year"])
+    stats = result.columns["Year"]
+    assert stats.has_flag(DatetimeFlag.FormatMismatch)
+
+
+def test_format_mismatch_flag_absent_on_declared_format_clean_column():
+    df = pl.DataFrame({"Year": pl.Series(["2013", "2014", "2015"], dtype=pl.Utf8)})
+    result = DatetimeProfiler(formats={"Year": "%Y"}).profile(df, ["Year"])
+    stats = result.columns["Year"]
+    assert not stats.has_flag(DatetimeFlag.FormatMismatch)
+
+
+def test_format_mismatch_does_not_alter_null_ratio_signals():
+    # Genuine nulls (None) are present alongside dirt; the null-based MNAR
+    # signal is computed from the coerced null count exactly as before.
+    dates = ["2024-01-01"] * 2 + [None] * 8  # 80% null → MnarSuspected
+    df = pl.DataFrame({"d": pl.Series(dates, dtype=pl.Utf8)})
+    result = DatetimeProfiler().profile(df, ["d"])
+    stats = result.columns["d"]
+    assert stats.has_flag(DatetimeFlag.MnarSuspected)
+    assert not stats.has_flag(DatetimeFlag.FormatMismatch)

@@ -144,6 +144,13 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
             clean = f64.drop_nulls()
             profile = NumericStats()
 
+            # FormatMismatch: a value that is present (non-null after the
+            # orchestrator's Effective-Null normalization) but fails the
+            # Float64 cast becomes null here.  A shortfall in the non-null
+            # count means the column holds dirty, uncoercible data.
+            if clean.len() < series.drop_nulls().len():
+                profile.flags.append(NumericFlag.FormatMismatch)
+
             if clean.len() == 0:
                 if series.drop_nulls().len() > 0 and col in user_overrides:
                     from ._base import OverrideCoercionError

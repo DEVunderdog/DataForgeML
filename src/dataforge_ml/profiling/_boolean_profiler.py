@@ -23,7 +23,7 @@ import polars as pl
 
 from ._base import ColumnBatchProfiler
 from ._config import BooleanStats
-from ._boolean_config import BooleanProfileResult
+from ._boolean_config import BooleanFlag, BooleanProfileResult
 from ..models._data_types import _INT_DTYPES
 
 # ---------------------------------------------------------------------------
@@ -113,6 +113,13 @@ class BooleanProfiler(ColumnBatchProfiler[BooleanProfileResult]):
         # Coerce to a clean boolean series (drop nulls)
         bool_series = self._to_bool_series(series)
         non_null_count = bool_series.len()
+
+        # FormatMismatch: a value that is present (non-null after the
+        # orchestrator's Effective-Null normalization) but falls outside the
+        # recognized true/false vocabulary is dropped by coercion.  A shortfall
+        # in the non-null count means the column holds dirty, uncoercible data.
+        if non_null_count < series.drop_nulls().len():
+            profile.flags.append(BooleanFlag.FormatMismatch)
 
         if non_null_count == 0:
             if series.drop_nulls().len() > 0 and col_name in user_overrides:
