@@ -28,6 +28,7 @@ class DatetimeFlag(StrEnum):
     HighGapVariance = "high_gap_variance"
     MnarSuspected = "mnar_suspected"
     RecentDateMissing = "recent_date_missing"
+    FormatMismatch = "format_mismatch"
 
 
 @dataclass

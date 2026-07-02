@@ -68,9 +68,11 @@ class DatetimeProfiler(ColumnBatchProfiler[DatetimeProfileResult]):
         self,
         config: DatetimeProfileConfig | None = None,
         epoch_units: dict[str, str] | None = None,
+        formats: dict[str, str] | None = None,
     ) -> None:
         self._config = config if config is not None else DatetimeProfileConfig()
         self._epoch_units = epoch_units or {}
+        self._formats = formats or {}
 
     # ------------------------------------------------------------------
     # Public API
@@ -112,8 +114,14 @@ class DatetimeProfiler(ColumnBatchProfiler[DatetimeProfileResult]):
 
     def _coerce_to_datetime(self, series: pl.Series, col_name: str) -> pl.Series | None:
         if series.dtype in (pl.Utf8, pl.String):
+            declared_format = self._formats.get(col_name)
             try:
-                coerced = series.str.to_datetime(strict=False)
+                if declared_format is not None:
+                    coerced = series.str.to_datetime(
+                        format=declared_format, strict=False
+                    )
+                else:
+                    coerced = series.str.to_datetime(strict=False)
                 return coerced if coerced.drop_nulls().len() > 0 else None
             except pl.exceptions.ComputeError:
                 return None
@@ -139,22 +147,35 @@ class DatetimeProfiler(ColumnBatchProfiler[DatetimeProfileResult]):
 
         available = []
         coerced_cache = {}
+        format_mismatch: dict[str, bool] = {}
         for col_name in self._resolve_columns(df.columns, columns):
-            series = self._coerce_to_datetime(df[col_name], col_name)
+            original = df[col_name]
+            series = self._coerce_to_datetime(original, col_name)
             if series is not None:
                 available.append(col_name)
                 coerced_cache[col_name] = series
+                # FormatMismatch: a value that is present (non-null after the
+                # orchestrator's Effective-Null normalization) but fails
+                # coercion becomes null here.  Compare non-null counts before
+                # and after coercion; a shortfall means dirty, uncoercible data.
+                format_mismatch[col_name] = (
+                    series.drop_nulls().len() < original.drop_nulls().len()
+                )
             elif col_name in user_overrides:
-                if df[col_name].drop_nulls().len() > 0:
+                if original.drop_nulls().len() > 0:
                     from ._base import OverrideCoercionError
                     raise OverrideCoercionError(
-                        f"Column {col_name!r} with TypeFlag.UserOverride completely failed coercion to Datetime."
+                        f"Column {col_name!r} with TypeFlag.UserOverride completely failed coercion to Datetime. "
+                        f"If Polars cannot infer the format, declare one explicitly via "
+                        f"ProfileConfig.set_datetime_format({col_name!r}, <format>) (e.g. '%Y' for bare years)."
                     )
 
         result.analysed_columns = available
 
         for col_name in available:
             profile = self._profile_column(coerced_cache[col_name], df.height, now)
+            if format_mismatch.get(col_name):
+                profile.flags.append(DatetimeFlag.FormatMismatch)
             result.columns[col_name] = profile
 
         return result

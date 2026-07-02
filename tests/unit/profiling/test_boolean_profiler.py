@@ -125,3 +125,57 @@ def test_override_coercion_error_not_raised_for_auto_detected_total_failure():
     stats = result.columns["bool_col"]
     assert stats.true_count == 0
 
+
+
+# ---------------------------------------------------------------------------
+# FormatMismatch flag + BooleanFlag / has_flag machinery
+# ---------------------------------------------------------------------------
+
+
+from dataforge_ml.profiling._boolean_config import BooleanFlag
+
+
+def test_boolean_stats_flags_defaults_empty_and_has_flag():
+    stats = BooleanStats()
+    assert stats.flags == []
+    assert not stats.has_flag(BooleanFlag.FormatMismatch)
+
+
+def test_boolean_stats_to_dict_includes_flags_as_strings():
+    stats = BooleanStats(flags=[BooleanFlag.FormatMismatch])
+    d = stats.to_dict()
+    assert d["flags"] == ["format_mismatch"]
+    assert stats.has_flag(BooleanFlag.FormatMismatch)
+
+
+def test_boolean_format_mismatch_flag_fires_on_dirty_column():
+    df = pl.DataFrame({"b": pl.Series(["yes", "no", "maybe", "yes"], dtype=pl.Utf8)})
+    result = BooleanProfiler().profile(df, ["b"])
+    stats = result.columns["b"]
+    assert stats.has_flag(BooleanFlag.FormatMismatch)
+
+
+def test_boolean_format_mismatch_flag_absent_on_clean_column():
+    df = pl.DataFrame({"b": pl.Series(["yes", "no", "yes", "no"], dtype=pl.Utf8)})
+    result = BooleanProfiler().profile(df, ["b"])
+    stats = result.columns["b"]
+    assert not stats.has_flag(BooleanFlag.FormatMismatch)
+
+
+def test_boolean_format_mismatch_flag_absent_on_native_bool_column():
+    df = pl.DataFrame({"b": pl.Series([True, False, True], dtype=pl.Boolean)})
+    result = BooleanProfiler().profile(df, ["b"])
+    stats = result.columns["b"]
+    assert not stats.has_flag(BooleanFlag.FormatMismatch)
+
+
+def test_boolean_format_mismatch_does_not_alter_existing_stats():
+    clean = pl.DataFrame({"b": pl.Series(["yes", "no", "yes"], dtype=pl.Utf8)})
+    dirty = pl.DataFrame({"b": pl.Series(["yes", "no", "yes", "maybe"], dtype=pl.Utf8)})
+    clean_stats = BooleanProfiler().profile(clean, ["b"]).columns["b"]
+    dirty_stats = BooleanProfiler().profile(dirty, ["b"]).columns["b"]
+    # The unrecognized value is dropped exactly as before the flag existed.
+    assert dirty_stats.true_count == clean_stats.true_count
+    assert dirty_stats.false_count == clean_stats.false_count
+    assert dirty_stats.true_ratio == clean_stats.true_ratio
+    assert dirty_stats.mode == clean_stats.mode

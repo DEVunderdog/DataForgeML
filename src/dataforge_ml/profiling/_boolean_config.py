@@ -7,7 +7,12 @@ Populated by BooleanProfiler.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 from typing import Optional
+
+
+class BooleanFlag(StrEnum):
+    FormatMismatch = "format_mismatch"
 
 
 @dataclass
@@ -24,6 +29,23 @@ class BooleanStats:
     true_ratio: float = 0.0
     false_ratio: float = 0.0
     mode: Optional[bool] = None
+    flags: list[BooleanFlag] = field(default_factory=list)
+
+    def has_flag(self, flag: BooleanFlag) -> bool:
+        """Check whether a specific ``BooleanFlag`` is set on this column.
+
+        Parameters
+        ----------
+        flag : BooleanFlag
+            The flag to test.
+
+        Returns
+        -------
+        bool
+            ``True`` if ``flag`` is present in :attr:`flags`, ``False``
+            otherwise.
+        """
+        return flag in self.flags
 
     def to_dict(self) -> dict:
         """Serialise the boolean statistics to a plain dictionary.
@@ -31,7 +53,8 @@ class BooleanStats:
         Returns
         -------
         dict
-            All fields keyed by field name.
+            All fields keyed by field name.  ``flags`` are serialised as their
+            string values.
         """
         return {
             "true_count": self.true_count,
@@ -39,6 +62,7 @@ class BooleanStats:
             "true_ratio": self.true_ratio,
             "false_ratio": self.false_ratio,
             "mode": self.mode,
+            "flags": [str(f) for f in self.flags],
         }
 
 

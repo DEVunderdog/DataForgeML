@@ -170,6 +170,7 @@ class NumericFlag(StrEnum):
     NearConstant = "near_constant"
     Bimodal = "bimodal"
     HighOutlierDensity = "high_outlier_density"
+    FormatMismatch = "format_mismatch"
 
 
 @dataclass

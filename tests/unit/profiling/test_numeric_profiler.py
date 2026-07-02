@@ -678,3 +678,50 @@ def test_override_coercion_error_not_raised_for_auto_detected_total_failure():
     assert stats.mean is None
 
 
+
+
+# ---------------------------------------------------------------------------
+# FormatMismatch flag (present-but-uncoercible values)
+# ---------------------------------------------------------------------------
+
+
+def test_numeric_format_mismatch_flag_fires_on_dirty_column():
+    df = pl.DataFrame({"n": pl.Series(["1", "banana", "3", "4"], dtype=pl.Utf8)})
+    result = NumericProfiler().profile(df, ["n"])
+    stats = result.columns["n"]
+    assert stats.has_flag(NumericFlag.FormatMismatch)
+
+
+def test_numeric_format_mismatch_flag_absent_on_clean_string_column():
+    df = pl.DataFrame({"n": pl.Series(["1", "2", "3", "4"], dtype=pl.Utf8)})
+    result = NumericProfiler().profile(df, ["n"])
+    stats = result.columns["n"]
+    assert not stats.has_flag(NumericFlag.FormatMismatch)
+
+
+def test_numeric_format_mismatch_flag_absent_on_native_numeric_column():
+    df = pl.DataFrame({"n": pl.Series([1.0, 2.0, 3.0, 4.0], dtype=pl.Float64)})
+    result = NumericProfiler().profile(df, ["n"])
+    stats = result.columns["n"]
+    assert not stats.has_flag(NumericFlag.FormatMismatch)
+
+
+def test_numeric_sentinel_value_does_not_trip_format_mismatch():
+    # A sentinel like -999 coerces to a valid number, so no flag fires.
+    df = pl.DataFrame({"n": pl.Series(["1", "-999", "3"], dtype=pl.Utf8)})
+    result = NumericProfiler().profile(df, ["n"])
+    stats = result.columns["n"]
+    assert not stats.has_flag(NumericFlag.FormatMismatch)
+
+
+def test_numeric_format_mismatch_does_not_alter_existing_stats():
+    clean = pl.DataFrame({"n": pl.Series(["1", "2", "3", "4"], dtype=pl.Utf8)})
+    dirty = pl.DataFrame({"n": pl.Series(["1", "2", "3", "4", "banana"], dtype=pl.Utf8)})
+    clean_stats = NumericProfiler().profile(clean, ["n"]).columns["n"]
+    dirty_stats = NumericProfiler().profile(dirty, ["n"]).columns["n"]
+    # Coercible values produce identical central-tendency stats; the dirty
+    # value is dropped as null exactly as before the flag existed.
+    assert dirty_stats.mean == clean_stats.mean
+    assert dirty_stats.median == clean_stats.median
+    assert dirty_stats.min == clean_stats.min
+    assert dirty_stats.max == clean_stats.max
