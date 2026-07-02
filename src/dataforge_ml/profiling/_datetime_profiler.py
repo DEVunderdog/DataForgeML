@@ -7,9 +7,10 @@ Per-column metrics (opt-in via ProfileConfig.datetime_columns):
   3. Future dates       – count of values > now, with context note
   4. Granularity        – inferred periodicity from median consecutive gap;
                           high gap-CV flagged as irregular
-  5. Temporal signals   – audit which of {year, month, day, day-of-week,
-                          hour, is-weekend, is-month-end} vary in the data,
-                          to guide downstream feature engineering
+
+Temporal-component variance (whether year, month, day-of-week, etc. vary) is
+intentionally not profiled here; Phase 5 Encoding derives it on demand from
+the column.
 
 Granularity inference bands (median gap in seconds):
   < 90 s        → secondly
@@ -34,7 +35,6 @@ from ._datetime_config import (
     DatetimeStats,
     InferredGranularity,
     DatetimeFlag,
-    TemporalSignals,
 )
 
 # Granularity bands — upper bound (exclusive) in seconds for each label.
@@ -226,9 +226,6 @@ class DatetimeProfiler(ColumnBatchProfiler[DatetimeProfileResult]):
         # 6. Granularity
         self._infer_granularity(clean, profile)
 
-        # 7. Temporal signals
-        self._audit_temporal_signals(clean, profile)
-
         return profile
 
     # ------------------------------------------------------------------
@@ -377,51 +374,3 @@ class DatetimeProfiler(ColumnBatchProfiler[DatetimeProfileResult]):
                 break
 
         profile.inferred_granularity = granularity
-
-    # ------------------------------------------------------------------
-    # Step 7: Temporal signal audit
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _audit_temporal_signals(
-        clean: pl.Series,
-        profile: DatetimeStats,
-    ) -> None:
-        """
-        Check which temporal features vary across rows.
-
-        All checks are done via Polars expressions on the full clean series,
-        so no Python-level loops are required.
-        """
-        signals = TemporalSignals()
-
-        years = clean.dt.year()
-        months = clean.dt.month()
-        days = clean.dt.day()
-        dow = clean.dt.weekday()  # 0=Monday … 6=Sunday
-        hours = clean.dt.hour()
-
-        signals.has_year = years.n_unique() > 1
-        signals.has_month = months.n_unique() > 1
-        signals.has_day = days.n_unique() > 1
-        signals.has_day_of_week = dow.n_unique() > 1
-        signals.has_hour = int(hours.max()) > 0  # type: ignore[arg-type]
-
-        # Weekend signal is only meaningful when day-of-week varies
-        if signals.has_day_of_week:
-            weekend_mask = dow >= 5  # Saturday=5, Sunday=6
-            signals.has_is_weekend = bool(weekend_mask.any())
-
-        # Month-end: day == last day of the respective month
-        try:
-            month_end_ts = clean.dt.month_end()
-            is_month_end_mask = (
-                (clean.dt.year() == month_end_ts.dt.year())
-                & (clean.dt.month() == month_end_ts.dt.month())
-                & (clean.dt.day() == month_end_ts.dt.day())
-            )
-            signals.has_is_month_end = bool(is_month_end_mask.any())
-        except Exception:
-            signals.has_is_month_end = False
-
-        profile.signals = signals
