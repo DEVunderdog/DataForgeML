@@ -111,30 +111,6 @@ def test_inferred_granularity_daily_hourly_monthly():
 
 
 # ---------------------------------------------------------------------------
-# Temporal signals: month and day-of-week vary, year does not
-# ---------------------------------------------------------------------------
-
-
-def test_temporal_signals_month_and_dow_vary_not_year():
-    # Six dates in 2024 across distinct months and distinct weekdays, same year.
-    # 2024-01-01 = Monday (0), 2024-02-04 = Sunday (6), 2024-03-06 = Wednesday (2)
-    # 2024-04-12 = Friday (4), 2024-05-14 = Tuesday (1), 2024-06-22 = Saturday (5)
-    dates_2024 = [
-        date(2024, 1, 1),
-        date(2024, 2, 4),
-        date(2024, 3, 6),
-        date(2024, 4, 12),
-        date(2024, 5, 14),
-        date(2024, 6, 22),
-    ]
-    df = pl.DataFrame({"ts": pl.Series(dates_2024, dtype=pl.Date)})
-    stats = DatetimeProfiler().profile(df, ["ts"]).columns["ts"]
-    assert stats.signals.has_year is False
-    assert stats.signals.has_month is True
-    assert stats.signals.has_day_of_week is True
-
-
-# ---------------------------------------------------------------------------
 # Config: overriding mnar_null_ratio_threshold changes MnarSuspected flag
 # ---------------------------------------------------------------------------
 

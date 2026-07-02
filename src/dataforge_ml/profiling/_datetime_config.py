@@ -32,76 +32,11 @@ class DatetimeFlag(StrEnum):
 
 
 @dataclass
-class TemporalSignals:
-    """Which time-component features are present in a Datetime column.
-
-    Each boolean field indicates that the corresponding granularity was
-    detected as non-constant, making it a candidate for feature extraction
-    in Phase 5 Encoding.
-    """
-
-    has_year: bool = False
-    has_month: bool = False
-    has_day: bool = False
-    has_day_of_week: bool = False
-    has_hour: bool = False
-    has_is_weekend: bool = False
-    has_is_month_end: bool = False
-
-    def extractable_features(self) -> list[str]:
-        """Return the names of all time-component features that can be extracted.
-
-        Returns
-        -------
-        list[str]
-            Feature names corresponding to every ``has_*`` field that is
-            ``True``.  An empty list means no temporal variation was detected.
-        """
-        features = []
-        if self.has_year:
-            features.append("year")
-        if self.has_month:
-            features.append("month")
-        if self.has_day:
-            features.append("day_of_month")
-        if self.has_day_of_week:
-            features.append("day_of_week")
-        if self.has_hour:
-            features.append("hour")
-        if self.has_is_weekend:
-            features.append("is_weekend")
-        if self.has_is_month_end:
-            features.append("is_month_end")
-        return features
-
-    def to_dict(self) -> dict:
-        """Serialise the temporal signals to a plain dictionary.
-
-        Returns
-        -------
-        dict
-            All ``has_*`` flags plus an ``extractable_features`` key
-            containing the result of :meth:`extractable_features`.
-        """
-        return {
-            "has_year": self.has_year,
-            "has_month": self.has_month,
-            "has_day": self.has_day,
-            "has_day_of_week": self.has_day_of_week,
-            "has_hour": self.has_hour,
-            "has_is_weekend": self.has_is_weekend,
-            "has_is_month_end": self.has_is_month_end,
-            "extractable_features": self.extractable_features(),
-        }
-
-
-@dataclass
 class DatetimeStats:
     """Statistical summary of a single Datetime column.
 
     Produced by ``DatetimeProfiler`` for each opted-in column.  Stores
-    range, gap regularity, inferred granularity, and ``TemporalSignals``
-    indicating which time components are available for feature extraction.
+    range, gap regularity, and inferred granularity.
     """
 
     min_date: Optional[str] = None
@@ -111,7 +46,6 @@ class DatetimeStats:
     inferred_granularity: Optional[InferredGranularity] = None
     median_gap_seconds: Optional[float] = None
     gap_cv: Optional[float] = None
-    signals: TemporalSignals = field(default_factory=TemporalSignals)
     flags: list[DatetimeFlag] = field(default_factory=list)
 
     def has_flag(self, flag: DatetimeFlag) -> bool:
@@ -137,8 +71,7 @@ class DatetimeStats:
         -------
         dict
             All fields keyed by field name.  ``inferred_granularity`` is
-            serialised as its string value; ``signals`` is expanded via
-            :meth:`TemporalSignals.to_dict`; ``flags`` are serialised as
+            serialised as its string value; ``flags`` are serialised as
             their string values.
         """
         return {
@@ -149,7 +82,6 @@ class DatetimeStats:
             "inferred_granularity": str(self.inferred_granularity) if self.inferred_granularity else None,
             "median_gap_seconds": self.median_gap_seconds,
             "gap_cv": self.gap_cv,
-            "signals": self.signals.to_dict(),
             "flags": [str(f) for f in self.flags],
         }
 
