@@ -419,7 +419,16 @@ Defaults to True when a target was provided, False otherwise.</p></li>
 <span class="sig-name descname"><span class="pre">profile_stratified_kfold</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">profile</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/splitting/_splitter.html#DataSplitter.profile_stratified_kfold"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.splitting._splitter.DataSplitter.profile_stratified_kfold" title="Link to this definition">#</a></dt>
 <dd><p>Return k cross-validation folds stratified across all at-risk signals
 derived from the Phase 1 profile.</p>
-<p>Falls back to unstratified KFold when the profile yields no usable signals.</p>
+<p>Falls back to unstratified KFold when the profile yields no usable
+signals.  When exactly one signal survives the viability and redundancy
+gates, that lone signal is stratified on directly (iterstrat needs two
+or more label columns), rather than being discarded.</p>
+<p>In every fold, rows belonging to a target class or rare categorical
+value too sparse to satisfy the viability floor are deterministically
+routed into that fold’s training partition (ADR-0048), so the label is
+always learned at fit time and never surfaces unseen at transform time.
+This routing is applied silently in every path, including the KFold
+fallback.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -442,7 +451,15 @@ derived from the Phase 1 profile.</p>
 <dd><p>Return a train/test split stratified across all at-risk signals derived
 from the Phase 1 profile (missingness, extremes, rare categories, target).</p>
 <p>Falls back to an unstratified random split when the profile yields no
-usable signals.</p>
+usable signals.  When exactly one signal survives the viability and
+redundancy gates, that lone signal is stratified on directly (iterstrat
+needs two or more label columns), rather than being discarded.</p>
+<p>After the base split is decided, rows belonging to a target class or
+rare categorical value too sparse to satisfy the viability floor are
+deterministically routed into the training partition (ADR-0048), so the
+label is learned at fit time and never surfaces unseen at transform
+time.  This routing is applied silently in every path, including the
+random fallback.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -500,7 +517,7 @@ test; all earlier rows go to train.</p></li>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="dataforge_ml.splitting._config.SplitConfig">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.splitting._config.</span></span><span class="sig-name descname"><span class="pre">SplitConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">max_stratification_signals</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">boolean_minority_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.05</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/splitting/_config.html#SplitConfig"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.splitting._config.SplitConfig" title="Link to this definition">#</a></dt>
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.splitting._config.</span></span><span class="sig-name descname"><span class="pre">SplitConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">max_stratification_signals</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rows_per_signal</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">boolean_minority_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">redundancy_correlation_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.95</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/splitting/_config.html#SplitConfig"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.splitting._config.SplitConfig" title="Link to this definition">#</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Threshold configuration for the splitting sub-processor.</p>
 <p>All fields default to the library’s original hard-coded constants so that
@@ -509,13 +526,27 @@ pre-config implementation.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>max_stratification_signals</strong> (<em>int</em>) – Maximum number of binary stratification signals retained by
-<code class="docutils literal notranslate"><span class="pre">build_label_matrix</span></code>.  When more signals exist, only the
-<code class="docutils literal notranslate"><span class="pre">max_stratification_signals</span></code> rarest (smallest proportion of 1s) are
-kept to bound the multilabel-stratification cost.</p></li>
+<li><p><strong>max_stratification_signals</strong> (<em>int</em>) – Upper bound on the number of binary stratification signals retained by
+<code class="docutils literal notranslate"><span class="pre">build_label_matrix</span></code>.  The effective cap (ADR-0047 gate 4) is
+<code class="docutils literal notranslate"><span class="pre">min(max_stratification_signals,</span> <span class="pre">n_rows</span> <span class="pre">/</span> <span class="pre">rows_per_signal)</span></code>; when more
+signals survive the viability and redundancy gates than the cap allows,
+signals are retained by importance rank (target first, missingness last)
+rather than by rarity, to bound the multilabel-stratification cost.</p></li>
+<li><p><strong>rows_per_signal</strong> (<em>int</em>) – Rows-per-signal budget (ADR-0047 gate 4).  The data can support at most
+<code class="docutils literal notranslate"><span class="pre">n_rows</span> <span class="pre">/</span> <span class="pre">rows_per_signal</span></code> simultaneous stratification constraints, so
+this term co-bounds the cap alongside <code class="docutils literal notranslate"><span class="pre">max_stratification_signals</span></code>.
+The default of 10 is a standard per-constraint rule of thumb; a
+wide-but-short dataset is reduced to fewer columns, and one too small to
+support even the target degrades to a random split.</p></li>
 <li><p><strong>boolean_minority_threshold</strong> (<em>float</em>) – Minority-class ratio below which a boolean column contributes a
 stratification signal.  A column whose <code class="docutils literal notranslate"><span class="pre">true_ratio</span></code> or <code class="docutils literal notranslate"><span class="pre">false_ratio</span></code>
 falls below this value is treated as imbalanced and receives a signal.</p></li>
+<li><p><strong>redundancy_correlation_threshold</strong> (<em>float</em>) – Absolute-correlation strength at or above which two stratification
+signals are treated as redundant (ADR-0047 gate 3) and collapsed to the
+higher-priority one.  Correlation magnitude catches both near-identical
+(<code class="docutils literal notranslate"><span class="pre">+1</span></code>) and mirror-image (<code class="docutils literal notranslate"><span class="pre">−1</span></code>) pairs.  The default is conservative so
+that only near-perfect duplicates are removed, never merely-similar
+signals.</p></li>
 </ul>
 </dd>
 </dl>
@@ -545,6 +576,16 @@ defaults.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="dataforge_ml.splitting._config.SplitConfig.max_stratification_signals">
 <span class="sig-name descname"><span class="pre">max_stratification_signals</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">50</span></span><a class="headerlink" href="#dataforge_ml.splitting._config.SplitConfig.max_stratification_signals" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.splitting._config.SplitConfig.redundancy_correlation_threshold">
+<span class="sig-name descname"><span class="pre">redundancy_correlation_threshold</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.95</span></span><a class="headerlink" href="#dataforge_ml.splitting._config.SplitConfig.redundancy_correlation_threshold" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.splitting._config.SplitConfig.rows_per_signal">
+<span class="sig-name descname"><span class="pre">rows_per_signal</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">10</span></span><a class="headerlink" href="#dataforge_ml.splitting._config.SplitConfig.rows_per_signal" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
@@ -780,6 +821,8 @@ defaults.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.splitting._config.SplitConfig.boolean_minority_threshold"><code class="docutils literal notranslate"><span class="pre">SplitConfig.boolean_minority_threshold</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.splitting._config.SplitConfig.from_dict"><code class="docutils literal notranslate"><span class="pre">SplitConfig.from_dict()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.splitting._config.SplitConfig.max_stratification_signals"><code class="docutils literal notranslate"><span class="pre">SplitConfig.max_stratification_signals</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.splitting._config.SplitConfig.redundancy_correlation_threshold"><code class="docutils literal notranslate"><span class="pre">SplitConfig.redundancy_correlation_threshold</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.splitting._config.SplitConfig.rows_per_signal"><code class="docutils literal notranslate"><span class="pre">SplitConfig.rows_per_signal</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.splitting._config.SplitConfig.to_dict"><code class="docutils literal notranslate"><span class="pre">SplitConfig.to_dict()</span></code></a></li>
 </ul>
 </li>
