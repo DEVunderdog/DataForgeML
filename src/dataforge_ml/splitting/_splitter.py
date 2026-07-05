@@ -19,6 +19,28 @@ if TYPE_CHECKING:
 _UNSET = object()
 
 
+def _route_unsplittable_indices(train_idx, test_idx, mask):
+    """Move every row flagged in ``mask`` out of ``test_idx`` and into ``train_idx``.
+
+    Implements the split-side reassignment of ADR-0048: rows belonging to a
+    sub-floor target class or rare categorical value are deterministically
+    routed into the training partition after the base split decides the rest.
+    A no-op when ``mask`` flags nothing in ``test_idx``.
+    """
+    import numpy as np
+
+    train_idx = np.asarray(train_idx)
+    test_idx = np.asarray(test_idx)
+    if not mask.any():
+        return train_idx, test_idx
+    move = mask[test_idx]
+    if not move.any():
+        return train_idx, test_idx
+    moved = test_idx[move]
+    kept = test_idx[~move]
+    return np.concatenate([train_idx, moved]), kept
+
+
 class DataSplitter:
     """
     Splits a Polars DataFrame into train/test or cross-validation folds.
@@ -219,7 +241,16 @@ class DataSplitter:
         from the Phase 1 profile (missingness, extremes, rare categories, target).
 
         Falls back to an unstratified random split when the profile yields no
-        usable signals.
+        usable signals.  When exactly one signal survives the viability and
+        redundancy gates, that lone signal is stratified on directly (iterstrat
+        needs two or more label columns), rather than being discarded.
+
+        After the base split is decided, rows belonging to a target class or
+        rare categorical value too sparse to satisfy the viability floor are
+        deterministically routed into the training partition (ADR-0048), so the
+        label is learned at fit time and never surfaces unseen at transform
+        time.  This routing is applied silently in every path, including the
+        random fallback.
 
         Parameters
         ----------
@@ -232,22 +263,43 @@ class DataSplitter:
         -------
         SplitResult
         """
-        from ._profile_signals import build_label_matrix
+        from ._profile_signals import build_label_matrix, unsplittable_train_mask
         from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
+        import math
 
-        label_matrix = build_label_matrix(self._df, profile, self._target, config=self._config)
-
-        if label_matrix.shape[1] == 0:
-            return self.random_split(test_size, stratify=False)
-
-        splitter = MultilabelStratifiedShuffleSplit(
-            n_splits=1,
-            test_size=test_size,
-            random_state=self._random_seed,
+        min_positives = math.ceil(2 / min(test_size, 1 - test_size))
+        label_matrix = build_label_matrix(
+            self._df, profile, self._target, config=self._config, min_positives=min_positives
         )
+        unsplittable = unsplittable_train_mask(
+            self._df, profile, self._target, min_positives, config=self._config
+        )
+
         import numpy as np
-        X_dummy = np.zeros((len(self._df), 1))
-        train_idx, test_idx = next(splitter.split(X_dummy, label_matrix))
+        if label_matrix.shape[1] == 0:
+            splitter = ShuffleSplit(
+                n_splits=1, test_size=test_size, random_state=self._random_seed
+            )
+            train_idx, test_idx = next(splitter.split(self._df))
+        else:
+            X_dummy = np.zeros((len(self._df), 1))
+            if label_matrix.shape[1] == 1:
+                # A lone surviving signal is not a multilabel-indicator (iterstrat
+                # rejects a single column as 'binary'), so stratify on it directly
+                # with the single-label splitter rather than discarding it.
+                splitter = StratifiedShuffleSplit(
+                    n_splits=1, test_size=test_size, random_state=self._random_seed
+                )
+                train_idx, test_idx = next(splitter.split(X_dummy, label_matrix[:, 0]))
+            else:
+                splitter = MultilabelStratifiedShuffleSplit(
+                    n_splits=1,
+                    test_size=test_size,
+                    random_state=self._random_seed,
+                )
+                train_idx, test_idx = next(splitter.split(X_dummy, label_matrix))
+
+        train_idx, test_idx = _route_unsplittable_indices(train_idx, test_idx, unsplittable)
 
         train_df = self._df[train_idx]
         test_df = self._df[test_idx]
@@ -271,7 +323,17 @@ class DataSplitter:
         Return k cross-validation folds stratified across all at-risk signals
         derived from the Phase 1 profile.
 
-        Falls back to unstratified KFold when the profile yields no usable signals.
+        Falls back to unstratified KFold when the profile yields no usable
+        signals.  When exactly one signal survives the viability and redundancy
+        gates, that lone signal is stratified on directly (iterstrat needs two
+        or more label columns), rather than being discarded.
+
+        In every fold, rows belonging to a target class or rare categorical
+        value too sparse to satisfy the viability floor are deterministically
+        routed into that fold's training partition (ADR-0048), so the label is
+        always learned at fit time and never surfaces unseen at transform time.
+        This routing is applied silently in every path, including the KFold
+        fallback.
 
         Parameters
         ----------
@@ -285,24 +347,43 @@ class DataSplitter:
         list[FoldResult]
             Exactly k folds with zero-based fold_index.
         """
-        from ._profile_signals import build_label_matrix
+        from ._profile_signals import build_label_matrix, unsplittable_train_mask
         from iterstrat.ml_stratifiers import MultilabelStratifiedKFold
 
-        label_matrix = build_label_matrix(self._df, profile, self._target, config=self._config)
-
-        if label_matrix.shape[1] == 0:
-            return self.kfold(k, stratify=False)
-
-        import numpy as np
-        X_dummy = np.zeros((len(self._df), 1))
-        folder = MultilabelStratifiedKFold(
-            n_splits=k,
-            shuffle=True,
-            random_state=self._random_seed,
+        label_matrix = build_label_matrix(
+            self._df, profile, self._target, config=self._config, min_positives=k
+        )
+        unsplittable = unsplittable_train_mask(
+            self._df, profile, self._target, k, config=self._config
         )
 
+        import numpy as np
+        if label_matrix.shape[1] == 0:
+            folder: Any = KFold(
+                n_splits=k, shuffle=True, random_state=self._random_seed
+            )
+            splits = folder.split(self._df)
+        else:
+            X_dummy = np.zeros((len(self._df), 1))
+            if label_matrix.shape[1] == 1:
+                # A lone surviving signal is not a multilabel-indicator (iterstrat
+                # rejects a single column as 'binary'), so stratify on it directly
+                # with the single-label folder rather than discarding it.
+                folder = StratifiedKFold(
+                    n_splits=k, shuffle=True, random_state=self._random_seed
+                )
+                splits = folder.split(X_dummy, label_matrix[:, 0])
+            else:
+                folder = MultilabelStratifiedKFold(
+                    n_splits=k,
+                    shuffle=True,
+                    random_state=self._random_seed,
+                )
+                splits = folder.split(X_dummy, label_matrix)
+
         folds: List[FoldResult] = []
-        for fold_index, (train_idx, val_idx) in enumerate(folder.split(X_dummy, label_matrix)):
+        for fold_index, (train_idx, val_idx) in enumerate(splits):
+            train_idx, val_idx = _route_unsplittable_indices(train_idx, val_idx, unsplittable)
             train_df = self._df[train_idx]
             val_df = self._df[val_idx]
             folds.append(
