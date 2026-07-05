@@ -22,18 +22,36 @@ class SplitConfig:
     Parameters
     ----------
     max_stratification_signals : int
-        Maximum number of binary stratification signals retained by
-        ``build_label_matrix``.  When more signals exist, only the
-        ``max_stratification_signals`` rarest (smallest proportion of 1s) are
-        kept to bound the multilabel-stratification cost.
+        Upper bound on the number of binary stratification signals retained by
+        ``build_label_matrix``.  The effective cap (ADR-0047 gate 4) is
+        ``min(max_stratification_signals, n_rows / rows_per_signal)``; when more
+        signals survive the viability and redundancy gates than the cap allows,
+        signals are retained by importance rank (target first, missingness last)
+        rather than by rarity, to bound the multilabel-stratification cost.
+    rows_per_signal : int
+        Rows-per-signal budget (ADR-0047 gate 4).  The data can support at most
+        ``n_rows / rows_per_signal`` simultaneous stratification constraints, so
+        this term co-bounds the cap alongside ``max_stratification_signals``.
+        The default of 10 is a standard per-constraint rule of thumb; a
+        wide-but-short dataset is reduced to fewer columns, and one too small to
+        support even the target degrades to a random split.
     boolean_minority_threshold : float
         Minority-class ratio below which a boolean column contributes a
         stratification signal.  A column whose ``true_ratio`` or ``false_ratio``
         falls below this value is treated as imbalanced and receives a signal.
+    redundancy_correlation_threshold : float
+        Absolute-correlation strength at or above which two stratification
+        signals are treated as redundant (ADR-0047 gate 3) and collapsed to the
+        higher-priority one.  Correlation magnitude catches both near-identical
+        (``+1``) and mirror-image (``−1``) pairs.  The default is conservative so
+        that only near-perfect duplicates are removed, never merely-similar
+        signals.
     """
 
     max_stratification_signals: int = 50
+    rows_per_signal: int = 10
     boolean_minority_threshold: float = 0.05
+    redundancy_correlation_threshold: float = 0.95
 
     def to_dict(self) -> dict:
         """
@@ -46,7 +64,9 @@ class SplitConfig:
         """
         return {
             "max_stratification_signals": self.max_stratification_signals,
+            "rows_per_signal": self.rows_per_signal,
             "boolean_minority_threshold": self.boolean_minority_threshold,
+            "redundancy_correlation_threshold": self.redundancy_correlation_threshold,
         }
 
     @classmethod
@@ -69,8 +89,12 @@ class SplitConfig:
             max_stratification_signals=int(
                 data.get("max_stratification_signals", 50)
             ),
+            rows_per_signal=int(data.get("rows_per_signal", 10)),
             boolean_minority_threshold=float(
                 data.get("boolean_minority_threshold", 0.05)
+            ),
+            redundancy_correlation_threshold=float(
+                data.get("redundancy_correlation_threshold", 0.95)
             ),
         )
 

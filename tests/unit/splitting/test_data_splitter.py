@@ -2,7 +2,7 @@ import polars as pl
 import pytest
 
 from dataforge_ml.splitting._splitter import DataSplitter
-from dataforge_ml.splitting._config import FoldResult, SplitResult
+from dataforge_ml.splitting._config import FoldResult, SplitConfig, SplitResult
 
 
 # ---------------------------------------------------------------------------
@@ -520,6 +520,63 @@ def test_profile_split_falls_back_when_no_signals():
     assert result.train_size + result.test_size == len(df)
 
 
+def test_profile_split_computes_shuffle_floor(monkeypatch):
+    """profile_stratified_split threads ceil(2 / min(test_size, 1 - test_size)) as min_positives."""
+    import dataforge_ml.splitting._profile_signals as ps_mod
+
+    captured = {}
+    real = ps_mod.build_label_matrix
+
+    def spy(*args, **kwargs):
+        captured["min_positives"] = kwargs.get("min_positives")
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(ps_mod, "build_label_matrix", spy)
+
+    df = pl.DataFrame(
+        {
+            "with_nulls": pl.Series(
+                [None if i % 10 == 0 else float(i) for i in range(200)], dtype=pl.Float64
+            ),
+            "label": pl.Series(["A" if i % 3 == 0 else "B" for i in range(200)], dtype=pl.Utf8),
+        }
+    )
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    splitter = DataSplitter(df, target="label", random_seed=0)
+    splitter.profile_stratified_split(profile, test_size=0.2)
+
+    # ceil(2 / min(0.2, 0.8)) == ceil(2 / 0.2) == 10
+    assert captured["min_positives"] == 10
+
+
+def test_profile_kfold_computes_k_floor(monkeypatch):
+    """profile_stratified_kfold threads k as min_positives."""
+    import dataforge_ml.splitting._profile_signals as ps_mod
+
+    captured = {}
+    real = ps_mod.build_label_matrix
+
+    def spy(*args, **kwargs):
+        captured["min_positives"] = kwargs.get("min_positives")
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(ps_mod, "build_label_matrix", spy)
+
+    df = pl.DataFrame(
+        {
+            "with_nulls": pl.Series(
+                [None if i % 10 == 0 else float(i) for i in range(200)], dtype=pl.Float64
+            ),
+            "label": pl.Series(["A" if i % 3 == 0 else "B" for i in range(200)], dtype=pl.Utf8),
+        }
+    )
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    splitter = DataSplitter(df, target="label", random_seed=0)
+    splitter.profile_stratified_kfold(profile, k=5)
+
+    assert captured["min_positives"] == 5
+
+
 # ---------------------------------------------------------------------------
 # profile_stratified_kfold — basic structure
 # ---------------------------------------------------------------------------
@@ -572,7 +629,7 @@ def test_profile_kfold_missingness_in_training(ps_profile, ps_splitter):
 
 
 def test_signal_cap_at_default_50():
-    """When more than 50 signals exist, only the 50 rarest are used by default."""
+    """The retained-signal count never exceeds the configured maximum."""
     from dataforge_ml.splitting._profile_signals import build_label_matrix
     from dataforge_ml.splitting._config import SplitConfig
 
@@ -584,6 +641,268 @@ def test_signal_cap_at_default_50():
     profile = StructuralProfiler(PipelineConfig()).profile(df)
     mat = build_label_matrix(df, profile, target=None)
     assert mat.shape[1] <= SplitConfig().max_stratification_signals
+
+
+# ---------------------------------------------------------------------------
+# build_label_matrix — importance-ranked cap + rows-per-signal guard (ADR-0047)
+# ---------------------------------------------------------------------------
+
+
+def test_cap_keeps_target_and_drops_missingness_first():
+    """Over budget, target survives while low-priority missingness is dropped."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+    from dataforge_ml.splitting._config import SplitConfig
+
+    # 300 rows: a 3-class categorical target (3 class signals, collapsed to 2
+    # after the dummy-drop) plus many single-null columns producing low-priority
+    # missingness signals that a tight cap must shed first.
+    n = 300
+    target_vals = (["a"] * 100 + ["b"] * 100 + ["c"] * 100)
+    cols = {"target": pl.Series(target_vals, dtype=pl.Utf8)}
+    for i in range(20):
+        cols[f"m{i}"] = pl.Series(
+            [None if j == i else float(j) for j in range(n)], dtype=pl.Float64
+        )
+    df = pl.DataFrame(cols)
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+
+    # Cap of 2 → only the two surviving target class signals fit; every
+    # missingness signal is evicted, but the target is never dropped.
+    cfg = SplitConfig(max_stratification_signals=2)
+    mat = build_label_matrix(df, profile, target="target", config=cfg)
+    assert mat.shape[1] == 2
+    # Both retained columns are target-class indicators (never a missingness
+    # signal, which would mark at most a single row).
+    class_cols = {
+        tuple((df["target"] == cls).cast(pl.Int8).to_numpy().tolist())
+        for cls in ("a", "b", "c")
+    }
+    for j in range(mat.shape[1]):
+        assert tuple(mat[:, j].tolist()) in class_cols
+
+
+def test_rows_per_signal_reduces_wide_but_short_input():
+    """A wide-but-short dataset is reduced to the rows-per-signal budget."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+    from dataforge_ml.splitting._config import SplitConfig
+
+    # 100 rows, 40 single-null missingness columns → 40 candidate signals, but
+    # the row budget (100 / 20 = 5) caps retention well below both 40 and the
+    # generous max of 50.
+    n = 100
+    cols = {f"c{i}": pl.Series([None if j == i else float(j) for j in range(n)], dtype=pl.Float64)
+            for i in range(40)}
+    df = pl.DataFrame(cols)
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+
+    cfg = SplitConfig(max_stratification_signals=50, rows_per_signal=20)
+    mat = build_label_matrix(df, profile, target=None)  # default budget 10 -> 10
+    assert mat.shape[1] == 10
+    mat_tight = build_label_matrix(df, profile, target=None, config=cfg)
+    assert mat_tight.shape[1] == 5
+
+
+def test_too_few_rows_to_support_target_degrades_to_empty():
+    """When the budget cannot fit the full target set the matrix is empty."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+    from dataforge_ml.splitting._config import SplitConfig
+
+    # 3-class target → 2 signals after dummy-drop, but a row budget of
+    # 12 / 10 = 1 cannot support both, so the whole matrix is emptied.
+    target_vals = ["a"] * 4 + ["b"] * 4 + ["c"] * 4
+    df = pl.DataFrame({"target": pl.Series(target_vals, dtype=pl.Utf8)})
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+
+    mat = build_label_matrix(df, profile, target="target", min_positives=1)
+    assert mat.shape[1] == 0
+
+
+def test_too_small_dataset_falls_back_to_random_split():
+    """profile_stratified_split degrades to a random split on a tiny dataset."""
+    from dataforge_ml.splitting._config import SplitConfig
+
+    target_vals = ["a"] * 4 + ["b"] * 4 + ["c"] * 4
+    df = pl.DataFrame({"target": pl.Series(target_vals, dtype=pl.Utf8)})
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+
+    splitter = DataSplitter(df, target="target", random_seed=0)
+    result = splitter.profile_stratified_split(profile, test_size=0.25)
+    # A valid split is still produced (via the random fallback), covering all rows.
+    assert result.train_size + result.test_size == len(df)
+
+
+# ---------------------------------------------------------------------------
+# build_label_matrix — redundancy gate (ADR-0047 gate 3): correlation collapse
+# ---------------------------------------------------------------------------
+
+
+def _num_null(nulls: set, n: int, val: float = 9.0) -> pl.Series:
+    """Constant-valued Float64 column null on ``nulls``: a pure missingness signal
+    (a constant non-null region yields no extreme/near-constant signal)."""
+    return pl.Series([None if j in nulls else val for j in range(n)], dtype=pl.Float64)
+
+
+def test_redundancy_collapses_near_identical_signals():
+    """Two columns that are always missing together collapse to a single signal."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+
+    n = 100
+    # x and y are null on exactly the same rows → identical missingness signals
+    # (correlation +1); z is null on a disjoint set and must survive independently.
+    df = pl.DataFrame({
+        "x": _num_null({0, 1, 2, 3, 4}, n),
+        "y": _num_null({0, 1, 2, 3, 4}, n),
+        "z": _num_null({10, 11, 12, 13, 14}, n),
+    })
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+
+    mat = build_label_matrix(
+        df, profile, target=None, config=SplitConfig(rows_per_signal=1)
+    )
+    cols = [tuple(mat[:, j].tolist()) for j in range(mat.shape[1])]
+    xy_pat = tuple([1] * 5 + [0] * 95)
+    z_pat = tuple([0] * 10 + [1] * 5 + [0] * 85)
+    # The identical x/y missingness signal appears exactly once, not twice.
+    assert cols.count(xy_pat) == 1
+    # The distinct z signal is retained.
+    assert z_pat in cols
+
+
+def test_redundancy_collapses_mirror_image_binary_target():
+    """A binary target's two mirror-image class flags collapse to one column."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+
+    n = 200
+    df = pl.DataFrame({
+        "feat": pl.Series(list(range(n)), dtype=pl.Int64),
+        "target": pl.Series(["a"] * 100 + ["b"] * 100, dtype=pl.Utf8),
+    })
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+
+    mat = build_label_matrix(df, profile, target="target")
+    # The two class flags are perfect mirror images (correlation −1); the gate
+    # collapses them to a single column.
+    assert mat.shape[1] == 1
+
+
+def test_redundancy_keeps_higher_priority_family():
+    """On a redundant pair the higher-priority family's signal survives."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+
+    n = 100
+    # Boolean minority (True on rows 0–3, priority 2) and a missingness signal
+    # that is null on rows 4–99 (priority 4) are perfect mirror images. The
+    # higher-priority boolean signal must survive, the missingness one drop.
+    df = pl.DataFrame({
+        "flag": pl.Series([True] * 4 + [False] * 96, dtype=pl.Boolean),
+        "m": _num_null(set(range(4, 100)), n),
+    })
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+
+    mat = build_label_matrix(
+        df, profile, target=None, config=SplitConfig(rows_per_signal=1)
+    )
+    cols = [tuple(mat[:, j].tolist()) for j in range(mat.shape[1])]
+    bool_pat = tuple([1] * 4 + [0] * 96)
+    miss_pat = tuple([0] * 4 + [1] * 96)
+    assert bool_pat in cols, "boolean minority (higher priority) must survive"
+    assert miss_pat not in cols, "mirror-image missingness (lower priority) must drop"
+
+
+def test_redundancy_runs_before_the_cap():
+    """Duplicates collapse before the cap, so the cap does not spend its budget
+    on redundant copies and evict a distinct signal."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+
+    n = 100
+    # Five identical single-null signals plus one distinct signal, with a cap of
+    # 2. If the cap ran first it would fill both slots from the (rarer) identical
+    # cluster and then dedupe to one column, dropping the distinct signal.
+    # Because redundancy runs first, the five collapse to one, leaving room for
+    # the distinct signal → two columns, distinct retained.
+    cols = {f"a{i}": _num_null({0}, n) for i in range(5)}
+    cols["dist"] = _num_null({0, 1, 2}, n)
+    df = pl.DataFrame(cols)
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+
+    mat = build_label_matrix(
+        df,
+        profile,
+        target=None,
+        config=SplitConfig(max_stratification_signals=2, rows_per_signal=1),
+    )
+    col_tuples = [tuple(mat[:, j].tolist()) for j in range(mat.shape[1])]
+    assert mat.shape[1] == 2
+    assert tuple([1, 1, 1] + [0] * 97) in col_tuples
+
+
+def test_redundancy_threshold_is_configurable():
+    """The redundancy threshold is conservative by default but configurable."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+
+    n = 100
+    # p and q overlap heavily (absolute correlation ≈ 0.82) but are not
+    # near-perfect duplicates. The conservative default (0.95) keeps both; a
+    # lowered threshold collapses them.
+    df = pl.DataFrame({
+        "p": _num_null(set(range(0, 10)), n),
+        "q": _num_null(set(range(0, 7)), n),
+    })
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+
+    default_mat = build_label_matrix(
+        df, profile, target=None, config=SplitConfig(rows_per_signal=1)
+    )
+    lowered_mat = build_label_matrix(
+        df,
+        profile,
+        target=None,
+        config=SplitConfig(rows_per_signal=1, redundancy_correlation_threshold=0.7),
+    )
+    assert default_mat.shape[1] == 2
+    assert lowered_mat.shape[1] == 1
+
+
+# ---------------------------------------------------------------------------
+# build_label_matrix — viability gate (ADR-0047 gate 2)
+# ---------------------------------------------------------------------------
+
+
+def test_viability_gate_drops_single_positive_signal():
+    """A signal with fewer than min_positives ones is excluded."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+
+    # One null with constant non-null values → the only surviving signal is the
+    # per-column missingness signal, which has exactly one positive (extremes and
+    # skew signals produce all-zeros on a constant column and are dropped).
+    n = 50
+    data = [None if i == 0 else 5.0 for i in range(n)]
+    df = pl.DataFrame({"val": pl.Series(data, dtype=pl.Float64)})
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+
+    # min_positives=1 admits the single-positive missingness signal.
+    mat_default = build_label_matrix(df, profile, target=None, min_positives=1)
+    assert mat_default.shape[1] == 1
+    assert int(mat_default[:, 0].sum()) == 1
+
+    # min_positives=2 excludes it (only one 1 present).
+    mat_gated = build_label_matrix(df, profile, target=None, min_positives=2)
+    assert mat_gated.shape[1] == 0
+
+
+def test_viability_gate_drops_all_ones_signal():
+    """A signal with fewer than min_positives zeros (near-all-ones) is excluded."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+
+    # All-but-one null → the missingness signal has exactly one zero.
+    n = 50
+    data = [1.0 if i == 0 else None for i in range(n)]
+    df = pl.DataFrame({"val": pl.Series(data, dtype=pl.Float64)})
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+
+    # min_positives=2 excludes it (only one 0 present).
+    mat_gated = build_label_matrix(df, profile, target=None, min_positives=2)
+    assert mat_gated.shape[1] == 0
 
 
 # ---------------------------------------------------------------------------
@@ -599,7 +918,8 @@ def test_signal_1_float_inf_rows_are_marked():
     df = pl.DataFrame({"val": pl.Series(data, dtype=pl.Float64)})
     profile = StructuralProfiler(PipelineConfig()).profile(df)
 
-    mat = build_label_matrix(df, profile, target=None)
+    # rows_per_signal=1 keeps the tiny-fixture budget from evicting the signal.
+    mat = build_label_matrix(df, profile, target=None, config=SplitConfig(rows_per_signal=1))
 
     assert mat.shape[1] >= 1
     signal = mat[:, 0]
@@ -617,7 +937,7 @@ def test_signal_1_utf8_sentinel_rows_are_marked():
     df = pl.DataFrame({"txt": pl.Series(data, dtype=pl.Utf8)})
     profile = StructuralProfiler(PipelineConfig()).profile(df)
 
-    mat = build_label_matrix(df, profile, target=None)
+    mat = build_label_matrix(df, profile, target=None, config=SplitConfig(rows_per_signal=1))
 
     assert mat.shape[1] >= 1
     signal = mat[:, 0]
@@ -636,7 +956,7 @@ def test_signal_1_integer_column_uses_standard_null_only():
     df = pl.DataFrame({"num": pl.Series(data, dtype=pl.Int64)})
     profile = StructuralProfiler(PipelineConfig()).profile(df)
 
-    mat = build_label_matrix(df, profile, target=None)
+    mat = build_label_matrix(df, profile, target=None, config=SplitConfig(rows_per_signal=1))
 
     assert mat.shape[1] >= 1
     signal = mat[:, 0]
@@ -674,8 +994,10 @@ def test_signal_2_joint_mar_string_sentinel_receives_label_one():
 
     mat = build_label_matrix(df, profile, target=None)
 
-    # Three signals: per-col_a missingness, per-col_b missingness, joint MAR.
-    assert mat.shape[1] >= 3
+    # per-col_a missingness, per-col_b missingness and the joint MAR signal are
+    # all the identical [0]*70 + [1]*30 vector, so the ADR-0047 redundancy gate
+    # collapses the three near-identical signals into a single column.
+    assert mat.shape[1] == 1
 
     # Every sentinel row (70–99) must be marked (label 1) in at least one signal.
     assert (mat[70:, :].sum(axis=1) > 0).all(), (
@@ -705,6 +1027,28 @@ def test_signal_5_rare_value_marked_from_profile():
     assert mat.shape[1] >= 1
     rare_signal = mat[98, :]  # one of the rare rows
     assert rare_signal.max() == 1, "Rare row should be marked by at least one signal"
+
+
+def test_signal_5_one_column_per_rare_value():
+    """The matrix has exactly one rare-categorical column per rare value."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+
+    # 100 rows: three distinct rare values (3 rows each) below the dominant.
+    data = ["dominant"] * 91 + ["r1"] * 3 + ["r2"] * 3 + ["r3"] * 3
+    df = pl.DataFrame({"cat": pl.Series(data, dtype=pl.Utf8)})
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+
+    rare_vals = profile.columns["cat"].stats.rare_categories.rare_label_values
+    assert len(rare_vals) >= 2, "test requires multiple rare values"
+
+    mat = build_label_matrix(df, profile, target=None)
+
+    # One binary signal column per rare value (no other signals for a clean col).
+    assert mat.shape[1] == len(rare_vals)
+    # Each column is 1 iff the row equals that specific rare value.
+    for j, val in enumerate(rare_vals):
+        expected = (df["cat"] == val).cast(pl.Int8).to_numpy()
+        assert (mat[:, j] == expected).all()
 
 
 def test_signal_5_no_value_counts_in_module():
@@ -744,8 +1088,9 @@ def test_signal_7_numeric_target_produces_five_signals():
     assert mat.shape[1] < 200
 
 
-def test_signal_7_categorical_target_produces_one_signal_per_class():
-    """A categorical target with 3 classes still produces 3 target signals."""
+def test_signal_7_categorical_target_produces_class_set_minus_dummy():
+    """A categorical target with 3 classes yields 3 - 1 = 2 signals after the
+    ADR-0047 gate-3 dummy-drop of the mutually-exclusive set's last member."""
     from dataforge_ml.splitting._profile_signals import build_label_matrix
 
     n = 90
@@ -759,8 +1104,310 @@ def test_signal_7_categorical_target_produces_one_signal_per_class():
 
     mat = build_label_matrix(df, profile, target="target")
 
-    # Only signals here: 3 target class signals (feature has no nulls, no extremes)
-    assert mat.shape[1] == 3
+    # 3 target class signals minus the dummy-dropped last member (feature has no
+    # nulls, no extremes).
+    assert mat.shape[1] == 2
+
+
+def test_signal_7_discrete_rating_target_produces_one_signal_per_class():
+    """A non-numeric discrete-rating target emits one label per class."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+
+    n = 300
+    # Ratings 1..5 land as SemanticType.Categorical → the class branch fires.
+    ratings = [(i % 5) + 1 for i in range(n)]
+    df = pl.DataFrame({"target": pl.Series(ratings, dtype=pl.Int64)})
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+
+    mat = build_label_matrix(df, profile, target="target", min_positives=1)
+
+    # Five ratings → five class signals minus the dummy-dropped last member.
+    assert mat.shape[1] == 4
+
+
+def test_signal_7_bounded_discrete_target_produces_one_signal_per_class():
+    """A numeric target classified BoundedDiscrete emits one label per class."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+    from dataforge_ml.config import SemanticType
+    from dataforge_ml.profiling._config import NumericKind
+
+    n = 300
+    ratings = [(i % 5) + 1 for i in range(n)]
+    df = pl.DataFrame({"target": pl.Series(ratings, dtype=pl.Int64)})
+    # Force SemanticType.Numeric + NumericKind.BoundedDiscrete so the two-tier
+    # signal reuses the Phase 1 classification rather than a local heuristic.
+    cfg = PipelineConfig()
+    cfg.set_column_type("target", SemanticType.Numeric)
+    cfg.set_numeric_kind("target", NumericKind.BoundedDiscrete)
+    profile = StructuralProfiler(cfg).profile(df)
+
+    from dataforge_ml.profiling._numeric_config import NumericFlag
+
+    assert profile.columns["target"].numeric_kind == NumericKind.BoundedDiscrete
+    mat = build_label_matrix(df, profile, target="target", min_positives=1)
+
+    # BoundedDiscrete routes to the class branch: one label per rating value,
+    # minus the dummy-dropped last member of the mutually-exclusive set — four
+    # class signals. The evenly-spread 1..5 column also trips the dip test, so
+    # the numeric column contributes one extra bimodal minority-cluster signal
+    # (the feature-numeric loops do not skip the target), for five in total.
+    assert profile.columns["target"].stats.has_flag(NumericFlag.Bimodal)
+    assert mat.shape[1] == 5
+
+
+def test_signal_7_continuous_target_buckets_min_of_five_and_nunique():
+    """A continuous target with 3 unique values yields min(5, 3) = 3 buckets."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+
+    n = 300
+    base = [1.5, 2.5, 3.5]  # fractional values keep the column Continuous
+    df = pl.DataFrame(
+        {"target": pl.Series([base[i % 3] for i in range(n)], dtype=pl.Float64)}
+    )
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+
+    mat = build_label_matrix(df, profile, target="target", min_positives=1)
+
+    # min(5, n_unique) == 3 quantile buckets minus the dummy-dropped last bucket.
+    assert mat.shape[1] == 2
+
+
+def test_signal_7_continuous_target_emits_target_missing_label():
+    """A continuous target with nulls emits a dedicated 'target missing' label."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+    import numpy as np
+
+    n = 300
+    # Every 20th row is null → 15 null-target rows.
+    tvals = [None if i % 20 == 0 else float(i) * 1.37 for i in range(n)]
+    df = pl.DataFrame(
+        {
+            "feature": pl.Series([float(i) for i in range(n)], dtype=pl.Float64),
+            "target": pl.Series(tvals, dtype=pl.Float64),
+        }
+    )
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+
+    mat = build_label_matrix(df, profile, target="target", min_positives=1)
+
+    # A column equal to the null-target mask must be present so null rows balance.
+    null_mask = df["target"].is_null().cast(pl.Int8).to_numpy()
+    assert int(null_mask.sum()) == 15
+    found = any(
+        np.array_equal(mat[:, j], null_mask) for j in range(mat.shape[1])
+    )
+    assert found, "a dedicated 'target missing' label must be emitted for null-target rows"
+
+
+# ---------------------------------------------------------------------------
+# build_label_matrix — NearConstant minority + zero/negative gate
+# ---------------------------------------------------------------------------
+
+
+def test_near_constant_column_produces_minority_signal():
+    """A NearConstant numeric column emits an off-mode minority signal."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+    from dataforge_ml.profiling._numeric_config import NumericFlag
+    import numpy as np
+
+    n = 300
+    # 95% of rows share the mode (5.0); the remaining 15 are off-mode. Fractional
+    # values keep the column NumericKind.Continuous, so the band branch fires.
+    off_mode = [1.25, 2.75, 3.5, 4.1, 6.9, 7.3, 8.8, 9.2, 0.5, 10.5,
+                11.5, 12.5, 13.5, 14.5, 15.5]
+    vals = [5.0] * (n - len(off_mode)) + off_mode
+    df = pl.DataFrame({"nc": pl.Series(vals, dtype=pl.Float64)})
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    # Guard: the flag must actually be set, otherwise the signal branch is dead.
+    assert profile.columns["nc"].stats.has_flag(NumericFlag.NearConstant)
+
+    mat = build_label_matrix(df, profile, target=None, min_positives=1)
+
+    minority = (df["nc"] != 5.0).cast(pl.Int8).to_numpy()
+    assert int(minority.sum()) == len(off_mode)
+    found = any(
+        np.array_equal(mat[:, j], minority) for j in range(mat.shape[1])
+    )
+    assert found, "NearConstant column must emit an off-mode minority signal"
+
+
+def test_bounded_discrete_near_constant_uses_exact_equality():
+    """A BoundedDiscrete NearConstant column marks the minority by exact inequality."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+    from dataforge_ml.config import SemanticType
+    from dataforge_ml.profiling._config import NumericKind
+    from dataforge_ml.profiling._numeric_config import NumericFlag
+    import numpy as np
+
+    n = 300
+    # 96% at value 3; the rest spread across the bounded 0..5 domain.
+    off_mode = [0, 1, 2, 4, 5, 0, 1, 2, 4, 5, 0, 1]
+    vals = [3] * (n - len(off_mode)) + off_mode
+    df = pl.DataFrame({"nc": pl.Series(vals, dtype=pl.Int64)})
+    cfg = PipelineConfig()
+    cfg.set_column_type("nc", SemanticType.Numeric)
+    cfg.set_numeric_kind("nc", NumericKind.BoundedDiscrete)
+    profile = StructuralProfiler(cfg).profile(df)
+    assert profile.columns["nc"].stats.has_flag(NumericFlag.NearConstant)
+    assert profile.columns["nc"].numeric_kind == NumericKind.BoundedDiscrete
+
+    mat = build_label_matrix(df, profile, target=None, min_positives=1)
+
+    minority = (df["nc"] != 3).cast(pl.Int8).to_numpy()
+    assert int(minority.sum()) == len(off_mode)
+    found = any(
+        np.array_equal(mat[:, j], minority) for j in range(mat.shape[1])
+    )
+    assert found, "BoundedDiscrete NearConstant column must use exact-equality minority"
+
+
+def test_zero_negative_signal_absent_for_strictly_positive_skewed_column():
+    """A strictly-positive right-skewed column produces no zero/negative signal."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+    from dataforge_ml.profiling._numeric_config import SkewSeverity
+    import numpy as np
+
+    n = 300
+    # Right-skewed but strictly positive (min > 0): a heavy right tail on a body
+    # confined to [1, 7].
+    vals = [1.0 + float(i % 7) for i in range(n)]
+    for i in range(20):
+        vals[i] = 200.0 + float(i)
+    df = pl.DataFrame({"x": pl.Series(vals, dtype=pl.Float64)})
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    stats = profile.columns["x"].stats
+    # Guards: strictly positive, right-skewed, and severe enough that the
+    # zero/negative branch would fire if the min<=0 gate were absent.
+    assert stats.min > 0
+    assert stats.skewness is not None and stats.skewness > 0
+    assert stats.skewness_severity in (SkewSeverity.High, SkewSeverity.Severe)
+
+    # min_positives=0 lets even all-zeros signals through the viability gate, so
+    # an all-zeros zero/negative label would surface here if it were generated.
+    mat = build_label_matrix(df, profile, target=None, min_positives=0)
+    zero_mask = (df["x"] <= 0).cast(pl.Int8).to_numpy()  # all zeros
+    assert not any(
+        np.array_equal(mat[:, j], zero_mask) for j in range(mat.shape[1])
+    ), "strictly-positive column must not produce a zero/negative signal"
+
+
+# ---------------------------------------------------------------------------
+# build_label_matrix — Bimodal minority-cluster signal
+# ---------------------------------------------------------------------------
+
+
+def _bimodal_frame(seed: int = 0):
+    """Build a two-cluster numeric column plus its nearest-center minority mask.
+
+    240 rows form a wide majority cluster near 0 and 60 rows a tight minority
+    cluster near 8. The minority mode sits inside the ``[p5, p95]`` body, so the
+    numeric extreme-value signal cannot see most of it — the case the
+    bimodal-cluster signal exists to cover.
+    """
+    import numpy as np
+
+    rng = np.random.default_rng(seed)
+    vals = np.concatenate([rng.normal(0.0, 1.0, 240), rng.normal(8.0, 0.3, 60)])
+    df = pl.DataFrame({"x": pl.Series(vals, dtype=pl.Float64)})
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    bs = profile.columns["x"].stats.bimodal_stats
+    d1 = np.abs(vals - bs.center1)
+    d2 = np.abs(vals - bs.center2)
+    # Cluster 2 (near 8) is the less-populous cluster, so it is the minority.
+    minority = (d1 > d2).astype("int8")
+    return df, profile, minority, vals
+
+
+def test_bimodal_minority_signal_invisible_to_extreme_value_signal():
+    """A minority mode inside the body emits a cluster signal the extreme misses."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+    from dataforge_ml.profiling._numeric_config import NumericFlag, SkewSeverity
+    import numpy as np
+
+    df, profile, minority, vals = _bimodal_frame()
+    stats = profile.columns["x"].stats
+    # Guard: the flag and its stats must be set, else the branch is dead.
+    assert stats.has_flag(NumericFlag.Bimodal)
+    assert stats.bimodal_stats is not None
+    assert int(minority.sum()) == 60
+
+    mat = build_label_matrix(df, profile, target=None, min_positives=1)
+    found = any(np.array_equal(mat[:, j], minority) for j in range(mat.shape[1]))
+    assert found, "Bimodal column must emit a less-populous-cluster minority signal"
+
+    # The extreme-value signal only reaches the tail past p95, so most minority
+    # rows sit inside the body and are invisible to it — the value the cluster
+    # signal adds.
+    p5 = stats.percentiles.p5
+    p_high = (
+        stats.percentiles.p99
+        if stats.skewness_severity == SkewSeverity.Severe
+        else stats.percentiles.p95
+    )
+    extreme = ((vals < p5) | (vals > p_high)).astype("int8")
+    missed = int(((minority == 1) & (extreme == 0)).sum())
+    assert missed > 0, "extreme signal alone should miss body-side minority rows"
+    assert not np.array_equal(minority, extreme)
+
+
+def test_bimodal_signal_uses_split_counts_not_minority_weight():
+    """The positive class is the cluster with fewer split rows, ignoring weight."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+    import numpy as np
+
+    df, profile, minority, _ = _bimodal_frame()
+    mat = build_label_matrix(df, profile, target=None, min_positives=1)
+    # The emitted signal marks exactly the 60-row (less-populous) cluster, never
+    # the 240-row majority — the count decides the sign, not center ordering.
+    majority = 1 - minority
+    assert any(np.array_equal(mat[:, j], minority) for j in range(mat.shape[1]))
+    assert not any(np.array_equal(mat[:, j], majority) for j in range(mat.shape[1]))
+
+
+def test_bimodal_signal_evicted_below_viability_floor():
+    """A minority cluster smaller than the floor is dropped before capping."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+    import numpy as np
+
+    df, profile, minority, _ = _bimodal_frame()
+    # 60 minority rows: a floor of 61 cannot place that many positives in both
+    # partitions, so the signal fails the two-sided viability gate.
+    mat = build_label_matrix(df, profile, target=None, min_positives=61)
+    assert not any(
+        np.array_equal(mat[:, j], minority) for j in range(mat.shape[1])
+    ), "sub-floor bimodal minority signal must be evicted"
+
+
+def test_bimodal_signal_collapses_against_correlated_higher_priority_signal():
+    """A perfectly correlated target class collapses the lower-priority cluster signal."""
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
+    import numpy as np
+
+    df, profile, minority, _ = _bimodal_frame()
+    # Control: with no correlated partner the cluster signal is present.
+    base = build_label_matrix(df, profile, target=None, min_positives=1)
+    assert any(np.array_equal(base[:, j], minority) for j in range(base.shape[1]))
+
+    # A binary target that mirrors cluster membership yields a target-class
+    # signal (priority 0) perfectly correlated with the bimodal cluster signal
+    # (priority numeric). The redundancy gate keeps the higher-priority target
+    # and drops the cluster signal.
+    tgt = np.where(minority == 1, "min", "maj")
+    df2 = df.with_columns(pl.Series("target", tgt, dtype=pl.Utf8))
+    profile2 = StructuralProfiler(PipelineConfig()).profile(df2)
+    mat2 = build_label_matrix(df2, profile2, target="target", min_positives=1)
+    # The two-class target collapses to one class signal (dummy-drop), which is
+    # perfectly correlated (±1) with the cluster membership. Count columns in the
+    # cluster family: without a collapse there would be two (surviving target
+    # class + bimodal cluster); the redundancy gate leaves exactly one.
+    complement = 1 - minority
+    family = sum(
+        1
+        for j in range(mat2.shape[1])
+        if np.array_equal(mat2[:, j], minority)
+        or np.array_equal(mat2[:, j], complement)
+    )
+    assert family == 1, "cluster signal must collapse against the correlated target class"
 
 
 # ---------------------------------------------------------------------------
@@ -772,6 +1419,7 @@ def test_split_config_defaults():
     from dataforge_ml.splitting._config import SplitConfig
     cfg = SplitConfig()
     assert cfg.max_stratification_signals == 50
+    assert cfg.rows_per_signal == 10
     assert cfg.boolean_minority_threshold == 0.05
 
 
@@ -929,7 +1577,7 @@ def test_signal_1_declared_sentinels_replace_hardcoded_defaults():
     )
     profile = StructuralProfiler(pipeline_cfg).profile(df)
 
-    mat = build_label_matrix(df, profile, target=None)
+    mat = build_label_matrix(df, profile, target=None, config=SplitConfig(rows_per_signal=1))
 
     assert mat.shape[1] >= 1
     signal = mat[:, 0]
@@ -948,7 +1596,7 @@ def test_signal_1_no_sentinel_declaration_falls_back_to_hardcoded_defaults():
     df = pl.DataFrame({"txt": pl.Series(data, dtype=pl.Utf8)})
     profile = StructuralProfiler(PipelineConfig()).profile(df)
 
-    mat = build_label_matrix(df, profile, target=None)
+    mat = build_label_matrix(df, profile, target=None, config=SplitConfig(rows_per_signal=1))
 
     assert mat.shape[1] >= 1
     signal = mat[:, 0]
@@ -971,7 +1619,7 @@ def test_signal_1_whitespace_always_marked_with_declared_sentinels():
     )
     profile = StructuralProfiler(pipeline_cfg).profile(df)
 
-    mat = build_label_matrix(df, profile, target=None)
+    mat = build_label_matrix(df, profile, target=None, config=SplitConfig(rows_per_signal=1))
 
     assert mat.shape[1] >= 1
     signal = mat[:, 0]
@@ -994,7 +1642,7 @@ def test_signal_1_declared_sentinels_matched_case_insensitively():
     )
     profile = StructuralProfiler(pipeline_cfg).profile(df)
 
-    mat = build_label_matrix(df, profile, target=None)
+    mat = build_label_matrix(df, profile, target=None, config=SplitConfig(rows_per_signal=1))
 
     assert mat.shape[1] >= 1
     signal = mat[:, 0]
@@ -1048,22 +1696,27 @@ def test_signal_8_absent_when_p90_is_zero():
 
 
 def _make_compound_df() -> pl.DataFrame:
-    """10 rows, 5 columns. Rows 0-8: one null each. Row 9: four nulls.
-    Per-row null counts: [1]*9 + [4]. p90 = 1, so row 9 (count 4) gets label 1.
+    """12 rows, 5 columns. Rows 0-9 fully present. Row 10 is null in cols a & b;
+    row 11 is null in cols c & d. Per-row null counts: [0]*10 + [2, 2], so p90 = 1
+    and the compound signal marks rows 10 and 11 (count 2 > p90).
+
+    The two globally-sparse rows are null in *disjoint* column pairs, so the
+    compound signal is not near-identical to (nor a mirror image of) any single
+    per-column missingness signal and therefore survives the ADR-0047 redundancy
+    gate — unlike a fixture where a lone sparse row's nulls all fall in one column.
     """
     return pl.DataFrame({
-        "a": pl.Series([None, None, None, None, None, None, None, None, None, 1], dtype=pl.Int64),
-        "b": pl.Series([1, 2, 3, 4, 5, 6, 7, 8, 9, None], dtype=pl.Int64),
-        "c": pl.Series([1, 2, 3, 4, 5, 6, 7, 8, 9, None], dtype=pl.Int64),
-        "d": pl.Series([1, 2, 3, 4, 5, 6, 7, 8, 9, None], dtype=pl.Int64),
-        "e": pl.Series([1, 2, 3, 4, 5, 6, 7, 8, 9, None], dtype=pl.Int64),
+        "a": pl.Series([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, None, 11], dtype=pl.Int64),
+        "b": pl.Series([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, None, 11], dtype=pl.Int64),
+        "c": pl.Series([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, None], dtype=pl.Int64),
+        "d": pl.Series([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, None], dtype=pl.Int64),
+        "e": pl.Series([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], dtype=pl.Int64),
     })
 
 
 def test_signal_8_present_when_p90_is_positive():
     """Compound row signal column is present and non-zero when p90 > 0."""
     from dataforge_ml.splitting._profile_signals import build_label_matrix
-    import numpy as np
 
     df = _make_compound_df()
     profile = StructuralProfiler(PipelineConfig()).profile(df)
@@ -1071,12 +1724,17 @@ def test_signal_8_present_when_p90_is_positive():
     p90 = profile.dataset.row_distribution.row_missingness_p90
     assert p90 > 0, f"precondition: p90 must be positive, got {p90}"
 
-    mat = build_label_matrix(df, profile, target=None)
-    # The compound signal marks row 9 (count 4 > p90); it must be non-zero,
-    # so it survives the zero-proportion filter.
+    # rows_per_signal=1 keeps the gate-4 cap from evicting signals on this tiny
+    # fixture, isolating the compound signal's survival of the redundancy gate.
+    mat = build_label_matrix(
+        df, profile, target=None, config=SplitConfig(rows_per_signal=1)
+    )
+    # The compound signal marks rows 10 and 11 (count 2 > p90); it must be
+    # non-zero, so it survives the viability and redundancy gates.
     assert mat.shape[1] >= 1
-    # At least one column has a 1 in row 9.
-    assert mat[9, :].sum() > 0, "row 9 (globally sparse) should be marked in some signal"
+    # At least one column has a 1 in each globally-sparse row.
+    assert mat[10, :].sum() > 0, "row 10 (globally sparse) should be marked in some signal"
+    assert mat[11, :].sum() > 0, "row 11 (globally sparse) should be marked in some signal"
 
 
 def test_signal_8_rows_above_p90_receive_label_one():
@@ -1084,19 +1742,19 @@ def test_signal_8_rows_above_p90_receive_label_one():
     from dataforge_ml.splitting._profile_signals import build_label_matrix
     import numpy as np
 
-    # 10 rows, 5 columns. Rows 0-8 have exactly 1 null (col "a").
-    # Row 9 has 4 nulls (cols b-e). Per-row counts: [1]*9 + [4].
-    # p90 = int(np.percentile([1]*9+[4], 90)) = 1 (linear interpolation gives 1.3 → 1).
-    # Compound signal: rows with count > 1 → only row 9.
+    # 12 rows, 5 columns. Per-row null counts: [0]*10 + [2, 2] (rows 10 and 11).
+    # p90 = 1, so the compound signal flags rows with count > 1 → rows 10 and 11.
     df = _make_compound_df()
     profile = StructuralProfiler(PipelineConfig()).profile(df)
 
     p90 = profile.dataset.row_distribution.row_missingness_p90
     assert p90 > 0, f"precondition: p90 must be positive, got {p90}"
 
-    mat = build_label_matrix(df, profile, target=None)
+    mat = build_label_matrix(
+        df, profile, target=None, config=SplitConfig(rows_per_signal=1)
+    )
 
-    per_row_null = np.array([1, 1, 1, 1, 1, 1, 1, 1, 1, 4])
+    per_row_null = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2])
     expected_compound = (per_row_null > p90).astype(np.int8)
 
     # The compound signal must appear as one column in the matrix.
@@ -1105,3 +1763,99 @@ def test_signal_8_rows_above_p90_receive_label_one():
         f"compound signal column not found in matrix; p90={p90}, "
         f"expected {expected_compound.tolist()}, matrix shape {mat.shape}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Unsplittable rare-row routing into the training split (ADR-0048)
+# ---------------------------------------------------------------------------
+
+
+def test_unsplittable_mask_flags_sub_floor_rare_categorical():
+    """unsplittable_train_mask marks rows of a rare value below the floor."""
+    from dataforge_ml.splitting._profile_signals import unsplittable_train_mask
+
+    n = 300
+    # "Z" occurs once (0.33%) → rare and below any reasonable floor.
+    cat = ["A"] * 150 + ["B"] * 149 + ["Z"]
+    df = pl.DataFrame({"cat": pl.Series(cat, dtype=pl.Utf8)})
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    assert "Z" in profile.columns["cat"].stats.rare_categories.rare_label_values
+
+    mask = unsplittable_train_mask(df, profile, target=None, min_positives=10)
+    assert mask.sum() == 1
+    assert mask[299]
+
+
+def test_unsplittable_mask_empty_when_no_sub_floor_rows():
+    """No rare/sparse labels → an all-False mask (routing is a no-op)."""
+    from dataforge_ml.splitting._profile_signals import unsplittable_train_mask
+
+    n = 300
+    df = pl.DataFrame(
+        {"label": pl.Series(["A" if i % 2 == 0 else "B" for i in range(n)], dtype=pl.Utf8)}
+    )
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    mask = unsplittable_train_mask(df, profile, target="label", min_positives=10)
+    assert mask.sum() == 0
+
+
+def test_profile_split_routes_sub_floor_rare_categorical_to_train():
+    """A lone rare categorical value lands entirely in the training split."""
+    n = 300
+    cat = ["A"] * 150 + ["B"] * 149 + ["Z"]
+    label = ["x" if i % 2 == 0 else "y" for i in range(n)]
+    df = pl.DataFrame(
+        {
+            "cat": pl.Series(cat, dtype=pl.Utf8),
+            "label": pl.Series(label, dtype=pl.Utf8),
+        }
+    )
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    splitter = DataSplitter(df, target="label", random_seed=7)
+    result = splitter.profile_stratified_split(profile, test_size=0.2)
+
+    assert (result.test["cat"] == "Z").sum() == 0
+    assert (result.train["cat"] == "Z").sum() == 1
+    assert result.train_size + result.test_size == n
+
+
+def test_profile_split_routes_sub_floor_target_class_to_train():
+    """A lone target class lands entirely in the training split."""
+    n = 300
+    # "C" is a single-row class, unsplittable at any floor >= 2.
+    label = ["A"] * 150 + ["B"] * 149 + ["C"]
+    df = pl.DataFrame(
+        {
+            "feature": pl.Series([float(i) for i in range(n)], dtype=pl.Float64),
+            "label": pl.Series(label, dtype=pl.Utf8),
+        }
+    )
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    splitter = DataSplitter(df, target="label", random_seed=7)
+    result = splitter.profile_stratified_split(profile, test_size=0.2)
+
+    assert (result.test["label"] == "C").sum() == 0
+    assert (result.train["label"] == "C").sum() == 1
+    assert result.train_size + result.test_size == n
+
+
+def test_profile_kfold_routes_lone_rare_row_to_every_train():
+    """A lone rare categorical row is in every fold's train, never in val."""
+    n = 300
+    cat = ["A"] * 150 + ["B"] * 149 + ["Z"]
+    label = ["x" if i % 2 == 0 else "y" for i in range(n)]
+    df = pl.DataFrame(
+        {
+            "cat": pl.Series(cat, dtype=pl.Utf8),
+            "label": pl.Series(label, dtype=pl.Utf8),
+        }
+    )
+    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    splitter = DataSplitter(df, target="label", random_seed=7)
+    folds = splitter.profile_stratified_kfold(profile, k=5)
+
+    for fold in folds:
+        assert (fold.val["cat"] == "Z").sum() == 0, (
+            f"fold {fold.fold_index}: unsplittable rare row leaked into val"
+        )
+        assert (fold.train["cat"] == "Z").sum() == 1
