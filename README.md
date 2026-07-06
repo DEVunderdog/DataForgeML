@@ -16,7 +16,10 @@ Full documentation — including the complete API reference, configuration guide
 
 ## Installation
 
-Install from PyPI with `pip install dataforge-ml`.
+Install from PyPI
+```
+pip install dataforge-ml
+```
 
 ## License
 
