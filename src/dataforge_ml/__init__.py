@@ -33,6 +33,9 @@ from .splitting import SplitConfig
 from .profiling import NumericKind
 from .imputation import ImputationStrategy
 
+# --- Observability: Pipeline Event stream + observers ----------------------
+from .observability import PipelineEvent, EventType, stderr_observer
+
 # --- Result and nested-record types ----------------------------------------
 from .profiling import StructuralProfileResult, ColumnProfile, DatasetStats
 from .imputation import ImputationResult, ColumnImputationRecord
@@ -77,6 +80,10 @@ __all__ = [
     # Input enums
     "NumericKind",
     "ImputationStrategy",
+    # Observability
+    "PipelineEvent",
+    "EventType",
+    "stderr_observer",
     # Result and nested-record types
     "StructuralProfileResult",
     "ColumnProfile",
