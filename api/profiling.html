@@ -380,14 +380,19 @@
 <h1>Profiling<a class="headerlink" href="#profiling" title="Link to this heading">#</a></h1>
 <dl class="py class">
 <dt class="sig sig-object py" id="dataforge_ml.profiling.orchestrator.StructuralProfiler">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.profiling.orchestrator.</span></span><span class="sig-name descname"><span class="pre">StructuralProfiler</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/profiling/orchestrator.html#StructuralProfiler"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.profiling.orchestrator.StructuralProfiler" title="Link to this definition">#</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.profiling.orchestrator.</span></span><span class="sig-name descname"><span class="pre">StructuralProfiler</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">observer</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/profiling/orchestrator.html#StructuralProfiler"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.profiling.orchestrator.StructuralProfiler" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">_ObservabilityMixin</span></code></p>
 <p>Phase 1 orchestrator — runs all sub-processors and assembles
 <code class="docutils literal notranslate"><span class="pre">StructuralProfileResult</span></code>.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>config</strong> (<a class="reference internal" href="pipeline.html#dataforge_ml.config.PipelineConfig" title="dataforge_ml.config.PipelineConfig"><em>PipelineConfig</em></a><em>, </em><em>optional</em>) – Master pipeline configuration.  Defaults to <code class="docutils literal notranslate"><span class="pre">PipelineConfig()</span></code> which
-applies all sub-processor defaults exactly as they were before Scope 15.</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>config</strong> (<a class="reference internal" href="pipeline.html#dataforge_ml.config.PipelineConfig" title="dataforge_ml.config.PipelineConfig"><em>PipelineConfig</em></a><em>, </em><em>optional</em>) – Master pipeline configuration.  Defaults to <code class="docutils literal notranslate"><span class="pre">PipelineConfig()</span></code> which
+applies all sub-processor defaults exactly as they were before Scope 15.</p></li>
+<li><p><strong>observer</strong> (<em>Callable</em><em>[</em><em>[</em><em>PipelineEvent</em><em>]</em><em>, </em><em>None</em><em>]</em><em>, </em><em>optional</em>) – Live Progress Observer invoked with each <code class="xref py py-class docutils literal notranslate"><span class="pre">PipelineEvent</span></code> this
+orchestrator emits.  <code class="docutils literal notranslate"><span class="pre">None</span></code> (the default) disables Progress; Trace
+still flows to the <code class="docutils literal notranslate"><span class="pre">dataforge_ml</span></code> logger regardless (ADR-0054).</p></li>
+</ul>
 </dd>
 </dl>
 <dl class="py method">

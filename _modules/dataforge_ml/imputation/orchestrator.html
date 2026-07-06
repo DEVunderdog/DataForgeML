@@ -373,6 +373,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">..config</span><span class="w"> </span><span class="kn">import</span> <span class="n">PipelineConfig</span><span class="p">,</span> <span class="n">SemanticType</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..observability</span><span class="w"> </span><span class="kn">import</span> <span class="n">Observer</span><span class="p">,</span> <span class="n">_ObservabilityMixin</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">ColumnImputationRecord</span><span class="p">,</span> <span class="n">ImputationResult</span><span class="p">,</span> <span class="n">ImputationStrategy</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._fitted_imputer</span><span class="w"> </span><span class="kn">import</span> <span class="n">FittedImputer</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._numeric_imputer</span><span class="w"> </span><span class="kn">import</span> <span class="n">NumericImputer</span><span class="p">,</span> <span class="n">_NumericFitBundle</span>
@@ -389,7 +390,7 @@
 
 <div class="viewcode-block" id="ImputationOrchestrator">
 <a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation.orchestrator.ImputationOrchestrator">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">ImputationOrchestrator</span><span class="p">:</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ImputationOrchestrator</span><span class="p">(</span><span class="n">_ObservabilityMixin</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Stateless Phase 2 orchestrator.</span>
 
@@ -399,10 +400,23 @@
 <span class="sd">    ----------</span>
 <span class="sd">    config : PipelineConfig, optional</span>
 <span class="sd">        Pipeline configuration.  Defaults to PipelineConfig() when omitted.</span>
+<span class="sd">    observer : Callable[[PipelineEvent], None], optional</span>
+<span class="sd">        Live Progress Observer invoked with each :class:`PipelineEvent` emitted</span>
+<span class="sd">        during ``fit``/``fit_transform``.  ``None`` (the default) disables</span>
+<span class="sd">        Progress; Trace still flows to the ``dataforge_ml`` logger regardless</span>
+<span class="sd">        (ADR-0054).  Supplied per orchestrator — a single observer instance may</span>
+<span class="sd">        be reused across profiling and imputation calls.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">PipelineConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">_PHASE</span> <span class="o">=</span> <span class="s2">&quot;imputation&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">config</span><span class="p">:</span> <span class="n">PipelineConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">observer</span><span class="p">:</span> <span class="n">Observer</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_config</span> <span class="o">=</span> <span class="n">config</span> <span class="ow">or</span> <span class="n">PipelineConfig</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_observer</span><span class="p">:</span> <span class="n">Observer</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">observer</span>
 
 <div class="viewcode-block" id="ImputationOrchestrator.fit">
 <a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation.orchestrator.ImputationOrchestrator.fit">[docs]</a>
@@ -451,12 +465,28 @@
                 <span class="k">continue</span>
             <span class="n">type_to_cols</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">cp</span><span class="o">.</span><span class="n">semantic_type</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
 
+        <span class="c1"># This is the expensive stretch: model-based columns (MICE/KNN/</span>
+        <span class="c1"># regression) can each take seconds.  Emit an ``item`` heartbeat per</span>
+        <span class="c1"># fitted column (1-based, monotonic across the stage) so a watching</span>
+        <span class="c1"># observer sees &quot;column k of N&quot; progress (ADR-0054).  Passthrough and</span>
+        <span class="c1"># indicator columns are not fitted, so they raise no item events.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_emit_stage_start</span><span class="p">(</span><span class="s2">&quot;column_fitting&quot;</span><span class="p">)</span>
+        <span class="n">_fit_total</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="nb">len</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">st</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">type_to_cols</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">_IMPUTATION_REGISTRY</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">st</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="p">)</span>
+        <span class="n">_fit_index</span> <span class="o">=</span> <span class="mi">0</span>
+
         <span class="c1"># Route each semantic type to its registered sub-processor</span>
         <span class="k">for</span> <span class="n">sem_type</span><span class="p">,</span> <span class="n">cols</span> <span class="ow">in</span> <span class="n">type_to_cols</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">imputer_cls</span> <span class="o">=</span> <span class="n">_IMPUTATION_REGISTRY</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">sem_type</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">imputer_cls</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="c1"># SemanticType.Text, Identifier, and unregistered types pass through</span>
                 <span class="k">continue</span>
+            <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">cols</span><span class="p">:</span>
+                <span class="n">_fit_index</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_emit_item</span><span class="p">(</span><span class="s2">&quot;column_fitting&quot;</span><span class="p">,</span> <span class="n">col</span><span class="p">,</span> <span class="n">_fit_index</span><span class="p">,</span> <span class="n">_fit_total</span><span class="p">)</span>
             <span class="n">result</span> <span class="o">=</span> <span class="n">imputer_cls</span><span class="p">()</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span>
                 <span class="n">train_df</span><span class="o">=</span><span class="n">train_df</span><span class="p">,</span>
                 <span class="n">columns</span><span class="o">=</span><span class="n">cols</span><span class="p">,</span>
@@ -473,6 +503,27 @@
                 <span class="n">recs</span> <span class="o">=</span> <span class="n">result</span>
             <span class="k">for</span> <span class="n">rec</span> <span class="ow">in</span> <span class="n">recs</span><span class="p">:</span>
                 <span class="n">all_records</span><span class="p">[</span><span class="n">rec</span><span class="o">.</span><span class="n">column</span><span class="p">]</span> <span class="o">=</span> <span class="n">rec</span>
+                <span class="c1"># decision event: record *why* this column got its strategy,</span>
+                <span class="c1"># drawing on the router&#39;s human-readable signals (ADR-0054).</span>
+                <span class="n">reason</span> <span class="o">=</span> <span class="s2">&quot;; &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">rec</span><span class="o">.</span><span class="n">signals</span><span class="p">)</span> <span class="k">if</span> <span class="n">rec</span><span class="o">.</span><span class="n">signals</span> <span class="k">else</span> <span class="s2">&quot;default routing&quot;</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_emit_decision</span><span class="p">(</span>
+                    <span class="s2">&quot;column_fitting&quot;</span><span class="p">,</span>
+                    <span class="n">rec</span><span class="o">.</span><span class="n">column</span><span class="p">,</span>
+                    <span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_PHASE</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="n">rec</span><span class="o">.</span><span class="n">column</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">rec</span><span class="o">.</span><span class="n">strategy</span><span class="si">}</span><span class="s2"> because </span><span class="si">{</span><span class="n">reason</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="c1"># warning event: surface each recoverable soft fallback the</span>
+                <span class="c1"># router took silently (e.g. model-based fit unusable -&gt; median)</span>
+                <span class="c1"># so the recovery leaves a visible trail (ADR-0054).  Hard</span>
+                <span class="c1"># failures raise before reaching here and are never softened.</span>
+                <span class="k">for</span> <span class="n">signal</span> <span class="ow">in</span> <span class="n">rec</span><span class="o">.</span><span class="n">signals</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">signal</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;fallback_to_&quot;</span><span class="p">):</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_emit_warning</span><span class="p">(</span>
+                            <span class="s2">&quot;column_fitting&quot;</span><span class="p">,</span>
+                            <span class="n">rec</span><span class="o">.</span><span class="n">column</span><span class="p">,</span>
+                            <span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_PHASE</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="n">rec</span><span class="o">.</span><span class="n">column</span><span class="si">}</span><span class="s2"> fell back to &quot;</span>
+                            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">rec</span><span class="o">.</span><span class="n">strategy</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">signal</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_emit_stage_end</span><span class="p">(</span><span class="s2">&quot;column_fitting&quot;</span><span class="p">)</span>
 
         <span class="c1"># Passthrough pass: register every train_df column not handled by a sub-processor</span>
         <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">train_df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>

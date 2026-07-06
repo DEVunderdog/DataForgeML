@@ -402,6 +402,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">._nonlinearity_profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">NonlinearityProfiler</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._type_detector</span><span class="w"> </span><span class="kn">import</span> <span class="n">TypeDetector</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">..config</span><span class="w"> </span><span class="kn">import</span> <span class="n">PipelineConfig</span><span class="p">,</span> <span class="n">PipelinePhase</span><span class="p">,</span> <span class="n">SemanticType</span><span class="p">,</span> <span class="n">Modality</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..observability</span><span class="w"> </span><span class="kn">import</span> <span class="n">Observer</span><span class="p">,</span> <span class="n">_ObservabilityMixin</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">ColumnProfile</span><span class="p">,</span>
     <span class="n">StructuralProfileResult</span><span class="p">,</span>
@@ -428,7 +429,7 @@
 
 <div class="viewcode-block" id="StructuralProfiler">
 <a class="viewcode-back" href="../../../api/profiling.html#dataforge_ml.profiling.orchestrator.StructuralProfiler">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">StructuralProfiler</span><span class="p">:</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">StructuralProfiler</span><span class="p">(</span><span class="n">_ObservabilityMixin</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Phase 1 orchestrator — runs all sub-processors and assembles</span>
 <span class="sd">    ``StructuralProfileResult``.</span>
@@ -438,10 +439,21 @@
 <span class="sd">    config : PipelineConfig, optional</span>
 <span class="sd">        Master pipeline configuration.  Defaults to ``PipelineConfig()`` which</span>
 <span class="sd">        applies all sub-processor defaults exactly as they were before Scope 15.</span>
+<span class="sd">    observer : Callable[[PipelineEvent], None], optional</span>
+<span class="sd">        Live Progress Observer invoked with each :class:`PipelineEvent` this</span>
+<span class="sd">        orchestrator emits.  ``None`` (the default) disables Progress; Trace</span>
+<span class="sd">        still flows to the ``dataforge_ml`` logger regardless (ADR-0054).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">PipelineConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">_PHASE</span> <span class="o">=</span> <span class="s2">&quot;profiling&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">config</span><span class="p">:</span> <span class="n">PipelineConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">observer</span><span class="p">:</span> <span class="n">Observer</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">:</span> <span class="n">PipelineConfig</span> <span class="o">=</span> <span class="n">config</span> <span class="ow">or</span> <span class="n">PipelineConfig</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_observer</span><span class="p">:</span> <span class="n">Observer</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">observer</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">modality</span> <span class="o">==</span> <span class="n">Modality</span><span class="o">.</span><span class="n">Tabular</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">modality_profiler</span><span class="p">:</span> <span class="n">ModalityProfiler</span> <span class="o">=</span> <span class="n">TabularProfiler</span><span class="p">()</span>
@@ -507,11 +519,14 @@
         <span class="c1"># ── 1. Modality profiler ─────────────────────────────────────────</span>
         <span class="c1"># Replaces default DatasetStats with the real one (row_count, memory,</span>
         <span class="c1"># duplicates, etc.).  Must run before anything writes to result.dataset.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_emit_stage_start</span><span class="p">(</span><span class="s2">&quot;modality&quot;</span><span class="p">)</span>
         <span class="n">result</span><span class="o">.</span><span class="n">dataset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">modality_profiler</span><span class="o">.</span><span class="n">profile</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_emit_stage_end</span><span class="p">(</span><span class="s2">&quot;modality&quot;</span><span class="p">)</span>
 
         <span class="c1"># ── 2. Missingness pre-pass ──────────────────────────────────────</span>
         <span class="c1"># setdefault creates ColumnProfile entries; subsequent steps mutate</span>
         <span class="c1"># the same objects via the same setdefault pattern.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_emit_stage_start</span><span class="p">(</span><span class="s2">&quot;missingness&quot;</span><span class="p">)</span>
         <span class="n">missingness_result</span> <span class="o">=</span> <span class="n">MissingnessProfiler</span><span class="p">(</span>
             <span class="n">config</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">missingness</span><span class="p">,</span>
             <span class="n">numeric_sentinels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">numeric_sentinels</span><span class="p">,</span>
@@ -523,8 +538,10 @@
 
         <span class="k">if</span> <span class="n">missingness_result</span><span class="o">.</span><span class="n">correlation_matrix</span><span class="p">:</span>
             <span class="n">result</span><span class="o">.</span><span class="n">dataset</span><span class="o">.</span><span class="n">missingness_matrix</span> <span class="o">=</span> <span class="n">missingness_result</span><span class="o">.</span><span class="n">correlation_matrix</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_emit_stage_end</span><span class="p">(</span><span class="s2">&quot;missingness&quot;</span><span class="p">)</span>
 
         <span class="c1"># ── 3. Row-missingness distribution ─────────────────────────────</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_emit_stage_start</span><span class="p">(</span><span class="s2">&quot;row_distribution&quot;</span><span class="p">)</span>
         <span class="n">result</span><span class="o">.</span><span class="n">dataset</span><span class="o">.</span><span class="n">row_distribution</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compute_row_distribution</span><span class="p">(</span>
             <span class="n">df</span><span class="o">=</span><span class="n">data</span><span class="p">,</span>
             <span class="n">cols</span><span class="o">=</span><span class="n">active_cols</span><span class="p">,</span>
@@ -533,10 +550,12 @@
             <span class="n">numeric_sentinels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">numeric_sentinels</span><span class="p">,</span>
             <span class="n">string_sentinels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">string_sentinels</span><span class="p">,</span>
         <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_emit_stage_end</span><span class="p">(</span><span class="s2">&quot;row_distribution&quot;</span><span class="p">)</span>
 
         <span class="c1"># ── 4. Type detection ────────────────────────────────────────────</span>
         <span class="c1"># setdefault returns the existing ColumnProfile from step 2, so</span>
         <span class="c1"># missingness and type info land on the same object.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_emit_stage_start</span><span class="p">(</span><span class="s2">&quot;type_detection&quot;</span><span class="p">)</span>
         <span class="n">type_info</span> <span class="o">=</span> <span class="n">TypeDetector</span><span class="p">(</span>
             <span class="n">columns</span><span class="o">=</span><span class="n">active_cols</span><span class="p">,</span>
             <span class="n">config</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">type_detection</span><span class="p">,</span>
@@ -574,6 +593,7 @@
             <span class="n">cp</span><span class="o">.</span><span class="n">numeric_kind</span> <span class="o">=</span> <span class="n">override_kind</span>
             <span class="k">if</span> <span class="n">TypeFlag</span><span class="o">.</span><span class="n">NumericKindOverride</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">cp</span><span class="o">.</span><span class="n">type_flags</span><span class="p">:</span>
                 <span class="n">cp</span><span class="o">.</span><span class="n">type_flags</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">TypeFlag</span><span class="o">.</span><span class="n">NumericKindOverride</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_emit_stage_end</span><span class="p">(</span><span class="s2">&quot;type_detection&quot;</span><span class="p">)</span>
 
         <span class="c1"># ── 6. Per-column profiling routed by SemanticType ───────────────</span>
         <span class="c1"># Batch all columns of the same SemanticType together and call each</span>
@@ -594,6 +614,13 @@
             <span class="n">numeric_sentinels</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">pc</span><span class="o">.</span><span class="n">numeric_sentinels</span><span class="p">),</span>
             <span class="n">string_sentinels</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">pc</span><span class="o">.</span><span class="n">string_sentinels</span><span class="p">),</span>
         <span class="p">)</span>
+
+        <span class="c1"># This is the expensive stretch: emit an ``item`` heartbeat per column</span>
+        <span class="c1"># (1-based, monotonic across the whole stage) so a watching observer</span>
+        <span class="c1"># sees &quot;column k of N&quot; progress during a multi-minute run (ADR-0054).</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_emit_stage_start</span><span class="p">(</span><span class="s2">&quot;column_profiling&quot;</span><span class="p">)</span>
+        <span class="n">_profiling_total</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">cols</span><span class="p">)</span> <span class="k">for</span> <span class="n">cols</span> <span class="ow">in</span> <span class="n">type_to_cols</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+        <span class="n">_profiling_index</span> <span class="o">=</span> <span class="mi">0</span>
         <span class="k">for</span> <span class="n">sem_type</span><span class="p">,</span> <span class="n">cols</span> <span class="ow">in</span> <span class="n">type_to_cols</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="k">if</span> <span class="n">sem_type</span> <span class="o">==</span> <span class="n">SemanticType</span><span class="o">.</span><span class="n">Numeric</span><span class="p">:</span>
                 <span class="n">profiler</span> <span class="o">=</span> <span class="n">NumericProfiler</span><span class="p">(</span><span class="n">config</span><span class="o">=</span><span class="n">pc</span><span class="o">.</span><span class="n">numeric</span><span class="p">)</span>
@@ -610,6 +637,11 @@
                 <span class="k">if</span> <span class="n">profiler_cls</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                     <span class="k">continue</span>
                 <span class="n">profiler</span> <span class="o">=</span> <span class="n">profiler_cls</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">col_name</span> <span class="ow">in</span> <span class="n">cols</span><span class="p">:</span>
+                <span class="n">_profiling_index</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_emit_item</span><span class="p">(</span>
+                    <span class="s2">&quot;column_profiling&quot;</span><span class="p">,</span> <span class="n">col_name</span><span class="p">,</span> <span class="n">_profiling_index</span><span class="p">,</span> <span class="n">_profiling_total</span>
+                <span class="p">)</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="n">user_overrides</span> <span class="o">=</span> <span class="p">{</span>
                     <span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cols</span>
@@ -623,11 +655,13 @@
                 <span class="k">raise</span>
             <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
                 <span class="k">pass</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_emit_stage_end</span><span class="p">(</span><span class="s2">&quot;column_profiling&quot;</span><span class="p">)</span>
 
         <span class="c1"># ── 7. Target columns ────────────────────────────────────────────</span>
         <span class="c1"># TargetProfiler produces target-specific analysis stored in</span>
         <span class="c1"># result.targets.  cp.stats is NOT overwritten — step 6 already set it.</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">target_columns</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_emit_stage_start</span><span class="p">(</span><span class="s2">&quot;target_profiling&quot;</span><span class="p">)</span>
             <span class="k">for</span> <span class="n">target</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">target_columns</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">target</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
                     <span class="k">continue</span>
@@ -640,9 +674,11 @@
                 <span class="c1"># setdefault returns the existing ColumnProfile.</span>
                 <span class="n">cp</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">ColumnProfile</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">target</span><span class="p">))</span>
                 <span class="n">cp</span><span class="o">.</span><span class="n">is_target</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_emit_stage_end</span><span class="p">(</span><span class="s2">&quot;target_profiling&quot;</span><span class="p">)</span>
 
         <span class="c1"># ── 8. Correlation ───────────────────────────────────────────────</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">compute_correlation</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_emit_stage_start</span><span class="p">(</span><span class="s2">&quot;correlation&quot;</span><span class="p">)</span>
             <span class="c1"># Resolve column lists by detected SemanticType (post-override).</span>
             <span class="n">numeric_cols</span> <span class="o">=</span> <span class="p">[</span>
                 <span class="n">c</span>
@@ -663,6 +699,23 @@
                 <span class="n">config</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">correlation</span><span class="p">,</span>
             <span class="p">)</span>
 
+            <span class="c1"># The correlation stage&#39;s units of work are the one-time</span>
+            <span class="c1"># feature-feature computation plus one per declared target present in</span>
+            <span class="c1"># the data; emit an ``item`` heartbeat for each so the expensive</span>
+            <span class="c1"># matrix build and each target pass report progress (ADR-0054).</span>
+            <span class="n">present_targets</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">t</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">target_columns</span> <span class="k">if</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">columns</span>
+            <span class="p">]</span>
+            <span class="n">_corr_total</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">present_targets</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_emit_item</span><span class="p">(</span>
+                <span class="s2">&quot;correlation&quot;</span><span class="p">,</span>
+                <span class="kc">None</span><span class="p">,</span>
+                <span class="mi">1</span><span class="p">,</span>
+                <span class="n">_corr_total</span><span class="p">,</span>
+                <span class="n">message</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_PHASE</span><span class="si">}</span><span class="s2">] correlation: feature-feature matrices &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;(1/</span><span class="si">{</span><span class="n">_corr_total</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+
             <span class="c1"># 8a. Feature-feature matrices — computed ONCE, target-independent.</span>
             <span class="n">feature_corr</span> <span class="o">=</span> <span class="n">corr_profiler</span><span class="o">.</span><span class="n">profile_features</span><span class="p">(</span>
                 <span class="n">data</span><span class="p">,</span> <span class="n">numeric_cols</span><span class="p">,</span> <span class="n">categorical_cols</span>
@@ -671,17 +724,25 @@
 
             <span class="c1"># 8b. Per-target analysis — matrices are NOT recomputed; each call</span>
             <span class="c1">#     shallow-copies feature_corr and appends target-specific fields.</span>
-            <span class="k">for</span> <span class="n">target</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">target_columns</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">target</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
-                    <span class="k">continue</span>
+            <span class="k">for</span> <span class="n">_target_index</span><span class="p">,</span> <span class="n">target</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">present_targets</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">2</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_emit_item</span><span class="p">(</span>
+                    <span class="s2">&quot;correlation&quot;</span><span class="p">,</span>
+                    <span class="n">target</span><span class="p">,</span>
+                    <span class="n">_target_index</span><span class="p">,</span>
+                    <span class="n">_corr_total</span><span class="p">,</span>
+                    <span class="n">message</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_PHASE</span><span class="si">}</span><span class="s2">] correlation: target </span><span class="si">{</span><span class="n">target</span><span class="si">}</span><span class="s2"> &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;(</span><span class="si">{</span><span class="n">_target_index</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">_corr_total</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">,</span>
+                <span class="p">)</span>
                 <span class="n">result</span><span class="o">.</span><span class="n">dataset</span><span class="o">.</span><span class="n">target_correlations</span><span class="p">[</span><span class="n">target</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
                     <span class="n">corr_profiler</span><span class="o">.</span><span class="n">profile_target</span><span class="p">(</span>
                         <span class="n">data</span><span class="p">,</span> <span class="n">feature_corr</span><span class="p">,</span> <span class="n">numeric_cols</span><span class="p">,</span> <span class="n">categorical_cols</span><span class="p">,</span> <span class="n">target</span>
                     <span class="p">)</span>
                 <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_emit_stage_end</span><span class="p">(</span><span class="s2">&quot;correlation&quot;</span><span class="p">)</span>
 
         <span class="c1"># ── 9. Nonlinearity ──────────────────────────────────────────────</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span><span class="o">.</span><span class="n">compute_nonlinearity</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_emit_stage_start</span><span class="p">(</span><span class="s2">&quot;nonlinearity&quot;</span><span class="p">)</span>
             <span class="n">numeric_cols_nl</span> <span class="o">=</span> <span class="p">[</span>
                 <span class="n">c</span>
                 <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">active_cols</span>
@@ -689,6 +750,14 @@
                 <span class="ow">and</span> <span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">semantic_type</span> <span class="o">==</span> <span class="n">SemanticType</span><span class="o">.</span><span class="n">Numeric</span>
             <span class="p">]</span>
             <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">numeric_cols_nl</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="c1"># Each numeric column is a unit of work in the per-column</span>
+                <span class="c1"># nonlinearity fit; emit an ``item`` heartbeat per column so the</span>
+                <span class="c1"># multi-minute stage reports progress (ADR-0054).</span>
+                <span class="n">_nl_total</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">numeric_cols_nl</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">_nl_index</span><span class="p">,</span> <span class="n">_nl_col</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">numeric_cols_nl</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_emit_item</span><span class="p">(</span>
+                        <span class="s2">&quot;nonlinearity&quot;</span><span class="p">,</span> <span class="n">_nl_col</span><span class="p">,</span> <span class="n">_nl_index</span><span class="p">,</span> <span class="n">_nl_total</span>
+                    <span class="p">)</span>
                 <span class="n">p_mat</span> <span class="o">=</span> <span class="p">(</span>
                     <span class="n">result</span><span class="o">.</span><span class="n">dataset</span><span class="o">.</span><span class="n">feature_correlation</span><span class="o">.</span><span class="n">pearson_matrix</span>
                     <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">dataset</span><span class="o">.</span><span class="n">feature_correlation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
@@ -718,6 +787,7 @@
                         <span class="n">cp</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">heteroscedasticity_p_value</span> <span class="o">=</span> <span class="p">(</span>
                             <span class="n">signals</span><span class="o">.</span><span class="n">heteroscedasticity_p_value</span>
                         <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_emit_stage_end</span><span class="p">(</span><span class="s2">&quot;nonlinearity&quot;</span><span class="p">)</span>
 
         <span class="c1"># ── Soft-excluded placeholders ───────────────────────────────────────</span>
         <span class="c1"># Columns soft-excluded for Profiling are not profiled but must still</span>
