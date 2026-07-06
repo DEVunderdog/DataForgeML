@@ -360,8 +360,9 @@
                   
   <h1>Source code for dataforge_ml.splitting._splitter</h1><div class="highlight"><pre>
 <span></span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">DataSplitter: constructor, random_split, time_split, kfold, and</span>
-<span class="sd">profile_stratified_split / profile_stratified_kfold implementations.</span>
+<span class="sd">DataSplitter: constructor, random_split, time_split, group_split, kfold,</span>
+<span class="sd">group_kfold, repeated_kfold, holdout_cv, and profile_stratified_split /</span>
+<span class="sd">profile_stratified_kfold implementations.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
@@ -370,9 +371,19 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.model_selection</span><span class="w"> </span><span class="kn">import</span> <span class="n">KFold</span><span class="p">,</span> <span class="n">ShuffleSplit</span><span class="p">,</span> <span class="n">StratifiedKFold</span><span class="p">,</span> <span class="n">StratifiedShuffleSplit</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.model_selection</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">GroupKFold</span><span class="p">,</span>
+    <span class="n">GroupShuffleSplit</span><span class="p">,</span>
+    <span class="n">KFold</span><span class="p">,</span>
+    <span class="n">RepeatedKFold</span><span class="p">,</span>
+    <span class="n">RepeatedStratifiedKFold</span><span class="p">,</span>
+    <span class="n">ShuffleSplit</span><span class="p">,</span>
+    <span class="n">StratifiedGroupKFold</span><span class="p">,</span>
+    <span class="n">StratifiedKFold</span><span class="p">,</span>
+    <span class="n">StratifiedShuffleSplit</span><span class="p">,</span>
+<span class="p">)</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">FoldResult</span><span class="p">,</span> <span class="n">SplitConfig</span><span class="p">,</span> <span class="n">SplitResult</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">FoldResult</span><span class="p">,</span> <span class="n">HoldoutCVResult</span><span class="p">,</span> <span class="n">SplitConfig</span><span class="p">,</span> <span class="n">SplitResult</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">..profiling._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">StructuralProfileResult</span>
@@ -547,6 +558,57 @@
         <span class="p">)</span></div>
 
 
+<div class="viewcode-block" id="DataSplitter.group_split">
+<a class="viewcode-back" href="../../../api/splitting.html#dataforge_ml.splitting._splitter.DataSplitter.group_split">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">group_split</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">test_size</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">group_column</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SplitResult</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a single group-disjoint train/test split.</span>
+
+<span class="sd">        Every row belonging to a given ``group_column`` value lands entirely on</span>
+<span class="sd">        one side of the split, so no group value appears in both partitions.</span>
+<span class="sd">        Group-disjointness is a hard guarantee: the grouping is the user&#39;s</span>
+<span class="sd">        domain knowledge and is never inferred from the data.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        test_size : float</span>
+<span class="sd">            Fraction of groups to reserve for the test set (0 &lt; test_size &lt; 1).</span>
+<span class="sd">        group_column : str</span>
+<span class="sd">            Name of the column identifying the group each row belongs to.</span>
+<span class="sd">            Must exist in the DataFrame.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        SplitResult</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If ``group_column`` is not a column of the DataFrame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">group_column</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;group_column &#39;</span><span class="si">{</span><span class="n">group_column</span><span class="si">}</span><span class="s2">&#39; not found in df&quot;</span><span class="p">)</span>
+
+        <span class="n">splitter</span> <span class="o">=</span> <span class="n">GroupShuffleSplit</span><span class="p">(</span>
+            <span class="n">n_splits</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">test_size</span><span class="o">=</span><span class="n">test_size</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_random_seed</span>
+        <span class="p">)</span>
+        <span class="n">groups</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="n">group_column</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+        <span class="n">train_idx</span><span class="p">,</span> <span class="n">test_idx</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">splitter</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="n">groups</span><span class="p">))</span>
+
+        <span class="n">train_df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="n">train_idx</span><span class="p">]</span>
+        <span class="n">test_df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="n">test_idx</span><span class="p">]</span>
+        <span class="n">total</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">SplitResult</span><span class="p">(</span>
+            <span class="n">train</span><span class="o">=</span><span class="n">train_df</span><span class="p">,</span>
+            <span class="n">test</span><span class="o">=</span><span class="n">test_df</span><span class="p">,</span>
+            <span class="n">train_size</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">train_df</span><span class="p">),</span>
+            <span class="n">test_size</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">test_df</span><span class="p">),</span>
+            <span class="n">train_ratio</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">train_df</span><span class="p">)</span> <span class="o">/</span> <span class="n">total</span><span class="p">,</span>
+            <span class="n">test_ratio</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">test_df</span><span class="p">)</span> <span class="o">/</span> <span class="n">total</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
 <div class="viewcode-block" id="DataSplitter.kfold">
 <a class="viewcode-back" href="../../../api/splitting.html#dataforge_ml.splitting._splitter.DataSplitter.kfold">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">kfold</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">stratify</span><span class="o">=</span><span class="n">_UNSET</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">FoldResult</span><span class="p">]:</span>
@@ -601,6 +663,219 @@
             <span class="p">)</span>
 
         <span class="k">return</span> <span class="n">folds</span></div>
+
+
+<div class="viewcode-block" id="DataSplitter.group_kfold">
+<a class="viewcode-back" href="../../../api/splitting.html#dataforge_ml.splitting._splitter.DataSplitter.group_kfold">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">group_kfold</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">group_column</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">stratify</span><span class="o">=</span><span class="n">_UNSET</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">FoldResult</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return ``k`` group-disjoint cross-validation folds.</span>
+
+<span class="sd">        Every row belonging to a given ``group_column`` value stays together in</span>
+<span class="sd">        one partition, so no group value spans a train/validation boundary in</span>
+<span class="sd">        any fold. Group-disjointness is a hard constraint that is never traded</span>
+<span class="sd">        away. When a target is available and ``stratify`` resolves true, target</span>
+<span class="sd">        class ratios are balanced across folds as a best-effort layer on top of</span>
+<span class="sd">        the group constraint (only the target is balanced, never a wider signal</span>
+<span class="sd">        matrix); the balance is approximate, not exact, because whole groups</span>
+<span class="sd">        cannot be broken to equalise ratios.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        k : int</span>
+<span class="sd">            Number of folds.</span>
+<span class="sd">        group_column : str</span>
+<span class="sd">            Name of the column identifying the group each row belongs to.</span>
+<span class="sd">            Must exist in the DataFrame.</span>
+<span class="sd">        stratify : bool, optional</span>
+<span class="sd">            Whether to balance the target class distribution across folds.</span>
+<span class="sd">            Defaults to True when a target was provided, False otherwise.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        list[FoldResult]</span>
+<span class="sd">            Exactly ``k`` folds with zero-based ``fold_index``.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If ``group_column`` is not a column of the DataFrame, or if</span>
+<span class="sd">            ``stratify`` is True (explicitly or by default) but no target</span>
+<span class="sd">            column was provided.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">group_column</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;group_column &#39;</span><span class="si">{</span><span class="n">group_column</span><span class="si">}</span><span class="s2">&#39; not found in df&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">stratify</span> <span class="ow">is</span> <span class="n">_UNSET</span><span class="p">:</span>
+            <span class="n">stratify</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_target</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">stratify</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_target</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;stratify=True requires a target column; &quot;</span>
+                <span class="s2">&quot;pass target= when constructing DataSplitter&quot;</span>
+            <span class="p">)</span>
+
+        <span class="n">groups</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="n">group_column</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">stratify</span><span class="p">:</span>
+            <span class="n">folder</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="n">StratifiedGroupKFold</span><span class="p">(</span>
+                <span class="n">n_splits</span><span class="o">=</span><span class="n">k</span><span class="p">,</span> <span class="n">shuffle</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_random_seed</span>
+            <span class="p">)</span>
+            <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_target</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+            <span class="n">splits</span> <span class="o">=</span> <span class="n">folder</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="n">groups</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">folder</span> <span class="o">=</span> <span class="n">GroupKFold</span><span class="p">(</span>
+                <span class="n">n_splits</span><span class="o">=</span><span class="n">k</span><span class="p">,</span> <span class="n">shuffle</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_random_seed</span>
+            <span class="p">)</span>
+            <span class="n">splits</span> <span class="o">=</span> <span class="n">folder</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="n">groups</span><span class="p">)</span>
+
+        <span class="n">folds</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">FoldResult</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">fold_index</span><span class="p">,</span> <span class="p">(</span><span class="n">train_idx</span><span class="p">,</span> <span class="n">val_idx</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">splits</span><span class="p">):</span>
+            <span class="n">train_df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="n">train_idx</span><span class="p">]</span>
+            <span class="n">val_df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="n">val_idx</span><span class="p">]</span>
+            <span class="n">folds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">FoldResult</span><span class="p">(</span>
+                    <span class="n">train</span><span class="o">=</span><span class="n">train_df</span><span class="p">,</span>
+                    <span class="n">val</span><span class="o">=</span><span class="n">val_df</span><span class="p">,</span>
+                    <span class="n">fold_index</span><span class="o">=</span><span class="n">fold_index</span><span class="p">,</span>
+                    <span class="n">train_size</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">train_df</span><span class="p">),</span>
+                    <span class="n">val_size</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">val_df</span><span class="p">),</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">folds</span></div>
+
+
+<div class="viewcode-block" id="DataSplitter.repeated_kfold">
+<a class="viewcode-back" href="../../../api/splitting.html#dataforge_ml.splitting._splitter.DataSplitter.repeated_kfold">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">repeated_kfold</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">n_repeats</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">stratify</span><span class="o">=</span><span class="n">_UNSET</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">FoldResult</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return ``k * n_repeats`` cross-validation folds from repeated k-fold.</span>
+
+<span class="sd">        Runs the fold assignment ``n_repeats`` times with a different seed each</span>
+<span class="sd">        time to lower the variance of the cross-validated estimate. Each</span>
+<span class="sd">        returned fold carries its originating repeat via ``repeat_index``; the</span>
+<span class="sd">        validation partitions within a single repeat cover every row exactly</span>
+<span class="sd">        once.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        k : int</span>
+<span class="sd">            Number of folds per repeat.</span>
+<span class="sd">        n_repeats : int</span>
+<span class="sd">            Number of times the k-fold assignment is repeated.</span>
+<span class="sd">        stratify : bool, optional</span>
+<span class="sd">            Whether to stratify on the target column.</span>
+<span class="sd">            Defaults to True when a target was provided, False otherwise.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        list[FoldResult]</span>
+<span class="sd">            Exactly ``k * n_repeats`` folds. ``fold_index`` runs 0..k-1 within</span>
+<span class="sd">            each repeat and ``repeat_index`` runs 0..n_repeats-1.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If ``stratify`` is True (explicitly or by default) but no target</span>
+<span class="sd">            column was provided.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">stratify</span> <span class="ow">is</span> <span class="n">_UNSET</span><span class="p">:</span>
+            <span class="n">stratify</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_target</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">stratify</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_target</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;stratify=True requires a target column; &quot;</span>
+                <span class="s2">&quot;pass target= when constructing DataSplitter&quot;</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">stratify</span><span class="p">:</span>
+            <span class="n">folder</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="n">RepeatedStratifiedKFold</span><span class="p">(</span>
+                <span class="n">n_splits</span><span class="o">=</span><span class="n">k</span><span class="p">,</span> <span class="n">n_repeats</span><span class="o">=</span><span class="n">n_repeats</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_random_seed</span>
+            <span class="p">)</span>
+            <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_target</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+            <span class="n">splits</span> <span class="o">=</span> <span class="n">folder</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">folder</span> <span class="o">=</span> <span class="n">RepeatedKFold</span><span class="p">(</span>
+                <span class="n">n_splits</span><span class="o">=</span><span class="n">k</span><span class="p">,</span> <span class="n">n_repeats</span><span class="o">=</span><span class="n">n_repeats</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_random_seed</span>
+            <span class="p">)</span>
+            <span class="n">splits</span> <span class="o">=</span> <span class="n">folder</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">)</span>
+
+        <span class="n">folds</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">FoldResult</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">position</span><span class="p">,</span> <span class="p">(</span><span class="n">train_idx</span><span class="p">,</span> <span class="n">val_idx</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">splits</span><span class="p">):</span>
+            <span class="n">repeat_index</span> <span class="o">=</span> <span class="n">position</span> <span class="o">//</span> <span class="n">k</span>
+            <span class="n">fold_index</span> <span class="o">=</span> <span class="n">position</span> <span class="o">%</span> <span class="n">k</span>
+            <span class="n">train_df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="n">train_idx</span><span class="p">]</span>
+            <span class="n">val_df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="n">val_idx</span><span class="p">]</span>
+            <span class="n">folds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">FoldResult</span><span class="p">(</span>
+                    <span class="n">train</span><span class="o">=</span><span class="n">train_df</span><span class="p">,</span>
+                    <span class="n">val</span><span class="o">=</span><span class="n">val_df</span><span class="p">,</span>
+                    <span class="n">fold_index</span><span class="o">=</span><span class="n">fold_index</span><span class="p">,</span>
+                    <span class="n">train_size</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">train_df</span><span class="p">),</span>
+                    <span class="n">val_size</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">val_df</span><span class="p">),</span>
+                    <span class="n">repeat_index</span><span class="o">=</span><span class="n">repeat_index</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">folds</span></div>
+
+
+<div class="viewcode-block" id="DataSplitter.holdout_cv">
+<a class="viewcode-back" href="../../../api/splitting.html#dataforge_ml.splitting._splitter.DataSplitter.holdout_cv">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">holdout_cv</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">test_size</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">stratify</span><span class="o">=</span><span class="n">_UNSET</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">HoldoutCVResult</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Reserve a hold-out test set, then cross-validate the remainder.</span>
+
+<span class="sd">        First reserves a test partition of ``test_size``, then runs ``k``-fold</span>
+<span class="sd">        cross-validation over the remaining rows. The held-out test rows are</span>
+<span class="sd">        disjoint from every fold, so the final evaluation is untouched by the</span>
+<span class="sd">        cross-validation. This is the hold-out-then-CV protocol; it is</span>
+<span class="sd">        deliberately not nested CV — the library runs no models, so there is no</span>
+<span class="sd">        inner hyperparameter loop.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        test_size : float</span>
+<span class="sd">            Fraction of rows to reserve for the test set (0 &lt; test_size &lt; 1).</span>
+<span class="sd">        k : int</span>
+<span class="sd">            Number of cross-validation folds over the training remainder.</span>
+<span class="sd">        stratify : bool, optional</span>
+<span class="sd">            Whether to stratify the hold-out and the inner folds on the target</span>
+<span class="sd">            column. Defaults to True when a target was provided, False</span>
+<span class="sd">            otherwise.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        HoldoutCVResult</span>
+<span class="sd">            The held-out test partition and the ``k`` folds over the remainder.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If ``stratify`` is True (explicitly or by default) but no target</span>
+<span class="sd">            column was provided.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">stratify</span> <span class="ow">is</span> <span class="n">_UNSET</span><span class="p">:</span>
+            <span class="n">stratify</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_target</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">stratify</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_target</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;stratify=True requires a target column; &quot;</span>
+                <span class="s2">&quot;pass target= when constructing DataSplitter&quot;</span>
+            <span class="p">)</span>
+
+        <span class="n">holdout</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">random_split</span><span class="p">(</span><span class="n">test_size</span><span class="o">=</span><span class="n">test_size</span><span class="p">,</span> <span class="n">stratify</span><span class="o">=</span><span class="n">stratify</span><span class="p">)</span>
+        <span class="n">remainder</span> <span class="o">=</span> <span class="n">DataSplitter</span><span class="p">(</span>
+            <span class="n">holdout</span><span class="o">.</span><span class="n">train</span><span class="p">,</span>
+            <span class="n">target</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_target</span><span class="p">,</span>
+            <span class="n">random_seed</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_random_seed</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">folds</span> <span class="o">=</span> <span class="n">remainder</span><span class="o">.</span><span class="n">kfold</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">stratify</span><span class="o">=</span><span class="n">stratify</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">HoldoutCVResult</span><span class="p">(</span><span class="n">test</span><span class="o">=</span><span class="n">holdout</span><span class="o">.</span><span class="n">test</span><span class="p">,</span> <span class="n">folds</span><span class="o">=</span><span class="n">folds</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="DataSplitter.profile_stratified_split">

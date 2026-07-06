@@ -394,6 +394,100 @@
 </dd>
 </dl>
 <dl class="py method">
+<dt class="sig sig-object py" id="dataforge_ml.splitting._splitter.DataSplitter.group_kfold">
+<span class="sig-name descname"><span class="pre">group_kfold</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">k</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">group_column</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stratify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;object</span> <span class="pre">object&gt;</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/splitting/_splitter.html#DataSplitter.group_kfold"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.splitting._splitter.DataSplitter.group_kfold" title="Link to this definition">#</a></dt>
+<dd><p>Return <code class="docutils literal notranslate"><span class="pre">k</span></code> group-disjoint cross-validation folds.</p>
+<p>Every row belonging to a given <code class="docutils literal notranslate"><span class="pre">group_column</span></code> value stays together in
+one partition, so no group value spans a train/validation boundary in
+any fold. Group-disjointness is a hard constraint that is never traded
+away. When a target is available and <code class="docutils literal notranslate"><span class="pre">stratify</span></code> resolves true, target
+class ratios are balanced across folds as a best-effort layer on top of
+the group constraint (only the target is balanced, never a wider signal
+matrix); the balance is approximate, not exact, because whole groups
+cannot be broken to equalise ratios.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>k</strong> (<em>int</em>) – Number of folds.</p></li>
+<li><p><strong>group_column</strong> (<em>str</em>) – Name of the column identifying the group each row belongs to.
+Must exist in the DataFrame.</p></li>
+<li><p><strong>stratify</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to balance the target class distribution across folds.
+Defaults to True when a target was provided, False otherwise.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Exactly <code class="docutils literal notranslate"><span class="pre">k</span></code> folds with zero-based <code class="docutils literal notranslate"><span class="pre">fold_index</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list[<a class="reference internal" href="#dataforge_ml.splitting._config.FoldResult" title="dataforge_ml.splitting._config.FoldResult">FoldResult</a>]</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If <code class="docutils literal notranslate"><span class="pre">group_column</span></code> is not a column of the DataFrame, or if
+<code class="docutils literal notranslate"><span class="pre">stratify</span></code> is True (explicitly or by default) but no target
+column was provided.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dataforge_ml.splitting._splitter.DataSplitter.group_split">
+<span class="sig-name descname"><span class="pre">group_split</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">test_size</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">group_column</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/splitting/_splitter.html#DataSplitter.group_split"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.splitting._splitter.DataSplitter.group_split" title="Link to this definition">#</a></dt>
+<dd><p>Return a single group-disjoint train/test split.</p>
+<p>Every row belonging to a given <code class="docutils literal notranslate"><span class="pre">group_column</span></code> value lands entirely on
+one side of the split, so no group value appears in both partitions.
+Group-disjointness is a hard guarantee: the grouping is the user’s
+domain knowledge and is never inferred from the data.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>test_size</strong> (<em>float</em>) – Fraction of groups to reserve for the test set (0 &lt; test_size &lt; 1).</p></li>
+<li><p><strong>group_column</strong> (<em>str</em>) – Name of the column identifying the group each row belongs to.
+Must exist in the DataFrame.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#dataforge_ml.splitting._config.SplitResult" title="dataforge_ml.splitting._config.SplitResult">SplitResult</a></p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>ValueError</strong> – If <code class="docutils literal notranslate"><span class="pre">group_column</span></code> is not a column of the DataFrame.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dataforge_ml.splitting._splitter.DataSplitter.holdout_cv">
+<span class="sig-name descname"><span class="pre">holdout_cv</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">test_size</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stratify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;object</span> <span class="pre">object&gt;</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/splitting/_splitter.html#DataSplitter.holdout_cv"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.splitting._splitter.DataSplitter.holdout_cv" title="Link to this definition">#</a></dt>
+<dd><p>Reserve a hold-out test set, then cross-validate the remainder.</p>
+<p>First reserves a test partition of <code class="docutils literal notranslate"><span class="pre">test_size</span></code>, then runs <code class="docutils literal notranslate"><span class="pre">k</span></code>-fold
+cross-validation over the remaining rows. The held-out test rows are
+disjoint from every fold, so the final evaluation is untouched by the
+cross-validation. This is the hold-out-then-CV protocol; it is
+deliberately not nested CV — the library runs no models, so there is no
+inner hyperparameter loop.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>test_size</strong> (<em>float</em>) – Fraction of rows to reserve for the test set (0 &lt; test_size &lt; 1).</p></li>
+<li><p><strong>k</strong> (<em>int</em>) – Number of cross-validation folds over the training remainder.</p></li>
+<li><p><strong>stratify</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to stratify the hold-out and the inner folds on the target
+column. Defaults to True when a target was provided, False
+otherwise.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The held-out test partition and the <code class="docutils literal notranslate"><span class="pre">k</span></code> folds over the remainder.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>HoldoutCVResult</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If <code class="docutils literal notranslate"><span class="pre">stratify</span></code> is True (explicitly or by default) but no target
+column was provided.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="dataforge_ml.splitting._splitter.DataSplitter.kfold">
 <span class="sig-name descname"><span class="pre">kfold</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">k</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stratify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;object</span> <span class="pre">object&gt;</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/splitting/_splitter.html#DataSplitter.kfold"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.splitting._splitter.DataSplitter.kfold" title="Link to this definition">#</a></dt>
 <dd><p>Return a list of <code class="docutils literal notranslate"><span class="pre">k</span></code> cross-validation folds.</p>
@@ -487,6 +581,38 @@ Defaults to True when a target was provided, False otherwise.</p></li>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
 <dd class="field-even"><p><a class="reference internal" href="#dataforge_ml.splitting._config.SplitResult" title="dataforge_ml.splitting._config.SplitResult">SplitResult</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dataforge_ml.splitting._splitter.DataSplitter.repeated_kfold">
+<span class="sig-name descname"><span class="pre">repeated_kfold</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">k</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_repeats</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stratify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;object</span> <span class="pre">object&gt;</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/splitting/_splitter.html#DataSplitter.repeated_kfold"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.splitting._splitter.DataSplitter.repeated_kfold" title="Link to this definition">#</a></dt>
+<dd><p>Return <code class="docutils literal notranslate"><span class="pre">k</span> <span class="pre">*</span> <span class="pre">n_repeats</span></code> cross-validation folds from repeated k-fold.</p>
+<p>Runs the fold assignment <code class="docutils literal notranslate"><span class="pre">n_repeats</span></code> times with a different seed each
+time to lower the variance of the cross-validated estimate. Each
+returned fold carries its originating repeat via <code class="docutils literal notranslate"><span class="pre">repeat_index</span></code>; the
+validation partitions within a single repeat cover every row exactly
+once.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>k</strong> (<em>int</em>) – Number of folds per repeat.</p></li>
+<li><p><strong>n_repeats</strong> (<em>int</em>) – Number of times the k-fold assignment is repeated.</p></li>
+<li><p><strong>stratify</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to stratify on the target column.
+Defaults to True when a target was provided, False otherwise.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Exactly <code class="docutils literal notranslate"><span class="pre">k</span> <span class="pre">*</span> <span class="pre">n_repeats</span></code> folds. <code class="docutils literal notranslate"><span class="pre">fold_index</span></code> runs 0..k-1 within
+each repeat and <code class="docutils literal notranslate"><span class="pre">repeat_index</span></code> runs 0..n_repeats-1.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list[<a class="reference internal" href="#dataforge_ml.splitting._config.FoldResult" title="dataforge_ml.splitting._config.FoldResult">FoldResult</a>]</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If <code class="docutils literal notranslate"><span class="pre">stratify</span></code> is True (explicitly or by default) but no target
+column was provided.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -690,7 +816,7 @@ defaults.</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="dataforge_ml.splitting._config.FoldResult">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.splitting._config.</span></span><span class="sig-name descname"><span class="pre">FoldResult</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">train</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">val</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fold_index</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">train_size</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">val_size</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/splitting/_config.html#FoldResult"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.splitting._config.FoldResult" title="Link to this definition">#</a></dt>
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.splitting._config.</span></span><span class="sig-name descname"><span class="pre">FoldResult</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">train</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">val</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fold_index</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">train_size</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">val_size</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">repeat_index</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/splitting/_config.html#FoldResult"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.splitting._config.FoldResult" title="Link to this definition">#</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -700,6 +826,7 @@ defaults.</p>
 <li><p><strong>fold_index</strong> (<em>int</em>)</p></li>
 <li><p><strong>train_size</strong> (<em>int</em>)</p></li>
 <li><p><strong>val_size</strong> (<em>int</em>)</p></li>
+<li><p><strong>repeat_index</strong> (<em>int</em>)</p></li>
 </ul>
 </dd>
 </dl>
@@ -751,6 +878,19 @@ defaults.</p>
 <dt class="sig sig-object py" id="dataforge_ml.splitting._config.FoldResult.val_size">
 <span class="sig-name descname"><span class="pre">val_size</span></span><a class="headerlink" href="#dataforge_ml.splitting._config.FoldResult.val_size" title="Link to this definition">#</a></dt>
 <dd><p>Number of rows in the validation partition.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.splitting._config.FoldResult.repeat_index">
+<span class="sig-name descname"><span class="pre">repeat_index</span></span><a class="headerlink" href="#dataforge_ml.splitting._config.FoldResult.repeat_index" title="Link to this definition">#</a></dt>
+<dd><p>Zero-based index of the repeat this fold belongs to. Defaults to <code class="docutils literal notranslate"><span class="pre">0</span></code>
+for single-pass schemes (<code class="docutils literal notranslate"><span class="pre">kfold</span></code>, <code class="docutils literal notranslate"><span class="pre">profile_stratified_kfold</span></code>); only
+<code class="docutils literal notranslate"><span class="pre">repeated_kfold</span></code> sets it to the originating repeat number.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>int</p>
@@ -810,10 +950,14 @@ defaults.</p>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.splitting._splitter.DataSplitter"><code class="docutils literal notranslate"><span class="pre">DataSplitter</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.splitting._splitter.DataSplitter.group_kfold"><code class="docutils literal notranslate"><span class="pre">DataSplitter.group_kfold()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.splitting._splitter.DataSplitter.group_split"><code class="docutils literal notranslate"><span class="pre">DataSplitter.group_split()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.splitting._splitter.DataSplitter.holdout_cv"><code class="docutils literal notranslate"><span class="pre">DataSplitter.holdout_cv()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.splitting._splitter.DataSplitter.kfold"><code class="docutils literal notranslate"><span class="pre">DataSplitter.kfold()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.splitting._splitter.DataSplitter.profile_stratified_kfold"><code class="docutils literal notranslate"><span class="pre">DataSplitter.profile_stratified_kfold()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.splitting._splitter.DataSplitter.profile_stratified_split"><code class="docutils literal notranslate"><span class="pre">DataSplitter.profile_stratified_split()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.splitting._splitter.DataSplitter.random_split"><code class="docutils literal notranslate"><span class="pre">DataSplitter.random_split()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.splitting._splitter.DataSplitter.repeated_kfold"><code class="docutils literal notranslate"><span class="pre">DataSplitter.repeated_kfold()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.splitting._splitter.DataSplitter.time_split"><code class="docutils literal notranslate"><span class="pre">DataSplitter.time_split()</span></code></a></li>
 </ul>
 </li>
@@ -841,6 +985,7 @@ defaults.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.splitting._config.FoldResult.fold_index"><code class="docutils literal notranslate"><span class="pre">FoldResult.fold_index</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.splitting._config.FoldResult.train_size"><code class="docutils literal notranslate"><span class="pre">FoldResult.train_size</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.splitting._config.FoldResult.val_size"><code class="docutils literal notranslate"><span class="pre">FoldResult.val_size</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.splitting._config.FoldResult.repeat_index"><code class="docutils literal notranslate"><span class="pre">FoldResult.repeat_index</span></code></a></li>
 </ul>
 </li>
 </ul>
