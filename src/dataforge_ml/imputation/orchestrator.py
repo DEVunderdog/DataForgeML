@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import polars as pl
 
 from ..config import PipelineConfig, SemanticType
+from ..observability import Observer, _ObservabilityMixin
 from ._config import ColumnImputationRecord, ImputationResult, ImputationStrategy
 from ._fitted_imputer import FittedImputer
 from ._numeric_imputer import NumericImputer, _NumericFitBundle
@@ -26,7 +27,7 @@ _IMPUTATION_REGISTRY: dict[SemanticType, type] = {
 }
 
 
-class ImputationOrchestrator:
+class ImputationOrchestrator(_ObservabilityMixin):
     """
     Stateless Phase 2 orchestrator.
 
@@ -36,10 +37,23 @@ class ImputationOrchestrator:
     ----------
     config : PipelineConfig, optional
         Pipeline configuration.  Defaults to PipelineConfig() when omitted.
+    observer : Callable[[PipelineEvent], None], optional
+        Live Progress Observer invoked with each :class:`PipelineEvent` emitted
+        during ``fit``/``fit_transform``.  ``None`` (the default) disables
+        Progress; Trace still flows to the ``dataforge_ml`` logger regardless
+        (ADR-0054).  Supplied per orchestrator — a single observer instance may
+        be reused across profiling and imputation calls.
     """
 
-    def __init__(self, config: PipelineConfig | None = None) -> None:
+    _PHASE = "imputation"
+
+    def __init__(
+        self,
+        config: PipelineConfig | None = None,
+        observer: Observer | None = None,
+    ) -> None:
         self._config = config or PipelineConfig()
+        self._observer: Observer | None = observer
 
     def fit(
         self,
@@ -86,12 +100,28 @@ class ImputationOrchestrator:
                 continue
             type_to_cols.setdefault(cp.semantic_type, []).append(col)
 
+        # This is the expensive stretch: model-based columns (MICE/KNN/
+        # regression) can each take seconds.  Emit an ``item`` heartbeat per
+        # fitted column (1-based, monotonic across the stage) so a watching
+        # observer sees "column k of N" progress (ADR-0054).  Passthrough and
+        # indicator columns are not fitted, so they raise no item events.
+        self._emit_stage_start("column_fitting")
+        _fit_total = sum(
+            len(c)
+            for st, c in type_to_cols.items()
+            if _IMPUTATION_REGISTRY.get(st) is not None
+        )
+        _fit_index = 0
+
         # Route each semantic type to its registered sub-processor
         for sem_type, cols in type_to_cols.items():
             imputer_cls = _IMPUTATION_REGISTRY.get(sem_type)
             if imputer_cls is None:
                 # SemanticType.Text, Identifier, and unregistered types pass through
                 continue
+            for col in cols:
+                _fit_index += 1
+                self._emit_item("column_fitting", col, _fit_index, _fit_total)
             result = imputer_cls().fit(
                 train_df=train_df,
                 columns=cols,
@@ -108,6 +138,27 @@ class ImputationOrchestrator:
                 recs = result
             for rec in recs:
                 all_records[rec.column] = rec
+                # decision event: record *why* this column got its strategy,
+                # drawing on the router's human-readable signals (ADR-0054).
+                reason = "; ".join(rec.signals) if rec.signals else "default routing"
+                self._emit_decision(
+                    "column_fitting",
+                    rec.column,
+                    f"[{self._PHASE}] {rec.column} -> {rec.strategy} because {reason}",
+                )
+                # warning event: surface each recoverable soft fallback the
+                # router took silently (e.g. model-based fit unusable -> median)
+                # so the recovery leaves a visible trail (ADR-0054).  Hard
+                # failures raise before reaching here and are never softened.
+                for signal in rec.signals:
+                    if signal.startswith("fallback_to_"):
+                        self._emit_warning(
+                            "column_fitting",
+                            rec.column,
+                            f"[{self._PHASE}] {rec.column} fell back to "
+                            f"{rec.strategy}: {signal}",
+                        )
+        self._emit_stage_end("column_fitting")
 
         # Passthrough pass: register every train_df column not handled by a sub-processor
         for col in train_df.columns:

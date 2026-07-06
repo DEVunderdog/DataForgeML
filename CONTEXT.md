@@ -353,3 +353,26 @@ Two plain-tier CV schemes for ordered data, never stratified (shuffling is forbi
 
 - **Two-Tier Column Rendering** — The rendering strategy used by the Compact Profile Report. All columns appear in the Column Summary table. Columns meeting the **clean threshold** (no `MissingnessFlag`, no `NumericFlag`, `MissingSeverity` is `None` or `Minor`, `NonlinearityTag` is `None` or `Linear`) appear in the summary table only. All other columns receive a full detail section in the Flagged Columns block, ordered by descending severity then alphabetically. See ADR-0040.
   _Avoid_: tiered rendering, anomaly-first rendering
+
+## Observability
+
+Long-running orchestrator calls (profiling, imputation fitting, correlation/nonlinearity) surface what they are doing so a user watching a multi-minute run knows it is progressing, not hung — and so the run leaves a diagnostic trail. Two concerns, one backbone: every meaningful moment emits a single **Pipeline Event**; that same Event feeds both progress reporting and diagnostic tracing.
+
+- **Pipeline Event** — A structured record emitted by the library at each meaningful moment of an orchestrator call. The single atomic unit of observability; both progress and trace consume the same Events. Carries `phase`, `stage`, `column`, `index`, `total`, a ready-made human `message`, and an `event_type` — one of `stage_start`, `stage_end`, `item` (per-unit-of-work heartbeat, e.g. column 7/12), `decision` (a routing/strategy choice and its reason), or `warning` (a recoverable soft fallback). Emitted at three tiers: phase and stage boundaries always, plus item-level inside the expensive iterative stages (per-column profiling, per-column imputation fit, correlation/nonlinearity). Column-level is the item floor; solver-iteration granularity (e.g. MICE round N) is deliberately deferred but not foreclosed.
+  _Avoid_: log line, message, LogRecord (the raw string is a rendering of an Event, not the Event)
+
+- **Two-Sink Rule** — Every Pipeline Event goes to both sinks, always: (1) it is written to the `dataforge_ml` stdlib logger at a level derived from `event_type` (`stage_start`/`stage_end`/`item` → DEBUG, `decision` → INFO, `warning` → WARNING) — this is Trace; (2) it is passed to the user's Progress Observer if one was supplied — this is Progress. The two sinks see the identical Event stream and each filters the subset it cares about; there is no second, parallel plumbing.
+
+- **Warning Event** — A Pipeline Event reporting a *recoverable* soft fallback the library took silently (e.g. "MICE did not converge on `Income`, fell back to median"). Distinct from an exception: hard failures still raise as they do today. Warning Events exist so silent recovery decisions leave a visible trail rather than surprising the user downstream.
+
+- **Progress Reporting** — The live "where am I now" concern: telling a watching user that the run is advancing (e.g. "column 7 of 12"). Distinct from Trace. The library never writes to any stream on its own to satisfy this; it hands Events to a user-supplied **Progress Observer**.
+  _Avoid_: verbose mode, status updates
+
+- **Trace** — The after-the-fact diagnostic concern: a durable record of *what happened and why* (routing decisions, chosen strategies), for debugging and audit. Realised by formatting Events onto the named `dataforge_ml` stdlib logger (silent by default via `NullHandler`; the user attaches handlers).
+  _Avoid_: debug logs, logging (name the concern, not the mechanism)
+
+- **Progress Observer** — A user-supplied consumer that receives Pipeline Events; the library calls it rather than printing. Supplied per orchestrator as a live `observer=` constructor argument — deliberately *not* a field on `PipelineConfig`, because a live callable would break that config's serializable, setter-only, declarative contract (ADR-0044). There are no library-side on/off knobs for observability: the library always emits every Event, and the observer filters by `event_type` in its own code. The library ships a ready-made default observer that writes human sentences to **stderr** (never stdout, which is reserved for the user's data), for users who just want messages on screen; any other destination (file, notebook, web UI) is a custom observer.
+  _Avoid_: callback, hook, listener
+
+- **Per-Call Scoping** — Progress is scoped within a single orchestrator call (`profile()`, `fit()`, `transform()`); there is no cross-call run object, so overall "% of the entire pipeline" is deliberately not expressible. The honest unit is position within one call.
+  _Avoid_: run progress, global progress, pipeline progress bar

@@ -41,6 +41,7 @@ from ._correlation_profiler import CorrelationProfiler
 from ._nonlinearity_profiler import NonlinearityProfiler
 from ._type_detector import TypeDetector
 from ..config import PipelineConfig, PipelinePhase, SemanticType, Modality
+from ..observability import Observer, _ObservabilityMixin
 from ._config import (
     ColumnProfile,
     StructuralProfileResult,
@@ -65,7 +66,7 @@ _COLUMN_PROFILER_REGISTRY: dict[SemanticType, type[ColumnBatchProfiler]] = {  # 
 }
 
 
-class StructuralProfiler:
+class StructuralProfiler(_ObservabilityMixin):
     """
     Phase 1 orchestrator — runs all sub-processors and assembles
     ``StructuralProfileResult``.
@@ -75,10 +76,21 @@ class StructuralProfiler:
     config : PipelineConfig, optional
         Master pipeline configuration.  Defaults to ``PipelineConfig()`` which
         applies all sub-processor defaults exactly as they were before Scope 15.
+    observer : Callable[[PipelineEvent], None], optional
+        Live Progress Observer invoked with each :class:`PipelineEvent` this
+        orchestrator emits.  ``None`` (the default) disables Progress; Trace
+        still flows to the ``dataforge_ml`` logger regardless (ADR-0054).
     """
 
-    def __init__(self, config: PipelineConfig | None = None) -> None:
+    _PHASE = "profiling"
+
+    def __init__(
+        self,
+        config: PipelineConfig | None = None,
+        observer: Observer | None = None,
+    ) -> None:
         self.config: PipelineConfig = config or PipelineConfig()
+        self._observer: Observer | None = observer
 
         if self.config.profiling.modality == Modality.Tabular:
             self.modality_profiler: ModalityProfiler = TabularProfiler()
@@ -142,11 +154,14 @@ class StructuralProfiler:
         # ── 1. Modality profiler ─────────────────────────────────────────
         # Replaces default DatasetStats with the real one (row_count, memory,
         # duplicates, etc.).  Must run before anything writes to result.dataset.
+        self._emit_stage_start("modality")
         result.dataset = self.modality_profiler.profile(data)
+        self._emit_stage_end("modality")
 
         # ── 2. Missingness pre-pass ──────────────────────────────────────
         # setdefault creates ColumnProfile entries; subsequent steps mutate
         # the same objects via the same setdefault pattern.
+        self._emit_stage_start("missingness")
         missingness_result = MissingnessProfiler(
             config=self.config.profiling.missingness,
             numeric_sentinels=self.config.profiling.numeric_sentinels,
@@ -158,8 +173,10 @@ class StructuralProfiler:
 
         if missingness_result.correlation_matrix:
             result.dataset.missingness_matrix = missingness_result.correlation_matrix
+        self._emit_stage_end("missingness")
 
         # ── 3. Row-missingness distribution ─────────────────────────────
+        self._emit_stage_start("row_distribution")
         result.dataset.row_distribution = self._compute_row_distribution(
             df=data,
             cols=active_cols,
@@ -168,10 +185,12 @@ class StructuralProfiler:
             numeric_sentinels=self.config.profiling.numeric_sentinels,
             string_sentinels=self.config.profiling.string_sentinels,
         )
+        self._emit_stage_end("row_distribution")
 
         # ── 4. Type detection ────────────────────────────────────────────
         # setdefault returns the existing ColumnProfile from step 2, so
         # missingness and type info land on the same object.
+        self._emit_stage_start("type_detection")
         type_info = TypeDetector(
             columns=active_cols,
             config=self.config.profiling.type_detection,
@@ -209,6 +228,7 @@ class StructuralProfiler:
             cp.numeric_kind = override_kind
             if TypeFlag.NumericKindOverride not in cp.type_flags:
                 cp.type_flags.append(TypeFlag.NumericKindOverride)
+        self._emit_stage_end("type_detection")
 
         # ── 6. Per-column profiling routed by SemanticType ───────────────
         # Batch all columns of the same SemanticType together and call each
@@ -229,6 +249,13 @@ class StructuralProfiler:
             numeric_sentinels=dict(pc.numeric_sentinels),
             string_sentinels=dict(pc.string_sentinels),
         )
+
+        # This is the expensive stretch: emit an ``item`` heartbeat per column
+        # (1-based, monotonic across the whole stage) so a watching observer
+        # sees "column k of N" progress during a multi-minute run (ADR-0054).
+        self._emit_stage_start("column_profiling")
+        _profiling_total = sum(len(cols) for cols in type_to_cols.values())
+        _profiling_index = 0
         for sem_type, cols in type_to_cols.items():
             if sem_type == SemanticType.Numeric:
                 profiler = NumericProfiler(config=pc.numeric)
@@ -245,6 +272,11 @@ class StructuralProfiler:
                 if profiler_cls is None:
                     continue
                 profiler = profiler_cls()
+            for col_name in cols:
+                _profiling_index += 1
+                self._emit_item(
+                    "column_profiling", col_name, _profiling_index, _profiling_total
+                )
             try:
                 user_overrides = {
                     c for c in cols
@@ -258,11 +290,13 @@ class StructuralProfiler:
                 raise
             except Exception:
                 pass
+        self._emit_stage_end("column_profiling")
 
         # ── 7. Target columns ────────────────────────────────────────────
         # TargetProfiler produces target-specific analysis stored in
         # result.targets.  cp.stats is NOT overwritten — step 6 already set it.
         if self.config.profiling.target_columns:
+            self._emit_stage_start("target_profiling")
             for target in self.config.profiling.target_columns:
                 if target not in data.columns:
                     continue
@@ -275,9 +309,11 @@ class StructuralProfiler:
                 # setdefault returns the existing ColumnProfile.
                 cp = result.columns.setdefault(target, ColumnProfile(name=target))
                 cp.is_target = True
+            self._emit_stage_end("target_profiling")
 
         # ── 8. Correlation ───────────────────────────────────────────────
         if self.config.profiling.compute_correlation:
+            self._emit_stage_start("correlation")
             # Resolve column lists by detected SemanticType (post-override).
             numeric_cols = [
                 c
@@ -298,6 +334,23 @@ class StructuralProfiler:
                 config=self.config.profiling.correlation,
             )
 
+            # The correlation stage's units of work are the one-time
+            # feature-feature computation plus one per declared target present in
+            # the data; emit an ``item`` heartbeat for each so the expensive
+            # matrix build and each target pass report progress (ADR-0054).
+            present_targets = [
+                t for t in self.config.profiling.target_columns if t in data.columns
+            ]
+            _corr_total = 1 + len(present_targets)
+            self._emit_item(
+                "correlation",
+                None,
+                1,
+                _corr_total,
+                message=f"[{self._PHASE}] correlation: feature-feature matrices "
+                f"(1/{_corr_total})",
+            )
+
             # 8a. Feature-feature matrices — computed ONCE, target-independent.
             feature_corr = corr_profiler.profile_features(
                 data, numeric_cols, categorical_cols
@@ -306,17 +359,25 @@ class StructuralProfiler:
 
             # 8b. Per-target analysis — matrices are NOT recomputed; each call
             #     shallow-copies feature_corr and appends target-specific fields.
-            for target in self.config.profiling.target_columns:
-                if target not in data.columns:
-                    continue
+            for _target_index, target in enumerate(present_targets, start=2):
+                self._emit_item(
+                    "correlation",
+                    target,
+                    _target_index,
+                    _corr_total,
+                    message=f"[{self._PHASE}] correlation: target {target} "
+                    f"({_target_index}/{_corr_total})",
+                )
                 result.dataset.target_correlations[target] = (
                     corr_profiler.profile_target(
                         data, feature_corr, numeric_cols, categorical_cols, target
                     )
                 )
+            self._emit_stage_end("correlation")
 
         # ── 9. Nonlinearity ──────────────────────────────────────────────
         if self.config.profiling.compute_nonlinearity:
+            self._emit_stage_start("nonlinearity")
             numeric_cols_nl = [
                 c
                 for c in active_cols
@@ -324,6 +385,14 @@ class StructuralProfiler:
                 and result.columns[c].semantic_type == SemanticType.Numeric
             ]
             if len(numeric_cols_nl) >= 2:
+                # Each numeric column is a unit of work in the per-column
+                # nonlinearity fit; emit an ``item`` heartbeat per column so the
+                # multi-minute stage reports progress (ADR-0054).
+                _nl_total = len(numeric_cols_nl)
+                for _nl_index, _nl_col in enumerate(numeric_cols_nl, start=1):
+                    self._emit_item(
+                        "nonlinearity", _nl_col, _nl_index, _nl_total
+                    )
                 p_mat = (
                     result.dataset.feature_correlation.pearson_matrix
                     if result.dataset.feature_correlation is not None
@@ -353,6 +422,7 @@ class StructuralProfiler:
                         cp.stats.heteroscedasticity_p_value = (
                             signals.heteroscedasticity_p_value
                         )
+            self._emit_stage_end("nonlinearity")
 
         # ── Soft-excluded placeholders ───────────────────────────────────────
         # Columns soft-excluded for Profiling are not profiled but must still
