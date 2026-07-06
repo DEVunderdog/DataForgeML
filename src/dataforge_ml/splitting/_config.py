@@ -146,6 +146,10 @@ class FoldResult:
         Number of rows in the training partition.
     val_size : int
         Number of rows in the validation partition.
+    repeat_index : int
+        Zero-based index of the repeat this fold belongs to. Defaults to ``0``
+        for single-pass schemes (``kfold``, ``profile_stratified_kfold``); only
+        ``repeated_kfold`` sets it to the originating repeat number.
     """
 
     train: pl.DataFrame
@@ -153,3 +157,20 @@ class FoldResult:
     fold_index: int
     train_size: int
     val_size: int
+    repeat_index: int = 0
+
+
+@dataclass
+class HoldoutCVResult:
+    """
+    Attributes
+    ----------
+    test : pl.DataFrame
+        Held-out test partition, disjoint from every fold in ``folds``.
+    folds : list[FoldResult]
+        Cross-validation folds over the training remainder (all rows not in
+        ``test``).
+    """
+
+    test: pl.DataFrame
+    folds: list[FoldResult]

@@ -2,7 +2,12 @@ import polars as pl
 import pytest
 
 from dataforge_ml.splitting._splitter import DataSplitter
-from dataforge_ml.splitting._config import FoldResult, SplitConfig, SplitResult
+from dataforge_ml.splitting._config import (
+    FoldResult,
+    HoldoutCVResult,
+    SplitConfig,
+    SplitResult,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -1859,3 +1864,387 @@ def test_profile_kfold_routes_lone_rare_row_to_every_train():
             f"fold {fold.fold_index}: unsplittable rare row leaked into val"
         )
         assert (fold.train["cat"] == "Z").sum() == 1
+
+
+# ---------------------------------------------------------------------------
+# repeated_kfold
+# ---------------------------------------------------------------------------
+
+_N_REPEATS = 3
+
+
+def test_repeated_kfold_returns_k_times_n_repeats_folds(kfold_splitter):
+    folds = kfold_splitter.repeated_kfold(_K, _N_REPEATS)
+    assert len(folds) == _K * _N_REPEATS
+
+
+def test_repeated_kfold_returns_fold_result_instances(kfold_splitter):
+    folds = kfold_splitter.repeated_kfold(_K, _N_REPEATS)
+    assert all(isinstance(f, FoldResult) for f in folds)
+
+
+def test_repeated_kfold_repeat_index_multiset(kfold_splitter):
+    folds = kfold_splitter.repeated_kfold(_K, _N_REPEATS)
+    from collections import Counter
+
+    counts = Counter(f.repeat_index for f in folds)
+    assert counts == {r: _K for r in range(_N_REPEATS)}
+
+
+def test_repeated_kfold_fold_indices_within_each_repeat(kfold_splitter):
+    folds = kfold_splitter.repeated_kfold(_K, _N_REPEATS)
+    for repeat in range(_N_REPEATS):
+        indices = sorted(f.fold_index for f in folds if f.repeat_index == repeat)
+        assert indices == list(range(_K))
+
+
+def test_repeated_kfold_val_sets_partition_within_repeat(kfold_df, kfold_splitter):
+    folds = kfold_splitter.repeated_kfold(_K, _N_REPEATS)
+    all_df_rows = set(kfold_df.iter_rows())
+    for repeat in range(_N_REPEATS):
+        seen = set()
+        for fold in folds:
+            if fold.repeat_index != repeat:
+                continue
+            for row in fold.val.iter_rows():
+                assert row not in seen, "row appeared twice within one repeat"
+                seen.add(row)
+        assert seen == all_df_rows
+
+
+def test_repeated_kfold_sizes_sum_to_total(kfold_df, kfold_splitter):
+    folds = kfold_splitter.repeated_kfold(_K, _N_REPEATS)
+    for fold in folds:
+        assert fold.train_size + fold.val_size == len(kfold_df)
+        assert len(fold.train) == fold.train_size
+        assert len(fold.val) == fold.val_size
+
+
+def test_repeated_kfold_stratify_preserves_class_ratios(kfold_splitter):
+    folds = kfold_splitter.repeated_kfold(_K, _N_REPEATS, stratify=True)
+    for fold in folds:
+        counts = fold.val["label"].value_counts()["count"].to_list()
+        ratio = counts[0] / sum(counts)
+        assert abs(ratio - 0.5) < 0.15
+
+
+def test_repeated_kfold_stratify_defaults_true_when_target_set(kfold_splitter):
+    folds = kfold_splitter.repeated_kfold(_K, _N_REPEATS)
+    assert len(folds) == _K * _N_REPEATS
+
+
+def test_repeated_kfold_stratify_defaults_false_when_no_target(kfold_splitter_no_target):
+    folds = kfold_splitter_no_target.repeated_kfold(_K, _N_REPEATS)
+    assert len(folds) == _K * _N_REPEATS
+
+
+def test_repeated_kfold_stratify_true_without_target_raises(kfold_splitter_no_target):
+    with pytest.raises(ValueError, match="target"):
+        kfold_splitter_no_target.repeated_kfold(_K, _N_REPEATS, stratify=True)
+
+
+def test_repeated_kfold_same_seed_identical(kfold_df):
+    s1 = DataSplitter(kfold_df, target="label", random_seed=42)
+    s2 = DataSplitter(kfold_df, target="label", random_seed=42)
+    f1 = s1.repeated_kfold(_K, _N_REPEATS)
+    f2 = s2.repeated_kfold(_K, _N_REPEATS)
+    for a, b in zip(f1, f2):
+        assert a.val.equals(b.val)
+        assert a.repeat_index == b.repeat_index
+        assert a.fold_index == b.fold_index
+
+
+def test_repeated_kfold_different_seeds_differ(kfold_df):
+    s1 = DataSplitter(kfold_df, target="label", random_seed=1)
+    s2 = DataSplitter(kfold_df, target="label", random_seed=2)
+    f1 = s1.repeated_kfold(_K, _N_REPEATS)
+    f2 = s2.repeated_kfold(_K, _N_REPEATS)
+    assert any(not a.val.equals(b.val) for a, b in zip(f1, f2))
+
+
+def test_kfold_repeat_index_defaults_to_zero(kfold_splitter):
+    folds = kfold_splitter.kfold(_K)
+    assert all(f.repeat_index == 0 for f in folds)
+
+
+# ---------------------------------------------------------------------------
+# group_split — fixtures
+# ---------------------------------------------------------------------------
+
+_GROUP_N = 200
+_N_GROUPS = 40  # 5 rows per group
+
+
+@pytest.fixture(scope="module")
+def group_df() -> pl.DataFrame:
+    return pl.DataFrame(
+        {
+            "feature": pl.Series([float(i) for i in range(_GROUP_N)], dtype=pl.Float64),
+            "entity": pl.Series(
+                [i % _N_GROUPS for i in range(_GROUP_N)], dtype=pl.Int64
+            ),
+            "label": pl.Series(
+                ["A" if i % 2 == 0 else "B" for i in range(_GROUP_N)], dtype=pl.Utf8
+            ),
+        }
+    )
+
+
+@pytest.fixture(scope="module")
+def group_splitter(group_df) -> DataSplitter:
+    return DataSplitter(group_df, target="label", random_seed=42)
+
+
+# ---------------------------------------------------------------------------
+# group_split — behaviour
+# ---------------------------------------------------------------------------
+
+
+def test_group_split_returns_split_result(group_splitter):
+    result = group_splitter.group_split(test_size=0.25, group_column="entity")
+    assert isinstance(result, SplitResult)
+
+
+def test_group_split_groups_disjoint(group_splitter):
+    result = group_splitter.group_split(test_size=0.25, group_column="entity")
+    train_groups = set(result.train["entity"].to_list())
+    test_groups = set(result.test["entity"].to_list())
+    assert train_groups.isdisjoint(test_groups)
+
+
+def test_group_split_sizes_sum_to_total(group_df, group_splitter):
+    result = group_splitter.group_split(test_size=0.25, group_column="entity")
+    assert result.train_size + result.test_size == len(group_df)
+    assert len(result.train) == result.train_size
+    assert len(result.test) == result.test_size
+
+
+def test_group_split_ratios_reflect_actual_proportions(group_df, group_splitter):
+    result = group_splitter.group_split(test_size=0.25, group_column="entity")
+    total = len(group_df)
+    assert result.train_ratio == result.train_size / total
+    assert result.test_ratio == result.test_size / total
+    assert abs(result.train_ratio + result.test_ratio - 1.0) < 1e-9
+
+
+def test_group_split_missing_column_raises(group_splitter):
+    with pytest.raises(ValueError, match="group_column"):
+        group_splitter.group_split(test_size=0.25, group_column="does_not_exist")
+
+
+def test_group_split_same_seed_identical(group_df):
+    s1 = DataSplitter(group_df, target="label", random_seed=7)
+    s2 = DataSplitter(group_df, target="label", random_seed=7)
+    r1 = s1.group_split(test_size=0.25, group_column="entity")
+    r2 = s2.group_split(test_size=0.25, group_column="entity")
+    assert r1.train.equals(r2.train)
+    assert r1.test.equals(r2.test)
+
+
+def test_group_split_different_seeds_differ(group_df):
+    s1 = DataSplitter(group_df, target="label", random_seed=1)
+    s2 = DataSplitter(group_df, target="label", random_seed=2)
+    r1 = s1.group_split(test_size=0.25, group_column="entity")
+    r2 = s2.group_split(test_size=0.25, group_column="entity")
+    assert not r1.test.equals(r2.test)
+
+
+# ---------------------------------------------------------------------------
+# group_kfold — fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def group_splitter_no_target(group_df) -> DataSplitter:
+    return DataSplitter(group_df, random_seed=42)
+
+
+_GK = 5
+
+
+# ---------------------------------------------------------------------------
+# group_kfold — behaviour
+# ---------------------------------------------------------------------------
+
+
+def test_group_kfold_returns_exactly_k_folds(group_splitter):
+    folds = group_splitter.group_kfold(_GK, group_column="entity")
+    assert len(folds) == _GK
+    assert all(isinstance(f, FoldResult) for f in folds)
+    assert [f.fold_index for f in folds] == list(range(_GK))
+
+
+def test_group_kfold_groups_disjoint_per_fold(group_splitter):
+    folds = group_splitter.group_kfold(_GK, group_column="entity")
+    for fold in folds:
+        train_groups = set(fold.train["entity"].to_list())
+        val_groups = set(fold.val["entity"].to_list())
+        assert train_groups.isdisjoint(val_groups)
+
+
+def test_group_kfold_val_sets_partition_all_rows(group_df, group_splitter):
+    folds = group_splitter.group_kfold(_GK, group_column="entity")
+    seen = set()
+    for fold in folds:
+        for row in fold.val.iter_rows():
+            assert row not in seen, "row appeared in multiple val folds"
+            seen.add(row)
+    assert seen == set(group_df.iter_rows())
+
+
+def test_group_kfold_sizes_sum_to_total(group_df, group_splitter):
+    folds = group_splitter.group_kfold(_GK, group_column="entity")
+    for fold in folds:
+        assert fold.train_size + fold.val_size == len(group_df)
+        assert len(fold.train) == fold.train_size
+        assert len(fold.val) == fold.val_size
+
+
+def test_group_kfold_stratify_tracks_overall_ratio(group_splitter):
+    folds = group_splitter.group_kfold(_GK, group_column="entity", stratify=True)
+    for fold in folds:
+        counts = fold.val["label"].value_counts()["count"].to_list()
+        ratio = counts[0] / sum(counts)
+        assert abs(ratio - 0.5) < 0.2
+
+
+def test_group_kfold_no_target_produces_disjoint_folds(group_df, group_splitter_no_target):
+    folds = group_splitter_no_target.group_kfold(_GK, group_column="entity")
+    assert len(folds) == _GK
+    for fold in folds:
+        train_groups = set(fold.train["entity"].to_list())
+        val_groups = set(fold.val["entity"].to_list())
+        assert train_groups.isdisjoint(val_groups)
+
+
+def test_group_kfold_stratify_false_produces_disjoint_folds(group_splitter):
+    folds = group_splitter.group_kfold(_GK, group_column="entity", stratify=False)
+    for fold in folds:
+        train_groups = set(fold.train["entity"].to_list())
+        val_groups = set(fold.val["entity"].to_list())
+        assert train_groups.isdisjoint(val_groups)
+
+
+def test_group_kfold_missing_column_raises(group_splitter):
+    with pytest.raises(ValueError, match="group_column"):
+        group_splitter.group_kfold(_GK, group_column="does_not_exist")
+
+
+def test_group_kfold_stratify_true_without_target_raises(group_splitter_no_target):
+    with pytest.raises(ValueError, match="target"):
+        group_splitter_no_target.group_kfold(_GK, group_column="entity", stratify=True)
+
+
+def test_group_kfold_same_seed_identical(group_df):
+    s1 = DataSplitter(group_df, target="label", random_seed=7)
+    s2 = DataSplitter(group_df, target="label", random_seed=7)
+    f1 = s1.group_kfold(_GK, group_column="entity")
+    f2 = s2.group_kfold(_GK, group_column="entity")
+    for a, b in zip(f1, f2):
+        assert a.val.equals(b.val)
+
+
+def test_group_kfold_different_seeds_differ(group_df):
+    s1 = DataSplitter(group_df, target="label", random_seed=1)
+    s2 = DataSplitter(group_df, target="label", random_seed=2)
+    f1 = s1.group_kfold(_GK, group_column="entity")
+    f2 = s2.group_kfold(_GK, group_column="entity")
+    assert any(not a.val.equals(b.val) for a, b in zip(f1, f2))
+
+
+# ---------------------------------------------------------------------------
+# holdout_cv
+# ---------------------------------------------------------------------------
+
+_HCV_K = 4
+_HCV_TEST_SIZE = 0.2
+
+
+def test_holdout_cv_returns_holdout_cv_result(kfold_splitter):
+    result = kfold_splitter.holdout_cv(test_size=_HCV_TEST_SIZE, k=_HCV_K)
+    assert isinstance(result, HoldoutCVResult)
+    assert len(result.folds) == _HCV_K
+    assert all(isinstance(f, FoldResult) for f in result.folds)
+
+
+def test_holdout_cv_test_disjoint_from_all_folds(kfold_splitter):
+    result = kfold_splitter.holdout_cv(test_size=_HCV_TEST_SIZE, k=_HCV_K)
+    test_rows = set(result.test.iter_rows())
+    fold_rows = set()
+    for fold in result.folds:
+        fold_rows.update(fold.train.iter_rows())
+        fold_rows.update(fold.val.iter_rows())
+    assert test_rows.isdisjoint(fold_rows)
+
+
+def test_holdout_cv_folds_partition_remainder(kfold_df, kfold_splitter):
+    result = kfold_splitter.holdout_cv(test_size=_HCV_TEST_SIZE, k=_HCV_K)
+    # val partitions cover exactly the remainder (all rows minus the hold-out)
+    val_rows = set()
+    for fold in result.folds:
+        for row in fold.val.iter_rows():
+            assert row not in val_rows, "row appeared in multiple val folds"
+            val_rows.add(row)
+    remainder = set(kfold_df.iter_rows()) - set(result.test.iter_rows())
+    assert val_rows == remainder
+
+
+def test_holdout_cv_sizes_sum_correctly(kfold_df, kfold_splitter):
+    result = kfold_splitter.holdout_cv(test_size=_HCV_TEST_SIZE, k=_HCV_K)
+    remainder_size = len(kfold_df) - len(result.test)
+    for fold in result.folds:
+        assert fold.train_size + fold.val_size == remainder_size
+        assert len(fold.train) == fold.train_size
+        assert len(fold.val) == fold.val_size
+
+
+def test_holdout_cv_stratify_preserves_ratios(kfold_splitter):
+    result = kfold_splitter.holdout_cv(
+        test_size=_HCV_TEST_SIZE, k=_HCV_K, stratify=True
+    )
+    test_counts = result.test["label"].value_counts()["count"].to_list()
+    assert abs(test_counts[0] / sum(test_counts) - 0.5) < 0.15
+    for fold in result.folds:
+        counts = fold.val["label"].value_counts()["count"].to_list()
+        assert abs(counts[0] / sum(counts) - 0.5) < 0.2
+
+
+def test_holdout_cv_stratify_defaults_true_when_target_set(kfold_splitter):
+    result = kfold_splitter.holdout_cv(test_size=_HCV_TEST_SIZE, k=_HCV_K)
+    assert len(result.folds) == _HCV_K
+
+
+def test_holdout_cv_stratify_defaults_false_when_no_target(kfold_splitter_no_target):
+    result = kfold_splitter_no_target.holdout_cv(test_size=_HCV_TEST_SIZE, k=_HCV_K)
+    assert len(result.folds) == _HCV_K
+
+
+def test_holdout_cv_stratify_true_without_target_raises(kfold_splitter_no_target):
+    with pytest.raises(ValueError, match="target"):
+        kfold_splitter_no_target.holdout_cv(
+            test_size=_HCV_TEST_SIZE, k=_HCV_K, stratify=True
+        )
+
+
+def test_holdout_cv_same_seed_identical(kfold_df):
+    s1 = DataSplitter(kfold_df, target="label", random_seed=7)
+    s2 = DataSplitter(kfold_df, target="label", random_seed=7)
+    r1 = s1.holdout_cv(test_size=_HCV_TEST_SIZE, k=_HCV_K)
+    r2 = s2.holdout_cv(test_size=_HCV_TEST_SIZE, k=_HCV_K)
+    assert r1.test.equals(r2.test)
+    for a, b in zip(r1.folds, r2.folds):
+        assert a.val.equals(b.val)
+
+
+def test_holdout_cv_different_seeds_differ(kfold_df):
+    s1 = DataSplitter(kfold_df, target="label", random_seed=1)
+    s2 = DataSplitter(kfold_df, target="label", random_seed=2)
+    r1 = s1.holdout_cv(test_size=_HCV_TEST_SIZE, k=_HCV_K)
+    r2 = s2.holdout_cv(test_size=_HCV_TEST_SIZE, k=_HCV_K)
+    assert not r1.test.equals(r2.test)
+
+
+def test_holdout_cv_exported_from_top_level():
+    import dataforge_ml
+
+    assert dataforge_ml.HoldoutCVResult is HoldoutCVResult

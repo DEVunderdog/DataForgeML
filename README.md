@@ -2,70 +2,21 @@
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/DEVunderdog/DataForgeML)
 
-Automated data profiling and splitting pipeline for ML datasets.
+DataForgeML is an automated, end-to-end pipeline for turning raw tabular datasets into ML-ready data — without hand-writing schema logic, imputation rules, or splitting code for every new dataset.
 
-DataForgeML inspects your dataset, detects each column's semantic type (numeric, categorical, boolean, text, datetime, or identifier), computes per-column statistics and missingness, and produces a structured result ready for downstream feature engineering — no manual schema wrangling required.
+The library is built as a one-stop solution: the goal is that a user should not need to manually assemble fragmented libraries steps or write custom glue code around it. Every phase — profiling, imputation, splitting — is designed to compose directly, driven by configuration objects rather than bespoke per-dataset scripts.
+
+Supported input formats: CSV, TSV, Parquet, JSON, NDJSON, JSONL, XLSX, XLS, Arrow, and Feather, with automatic encoding and delimiter detection.
+
+## Documentation
+
+Full documentation — including the complete API reference, configuration guide, and the domain concepts behind profiling, imputation, and splitting — is available at:
+
+**https://devunderdog.github.io/DataForgeML/**
 
 ## Installation
 
-```bash
-pip install dataforge-ml
-```
-
-## Quick Start
-
-```python
-from dataforge_ml import DataLoader, PipelineConfig, StructuralProfiler
-
-df = DataLoader().load("titanic.csv")
-
-config = PipelineConfig()
-result = StructuralProfiler(config).profile(df)
-
-print(result.columns["Age"].semantic_type)  # SemanticType.Numeric
-print(result.dataset.row_count)             # total rows
-```
-
-`DataLoader` auto-detects encoding and delimiter. Supported formats: CSV, TSV, Parquet, JSON, NDJSON, JSONL, XLSX, XLS, Arrow, Feather.
-
-## Column Type Overrides
-
-Override the auto-detected type for any column before profiling:
-
-```python
-config = PipelineConfig()
-config.set_column_type("PassengerId", "identifier")           # skip stats entirely
-config.set_column_type(["Survived", "Pclass"], "categorical")
-
-result = StructuralProfiler(config).profile(df)
-```
-
-To drop a column from all processing entirely, use `add_exclusion`:
-
-```python
-config = PipelineConfig()
-config.add_exclusion(["PassengerId", "Name"])
-```
-
-## Splitting
-
-```python
-from dataforge_ml import DataLoader, DataSplitter
-
-df = DataLoader().load("titanic.csv")
-splitter = DataSplitter(df, target="Survived", random_seed=42)
-
-# Random train/test split (stratified by default when target is set)
-split = splitter.random_split(test_size=0.2)
-print(split.train.shape, split.test.shape)
-
-# Chronological split (no temporal leakage)
-split = splitter.time_split(time_column="date", test_size=0.2)
-
-# K-fold cross-validation
-for fold in splitter.kfold(k=5):
-    print(f"Fold {fold.fold_index}: train={fold.train_size}, val={fold.val_size}")
-```
+Install from PyPI with `pip install dataforge-ml`.
 
 ## License
 

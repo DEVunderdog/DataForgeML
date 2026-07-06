@@ -1,6 +1,7 @@
 """
-DataSplitter: constructor, random_split, time_split, kfold, and
-profile_stratified_split / profile_stratified_kfold implementations.
+DataSplitter: constructor, random_split, time_split, group_split, kfold,
+group_kfold, repeated_kfold, holdout_cv, and profile_stratified_split /
+profile_stratified_kfold implementations.
 """
 
 from __future__ import annotations
@@ -9,9 +10,19 @@ import math
 from typing import TYPE_CHECKING, Any, List, Optional
 
 import polars as pl
-from sklearn.model_selection import KFold, ShuffleSplit, StratifiedKFold, StratifiedShuffleSplit
+from sklearn.model_selection import (
+    GroupKFold,
+    GroupShuffleSplit,
+    KFold,
+    RepeatedKFold,
+    RepeatedStratifiedKFold,
+    ShuffleSplit,
+    StratifiedGroupKFold,
+    StratifiedKFold,
+    StratifiedShuffleSplit,
+)
 
-from ._config import FoldResult, SplitConfig, SplitResult
+from ._config import FoldResult, HoldoutCVResult, SplitConfig, SplitResult
 
 if TYPE_CHECKING:
     from ..profiling._config import StructuralProfileResult
@@ -178,6 +189,54 @@ class DataSplitter:
             test_ratio=len(test_df) / total,
         )
 
+    def group_split(self, test_size: float, group_column: str) -> SplitResult:
+        """
+        Return a single group-disjoint train/test split.
+
+        Every row belonging to a given ``group_column`` value lands entirely on
+        one side of the split, so no group value appears in both partitions.
+        Group-disjointness is a hard guarantee: the grouping is the user's
+        domain knowledge and is never inferred from the data.
+
+        Parameters
+        ----------
+        test_size : float
+            Fraction of groups to reserve for the test set (0 < test_size < 1).
+        group_column : str
+            Name of the column identifying the group each row belongs to.
+            Must exist in the DataFrame.
+
+        Returns
+        -------
+        SplitResult
+
+        Raises
+        ------
+        ValueError
+            If ``group_column`` is not a column of the DataFrame.
+        """
+        if group_column not in self._df.columns:
+            raise ValueError(f"group_column '{group_column}' not found in df")
+
+        splitter = GroupShuffleSplit(
+            n_splits=1, test_size=test_size, random_state=self._random_seed
+        )
+        groups = self._df[group_column].to_numpy()
+        train_idx, test_idx = next(splitter.split(self._df, groups=groups))
+
+        train_df = self._df[train_idx]
+        test_df = self._df[test_idx]
+        total = len(self._df)
+
+        return SplitResult(
+            train=train_df,
+            test=test_df,
+            train_size=len(train_df),
+            test_size=len(test_df),
+            train_ratio=len(train_df) / total,
+            test_ratio=len(test_df) / total,
+        )
+
     def kfold(self, k: int, stratify=_UNSET) -> List[FoldResult]:
         """
         Return a list of ``k`` cross-validation folds.
@@ -230,6 +289,210 @@ class DataSplitter:
             )
 
         return folds
+
+    def group_kfold(
+        self, k: int, group_column: str, stratify=_UNSET
+    ) -> List[FoldResult]:
+        """
+        Return ``k`` group-disjoint cross-validation folds.
+
+        Every row belonging to a given ``group_column`` value stays together in
+        one partition, so no group value spans a train/validation boundary in
+        any fold. Group-disjointness is a hard constraint that is never traded
+        away. When a target is available and ``stratify`` resolves true, target
+        class ratios are balanced across folds as a best-effort layer on top of
+        the group constraint (only the target is balanced, never a wider signal
+        matrix); the balance is approximate, not exact, because whole groups
+        cannot be broken to equalise ratios.
+
+        Parameters
+        ----------
+        k : int
+            Number of folds.
+        group_column : str
+            Name of the column identifying the group each row belongs to.
+            Must exist in the DataFrame.
+        stratify : bool, optional
+            Whether to balance the target class distribution across folds.
+            Defaults to True when a target was provided, False otherwise.
+
+        Returns
+        -------
+        list[FoldResult]
+            Exactly ``k`` folds with zero-based ``fold_index``.
+
+        Raises
+        ------
+        ValueError
+            If ``group_column`` is not a column of the DataFrame, or if
+            ``stratify`` is True (explicitly or by default) but no target
+            column was provided.
+        """
+        if group_column not in self._df.columns:
+            raise ValueError(f"group_column '{group_column}' not found in df")
+        if stratify is _UNSET:
+            stratify = self._target is not None
+        if stratify and self._target is None:
+            raise ValueError(
+                "stratify=True requires a target column; "
+                "pass target= when constructing DataSplitter"
+            )
+
+        groups = self._df[group_column].to_numpy()
+        if stratify:
+            folder: Any = StratifiedGroupKFold(
+                n_splits=k, shuffle=True, random_state=self._random_seed
+            )
+            y = self._df[self._target].to_numpy()
+            splits = folder.split(self._df, y, groups=groups)
+        else:
+            folder = GroupKFold(
+                n_splits=k, shuffle=True, random_state=self._random_seed
+            )
+            splits = folder.split(self._df, groups=groups)
+
+        folds: List[FoldResult] = []
+        for fold_index, (train_idx, val_idx) in enumerate(splits):
+            train_df = self._df[train_idx]
+            val_df = self._df[val_idx]
+            folds.append(
+                FoldResult(
+                    train=train_df,
+                    val=val_df,
+                    fold_index=fold_index,
+                    train_size=len(train_df),
+                    val_size=len(val_df),
+                )
+            )
+
+        return folds
+
+    def repeated_kfold(
+        self, k: int, n_repeats: int, stratify=_UNSET
+    ) -> List[FoldResult]:
+        """
+        Return ``k * n_repeats`` cross-validation folds from repeated k-fold.
+
+        Runs the fold assignment ``n_repeats`` times with a different seed each
+        time to lower the variance of the cross-validated estimate. Each
+        returned fold carries its originating repeat via ``repeat_index``; the
+        validation partitions within a single repeat cover every row exactly
+        once.
+
+        Parameters
+        ----------
+        k : int
+            Number of folds per repeat.
+        n_repeats : int
+            Number of times the k-fold assignment is repeated.
+        stratify : bool, optional
+            Whether to stratify on the target column.
+            Defaults to True when a target was provided, False otherwise.
+
+        Returns
+        -------
+        list[FoldResult]
+            Exactly ``k * n_repeats`` folds. ``fold_index`` runs 0..k-1 within
+            each repeat and ``repeat_index`` runs 0..n_repeats-1.
+
+        Raises
+        ------
+        ValueError
+            If ``stratify`` is True (explicitly or by default) but no target
+            column was provided.
+        """
+        if stratify is _UNSET:
+            stratify = self._target is not None
+        if stratify and self._target is None:
+            raise ValueError(
+                "stratify=True requires a target column; "
+                "pass target= when constructing DataSplitter"
+            )
+
+        if stratify:
+            folder: Any = RepeatedStratifiedKFold(
+                n_splits=k, n_repeats=n_repeats, random_state=self._random_seed
+            )
+            y = self._df[self._target].to_numpy()
+            splits = folder.split(self._df, y)
+        else:
+            folder = RepeatedKFold(
+                n_splits=k, n_repeats=n_repeats, random_state=self._random_seed
+            )
+            splits = folder.split(self._df)
+
+        folds: List[FoldResult] = []
+        for position, (train_idx, val_idx) in enumerate(splits):
+            repeat_index = position // k
+            fold_index = position % k
+            train_df = self._df[train_idx]
+            val_df = self._df[val_idx]
+            folds.append(
+                FoldResult(
+                    train=train_df,
+                    val=val_df,
+                    fold_index=fold_index,
+                    train_size=len(train_df),
+                    val_size=len(val_df),
+                    repeat_index=repeat_index,
+                )
+            )
+
+        return folds
+
+    def holdout_cv(
+        self, test_size: float, k: int, stratify=_UNSET
+    ) -> HoldoutCVResult:
+        """
+        Reserve a hold-out test set, then cross-validate the remainder.
+
+        First reserves a test partition of ``test_size``, then runs ``k``-fold
+        cross-validation over the remaining rows. The held-out test rows are
+        disjoint from every fold, so the final evaluation is untouched by the
+        cross-validation. This is the hold-out-then-CV protocol; it is
+        deliberately not nested CV — the library runs no models, so there is no
+        inner hyperparameter loop.
+
+        Parameters
+        ----------
+        test_size : float
+            Fraction of rows to reserve for the test set (0 < test_size < 1).
+        k : int
+            Number of cross-validation folds over the training remainder.
+        stratify : bool, optional
+            Whether to stratify the hold-out and the inner folds on the target
+            column. Defaults to True when a target was provided, False
+            otherwise.
+
+        Returns
+        -------
+        HoldoutCVResult
+            The held-out test partition and the ``k`` folds over the remainder.
+
+        Raises
+        ------
+        ValueError
+            If ``stratify`` is True (explicitly or by default) but no target
+            column was provided.
+        """
+        if stratify is _UNSET:
+            stratify = self._target is not None
+        if stratify and self._target is None:
+            raise ValueError(
+                "stratify=True requires a target column; "
+                "pass target= when constructing DataSplitter"
+            )
+
+        holdout = self.random_split(test_size=test_size, stratify=stratify)
+        remainder = DataSplitter(
+            holdout.train,
+            target=self._target,
+            random_seed=self._random_seed,
+            config=self._config,
+        )
+        folds = remainder.kfold(k, stratify=stratify)
+
+        return HoldoutCVResult(test=holdout.test, folds=folds)
 
     def profile_stratified_split(
         self,

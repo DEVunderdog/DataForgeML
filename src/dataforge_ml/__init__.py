@@ -1,28 +1,97 @@
+"""DataForgeML public API.
+
+The names re-exported here constitute the Public API. A symbol is exported at
+the package root iff the user must reference it to configure, drive, or handle
+the pipeline (ADR-0050). Output-only internal types (e.g. ``TypeFlag``,
+per-modality stats dataclasses) remain accessible only via submodule imports.
+"""
+
+# --- Pipeline-level config and shared enums -------------------------------
 from .config import PipelineConfig, PipelinePhase, SemanticType, Modality
+
+# --- Entry points ----------------------------------------------------------
 from .profiling.orchestrator import StructuralProfiler
-from .profiling._config import (
-    ProfileConfig,
-    StructuralProfileResult,
-    ColumnProfile,
-    DatasetStats,
-)
-from .splitting import DataSplitter, SplitResult, FoldResult
+from .imputation import ImputationOrchestrator, FittedImputer
+from .splitting import DataSplitter
 from .utils.data_loader import DataLoader
-from .imputation._config import ImputationFitDiagnostic
+
+# --- Config objects and Phase Sub-Configs ----------------------------------
+from .profiling import (
+    ProfileConfig,
+    MissingnessProfileConfig,
+    NumericProfileConfig,
+    NonlinearityProfileConfig,
+    TypeDetectionConfig,
+    CategoricalProfileConfig,
+    CorrelationProfileConfig,
+    DatetimeProfileConfig,
+)
+from .imputation import ImputationConfig, NumericImputationConfig
+from .splitting import SplitConfig
+
+# --- Input enums (user-supplied via setter or field) -----------------------
+from .profiling import NumericKind
+from .imputation import ImputationStrategy
+
+# --- Result and nested-record types ----------------------------------------
+from .profiling import StructuralProfileResult, ColumnProfile, DatasetStats
+from .imputation import ImputationResult, ColumnImputationRecord
+from .splitting import SplitResult, FoldResult, HoldoutCVResult
+
+# --- User-facing fit-quality diagnostics -----------------------------------
+from .imputation import ImputationFitDiagnostic
+
+# --- Exceptions the user catches -------------------------------------------
+from .imputation import (
+    UnseenColumnError,
+    FittedColumnAbsentError,
+    UnfittedColumnError,
+)
+from .profiling import OverrideCoercionError
+from .utils.data_loader import UnsupportedFormatError
 
 __all__ = [
+    # Pipeline-level config and shared enums
     "PipelineConfig",
     "PipelinePhase",
-    "ProfileConfig",
     "SemanticType",
     "Modality",
+    # Entry points
     "StructuralProfiler",
+    "ImputationOrchestrator",
+    "FittedImputer",
+    "DataSplitter",
+    "DataLoader",
+    # Config objects and Phase Sub-Configs
+    "ProfileConfig",
+    "MissingnessProfileConfig",
+    "NumericProfileConfig",
+    "NonlinearityProfileConfig",
+    "TypeDetectionConfig",
+    "CategoricalProfileConfig",
+    "CorrelationProfileConfig",
+    "DatetimeProfileConfig",
+    "ImputationConfig",
+    "NumericImputationConfig",
+    "SplitConfig",
+    # Input enums
+    "NumericKind",
+    "ImputationStrategy",
+    # Result and nested-record types
     "StructuralProfileResult",
     "ColumnProfile",
     "DatasetStats",
-    "DataSplitter",
+    "ImputationResult",
+    "ColumnImputationRecord",
     "SplitResult",
     "FoldResult",
-    "DataLoader",
+    "HoldoutCVResult",
+    # User-facing fit-quality diagnostics
     "ImputationFitDiagnostic",
+    # Exceptions the user catches
+    "UnseenColumnError",
+    "FittedColumnAbsentError",
+    "UnfittedColumnError",
+    "OverrideCoercionError",
+    "UnsupportedFormatError",
 ]
