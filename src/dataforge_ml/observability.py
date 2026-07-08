@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import sys
+import threading
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Callable, Optional
@@ -33,13 +34,20 @@ class EventType(StrEnum):
     """The kind of a :class:`PipelineEvent`, used to route and filter the stream.
 
     The value also determines the Trace log level: ``stage_start``,
-    ``stage_end`` and ``item`` log at ``DEBUG``, ``decision`` at ``INFO``, and
-    ``warning`` at ``WARNING``.
+    ``stage_end``, ``item`` and ``substep`` log at ``DEBUG``, ``decision`` at
+    ``INFO``, and ``warning`` at ``WARNING``.
+
+    ``substep`` is a Substep heartbeat *below* the column (a strategy-block fit,
+    a diagnostics fold, a per-column model fit within a set); it is additive, so
+    an observer that ignores it is unaffected, and a consumer drives a coarse
+    progress bar off ``item`` while reading a live detail line off ``substep``
+    (ADR-0055).
     """
 
     stage_start = "stage_start"
     stage_end = "stage_end"
     item = "item"
+    substep = "substep"
     decision = "decision"
     warning = "warning"
 
@@ -63,12 +71,15 @@ class PipelineEvent:
     message : str
         A ready-made human-readable sentence describing the event.
     column : str, optional
-        The column an ``item`` event concerns; ``None`` for stage boundaries.
+        The column an ``item`` or ``substep`` event concerns; ``None`` for
+        stage boundaries and column-independent work.
     index : int, optional
-        The 1-based position of the current item within its stage; ``None`` for
-        stage boundaries.
+        The 1-based position of the current item within its stage, or the
+        Substep sub-progression (e.g. fold ``3`` of ``5``) on a ``substep``
+        event; ``None`` for stage boundaries.
     total : int, optional
-        The total number of items the stage will process; ``None`` for stage
+        The total number of items the stage will process, or the Substep
+        sub-total (e.g. ``5`` folds) on a ``substep`` event; ``None`` for stage
         boundaries.
     """
 
@@ -88,6 +99,7 @@ _LEVEL_BY_EVENT_TYPE: dict[EventType, int] = {
     EventType.stage_start: logging.DEBUG,
     EventType.stage_end: logging.DEBUG,
     EventType.item: logging.DEBUG,
+    EventType.substep: logging.DEBUG,
     EventType.decision: logging.INFO,
     EventType.warning: logging.WARNING,
 }
@@ -186,6 +198,134 @@ class _ObservabilityMixin:
             ),
             self._observer,
         )
+
+
+class Emitter:
+    """Threaded event source that lets deep fit methods emit progress.
+
+    An orchestrator's sub-processors (``NumericImputer.fit`` and its fitting
+    helpers) are otherwise observer-blind: the Progress Observer lives only on
+    the orchestrator, so the methods doing the slow work cannot report activity.
+    The orchestrator builds exactly one :class:`Emitter` — carrying the
+    ``phase``, the ``stage``, and the Progress Observer — and threads it
+    explicitly into those methods (never as an ambient global). The Emitter owns
+    the ``item`` index bookkeeping and applies the Two-Sink Rule in one place, so
+    a call site just says what happened, e.g. ``emitter.substep("MICE block
+    fitting")`` (ADR-0055).
+
+    A single Emitter is shared by the concurrent fitting threads (ADR-0056); it
+    is thread-safe, serialising the ``item`` index bookkeeping and event
+    delivery behind an internal lock so the "column k of N" heartbeat stays
+    monotonic no matter which worker thread reports first.
+
+    Parameters
+    ----------
+    phase : str
+        The pipeline phase the emitted events belong to (e.g. ``"imputation"``).
+    stage : str
+        The stage within the phase the emitted events belong to (e.g.
+        ``"column_fitting"``).
+    observer : Callable[[PipelineEvent], None], optional
+        The Progress Observer to deliver events to, or ``None`` to emit to the
+        Trace logger only.
+    total : int, optional
+        The total number of ``item`` heartbeats the stage will emit, stamped on
+        every :meth:`item` event; ``None`` when the total is unknown.
+    """
+
+    def __init__(
+        self,
+        phase: str,
+        stage: str,
+        observer: Observer | None,
+        total: Optional[int] = None,
+    ) -> None:
+        self._phase = phase
+        self._stage = stage
+        self._observer = observer
+        self._total = total
+        self._index = 0
+        self._lock = threading.Lock()
+
+    def item(self, column: Optional[str], message: Optional[str] = None) -> None:
+        """Emit an ``item`` heartbeat for a column, auto-incrementing the index.
+
+        Each call advances the Emitter's internal 1-based counter and stamps it,
+        together with the ``total`` supplied at construction, onto the event so a
+        watching observer sees monotonic "column k of N" progress.
+
+        Parameters
+        ----------
+        column : str, optional
+            The column being fitted; ``None`` for a work unit not tied to a
+            single column, in which case ``message`` should be supplied.
+        message : str, optional
+            An explicit human-readable sentence; defaults to a ``"{column}
+            (index/total)"`` rendering when omitted.
+        """
+        with self._lock:
+            self._index += 1
+            _emit(
+                PipelineEvent(
+                    event_type=EventType.item,
+                    phase=self._phase,
+                    stage=self._stage,
+                    message=message
+                    or f"[{self._phase}] {self._stage}: {column} "
+                    f"({self._index}/{self._total})",
+                    column=column,
+                    index=self._index,
+                    total=self._total,
+                ),
+                self._observer,
+            )
+
+    def substep(
+        self,
+        message: str,
+        column: Optional[str] = None,
+        index: Optional[int] = None,
+        total: Optional[int] = None,
+    ) -> None:
+        """Emit a ``substep`` heartbeat for sub-column work.
+
+        Used to surface continuous activity during the long inner stretches (a
+        strategy-block fit, a diagnostics fold, a per-column model fit within a
+        set) that were previously silent. Sub-progression such as "fold 3 of 5"
+        rides the existing ``index``/``total`` fields; ``PipelineEvent`` gains no
+        new fields.
+
+        Parameters
+        ----------
+        message : str
+            What is currently in flight (e.g. ``"MICE block fitting"``). The
+            phase and stage are prefixed automatically.
+        column : str, optional
+            The column the Substep concerns; ``None`` for block-level work
+            spanning several columns.
+        index : int, optional
+            The 1-based position of this Substep within its group (e.g. the
+            current fold); ``None`` when there is no sub-progression to report.
+        total : int, optional
+            The size of the Substep group (e.g. the fold count); ``None`` when
+            unknown or not applicable.
+        """
+        rendered = f"[{self._phase}] {self._stage}: {message}"
+        if index is not None and total is not None:
+            rendered += f" ({index}/{total})"
+        with self._lock:
+            _emit(
+                PipelineEvent(
+                    event_type=EventType.substep,
+                    phase=self._phase,
+                    stage=self._stage,
+                    message=rendered,
+                    column=column,
+                    index=index,
+                    total=total,
+                ),
+                self._observer,
+            )
 
 
 def stderr_observer(event: PipelineEvent) -> None:

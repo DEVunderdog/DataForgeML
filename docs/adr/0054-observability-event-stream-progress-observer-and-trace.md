@@ -4,7 +4,7 @@ Long-running orchestrator calls (profiling, imputation fitting, correlation/nonl
 
 ## Status
 
-accepted
+accepted — the "solver-iteration granularity is deferred / column-level is the item floor" consequence is amended by ADR-0055, which lowers the floor to Substep granularity (still above solver-iteration) via a `substep` event type and an explicit Emitter.
 
 ## Considered Options
 

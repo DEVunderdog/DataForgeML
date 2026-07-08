@@ -11,7 +11,7 @@ from .config import PipelineConfig, PipelinePhase, SemanticType, Modality
 
 # --- Entry points ----------------------------------------------------------
 from .profiling.orchestrator import StructuralProfiler
-from .imputation import ImputationOrchestrator, FittedImputer
+from .imputation import EvaluationOrchestrator, ImputationOrchestrator, FittedImputer
 from .splitting import DataSplitter
 from .utils.data_loader import DataLoader
 
@@ -42,7 +42,12 @@ from .imputation import ImputationResult, ColumnImputationRecord
 from .splitting import SplitResult, FoldResult, HoldoutCVResult
 
 # --- User-facing fit-quality diagnostics -----------------------------------
-from .imputation import ImputationFitDiagnostic
+from .imputation import (
+    AccuracyDiagnostic,
+    AccuracyReport,
+    InspectionDiagnostic,
+    InspectionReport,
+)
 
 # --- Exceptions the user catches -------------------------------------------
 from .imputation import (
@@ -62,6 +67,7 @@ __all__ = [
     # Entry points
     "StructuralProfiler",
     "ImputationOrchestrator",
+    "EvaluationOrchestrator",
     "FittedImputer",
     "DataSplitter",
     "DataLoader",
@@ -94,7 +100,10 @@ __all__ = [
     "FoldResult",
     "HoldoutCVResult",
     # User-facing fit-quality diagnostics
-    "ImputationFitDiagnostic",
+    "InspectionDiagnostic",
+    "InspectionReport",
+    "AccuracyDiagnostic",
+    "AccuracyReport",
     # Exceptions the user catches
     "UnseenColumnError",
     "FittedColumnAbsentError",
