@@ -132,15 +132,16 @@ class NumericImputationConfig:
         Overrides the dynamically-computed ``max_iter`` for the entire MICE
         block. A single value governs all MICE columns.
     refit_r2_min_complete_rows : int
-        Minimum number of complete rows required to attempt R² computation
-        during fit.  When fewer complete rows are available, ``r2_train`` on
-        ``ImputationFitDiagnostic`` is set to ``None``.  With k-fold CV
-        (``refit_r2_cv_folds=5``), each validation fold contains 1/k of the
-        complete rows; the floor of 50 ensures at least 10 rows per fold.
-        Default ``50``.
+        Minimum number of complete rows required to attempt the held-out
+        accuracy computation.  When fewer complete rows are available, the
+        ``r2_cv``, ``rmse``, and ``mae`` fields on ``AccuracyDiagnostic`` are set
+        to ``None``.  With k-fold CV (``refit_r2_cv_folds=5``), each validation
+        fold contains 1/k of the complete rows; the floor of 50 ensures at least
+        10 rows per fold.  Default ``50``.
     refit_r2_cv_folds : int
-        Number of folds for cross-validated R² computation.  Applied
-        uniformly across Regression, KNN, and MICE diagnostics.  Default ``5``.
+        Number of folds for the cross-validated accuracy computation
+        (:meth:`EvaluationOrchestrator.score_accuracy`).  Applied uniformly
+        across Regression, KNN, and MICE columns.  Default ``5``.
     bimodal_grouping_variables : dict[str, str]
         Maps a bimodal column name to the name of the grouping column that
         explains the bimodal split (e.g. ``{"age": "employment_status"}``).
@@ -152,6 +153,15 @@ class NumericImputationConfig:
         Minimum absolute Pearson correlation ``|r|`` a feature must have against
         a bimodal column for it to count toward the branch 2/3 feature tally in
         the Bimodal Imputation Framework.
+    max_workers : int, optional
+        Degree of thread parallelism for the numeric fit (ADR-0056).  The
+        mutually-independent strategy blocks (MICE, KNN, the Regression set,
+        GMM, cluster) and the independent columns within a per-column strategy
+        are fitted concurrently on threads, capped at this many workers.
+        ``None`` (the default) auto-sizes to the available CPU count; ``1``
+        forces a fully sequential fit.  Concurrency never changes a result:
+        the same ``random_seed`` yields a byte-identical ``FittedImputer``
+        regardless of this value.
 
     Raises
     ------
@@ -187,6 +197,7 @@ class NumericImputationConfig:
     _bimodal_grouping_variables: dict[str, str] = field(default_factory=dict)
     bimodal_min_correlated_features: int = 3
     bimodal_correlation_threshold: float = 0.2
+    max_workers: Optional[int] = None
 
     @property
     def per_column_strategy(self) -> MappingProxyType[str, ImputationStrategy]:
@@ -376,6 +387,10 @@ class NumericImputationConfig:
             self._bimodal_grouping_variables[col] = grouping_variable
 
     def __post_init__(self) -> None:
+        if self.max_workers is not None and self.max_workers < 1:
+            raise ValueError(
+                f"max_workers must be None or >= 1, got {self.max_workers}."
+            )
         _BLOCKED = {
             ImputationStrategy.Passthrough,
             ImputationStrategy.Indicator,
@@ -440,6 +455,7 @@ class NumericImputationConfig:
             "bimodal_grouping_variables": dict(self._bimodal_grouping_variables),
             "bimodal_min_correlated_features": self.bimodal_min_correlated_features,
             "bimodal_correlation_threshold": self.bimodal_correlation_threshold,
+            "max_workers": self.max_workers,
         }
 
     @classmethod
@@ -499,6 +515,11 @@ class NumericImputationConfig:
             ),
             bimodal_correlation_threshold=float(
                 data.get("bimodal_correlation_threshold", 0.2)
+            ),
+            max_workers=(
+                int(data["max_workers"])
+                if data.get("max_workers") is not None
+                else None
             ),
         )
         
@@ -683,58 +704,61 @@ class ImputationConfig:
 
 
 @dataclass
-class ImputationFitDiagnostic:
-    """Fit quality diagnostic attached to each model-based column after fit().
+class InspectionDiagnostic:
+    """Retrain-free inspection diagnostic for a single model-based column.
 
-    Present on ``ColumnImputationRecord.diagnostic`` for KNN, Regression, and
-    MICE columns.  ``None`` for Passthrough, Dropped, Constant, and all scalar
-    strategies (Mean, Median, Mode).
+    Produced by :meth:`EvaluationOrchestrator.inspect` — the cheap, retrain-free
+    check that reuses the models ``fit()`` already learned (ADR-0058).  It
+    answers "do the imputed values look sensible?" by comparing the values the
+    fitted model filled into the originally-null cells against the observed
+    (non-null) values, and by surfacing the fitted model's own metadata.  It
+    carries no held-out accuracy numbers — those live on
+    :class:`AccuracyDiagnostic`, which is irreducibly a refit.
+
+    Present for KNN, Regression, MICE, and the bimodal strategies
+    (Cluster-Conditional, GMM-Sampling); absent (no report entry) for
+    Passthrough, Dropped, Constant, MNAR, and the scalar strategies
+    (Mean, Median, Mode).
 
     Parameters
     ----------
-    r2_train : float, optional
-        Mean R² across k cross-validation folds on complete rows (k =
-        ``refit_r2_cv_folds``).  ``None`` when fewer than
-        ``refit_r2_min_complete_rows`` complete rows are available or when all
-        folds are skipped due to zero variance in ``y_true``.
-    converged : bool, optional
-        Whether ``IterativeImputer`` halted before reaching ``max_iter``.
-        ``None`` for KNN columns (convergence is not applicable).
-    n_iter : int, optional
-        Actual iteration count of ``IterativeImputer``.  ``None`` for KNN
-        columns.
     imputed_mean : float
-        Mean of the values imputed for null rows during fit.
+        Mean of the values the fitted model filled into the originally-null
+        rows.  ``0.0`` when the inspected frame has no nulls in this column.
     imputed_std : float
-        Standard deviation of the imputed values.
+        Standard deviation of those imputed values.  ``0.0`` when the inspected
+        frame has no nulls in this column.
     observed_mean : float
-        Mean of non-null training values for this column.
+        Mean of the non-null values in this column.
     observed_std : float
-        Standard deviation of non-null training values for this column.
+        Standard deviation of the non-null values in this column.
     variance_ratio : float
-        ``imputed_std / observed_std``.  A value near zero indicates
-        distribution collapse — the model is predicting near-constant values.
+        ``imputed_std / observed_std`` (``0.0`` when ``observed_std`` is zero).
+        A value near zero flags distribution collapse — the model is predicting
+        near-constant fills.
+    converged : bool, optional
+        Whether ``IterativeImputer`` halted before reaching ``max_iter``.  Read
+        from the fitted MICE or Regression model.  ``None`` for KNN and the
+        bimodal strategies (convergence is not applicable).
+    n_iter : int, optional
+        Actual iteration count of the fitted ``IterativeImputer``.  ``None`` for
+        KNN and the bimodal strategies.
     n_neighbors_used : int, optional
-        Actual ``n_neighbors`` used by the KNN block.  ``None`` for Regression
-        and MICE columns.
+        Actual ``n_neighbors`` used by the fitted KNN block.  ``None`` for
+        Regression, MICE, and the bimodal strategies.
     k_capped : bool, optional
-        ``True`` when the adaptive k formula's raw output exceeded ``n_rows − 1``
-        and was forced to that bound (the model is averaging nearly all rows).
-        ``False`` when the formula ran within bounds.  ``None`` when
-        ``knn_n_neighbors`` override is active (adaptive formula was bypassed)
-        or strategy is not KNN.
+        ``True`` when the KNN neighbour count was forced down to ``n_rows − 1``
+        (the model is averaging nearly every row).  ``None`` when a
+        ``knn_n_neighbors`` override is active or the strategy is not KNN.
     """
 
-    r2_train: Optional[float]
-    rmse: Optional[float]
-    mae: Optional[float]
-    converged: Optional[bool]
-    n_iter: Optional[int]
     imputed_mean: float
     imputed_std: float
     observed_mean: float
     observed_std: float
     variance_ratio: float
+    converged: Optional[bool] = None
+    n_iter: Optional[int] = None
     n_neighbors_used: Optional[int] = None
     k_capped: Optional[bool] = None
 
@@ -744,50 +768,297 @@ class ImputationFitDiagnostic:
         Returns
         -------
         dict
-            All ten field values keyed by field name.
+            All field values keyed by field name.
         """
         return {
-            "r2_train": self.r2_train,
-            "rmse": self.rmse,
-            "mae": self.mae,
-            "converged": self.converged,
-            "n_iter": self.n_iter,
             "imputed_mean": self.imputed_mean,
             "imputed_std": self.imputed_std,
             "observed_mean": self.observed_mean,
             "observed_std": self.observed_std,
             "variance_ratio": self.variance_ratio,
+            "converged": self.converged,
+            "n_iter": self.n_iter,
             "n_neighbors_used": self.n_neighbors_used,
             "k_capped": self.k_capped,
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "ImputationFitDiagnostic":
-        """Reconstruct an ``ImputationFitDiagnostic`` from a plain dictionary.
+    def from_dict(cls, data: dict) -> "InspectionDiagnostic":
+        """Reconstruct an ``InspectionDiagnostic`` from a plain dictionary.
 
         Parameters
         ----------
         data : dict
-            Mapping produced by ``to_dict()``.
+            Mapping produced by :meth:`to_dict`.
 
         Returns
         -------
-        ImputationFitDiagnostic
+        InspectionDiagnostic
             Reconstructed diagnostic instance.
         """
         return cls(
-            r2_train=data.get("r2_train"),
-            rmse=data.get("rmse"),
-            mae=data.get("mae"),
-            converged=data.get("converged"),
-            n_iter=data.get("n_iter"),
             imputed_mean=float(data["imputed_mean"]),
             imputed_std=float(data["imputed_std"]),
             observed_mean=float(data["observed_mean"]),
             observed_std=float(data["observed_std"]),
             variance_ratio=float(data["variance_ratio"]),
+            converged=data.get("converged"),
+            n_iter=data.get("n_iter"),
             n_neighbors_used=data.get("n_neighbors_used"),
             k_capped=data.get("k_capped"),
+        )
+
+
+@dataclass
+class InspectionReport:
+    """Per-column inspection report returned by :meth:`EvaluationOrchestrator.inspect`.
+
+    Holds one :class:`InspectionDiagnostic` per model-based column (KNN,
+    Regression, MICE, and the bimodal strategies); columns handled by scalar
+    strategies, Passthrough, Dropped, Constant, or MNAR carry no entry.
+    Supports ``report[col]`` lookup and ``col in report`` membership tests
+    (ADR-0058).
+
+    Parameters
+    ----------
+    columns : dict[str, InspectionDiagnostic]
+        Mapping from column name to its inspection diagnostic.
+    """
+
+    columns: dict[str, InspectionDiagnostic] = field(default_factory=dict)
+
+    def __getitem__(self, column: str) -> InspectionDiagnostic:
+        """Return the diagnostic for ``column``.
+
+        Parameters
+        ----------
+        column : str
+            Column name to look up.
+
+        Returns
+        -------
+        InspectionDiagnostic
+            The inspection diagnostic for ``column``.
+
+        Raises
+        ------
+        KeyError
+            If ``column`` has no diagnostic in this report.
+        """
+        return self.columns[column]
+
+    def __contains__(self, column: object) -> bool:
+        """Return whether ``column`` has a diagnostic in this report.
+
+        Parameters
+        ----------
+        column : object
+            Column name to test for membership.
+
+        Returns
+        -------
+        bool
+            ``True`` when a diagnostic is present for ``column``.
+        """
+        return column in self.columns
+
+    def to_dict(self) -> dict:
+        """Serialise the report to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            Mapping with a single ``"columns"`` key whose value maps each
+            column name to its serialised diagnostic.
+        """
+        return {
+            "columns": {
+                col: diag.to_dict() for col, diag in self.columns.items()
+            }
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "InspectionReport":
+        """Reconstruct an ``InspectionReport`` from a plain dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            Mapping produced by :meth:`to_dict`.
+
+        Returns
+        -------
+        InspectionReport
+            Reconstructed report instance.
+        """
+        return cls(
+            columns={
+                col: InspectionDiagnostic.from_dict(raw)
+                for col, raw in data.get("columns", {}).items()
+            }
+        )
+
+
+@dataclass
+class AccuracyDiagnostic:
+    """Held-out accuracy diagnostic for a single model-based column.
+
+    Produced by :meth:`EvaluationOrchestrator.score_accuracy` — the expensive,
+    refit-based check (ADR-0058).  Honest held-out accuracy is *irreducibly* a
+    refit: the model learned at fit time has already seen every cell, so scoring
+    it in-sample is optimistically biased.  These numbers therefore come from
+    cross-validating the column's recorded strategy on folds of the complete
+    rows, never from the final fitted model.
+
+    Present for KNN, Regression, MICE, and the bimodal strategies
+    (Cluster-Conditional, GMM-Sampling); absent (no report entry) for
+    Passthrough, Dropped, Constant, MNAR, and the scalar strategies
+    (Mean, Median, Mode).
+
+    Parameters
+    ----------
+    r2_cv : float, optional
+        Mean R² across k cross-validation folds on complete rows (k =
+        ``refit_r2_cv_folds``).  Named ``r2_cv`` — not ``r2_train`` — because it
+        is always a held-out score, never an in-sample one.  ``None`` when fewer
+        than ``refit_r2_min_complete_rows`` complete rows are available, when all
+        folds are skipped due to zero variance in ``y_true``, or when the
+        strategy has no held-out truth to score (GMM-Sampling and the
+        grouping-variable Cluster-Conditional branch).
+    rmse : float, optional
+        Root-mean-squared error across the same held-out folds, in the column's
+        own units.  ``None`` under the same conditions as ``r2_cv``.
+    mae : float, optional
+        Mean absolute error across the same held-out folds, in the column's own
+        units.  ``None`` under the same conditions as ``r2_cv``.
+    """
+
+    r2_cv: Optional[float]
+    rmse: Optional[float]
+    mae: Optional[float]
+
+    def to_dict(self) -> dict:
+        """Serialise the diagnostic to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            All three field values keyed by field name.
+        """
+        return {
+            "r2_cv": self.r2_cv,
+            "rmse": self.rmse,
+            "mae": self.mae,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "AccuracyDiagnostic":
+        """Reconstruct an ``AccuracyDiagnostic`` from a plain dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            Mapping produced by :meth:`to_dict`.
+
+        Returns
+        -------
+        AccuracyDiagnostic
+            Reconstructed diagnostic instance.
+        """
+        return cls(
+            r2_cv=data.get("r2_cv"),
+            rmse=data.get("rmse"),
+            mae=data.get("mae"),
+        )
+
+
+@dataclass
+class AccuracyReport:
+    """Per-column accuracy report returned by :meth:`EvaluationOrchestrator.score_accuracy`.
+
+    Holds one :class:`AccuracyDiagnostic` per model-based column (KNN,
+    Regression, MICE, and the bimodal strategies); columns handled by scalar
+    strategies, Passthrough, Dropped, Constant, or MNAR carry no entry.
+    Supports ``report[col]`` lookup and ``col in report`` membership tests
+    (ADR-0058).
+
+    Parameters
+    ----------
+    columns : dict[str, AccuracyDiagnostic]
+        Mapping from column name to its held-out accuracy diagnostic.
+    """
+
+    columns: dict[str, AccuracyDiagnostic] = field(default_factory=dict)
+
+    def __getitem__(self, column: str) -> AccuracyDiagnostic:
+        """Return the diagnostic for ``column``.
+
+        Parameters
+        ----------
+        column : str
+            Column name to look up.
+
+        Returns
+        -------
+        AccuracyDiagnostic
+            The held-out accuracy diagnostic for ``column``.
+
+        Raises
+        ------
+        KeyError
+            If ``column`` has no diagnostic in this report.
+        """
+        return self.columns[column]
+
+    def __contains__(self, column: object) -> bool:
+        """Return whether ``column`` has a diagnostic in this report.
+
+        Parameters
+        ----------
+        column : object
+            Column name to test for membership.
+
+        Returns
+        -------
+        bool
+            ``True`` when a diagnostic is present for ``column``.
+        """
+        return column in self.columns
+
+    def to_dict(self) -> dict:
+        """Serialise the report to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            Mapping with a single ``"columns"`` key whose value maps each
+            column name to its serialised diagnostic.
+        """
+        return {
+            "columns": {
+                col: diag.to_dict() for col, diag in self.columns.items()
+            }
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "AccuracyReport":
+        """Reconstruct an ``AccuracyReport`` from a plain dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            Mapping produced by :meth:`to_dict`.
+
+        Returns
+        -------
+        AccuracyReport
+            Reconstructed report instance.
+        """
+        return cls(
+            columns={
+                col: AccuracyDiagnostic.from_dict(raw)
+                for col, raw in data.get("columns", {}).items()
+            }
         )
 
 
@@ -813,9 +1084,14 @@ class ColumnImputationRecord:
     domain_snap_bounds : tuple[float, float], optional
         ``(min, max)`` bounds applied to snap model-based predictions for
         BoundedDiscrete columns.  ``None`` for all other columns.
-    diagnostic : ImputationFitDiagnostic, optional
-        Fit quality metrics for KNN, Regression, and MICE columns.  ``None``
-        for Passthrough, Dropped, Constant, and all scalar strategies.
+
+    Notes
+    -----
+    Fit-quality metrics are no longer carried here.  ``fit()`` only learns
+    fill values and models; quality measurement is a deliberate second step
+    via the opt-in Evaluation phase, which returns an
+    :class:`InspectionReport` or :class:`AccuracyReport` keyed by column
+    (ADR-0058).
     """
 
     column: str
@@ -825,7 +1101,6 @@ class ColumnImputationRecord:
     indicator_added: bool = False
     signals: list[str] = field(default_factory=list)
     domain_snap_bounds: Optional[tuple[float, float]] = None
-    diagnostic: Optional[ImputationFitDiagnostic] = None
 
     def to_dict(self) -> dict:
         """
@@ -847,9 +1122,6 @@ class ColumnImputationRecord:
                 list(self.domain_snap_bounds)
                 if self.domain_snap_bounds is not None
                 else None
-            ),
-            "diagnostic": (
-                self.diagnostic.to_dict() if self.diagnostic is not None else None
             ),
         }
 

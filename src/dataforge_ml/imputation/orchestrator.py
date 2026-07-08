@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import polars as pl
 
 from ..config import PipelineConfig, SemanticType
-from ..observability import Observer, _ObservabilityMixin
+from ..observability import Emitter, Observer, _ObservabilityMixin
 from ._config import ColumnImputationRecord, ImputationResult, ImputationStrategy
 from ._fitted_imputer import FittedImputer
 from ._numeric_imputer import NumericImputer, _NumericFitBundle
@@ -101,27 +101,32 @@ class ImputationOrchestrator(_ObservabilityMixin):
             type_to_cols.setdefault(cp.semantic_type, []).append(col)
 
         # This is the expensive stretch: model-based columns (MICE/KNN/
-        # regression) can each take seconds.  Emit an ``item`` heartbeat per
-        # fitted column (1-based, monotonic across the stage) so a watching
-        # observer sees "column k of N" progress (ADR-0054).  Passthrough and
-        # indicator columns are not fitted, so they raise no item events.
+        # regression) can each take seconds.  The sub-processor emits an
+        # ``item`` heartbeat per fitted column (1-based, monotonic across the
+        # stage) and finer ``substep`` heartbeats *from inside* the fit as work
+        # actually happens, so a watching observer sees continuous activity
+        # instead of a burst of items followed by silence (ADR-0054, ADR-0055).
+        # Passthrough and indicator columns are not fitted, so they raise no
+        # item events.  One Emitter, carrying phase + observer and owning the
+        # item index bookkeeping, is threaded explicitly into each sub-processor.
         self._emit_stage_start("column_fitting")
         _fit_total = sum(
             len(c)
             for st, c in type_to_cols.items()
             if _IMPUTATION_REGISTRY.get(st) is not None
         )
-        _fit_index = 0
+        emitter = Emitter(
+            phase=self._PHASE,
+            stage="column_fitting",
+            observer=self._observer,
+            total=_fit_total,
+        )
 
         # Route each semantic type to its registered sub-processor
         for sem_type, cols in type_to_cols.items():
             imputer_cls = _IMPUTATION_REGISTRY.get(sem_type)
             if imputer_cls is None:
-                # SemanticType.Text, Identifier, and unregistered types pass through
                 continue
-            for col in cols:
-                _fit_index += 1
-                self._emit_item("column_fitting", col, _fit_index, _fit_total)
             result = imputer_cls().fit(
                 train_df=train_df,
                 columns=cols,
@@ -129,6 +134,7 @@ class ImputationOrchestrator(_ObservabilityMixin):
                 config=imp_cfg.numeric,
                 mnar_columns=mnar_columns,
                 random_seed=self._config.random_seed,
+                emitter=emitter,
             )
             if isinstance(result, _NumericFitBundle):
                 recs = result.records

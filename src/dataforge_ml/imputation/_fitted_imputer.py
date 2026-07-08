@@ -477,10 +477,9 @@ class FittedImputer:
             also default to an empty dict for backwards compatibility.
             Pre-Scope 8 payloads may contain ``"constant"`` as a strategy
             value; those records deserialise as ``ImputationStrategy.Constant``
-            (audit label only — fill behaviour is unchanged).  Payloads without
-            a ``"diagnostic"`` key on individual records (serialised before
-            Scope 3 / issue #214) default to ``None`` for backwards
-            compatibility.
+            (audit label only — fill behaviour is unchanged).  A ``"diagnostic"``
+            key on records serialised before ADR-0057 is ignored — fit-quality
+            metrics now live only in the Evaluation phase's report.
 
         Returns
         -------
@@ -490,15 +489,16 @@ class FittedImputer:
         import base64
         import io
         import joblib
-        from ._config import ColumnImputationRecord, ImputationFitDiagnostic, ImputationStrategy
+        from ._config import ColumnImputationRecord, ImputationStrategy
 
         records: dict[str, ColumnImputationRecord] = {}
         for col, rec_data in data.get("records", {}).items():
             raw_bounds = rec_data.get("domain_snap_bounds")
             snap_bounds = tuple(raw_bounds) if raw_bounds is not None else None
             strategy_str = rec_data["strategy"]
-            raw_diag = rec_data.get("diagnostic")
-            diagnostic = ImputationFitDiagnostic.from_dict(raw_diag) if raw_diag is not None else None
+            # A ``"diagnostic"`` key on pre-ADR-0057 payloads is ignored:
+            # fit-quality metrics now live in the Evaluation phase's report,
+            # never on the record (ADR-0057).
             records[col] = ColumnImputationRecord(
                 column=rec_data["column"],
                 semantic_type=SemanticType(rec_data["semantic_type"]),
@@ -507,7 +507,6 @@ class FittedImputer:
                 indicator_added=bool(rec_data.get("indicator_added", False)),
                 signals=list(rec_data.get("signals", [])),
                 domain_snap_bounds=snap_bounds,
-                diagnostic=diagnostic,
             )
 
         model_cols: dict[str, list[str]] = {

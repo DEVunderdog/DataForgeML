@@ -287,6 +287,104 @@ def test_observer_can_isolate_warnings_by_event_type(fallback_df, fallback_profi
 
 
 # ---------------------------------------------------------------------------
+# substep events: honest sub-column progress inside the fit (#325 / ADR-0055)
+# ---------------------------------------------------------------------------
+
+
+def test_fit_emits_substep_events_during_the_fit(imp_df, imp_profile):
+    recorder = _Recorder()
+    ImputationOrchestrator(observer=recorder).fit(imp_df, imp_profile)
+
+    substeps = [e for e in recorder.events if e.event_type == EventType.substep]
+    assert substeps, "no substep events emitted during the fit"
+    for e in substeps:
+        assert e.phase == "imputation"
+        assert e.stage == "column_fitting"
+
+
+def test_substeps_interleave_after_last_item_and_before_stage_end(imp_df, imp_profile):
+    # The point of ADR-0055: the expensive stretch is no longer a burst of
+    # ``item`` events followed by silence.  ``substep`` events must appear
+    # *within* the fit — between the stage boundaries — not after ``stage_end``.
+    recorder = _Recorder()
+    ImputationOrchestrator(observer=recorder).fit(imp_df, imp_profile)
+
+    stream = [e for e in recorder.events if e.stage == "column_fitting"]
+    start_idx = next(
+        i for i, e in enumerate(stream) if e.event_type == EventType.stage_start
+    )
+    end_idx = next(
+        i for i, e in enumerate(stream) if e.event_type == EventType.stage_end
+    )
+    substep_positions = [
+        i for i, e in enumerate(stream) if e.event_type == EventType.substep
+    ]
+    assert substep_positions, "no substep events in the fit stream"
+    assert all(start_idx < i < end_idx for i in substep_positions)
+
+
+def test_substep_events_carry_no_new_fields(imp_df, imp_profile):
+    # PipelineEvent gains no new fields: sub-progression rides index/total.
+    recorder = _Recorder()
+    ImputationOrchestrator(observer=recorder).fit(imp_df, imp_profile)
+    substeps = [e for e in recorder.events if e.event_type == EventType.substep]
+    assert substeps
+    expected = {
+        "event_type",
+        "phase",
+        "stage",
+        "message",
+        "column",
+        "index",
+        "total",
+    }
+    assert set(vars(substeps[0]).keys()) == expected
+
+
+def test_substep_events_log_at_debug(imp_df, imp_profile, caplog):
+    with caplog.at_level(logging.DEBUG, logger="dataforge_ml"):
+        ImputationOrchestrator().fit(imp_df, imp_profile)
+
+    # Substep messages carry the phase/stage prefix and log at DEBUG, reaching
+    # the Trace logger like every other item-class event.
+    substep_records = [
+        r
+        for r in caplog.records
+        if r.name == "dataforge_ml" and "block fitting" in r.message
+    ]
+    assert substep_records, "no substep records captured at DEBUG"
+    assert all(r.levelno == logging.DEBUG for r in substep_records)
+
+
+def test_stderr_observer_renders_substep_events(imp_df, imp_profile, capsys):
+    from dataforge_ml import stderr_observer
+
+    ImputationOrchestrator(observer=stderr_observer).fit(imp_df, imp_profile)
+    err = capsys.readouterr().err
+    # The shipped observer renders substep messages with zero extra wiring.
+    assert "block fitting" in err
+
+
+def test_items_still_one_per_fitted_column_and_monotonic(imp_df, imp_profile):
+    # Moving emission inside the fit must not break the coarse "k of N" bar:
+    # exactly one item per fitted numeric column, monotonic index, stable total.
+    recorder = _Recorder()
+    ImputationOrchestrator(observer=recorder).fit(imp_df, imp_profile)
+
+    items = [
+        e
+        for e in recorder.events
+        if e.event_type == EventType.item and e.stage == "column_fitting"
+    ]
+    assert {e.column for e in items} == {"score", "revenue", "rating"}
+    total = items[0].total
+    assert total == len(items) == 3
+    for i, e in enumerate(items, start=1):
+        assert e.index == i
+        assert e.total == total
+
+
+# ---------------------------------------------------------------------------
 # One observer instance reused across profiling and imputation (#319)
 # ---------------------------------------------------------------------------
 

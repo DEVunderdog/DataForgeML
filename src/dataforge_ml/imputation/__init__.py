@@ -1,9 +1,12 @@
 from ._config import (
+    AccuracyDiagnostic,
+    AccuracyReport,
     ColumnImputationRecord,
     ImputationConfig,
-    ImputationFitDiagnostic,
     ImputationResult,
     ImputationStrategy,
+    InspectionDiagnostic,
+    InspectionReport,
     NumericImputationConfig,
 )
 from ._fitted_imputer import (
@@ -12,13 +15,17 @@ from ._fitted_imputer import (
     UnfittedColumnError,
     UnseenColumnError,
 )
+from .evaluation import EvaluationOrchestrator
 from .orchestrator import ImputationOrchestrator
 
 __all__ = [
     "ImputationStrategy",
     "NumericImputationConfig",
     "ImputationConfig",
-    "ImputationFitDiagnostic",
+    "InspectionDiagnostic",
+    "InspectionReport",
+    "AccuracyDiagnostic",
+    "AccuracyReport",
     "ColumnImputationRecord",
     "ImputationResult",
     "FittedImputer",
@@ -26,4 +33,5 @@ __all__ = [
     "UnseenColumnError",
     "FittedColumnAbsentError",
     "ImputationOrchestrator",
+    "EvaluationOrchestrator",
 ]

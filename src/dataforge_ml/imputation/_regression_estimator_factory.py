@@ -40,6 +40,7 @@ class RegressionEstimatorFactory:
         tag: NonlinearityTag,
         n_rows: int,
         config: NumericImputationConfig,
+        n_jobs: int = 1,
     ) -> Optional[Any]:
         """
         Return a fitted-ready sklearn estimator for the given tag and dataset size.
@@ -55,6 +56,14 @@ class RegressionEstimatorFactory:
             ``ComplexNonlinear`` branch.
         config : NumericImputationConfig
             Imputation config supplying the ``gradient_boost_min_rows`` threshold.
+        n_jobs : int, default 1
+            ``n_jobs`` for estimators that support inner parallelism
+            (``RandomForestRegressor``).  Pinned to ``1`` when this fit is
+            nested under the outer thread parallelism (ADR-0056) to avoid core
+            oversubscription; a block running alone may pass ``-1`` for full
+            inner parallelism.  Estimators without an ``n_jobs`` parameter
+            (``BayesianRidge``, ``GradientBoostingRegressor``) ignore it, and it
+            never affects results for a fixed ``random_state``.
 
         Returns
         -------
@@ -70,12 +79,12 @@ class RegressionEstimatorFactory:
             ])
 
         if tag == NonlinearityTag.MonotonicNonlinear:
-            return RandomForestRegressor(random_state=0)
+            return RandomForestRegressor(random_state=0, n_jobs=n_jobs)
 
         if tag == NonlinearityTag.ComplexNonlinear:
             if n_rows >= config.gradient_boost_min_rows:
                 return GradientBoostingRegressor(random_state=0)
-            return RandomForestRegressor(random_state=0)
+            return RandomForestRegressor(random_state=0, n_jobs=n_jobs)
 
         # NonlinearityTag.Unpredictable
         return None
