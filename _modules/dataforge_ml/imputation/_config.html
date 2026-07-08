@@ -498,15 +498,16 @@
 <span class="sd">        Overrides the dynamically-computed ``max_iter`` for the entire MICE</span>
 <span class="sd">        block. A single value governs all MICE columns.</span>
 <span class="sd">    refit_r2_min_complete_rows : int</span>
-<span class="sd">        Minimum number of complete rows required to attempt R² computation</span>
-<span class="sd">        during fit.  When fewer complete rows are available, ``r2_train`` on</span>
-<span class="sd">        ``ImputationFitDiagnostic`` is set to ``None``.  With k-fold CV</span>
-<span class="sd">        (``refit_r2_cv_folds=5``), each validation fold contains 1/k of the</span>
-<span class="sd">        complete rows; the floor of 50 ensures at least 10 rows per fold.</span>
-<span class="sd">        Default ``50``.</span>
+<span class="sd">        Minimum number of complete rows required to attempt the held-out</span>
+<span class="sd">        accuracy computation.  When fewer complete rows are available, the</span>
+<span class="sd">        ``r2_cv``, ``rmse``, and ``mae`` fields on ``AccuracyDiagnostic`` are set</span>
+<span class="sd">        to ``None``.  With k-fold CV (``refit_r2_cv_folds=5``), each validation</span>
+<span class="sd">        fold contains 1/k of the complete rows; the floor of 50 ensures at least</span>
+<span class="sd">        10 rows per fold.  Default ``50``.</span>
 <span class="sd">    refit_r2_cv_folds : int</span>
-<span class="sd">        Number of folds for cross-validated R² computation.  Applied</span>
-<span class="sd">        uniformly across Regression, KNN, and MICE diagnostics.  Default ``5``.</span>
+<span class="sd">        Number of folds for the cross-validated accuracy computation</span>
+<span class="sd">        (:meth:`EvaluationOrchestrator.score_accuracy`).  Applied uniformly</span>
+<span class="sd">        across Regression, KNN, and MICE columns.  Default ``5``.</span>
 <span class="sd">    bimodal_grouping_variables : dict[str, str]</span>
 <span class="sd">        Maps a bimodal column name to the name of the grouping column that</span>
 <span class="sd">        explains the bimodal split (e.g. ``{&quot;age&quot;: &quot;employment_status&quot;}``).</span>
@@ -518,6 +519,15 @@
 <span class="sd">        Minimum absolute Pearson correlation ``|r|`` a feature must have against</span>
 <span class="sd">        a bimodal column for it to count toward the branch 2/3 feature tally in</span>
 <span class="sd">        the Bimodal Imputation Framework.</span>
+<span class="sd">    max_workers : int, optional</span>
+<span class="sd">        Degree of thread parallelism for the numeric fit (ADR-0056).  The</span>
+<span class="sd">        mutually-independent strategy blocks (MICE, KNN, the Regression set,</span>
+<span class="sd">        GMM, cluster) and the independent columns within a per-column strategy</span>
+<span class="sd">        are fitted concurrently on threads, capped at this many workers.</span>
+<span class="sd">        ``None`` (the default) auto-sizes to the available CPU count; ``1``</span>
+<span class="sd">        forces a fully sequential fit.  Concurrency never changes a result:</span>
+<span class="sd">        the same ``random_seed`` yields a byte-identical ``FittedImputer``</span>
+<span class="sd">        regardless of this value.</span>
 
 <span class="sd">    Raises</span>
 <span class="sd">    ------</span>
@@ -553,6 +563,7 @@
     <span class="n">_bimodal_grouping_variables</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
     <span class="n">bimodal_min_correlated_features</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span>
     <span class="n">bimodal_correlation_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.2</span>
+    <span class="n">max_workers</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">per_column_strategy</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MappingProxyType</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ImputationStrategy</span><span class="p">]:</span>
@@ -754,6 +765,10 @@
 
 
     <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_workers</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_workers</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;max_workers must be None or &gt;= 1, got </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">max_workers</span><span class="si">}</span><span class="s2">.&quot;</span>
+            <span class="p">)</span>
         <span class="n">_BLOCKED</span> <span class="o">=</span> <span class="p">{</span>
             <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Passthrough</span><span class="p">,</span>
             <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Indicator</span><span class="p">,</span>
@@ -820,6 +835,7 @@
             <span class="s2">&quot;bimodal_grouping_variables&quot;</span><span class="p">:</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bimodal_grouping_variables</span><span class="p">),</span>
             <span class="s2">&quot;bimodal_min_correlated_features&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">bimodal_min_correlated_features</span><span class="p">,</span>
             <span class="s2">&quot;bimodal_correlation_threshold&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">bimodal_correlation_threshold</span><span class="p">,</span>
+            <span class="s2">&quot;max_workers&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_workers</span><span class="p">,</span>
         <span class="p">}</span></div>
 
 
@@ -882,6 +898,11 @@
             <span class="p">),</span>
             <span class="n">bimodal_correlation_threshold</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span>
                 <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;bimodal_correlation_threshold&quot;</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">)</span>
+            <span class="p">),</span>
+            <span class="n">max_workers</span><span class="o">=</span><span class="p">(</span>
+                <span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;max_workers&quot;</span><span class="p">])</span>
+                <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;max_workers&quot;</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="k">else</span> <span class="kc">None</span>
             <span class="p">),</span>
         <span class="p">)</span>
         
@@ -1085,119 +1106,396 @@
 
 
 
-<div class="viewcode-block" id="ImputationFitDiagnostic">
-<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ImputationFitDiagnostic">[docs]</a>
+<div class="viewcode-block" id="InspectionDiagnostic">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.InspectionDiagnostic">[docs]</a>
 <span class="nd">@dataclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">ImputationFitDiagnostic</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Fit quality diagnostic attached to each model-based column after fit().</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">InspectionDiagnostic</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Retrain-free inspection diagnostic for a single model-based column.</span>
 
-<span class="sd">    Present on ``ColumnImputationRecord.diagnostic`` for KNN, Regression, and</span>
-<span class="sd">    MICE columns.  ``None`` for Passthrough, Dropped, Constant, and all scalar</span>
-<span class="sd">    strategies (Mean, Median, Mode).</span>
+<span class="sd">    Produced by :meth:`EvaluationOrchestrator.inspect` — the cheap, retrain-free</span>
+<span class="sd">    check that reuses the models ``fit()`` already learned (ADR-0058).  It</span>
+<span class="sd">    answers &quot;do the imputed values look sensible?&quot; by comparing the values the</span>
+<span class="sd">    fitted model filled into the originally-null cells against the observed</span>
+<span class="sd">    (non-null) values, and by surfacing the fitted model&#39;s own metadata.  It</span>
+<span class="sd">    carries no held-out accuracy numbers — those live on</span>
+<span class="sd">    :class:`AccuracyDiagnostic`, which is irreducibly a refit.</span>
+
+<span class="sd">    Present for KNN, Regression, MICE, and the bimodal strategies</span>
+<span class="sd">    (Cluster-Conditional, GMM-Sampling); absent (no report entry) for</span>
+<span class="sd">    Passthrough, Dropped, Constant, MNAR, and the scalar strategies</span>
+<span class="sd">    (Mean, Median, Mode).</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
-<span class="sd">    r2_train : float, optional</span>
-<span class="sd">        Mean R² across k cross-validation folds on complete rows (k =</span>
-<span class="sd">        ``refit_r2_cv_folds``).  ``None`` when fewer than</span>
-<span class="sd">        ``refit_r2_min_complete_rows`` complete rows are available or when all</span>
-<span class="sd">        folds are skipped due to zero variance in ``y_true``.</span>
-<span class="sd">    converged : bool, optional</span>
-<span class="sd">        Whether ``IterativeImputer`` halted before reaching ``max_iter``.</span>
-<span class="sd">        ``None`` for KNN columns (convergence is not applicable).</span>
-<span class="sd">    n_iter : int, optional</span>
-<span class="sd">        Actual iteration count of ``IterativeImputer``.  ``None`` for KNN</span>
-<span class="sd">        columns.</span>
 <span class="sd">    imputed_mean : float</span>
-<span class="sd">        Mean of the values imputed for null rows during fit.</span>
+<span class="sd">        Mean of the values the fitted model filled into the originally-null</span>
+<span class="sd">        rows.  ``0.0`` when the inspected frame has no nulls in this column.</span>
 <span class="sd">    imputed_std : float</span>
-<span class="sd">        Standard deviation of the imputed values.</span>
+<span class="sd">        Standard deviation of those imputed values.  ``0.0`` when the inspected</span>
+<span class="sd">        frame has no nulls in this column.</span>
 <span class="sd">    observed_mean : float</span>
-<span class="sd">        Mean of non-null training values for this column.</span>
+<span class="sd">        Mean of the non-null values in this column.</span>
 <span class="sd">    observed_std : float</span>
-<span class="sd">        Standard deviation of non-null training values for this column.</span>
+<span class="sd">        Standard deviation of the non-null values in this column.</span>
 <span class="sd">    variance_ratio : float</span>
-<span class="sd">        ``imputed_std / observed_std``.  A value near zero indicates</span>
-<span class="sd">        distribution collapse — the model is predicting near-constant values.</span>
+<span class="sd">        ``imputed_std / observed_std`` (``0.0`` when ``observed_std`` is zero).</span>
+<span class="sd">        A value near zero flags distribution collapse — the model is predicting</span>
+<span class="sd">        near-constant fills.</span>
+<span class="sd">    converged : bool, optional</span>
+<span class="sd">        Whether ``IterativeImputer`` halted before reaching ``max_iter``.  Read</span>
+<span class="sd">        from the fitted MICE or Regression model.  ``None`` for KNN and the</span>
+<span class="sd">        bimodal strategies (convergence is not applicable).</span>
+<span class="sd">    n_iter : int, optional</span>
+<span class="sd">        Actual iteration count of the fitted ``IterativeImputer``.  ``None`` for</span>
+<span class="sd">        KNN and the bimodal strategies.</span>
 <span class="sd">    n_neighbors_used : int, optional</span>
-<span class="sd">        Actual ``n_neighbors`` used by the KNN block.  ``None`` for Regression</span>
-<span class="sd">        and MICE columns.</span>
+<span class="sd">        Actual ``n_neighbors`` used by the fitted KNN block.  ``None`` for</span>
+<span class="sd">        Regression, MICE, and the bimodal strategies.</span>
 <span class="sd">    k_capped : bool, optional</span>
-<span class="sd">        ``True`` when the adaptive k formula&#39;s raw output exceeded ``n_rows − 1``</span>
-<span class="sd">        and was forced to that bound (the model is averaging nearly all rows).</span>
-<span class="sd">        ``False`` when the formula ran within bounds.  ``None`` when</span>
-<span class="sd">        ``knn_n_neighbors`` override is active (adaptive formula was bypassed)</span>
-<span class="sd">        or strategy is not KNN.</span>
+<span class="sd">        ``True`` when the KNN neighbour count was forced down to ``n_rows − 1``</span>
+<span class="sd">        (the model is averaging nearly every row).  ``None`` when a</span>
+<span class="sd">        ``knn_n_neighbors`` override is active or the strategy is not KNN.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">r2_train</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span>
-    <span class="n">rmse</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span>
-    <span class="n">mae</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span>
-    <span class="n">converged</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span>
-    <span class="n">n_iter</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span>
     <span class="n">imputed_mean</span><span class="p">:</span> <span class="nb">float</span>
     <span class="n">imputed_std</span><span class="p">:</span> <span class="nb">float</span>
     <span class="n">observed_mean</span><span class="p">:</span> <span class="nb">float</span>
     <span class="n">observed_std</span><span class="p">:</span> <span class="nb">float</span>
     <span class="n">variance_ratio</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">converged</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">n_iter</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">n_neighbors_used</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">k_capped</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 
-<div class="viewcode-block" id="ImputationFitDiagnostic.to_dict">
-<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ImputationFitDiagnostic.to_dict">[docs]</a>
+<div class="viewcode-block" id="InspectionDiagnostic.to_dict">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.InspectionDiagnostic.to_dict">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Serialise the diagnostic to a plain dictionary.</span>
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
 <span class="sd">        dict</span>
-<span class="sd">            All ten field values keyed by field name.</span>
+<span class="sd">            All field values keyed by field name.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="p">{</span>
-            <span class="s2">&quot;r2_train&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">r2_train</span><span class="p">,</span>
-            <span class="s2">&quot;rmse&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">rmse</span><span class="p">,</span>
-            <span class="s2">&quot;mae&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">mae</span><span class="p">,</span>
-            <span class="s2">&quot;converged&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">converged</span><span class="p">,</span>
-            <span class="s2">&quot;n_iter&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_iter</span><span class="p">,</span>
             <span class="s2">&quot;imputed_mean&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">imputed_mean</span><span class="p">,</span>
             <span class="s2">&quot;imputed_std&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">imputed_std</span><span class="p">,</span>
             <span class="s2">&quot;observed_mean&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">observed_mean</span><span class="p">,</span>
             <span class="s2">&quot;observed_std&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">observed_std</span><span class="p">,</span>
             <span class="s2">&quot;variance_ratio&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">variance_ratio</span><span class="p">,</span>
+            <span class="s2">&quot;converged&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">converged</span><span class="p">,</span>
+            <span class="s2">&quot;n_iter&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_iter</span><span class="p">,</span>
             <span class="s2">&quot;n_neighbors_used&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_neighbors_used</span><span class="p">,</span>
             <span class="s2">&quot;k_capped&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">k_capped</span><span class="p">,</span>
         <span class="p">}</span></div>
 
 
-<div class="viewcode-block" id="ImputationFitDiagnostic.from_dict">
-<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ImputationFitDiagnostic.from_dict">[docs]</a>
+<div class="viewcode-block" id="InspectionDiagnostic.from_dict">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.InspectionDiagnostic.from_dict">[docs]</a>
     <span class="nd">@classmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;ImputationFitDiagnostic&quot;</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reconstruct an ``ImputationFitDiagnostic`` from a plain dictionary.</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;InspectionDiagnostic&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reconstruct an ``InspectionDiagnostic`` from a plain dictionary.</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        data : dict</span>
-<span class="sd">            Mapping produced by ``to_dict()``.</span>
+<span class="sd">            Mapping produced by :meth:`to_dict`.</span>
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        ImputationFitDiagnostic</span>
+<span class="sd">        InspectionDiagnostic</span>
 <span class="sd">            Reconstructed diagnostic instance.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
-            <span class="n">r2_train</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;r2_train&quot;</span><span class="p">),</span>
-            <span class="n">rmse</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;rmse&quot;</span><span class="p">),</span>
-            <span class="n">mae</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;mae&quot;</span><span class="p">),</span>
-            <span class="n">converged</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;converged&quot;</span><span class="p">),</span>
-            <span class="n">n_iter</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;n_iter&quot;</span><span class="p">),</span>
             <span class="n">imputed_mean</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;imputed_mean&quot;</span><span class="p">]),</span>
             <span class="n">imputed_std</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;imputed_std&quot;</span><span class="p">]),</span>
             <span class="n">observed_mean</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;observed_mean&quot;</span><span class="p">]),</span>
             <span class="n">observed_std</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;observed_std&quot;</span><span class="p">]),</span>
             <span class="n">variance_ratio</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;variance_ratio&quot;</span><span class="p">]),</span>
+            <span class="n">converged</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;converged&quot;</span><span class="p">),</span>
+            <span class="n">n_iter</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;n_iter&quot;</span><span class="p">),</span>
             <span class="n">n_neighbors_used</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;n_neighbors_used&quot;</span><span class="p">),</span>
             <span class="n">k_capped</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;k_capped&quot;</span><span class="p">),</span>
+        <span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="InspectionReport">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.InspectionReport">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">InspectionReport</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Per-column inspection report returned by :meth:`EvaluationOrchestrator.inspect`.</span>
+
+<span class="sd">    Holds one :class:`InspectionDiagnostic` per model-based column (KNN,</span>
+<span class="sd">    Regression, MICE, and the bimodal strategies); columns handled by scalar</span>
+<span class="sd">    strategies, Passthrough, Dropped, Constant, or MNAR carry no entry.</span>
+<span class="sd">    Supports ``report[col]`` lookup and ``col in report`` membership tests</span>
+<span class="sd">    (ADR-0058).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    columns : dict[str, InspectionDiagnostic]</span>
+<span class="sd">        Mapping from column name to its inspection diagnostic.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">columns</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">InspectionDiagnostic</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">InspectionDiagnostic</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the diagnostic for ``column``.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        column : str</span>
+<span class="sd">            Column name to look up.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        InspectionDiagnostic</span>
+<span class="sd">            The inspection diagnostic for ``column``.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        KeyError</span>
+<span class="sd">            If ``column`` has no diagnostic in this report.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">column</span><span class="p">]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__contains__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return whether ``column`` has a diagnostic in this report.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        column : object</span>
+<span class="sd">            Column name to test for membership.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        bool</span>
+<span class="sd">            ``True`` when a diagnostic is present for ``column``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">column</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span>
+
+<div class="viewcode-block" id="InspectionReport.to_dict">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.InspectionReport.to_dict">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Serialise the report to a plain dictionary.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict</span>
+<span class="sd">            Mapping with a single ``&quot;columns&quot;`` key whose value maps each</span>
+<span class="sd">            column name to its serialised diagnostic.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;columns&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="n">col</span><span class="p">:</span> <span class="n">diag</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span> <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">diag</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">}</span>
+        <span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="InspectionReport.from_dict">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.InspectionReport.from_dict">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;InspectionReport&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reconstruct an ``InspectionReport`` from a plain dictionary.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        data : dict</span>
+<span class="sd">            Mapping produced by :meth:`to_dict`.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        InspectionReport</span>
+<span class="sd">            Reconstructed report instance.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+            <span class="n">columns</span><span class="o">=</span><span class="p">{</span>
+                <span class="n">col</span><span class="p">:</span> <span class="n">InspectionDiagnostic</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">raw</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;columns&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">}</span>
+        <span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="AccuracyDiagnostic">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.AccuracyDiagnostic">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">AccuracyDiagnostic</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Held-out accuracy diagnostic for a single model-based column.</span>
+
+<span class="sd">    Produced by :meth:`EvaluationOrchestrator.score_accuracy` — the expensive,</span>
+<span class="sd">    refit-based check (ADR-0058).  Honest held-out accuracy is *irreducibly* a</span>
+<span class="sd">    refit: the model learned at fit time has already seen every cell, so scoring</span>
+<span class="sd">    it in-sample is optimistically biased.  These numbers therefore come from</span>
+<span class="sd">    cross-validating the column&#39;s recorded strategy on folds of the complete</span>
+<span class="sd">    rows, never from the final fitted model.</span>
+
+<span class="sd">    Present for KNN, Regression, MICE, and the bimodal strategies</span>
+<span class="sd">    (Cluster-Conditional, GMM-Sampling); absent (no report entry) for</span>
+<span class="sd">    Passthrough, Dropped, Constant, MNAR, and the scalar strategies</span>
+<span class="sd">    (Mean, Median, Mode).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    r2_cv : float, optional</span>
+<span class="sd">        Mean R² across k cross-validation folds on complete rows (k =</span>
+<span class="sd">        ``refit_r2_cv_folds``).  Named ``r2_cv`` — not ``r2_train`` — because it</span>
+<span class="sd">        is always a held-out score, never an in-sample one.  ``None`` when fewer</span>
+<span class="sd">        than ``refit_r2_min_complete_rows`` complete rows are available, when all</span>
+<span class="sd">        folds are skipped due to zero variance in ``y_true``, or when the</span>
+<span class="sd">        strategy has no held-out truth to score (GMM-Sampling and the</span>
+<span class="sd">        grouping-variable Cluster-Conditional branch).</span>
+<span class="sd">    rmse : float, optional</span>
+<span class="sd">        Root-mean-squared error across the same held-out folds, in the column&#39;s</span>
+<span class="sd">        own units.  ``None`` under the same conditions as ``r2_cv``.</span>
+<span class="sd">    mae : float, optional</span>
+<span class="sd">        Mean absolute error across the same held-out folds, in the column&#39;s own</span>
+<span class="sd">        units.  ``None`` under the same conditions as ``r2_cv``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">r2_cv</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span>
+    <span class="n">rmse</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span>
+    <span class="n">mae</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span>
+
+<div class="viewcode-block" id="AccuracyDiagnostic.to_dict">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.AccuracyDiagnostic.to_dict">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Serialise the diagnostic to a plain dictionary.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict</span>
+<span class="sd">            All three field values keyed by field name.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;r2_cv&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">r2_cv</span><span class="p">,</span>
+            <span class="s2">&quot;rmse&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">rmse</span><span class="p">,</span>
+            <span class="s2">&quot;mae&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">mae</span><span class="p">,</span>
+        <span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="AccuracyDiagnostic.from_dict">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.AccuracyDiagnostic.from_dict">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;AccuracyDiagnostic&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reconstruct an ``AccuracyDiagnostic`` from a plain dictionary.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        data : dict</span>
+<span class="sd">            Mapping produced by :meth:`to_dict`.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        AccuracyDiagnostic</span>
+<span class="sd">            Reconstructed diagnostic instance.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+            <span class="n">r2_cv</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;r2_cv&quot;</span><span class="p">),</span>
+            <span class="n">rmse</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;rmse&quot;</span><span class="p">),</span>
+            <span class="n">mae</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;mae&quot;</span><span class="p">),</span>
+        <span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="AccuracyReport">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.AccuracyReport">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">AccuracyReport</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Per-column accuracy report returned by :meth:`EvaluationOrchestrator.score_accuracy`.</span>
+
+<span class="sd">    Holds one :class:`AccuracyDiagnostic` per model-based column (KNN,</span>
+<span class="sd">    Regression, MICE, and the bimodal strategies); columns handled by scalar</span>
+<span class="sd">    strategies, Passthrough, Dropped, Constant, or MNAR carry no entry.</span>
+<span class="sd">    Supports ``report[col]`` lookup and ``col in report`` membership tests</span>
+<span class="sd">    (ADR-0058).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    columns : dict[str, AccuracyDiagnostic]</span>
+<span class="sd">        Mapping from column name to its held-out accuracy diagnostic.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">columns</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">AccuracyDiagnostic</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AccuracyDiagnostic</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the diagnostic for ``column``.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        column : str</span>
+<span class="sd">            Column name to look up.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        AccuracyDiagnostic</span>
+<span class="sd">            The held-out accuracy diagnostic for ``column``.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        KeyError</span>
+<span class="sd">            If ``column`` has no diagnostic in this report.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">column</span><span class="p">]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__contains__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return whether ``column`` has a diagnostic in this report.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        column : object</span>
+<span class="sd">            Column name to test for membership.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        bool</span>
+<span class="sd">            ``True`` when a diagnostic is present for ``column``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">column</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span>
+
+<div class="viewcode-block" id="AccuracyReport.to_dict">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.AccuracyReport.to_dict">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Serialise the report to a plain dictionary.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict</span>
+<span class="sd">            Mapping with a single ``&quot;columns&quot;`` key whose value maps each</span>
+<span class="sd">            column name to its serialised diagnostic.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;columns&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="n">col</span><span class="p">:</span> <span class="n">diag</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span> <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">diag</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">}</span>
+        <span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="AccuracyReport.from_dict">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.AccuracyReport.from_dict">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;AccuracyReport&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reconstruct an ``AccuracyReport`` from a plain dictionary.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        data : dict</span>
+<span class="sd">            Mapping produced by :meth:`to_dict`.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        AccuracyReport</span>
+<span class="sd">            Reconstructed report instance.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+            <span class="n">columns</span><span class="o">=</span><span class="p">{</span>
+                <span class="n">col</span><span class="p">:</span> <span class="n">AccuracyDiagnostic</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">raw</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;columns&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">}</span>
         <span class="p">)</span></div>
 </div>
 
@@ -1227,9 +1525,14 @@
 <span class="sd">    domain_snap_bounds : tuple[float, float], optional</span>
 <span class="sd">        ``(min, max)`` bounds applied to snap model-based predictions for</span>
 <span class="sd">        BoundedDiscrete columns.  ``None`` for all other columns.</span>
-<span class="sd">    diagnostic : ImputationFitDiagnostic, optional</span>
-<span class="sd">        Fit quality metrics for KNN, Regression, and MICE columns.  ``None``</span>
-<span class="sd">        for Passthrough, Dropped, Constant, and all scalar strategies.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Fit-quality metrics are no longer carried here.  ``fit()`` only learns</span>
+<span class="sd">    fill values and models; quality measurement is a deliberate second step</span>
+<span class="sd">    via the opt-in Evaluation phase, which returns an</span>
+<span class="sd">    :class:`InspectionReport` or :class:`AccuracyReport` keyed by column</span>
+<span class="sd">    (ADR-0058).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">column</span><span class="p">:</span> <span class="nb">str</span>
@@ -1239,7 +1542,6 @@
     <span class="n">indicator_added</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">signals</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
     <span class="n">domain_snap_bounds</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">diagnostic</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ImputationFitDiagnostic</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 
 <div class="viewcode-block" id="ColumnImputationRecord.to_dict">
 <a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ColumnImputationRecord.to_dict">[docs]</a>
@@ -1263,9 +1565,6 @@
                 <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">domain_snap_bounds</span><span class="p">)</span>
                 <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">domain_snap_bounds</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
                 <span class="k">else</span> <span class="kc">None</span>
-            <span class="p">),</span>
-            <span class="s2">&quot;diagnostic&quot;</span><span class="p">:</span> <span class="p">(</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">diagnostic</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">diagnostic</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
             <span class="p">),</span>
         <span class="p">}</span></div>
 </div>

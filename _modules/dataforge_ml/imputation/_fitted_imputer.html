@@ -860,10 +860,9 @@
 <span class="sd">            also default to an empty dict for backwards compatibility.</span>
 <span class="sd">            Pre-Scope 8 payloads may contain ``&quot;constant&quot;`` as a strategy</span>
 <span class="sd">            value; those records deserialise as ``ImputationStrategy.Constant``</span>
-<span class="sd">            (audit label only — fill behaviour is unchanged).  Payloads without</span>
-<span class="sd">            a ``&quot;diagnostic&quot;`` key on individual records (serialised before</span>
-<span class="sd">            Scope 3 / issue #214) default to ``None`` for backwards</span>
-<span class="sd">            compatibility.</span>
+<span class="sd">            (audit label only — fill behaviour is unchanged).  A ``&quot;diagnostic&quot;``</span>
+<span class="sd">            key on records serialised before ADR-0057 is ignored — fit-quality</span>
+<span class="sd">            metrics now live only in the Evaluation phase&#39;s report.</span>
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
@@ -873,15 +872,16 @@
         <span class="kn">import</span><span class="w"> </span><span class="nn">base64</span>
         <span class="kn">import</span><span class="w"> </span><span class="nn">io</span>
         <span class="kn">import</span><span class="w"> </span><span class="nn">joblib</span>
-        <span class="kn">from</span><span class="w"> </span><span class="nn">._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">ColumnImputationRecord</span><span class="p">,</span> <span class="n">ImputationFitDiagnostic</span><span class="p">,</span> <span class="n">ImputationStrategy</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">ColumnImputationRecord</span><span class="p">,</span> <span class="n">ImputationStrategy</span>
 
         <span class="n">records</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ColumnImputationRecord</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">rec_data</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;records&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">raw_bounds</span> <span class="o">=</span> <span class="n">rec_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;domain_snap_bounds&quot;</span><span class="p">)</span>
             <span class="n">snap_bounds</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">raw_bounds</span><span class="p">)</span> <span class="k">if</span> <span class="n">raw_bounds</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
             <span class="n">strategy_str</span> <span class="o">=</span> <span class="n">rec_data</span><span class="p">[</span><span class="s2">&quot;strategy&quot;</span><span class="p">]</span>
-            <span class="n">raw_diag</span> <span class="o">=</span> <span class="n">rec_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;diagnostic&quot;</span><span class="p">)</span>
-            <span class="n">diagnostic</span> <span class="o">=</span> <span class="n">ImputationFitDiagnostic</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">raw_diag</span><span class="p">)</span> <span class="k">if</span> <span class="n">raw_diag</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="c1"># A ``&quot;diagnostic&quot;`` key on pre-ADR-0057 payloads is ignored:</span>
+            <span class="c1"># fit-quality metrics now live in the Evaluation phase&#39;s report,</span>
+            <span class="c1"># never on the record (ADR-0057).</span>
             <span class="n">records</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">ColumnImputationRecord</span><span class="p">(</span>
                 <span class="n">column</span><span class="o">=</span><span class="n">rec_data</span><span class="p">[</span><span class="s2">&quot;column&quot;</span><span class="p">],</span>
                 <span class="n">semantic_type</span><span class="o">=</span><span class="n">SemanticType</span><span class="p">(</span><span class="n">rec_data</span><span class="p">[</span><span class="s2">&quot;semantic_type&quot;</span><span class="p">]),</span>
@@ -890,7 +890,6 @@
                 <span class="n">indicator_added</span><span class="o">=</span><span class="nb">bool</span><span class="p">(</span><span class="n">rec_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;indicator_added&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)),</span>
                 <span class="n">signals</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">rec_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;signals&quot;</span><span class="p">,</span> <span class="p">[])),</span>
                 <span class="n">domain_snap_bounds</span><span class="o">=</span><span class="n">snap_bounds</span><span class="p">,</span>
-                <span class="n">diagnostic</span><span class="o">=</span><span class="n">diagnostic</span><span class="p">,</span>
             <span class="p">)</span>
 
         <span class="n">model_cols</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>

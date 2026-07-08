@@ -8,6 +8,13 @@
 ```
 
 ```{eval-rst}
+.. autoclass:: dataforge_ml.imputation.evaluation.EvaluationOrchestrator
+   :members:
+   :undoc-members:
+   :show-inheritance:
+```
+
+```{eval-rst}
 .. autoclass:: dataforge_ml.imputation._config.ImputationConfig
    :members:
    :undoc-members:
@@ -36,7 +43,28 @@
 ```
 
 ```{eval-rst}
-.. autoclass:: dataforge_ml.imputation._config.ImputationFitDiagnostic
+.. autoclass:: dataforge_ml.imputation._config.InspectionDiagnostic
+   :members:
+   :undoc-members:
+   :show-inheritance:
+```
+
+```{eval-rst}
+.. autoclass:: dataforge_ml.imputation._config.InspectionReport
+   :members:
+   :undoc-members:
+   :show-inheritance:
+```
+
+```{eval-rst}
+.. autoclass:: dataforge_ml.imputation._config.AccuracyDiagnostic
+   :members:
+   :undoc-members:
+   :show-inheritance:
+```
+
+```{eval-rst}
+.. autoclass:: dataforge_ml.imputation._config.AccuracyReport
    :members:
    :undoc-members:
    :show-inheritance:
