@@ -1,6 +1,6 @@
 # ADR 0006: fit() returns a stateless FittedImputer rather than mutating the orchestrator
 
-**Status:** Accepted
+**Status:** Superseded by ADR-0071 / ADR-0072 — `ImputationOrchestrator` no longer exists; `FittedImputer` is now built by `FittedImputer.compose` from user-fitted units, and `to_dict`/`from_dict` are replaced by per-object `serialize`/`deserialize`. The underlying stance (fitted state lives on a stateless value object, never on an orchestrator) survives.
 
 ## Context
 

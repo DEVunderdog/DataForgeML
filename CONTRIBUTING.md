@@ -76,7 +76,7 @@ Examples:
 feat: add adaptive k selection for KNNImputer
 fix: prevent Int64 overflow in _numpy_to_df sentinel handling
 test: add unit tests for BoundedDiscrete mode imputation
-docs: add numpy docstrings to ImputationOrchestrator
+docs: add numpy docstrings to ImputationExecutor
 ```
 
 ---

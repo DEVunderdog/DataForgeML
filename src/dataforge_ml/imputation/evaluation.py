@@ -6,7 +6,7 @@ call site: ``inspect(fitted_imputer, train_df)`` is the cheap, retrain-free
 sanity check ("do the imputed values look sensible?"), and
 ``score_accuracy(fitted_imputer, train_df, profile)`` is the expensive,
 cross-validated held-out accuracy measurement — an irreducible refit.  Neither
-is welded into ``ImputationOrchestrator.fit()``; both run deliberately, on the
+is welded into the imputation fit path; both run deliberately, on the
 user's clock.  The orchestrator is a phase orchestrator in the same shape as
 every other — construct it with an optional ``observer=`` and call an entry
 point — and it is stateless: the caller passes the ``FittedImputer`` and the
@@ -16,6 +16,7 @@ serializable.
 
 from __future__ import annotations
 
+import os
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from typing import TYPE_CHECKING, Any, Callable, Optional
@@ -33,15 +34,12 @@ from ..profiling._numeric_config import (
     SkewSeverity,
 )
 from ._config import (
+    _MODEL_BASED_STRATEGIES,
     AccuracyDiagnostic,
     AccuracyReport,
     ImputationStrategy,
     InspectionDiagnostic,
     InspectionReport,
-)
-from ._numeric_imputer import (
-    _MODEL_BASED_STRATEGIES,
-    _resolve_fit_workers,
 )
 from ._utils import _df_to_numpy
 from ..utils._null_normalization import _resolve_effective_nulls
@@ -49,6 +47,70 @@ from ..utils._null_normalization import _resolve_effective_nulls
 if TYPE_CHECKING:
     from ._fitted_imputer import FittedImputer
     from ..profiling._config import StructuralProfileResult
+
+
+def _resolve_fit_workers(max_workers: Optional[int], n_units: int) -> int:
+    """Resolve the thread count for the concurrent evaluation units.
+
+    Never exceeds the number of independent units of work; ``max_workers=None``
+    auto-sizes to the available CPU count, and ``max_workers=1`` forces a
+    sequential run.
+    """
+    if n_units <= 1:
+        return 1
+    if max_workers is None:
+        resolved = os.cpu_count() or 1
+    else:
+        resolved = max_workers
+    return max(1, min(resolved, n_units))
+
+
+def _units_by_id(fitted_imputer: "FittedImputer") -> dict:
+    """Key a composed imputer's ordered unit list back by plan unit id.
+
+    ``FittedImputer`` holds a bare ordered unit list since the compose collapse
+    (ADR-0071); Evaluation reads the model-based units by the plan ids the
+    routing produced, so this reconstructs those ids. A fitted unit no longer
+    restates its strategy (ADR-0074), so the strategy is read from the unit's
+    concrete type. The joint MICE and KNN blocks are the two ids that are not
+    ``"{strategy}:{column}"``.
+    """
+    from ._fitted_imputer import FittedMICE, _FittedKNN
+
+    models: dict = {}
+    for unit in fitted_imputer.units:
+        if isinstance(unit, FittedMICE):
+            models["mice"] = unit
+        elif isinstance(unit, _FittedKNN):
+            models["knn"] = unit
+        else:
+            strategy = _unit_strategy(unit)
+            cols = unit.target_columns
+            if strategy is not None and cols:
+                models[f"{strategy}:{cols[0]}"] = unit
+    return models
+
+
+def _unit_strategy(unit: Any) -> Optional[ImputationStrategy]:
+    """Recover a fitted unit's strategy from its concrete type (ADR-0074).
+
+    A fitted unit carries only its fitted state and no longer restates the
+    strategy it executed, so Evaluation reads it back from the class. Returns
+    ``None`` for a unit type with no strategy mapping.
+    """
+    from ._fitted_units import (
+        FittedClusterConditional,
+        FittedGMMSampling,
+        FittedRegression,
+    )
+
+    if isinstance(unit, FittedRegression):
+        return ImputationStrategy.Regression
+    if isinstance(unit, FittedClusterConditional):
+        return ImputationStrategy.ClusterConditional
+    if isinstance(unit, FittedGMMSampling):
+        return ImputationStrategy.GMMSampling
+    return None
 
 
 def _read_model_metadata(
@@ -75,7 +137,9 @@ def _read_model_metadata(
     if strategy == ImputationStrategy.Regression:
         fitted_reg = models.get(f"regression:{column}")
         if fitted_reg is not None:
-            converged = bool(fitted_reg.model.n_iter_ < fitted_reg.max_iter_used)
+            # ``max_iter_used`` was stripped from the fitted unit (ADR-0074);
+            # the effective cap lives on the fitted IterativeImputer itself.
+            converged = bool(fitted_reg.model.n_iter_ < fitted_reg.model.max_iter)
             n_iter = int(fitted_reg.model.n_iter_)
     elif strategy == ImputationStrategy.MICE:
         mice_model = models.get("mice")
@@ -535,7 +599,7 @@ class EvaluationOrchestrator(_ObservabilityMixin):
         Parameters
         ----------
         fitted_imputer : FittedImputer
-            The imputer returned by :meth:`ImputationOrchestrator.fit`.  Its
+            The imputer returned by :meth:`FittedImputer.compose`.  Its
             records and fitted models are reused as-is.
         train_df : pl.DataFrame
             Data to inspect against.  Passed back in explicitly because
@@ -552,6 +616,7 @@ class EvaluationOrchestrator(_ObservabilityMixin):
         # reflects exactly the imputation ``transform`` would apply — never a
         # re-implementation of model inference (ADR-0058).
         filled_df = fitted_imputer.transform(train_df).dataframe
+        models_by_id = _units_by_id(fitted_imputer)
 
         # Locate the originally-null cells the same way ``transform`` does:
         # normalise effective nulls first, then read the null mask.
@@ -565,7 +630,7 @@ class EvaluationOrchestrator(_ObservabilityMixin):
 
         columns: dict[str, InspectionDiagnostic] = {}
         for col, rec in fitted_imputer.records.items():
-            if rec.strategy not in _MODEL_BASED_STRATEGIES:
+            if rec.decision.strategy not in _MODEL_BASED_STRATEGIES:
                 continue
             if col not in resolved.columns or col not in filled_df.columns:
                 continue
@@ -587,9 +652,9 @@ class EvaluationOrchestrator(_ObservabilityMixin):
             )
 
             converged, n_iter, n_neighbors_used, k_capped = _read_model_metadata(
-                strategy=rec.strategy,
+                strategy=rec.decision.strategy,
                 column=col,
-                models=fitted_imputer.models,
+                models=models_by_id,
                 n_rows=n_rows,
                 knn_n_neighbors_override=numeric_cfg.knn_n_neighbors,
             )
@@ -634,7 +699,7 @@ class EvaluationOrchestrator(_ObservabilityMixin):
         Parameters
         ----------
         fitted_imputer : FittedImputer
-            The imputer returned by :meth:`ImputationOrchestrator.fit`.  Its
+            The imputer returned by :meth:`FittedImputer.compose`.  Its
             records supply the per-column strategy and its models supply the
             fold-estimator parameters; neither is re-derived.
         train_df : pl.DataFrame
@@ -664,6 +729,7 @@ class EvaluationOrchestrator(_ObservabilityMixin):
             string_sentinels=fitted_imputer.string_sentinels,
         )
         config = self._config.imputation.numeric
+        models_by_id = _units_by_id(fitted_imputer)
 
         # Reuse the strategy decisions already recorded at fit time (ADR-0058);
         # routing is never recomputed here.
@@ -671,7 +737,7 @@ class EvaluationOrchestrator(_ObservabilityMixin):
             return [
                 col
                 for col, rec in fitted_imputer.records.items()
-                if rec.strategy == strategy and col in resolved.columns
+                if rec.decision.strategy == strategy and col in resolved.columns
             ]
 
         mice_cols = _cols_for(ImputationStrategy.MICE)
@@ -702,7 +768,7 @@ class EvaluationOrchestrator(_ObservabilityMixin):
         units: list[Callable[[], None]] = []
 
         if mice_cols:
-            mice_model = fitted_imputer.models.get("mice")
+            mice_model = models_by_id.get("mice")
 
             def _run_mice() -> None:
                 if emitter is not None:
@@ -720,7 +786,7 @@ class EvaluationOrchestrator(_ObservabilityMixin):
             units.append(_run_mice)
 
         if knn_cols:
-            fitted_knn = fitted_imputer.models.get("knn")
+            fitted_knn = models_by_id.get("knn")
 
             def _run_knn() -> None:
                 if emitter is not None:
@@ -738,7 +804,7 @@ class EvaluationOrchestrator(_ObservabilityMixin):
             units.append(_run_knn)
 
         def _run_regression_col(col: str) -> None:
-            fitted_reg = fitted_imputer.models.get(f"regression:{col}")
+            fitted_reg = models_by_id.get(f"regression:{col}")
             if fitted_reg is None:
                 accuracy[col] = AccuracyDiagnostic(r2_cv=None, rmse=None, mae=None)
                 emitter.item(col)
@@ -753,7 +819,7 @@ class EvaluationOrchestrator(_ObservabilityMixin):
             units.append(partial(_run_regression_col, col))
 
         def _run_cluster_col(col: str) -> None:
-            fitted_cluster = fitted_imputer.models.get(f"cluster:{col}")
+            fitted_cluster = models_by_id.get(f"cluster:{col}")
             r2_cv = rmse = mae = None
             # Only the feature-based branch (no grouping variable) has held-out
             # truth to score; the grouping-variable branch does not.

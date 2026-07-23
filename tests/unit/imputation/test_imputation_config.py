@@ -9,6 +9,7 @@ import pytest
 
 from dataforge_ml.config import PipelineConfig, PipelinePhase, SemanticType
 from dataforge_ml.imputation import (
+    ColumnImputationDecision,
     ColumnImputationRecord,
     ImputationConfig,
     ImputationResult,
@@ -384,7 +385,11 @@ def test_imputation_config_default_add_indicator_columns_empty():
 def test_imputation_config_to_dict_contains_expected_keys():
     cfg = ImputationConfig()
     d = cfg.to_dict()
-    assert set(d.keys()) == {"numeric", "mnar_columns", "add_indicator_columns"}
+    assert set(d.keys()) == {
+        "numeric",
+        "mnar_columns",
+        "add_indicator_columns",
+    }
 
 
 def test_imputation_config_to_dict_numeric_is_nested_dict():
@@ -571,29 +576,20 @@ def test_pipeline_config_round_trip_empty_config_imputation_defaults():
 # ---------------------------------------------------------------------------
 
 
-def test_column_imputation_record_domain_snap_bounds_round_trips():
+def test_column_imputation_record_domain_snap_bounds_round_trips(round_trip):
     from dataforge_ml.imputation._fitted_imputer import FittedImputer
 
-    record = ColumnImputationRecord(
-        column="rating",
-        semantic_type=SemanticType.Numeric,
-        strategy=ImputationStrategy.Regression,
-        domain_snap_bounds=(1.0, 5.0),
-    )
+    record = ColumnImputationRecord(decision=ColumnImputationDecision(column="rating", semantic_type=SemanticType.Numeric, strategy=ImputationStrategy.Regression, domain_snap_bounds=(1.0, 5.0)))
     d = record.to_dict()
     assert d["domain_snap_bounds"] == [1.0, 5.0]
 
     fi = FittedImputer(records={"rating": record})
-    restored = FittedImputer.from_dict(fi.to_dict())
-    assert restored.records["rating"].domain_snap_bounds == (1.0, 5.0)
+    restored = round_trip(fi)
+    assert restored.records["rating"].decision.domain_snap_bounds == (1.0, 5.0)
 
 
 def test_column_imputation_record_domain_snap_bounds_none_by_default():
-    record = ColumnImputationRecord(
-        column="age",
-        semantic_type=SemanticType.Numeric,
-        strategy=ImputationStrategy.Mean,
-    )
+    record = ColumnImputationRecord(decision=ColumnImputationDecision(column="age", semantic_type=SemanticType.Numeric, strategy=ImputationStrategy.Mean))
     d = record.to_dict()
     assert d["domain_snap_bounds"] is None
 
@@ -756,45 +752,26 @@ def test_imputation_config_mnar_conflict_no_error_when_both_empty():
 
 
 def test_column_imputation_record_missing_domain_snap_bounds_deserialises_to_none():
-    from dataforge_ml.imputation._fitted_imputer import FittedImputer
-
-    legacy_dict = {
-        "records": {
-            "age": {
-                "column": "age",
-                "semantic_type": "numeric",
-                "strategy": "mean",
-                "fill_value": 30.0,
-                "indicator_added": False,
-                "signals": [],
-                # no domain_snap_bounds key — simulates an old serialised record
-            }
-        },
-        "models": {},
-        "model_cols": {},
-    }
-    fi = FittedImputer.from_dict(legacy_dict)
-    assert fi.records["age"].domain_snap_bounds is None
+    record = ColumnImputationRecord.from_dict({
+        "column": "age",
+        "semantic_type": "Numeric",
+        "strategy": "Mean",
+        "fill_value": 30.0,
+        "indicator_added": False,
+        "signals": [],
+        # no domain_snap_bounds key — a record serialised before the field existed
+    })
+    assert record.decision.domain_snap_bounds is None
 
 
 def test_column_imputation_record_carries_no_diagnostic_field():
     """Diagnostics moved to the Evaluation reports; records dropped the field (ADR-0058)."""
-    record = ColumnImputationRecord(
-        column="age",
-        semantic_type=SemanticType.Numeric,
-        strategy=ImputationStrategy.Mean,
-        fill_value=30.0,
-    )
+    record = ColumnImputationRecord(decision=ColumnImputationDecision(column="age", semantic_type=SemanticType.Numeric, strategy=ImputationStrategy.Mean), fill_value=30.0)
     assert not hasattr(record, "diagnostic")
 
 
 def test_column_imputation_record_to_dict_excludes_diagnostic_key():
-    record = ColumnImputationRecord(
-        column="age",
-        semantic_type=SemanticType.Numeric,
-        strategy=ImputationStrategy.Mean,
-        fill_value=30.0,
-    )
+    record = ColumnImputationRecord(decision=ColumnImputationDecision(column="age", semantic_type=SemanticType.Numeric, strategy=ImputationStrategy.Mean), fill_value=30.0)
     assert "diagnostic" not in record.to_dict()
 
 

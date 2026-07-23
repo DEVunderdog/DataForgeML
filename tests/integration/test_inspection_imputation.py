@@ -17,13 +17,14 @@ import pytest
 
 from dataforge_ml import (
     EvaluationOrchestrator,
-    ImputationOrchestrator,
     InspectionDiagnostic,
     InspectionReport,
     PipelineConfig,
     StructuralProfiler,
 )
 from dataforge_ml.profiling._config import ProfileConfig
+
+from tests.conftest import fit_imputer
 
 
 # ---------------------------------------------------------------------------
@@ -73,7 +74,7 @@ def inspect_setup():
     config.imputation.numeric.set_per_column_strategy("med", "median")
 
     profile = StructuralProfiler(config).profile(df)
-    fitted = ImputationOrchestrator(config).fit(df, profile)
+    fitted = fit_imputer(df, profile, config)
     return config, df, fitted
 
 

@@ -1,37 +1,31 @@
 """Thread-based concurrent fitting under the independence rule (#326 / ADR-0056).
 
-Drives the highest available seam — ``ImputationOrchestrator.fit()`` — and asserts
-on externally observable behaviour: a concurrent fit is result-identical to a
-forced-sequential one on the same seed, the concurrency knob is honoured, and
-Substep progress still reaches the observer while work runs in parallel.
+Batch scheduling is user-owned (ADR-0075), so these tests drive the loop the
+user actually holds: a hand-rolled ``ThreadPoolExecutor`` of
+``fit_unit(..., n_jobs_inner=1)`` calls against a plain sequential
+``fit_unit(..., n_jobs_inner=-1)`` drive.  The assertions stay external — the
+two schedules must produce bit-identical results (ADR-0069), and the inner
+``n_jobs`` knob must never reach the numbers.
 """
 
 from __future__ import annotations
+
+from concurrent.futures import ThreadPoolExecutor
 
 import polars as pl
 import pytest
 from polars.testing import assert_frame_equal
 
 from dataforge_ml import (
-    EventType,
-    ImputationOrchestrator,
+    FittedImputer,
     ImputationStrategy,
     PipelineConfig,
-    PipelineEvent,
     StructuralProfiler,
+    fit_unit,
 )
-from dataforge_ml.imputation import ImputationConfig, NumericImputationConfig
+from dataforge_ml.imputation import ImputationConfig, ModelChoice, NumericImputationConfig
+from dataforge_ml.imputation._decision_assembler import decide
 from dataforge_ml.profiling._config import ProfileConfig
-
-
-class _Recorder:
-    """Progress Observer that records every event it receives, in order."""
-
-    def __init__(self) -> None:
-        self.events: list[PipelineEvent] = []
-
-    def __call__(self, event: PipelineEvent) -> None:
-        self.events.append(event)
 
 
 # ---------------------------------------------------------------------------
@@ -43,6 +37,7 @@ class _Recorder:
 
 @pytest.fixture(scope="module")
 def wide_df(rng):
+    rng = rng(seed=45)
     n = 300
     base = rng.normal(0.0, 1.0, n)
     cols = {}
@@ -60,7 +55,7 @@ def wide_profile(wide_df):
     return StructuralProfiler(PipelineConfig(profiling=ProfileConfig())).profile(wide_df)
 
 
-def _mixed_config(max_workers) -> PipelineConfig:
+def _mixed_config() -> PipelineConfig:
     """Force a joint MICE block and three per-column Regression fits.
 
     Yields four mutually-independent units of work so both kinds of concurrency
@@ -68,7 +63,6 @@ def _mixed_config(max_workers) -> PipelineConfig:
     """
     numeric = NumericImputationConfig(
         regression_min_rows=10,
-        max_workers=max_workers,
         _per_column_strategy={
             "a": ImputationStrategy.MICE,
             "b": ImputationStrategy.MICE,
@@ -84,23 +78,61 @@ def _mixed_config(max_workers) -> PipelineConfig:
 
 
 # ---------------------------------------------------------------------------
-# Result identity: concurrent vs forced-sequential on the same seed
+# The two user-owned schedules under comparison (ADR-0075)
 # ---------------------------------------------------------------------------
 
 
-def test_concurrent_fit_is_result_identical_to_sequential(wide_df, wide_profile):
-    fitted_seq = ImputationOrchestrator(_mixed_config(max_workers=1)).fit(
-        wide_df, wide_profile
+def _fit_sequential(plan, df, random_seed):
+    """Fit units back to back, each opening its inner parallelism to every core."""
+    return {
+        unit.unit_id: fit_unit(
+            plan, unit.unit_id, df, random_seed=random_seed, n_jobs_inner=-1
+        )
+        for unit in plan.units
+    }
+
+
+def _fit_pooled(plan, df, random_seed, max_workers=None):
+    """Fit units side by side, each inner estimator pinned to a single core."""
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = {
+            unit.unit_id: pool.submit(
+                fit_unit,
+                plan,
+                unit.unit_id,
+                df,
+                random_seed=random_seed,
+                n_jobs_inner=1,
+            )
+            for unit in plan.units
+        }
+        return {uid: future.result() for uid, future in futures.items()}
+
+
+def _mixed_plan(profile):
+    config = _mixed_config()
+    return decide(profile, profile.dataset.row_count, config), config
+
+
+# ---------------------------------------------------------------------------
+# Result identity: pooled vs sequential drives on the same seed
+# ---------------------------------------------------------------------------
+
+
+def test_pooled_fit_is_result_identical_to_sequential(wide_df, wide_profile):
+    plan, config = _mixed_plan(wide_profile)
+    fitted_seq = FittedImputer.compose(
+        plan, _fit_sequential(plan, wide_df, config.random_seed)
     )
-    fitted_par = ImputationOrchestrator(_mixed_config(max_workers=4)).fit(
-        wide_df, wide_profile
+    fitted_par = FittedImputer.compose(
+        plan, _fit_pooled(plan, wide_df, config.random_seed, max_workers=4)
     )
 
     # Same strategy and scalar fill for every column.
     assert set(fitted_seq.records) == set(fitted_par.records)
     for col, rec_seq in fitted_seq.records.items():
         rec_par = fitted_par.records[col]
-        assert rec_seq.strategy == rec_par.strategy
+        assert rec_seq.decision.strategy == rec_par.decision.strategy
         assert rec_seq.fill_value == rec_par.fill_value
 
     # Same fitted models: transforming the same frame yields identical output
@@ -110,14 +142,15 @@ def test_concurrent_fit_is_result_identical_to_sequential(wide_df, wide_profile)
     assert_frame_equal(out_seq, out_par)
 
 
-def test_concurrent_fit_matches_default_auto_sized(wide_df, wide_profile):
-    # The default (max_workers=None) auto-sizes to the CPU count; its result must
-    # still match a forced-sequential fit on the same seed.
-    fitted_seq = ImputationOrchestrator(_mixed_config(max_workers=1)).fit(
-        wide_df, wide_profile
+def test_pooled_fit_matches_default_sized_pool(wide_df, wide_profile):
+    # A pool left to size itself (max_workers=None) must still match a
+    # forced-sequential drive on the same seed.
+    plan, config = _mixed_plan(wide_profile)
+    fitted_seq = FittedImputer.compose(
+        plan, _fit_sequential(plan, wide_df, config.random_seed)
     )
-    fitted_auto = ImputationOrchestrator(_mixed_config(max_workers=None)).fit(
-        wide_df, wide_profile
+    fitted_auto = FittedImputer.compose(
+        plan, _fit_pooled(plan, wide_df, config.random_seed, max_workers=None)
     )
     assert_frame_equal(
         fitted_seq.transform(wide_df).dataframe,
@@ -126,40 +159,67 @@ def test_concurrent_fit_matches_default_auto_sized(wide_df, wide_profile):
 
 
 # ---------------------------------------------------------------------------
-# The observer stays reachable during concurrent fitting
+# The RandomForest path: the schedule must not reach the result (ADR-0069)
+#
+# ADR-0067 recorded that the inner ``n_jobs`` derivation contradicts ADR-0056's
+# determinism promise wherever a column routes to RandomForest, and that no test
+# exercised that path -- which is why it survived.  These tests are that path.
+# The route is forced through the plan rather than coaxed out of the profiler
+# with monotone-nonlinear data, so the estimator under test is pinned by the
+# assertion rather than by a tag inference that a later scope could move.
 # ---------------------------------------------------------------------------
 
 
-def test_substeps_still_emit_during_concurrent_fit(wide_df, wide_profile):
-    recorder = _Recorder()
-    ImputationOrchestrator(_mixed_config(max_workers=4), observer=recorder).fit(
-        wide_df, wide_profile
+def _forest_plan(profile):
+    """A plan with every unit routed to RandomForest."""
+    plan, config = _mixed_plan(profile)
+    for col in ("a", "b", "c", "d", "e"):
+        plan = plan.with_model_choice(col, ModelChoice.RandomForestRegressor)
+    return plan, config
+
+
+def test_forest_fit_is_bit_identical_across_schedules(wide_df, wide_profile):
+    """The schedule picks which layer spends the cores, not what the numbers are.
+
+    The sequential drive fits units back-to-back with wide inner parallelism;
+    the pooled drive fits them side by side with each estimator pinned to one
+    core.  A RandomForest's trees are invariant across that switch and its
+    predictions are made core-invariant (ADR-0069), so the two runs must agree
+    exactly -- not merely to a tolerance, which is the assertion that would have
+    passed against the ~1e-15 drift this guards.
+    """
+    plan, config = _forest_plan(wide_profile)
+    serial = FittedImputer.compose(
+        plan, _fit_sequential(plan, wide_df, config.random_seed)
+    )
+    parallel = FittedImputer.compose(
+        plan, _fit_pooled(plan, wide_df, config.random_seed, max_workers=4)
     )
 
-    substeps = [e for e in recorder.events if e.event_type == EventType.substep]
-    assert substeps, "no substep events emitted during the concurrent fit"
-    assert all(e.phase == "imputation" for e in substeps)
-    assert all(e.stage == "column_fitting" for e in substeps)
-
-
-def test_items_are_monotonic_and_complete_under_concurrency(wide_df, wide_profile):
-    # Even when units fit in parallel, the coarse "k of N" bar stays honest:
-    # exactly one item per fitted column, contiguous 1..N index, stable total.
-    recorder = _Recorder()
-    ImputationOrchestrator(_mixed_config(max_workers=4), observer=recorder).fit(
-        wide_df, wide_profile
+    assert_frame_equal(
+        serial.transform(wide_df).dataframe,
+        parallel.transform(wide_df).dataframe,
+        check_exact=True,
     )
 
-    items = [
-        e
-        for e in recorder.events
-        if e.event_type == EventType.item and e.stage == "column_fitting"
-    ]
-    assert {e.column for e in items} == {"a", "b", "c", "d", "e"}
-    total = items[0].total
-    assert total == len(items) == 5
-    assert sorted(e.index for e in items) == list(range(1, 6))
-    assert all(e.total == total for e in items)
+
+def test_forest_transform_is_stable_against_itself(wide_df, wide_profile):
+    """A fitted forest must settle: the same model on the same frame twice.
+
+    Distinct from the test above, and the sharper half of the defect.  A bare
+    ``RandomForestRegressor`` carrying ``n_jobs=-1`` accumulates its trees in
+    thread-completion order on *every* predict, so repeated transforms of one
+    fitted artifact disagree with each other -- reachable from a plain
+    sequential drive, without the user pooling anything at all.
+    """
+    plan, config = _forest_plan(wide_profile)
+    fitted = FittedImputer.compose(
+        plan, _fit_sequential(plan, wide_df, config.random_seed)
+    )
+
+    first = fitted.transform(wide_df).dataframe
+    for _ in range(3):
+        assert_frame_equal(first, fitted.transform(wide_df).dataframe, check_exact=True)
 
 
 # ---------------------------------------------------------------------------

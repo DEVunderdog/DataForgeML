@@ -31,7 +31,6 @@ from ._categorical_config import (
 )
 from ._numeric_config import (
     NonlinearityTag,
-    NumericFlag,
     NumericStats,
     NumericProfileConfig,
     NonlinearityProfileConfig,
@@ -239,6 +238,61 @@ class ColumnProfile:
             "stats": self.stats.to_dict() if self.stats else None,
         }
 
+    @classmethod
+    def from_dict(cls, data: dict) -> "ColumnProfile":
+        """
+        Reconstruct a ``ColumnProfile`` from a plain dictionary.
+
+        ``stats`` is dispatched to the correct stats subtype (``NumericStats``,
+        ``CategoricalStats``, ``DatetimeStats``, ``BooleanStats``, or
+        ``TextStats``) using ``semantic_type`` as the discriminator, matching
+        the dispatch the profiler orchestrator itself uses.
+
+        Parameters
+        ----------
+        data : dict
+            Mapping produced by :meth:`to_dict`.
+
+        Returns
+        -------
+        ColumnProfile
+            Reconstructed column profile instance.
+        """
+        raw_semantic_type = data.get("semantic_type")
+        semantic_type = (
+            SemanticType(raw_semantic_type) if raw_semantic_type else None
+        )
+        raw_numeric_kind = data.get("numeric_kind")
+        raw_stats = data.get("stats")
+        stats: Optional[AnyStats] = None
+        if raw_stats is not None:
+            stats_by_type = {
+                SemanticType.Numeric: NumericStats,
+                SemanticType.Categorical: CategoricalStats,
+                SemanticType.Datetime: DatetimeStats,
+                SemanticType.Boolean: BooleanStats,
+                SemanticType.Text: TextStats,
+            }
+            stats_cls = stats_by_type.get(semantic_type)
+            if stats_cls is not None:
+                stats = stats_cls.from_dict(raw_stats)
+        raw_missingness = data.get("missingness")
+        return cls(
+            name=data.get("name", ""),
+            semantic_type=semantic_type,
+            numeric_kind=NumericKind(raw_numeric_kind) if raw_numeric_kind else None,
+            type_flags=[TypeFlag(f) for f in data.get("type_flags", [])],
+            original_dtype=data.get("original_dtype", ""),
+            inferred_dtype=data.get("inferred_dtype", ""),
+            missingness=(
+                ColumnMissingnessProfile.from_dict(raw_missingness)
+                if raw_missingness
+                else None
+            ),
+            is_target=data.get("is_target", False),
+            stats=stats,
+        )
+
 
 
 @dataclass
@@ -254,6 +308,10 @@ class MemoryBreakdown:
 
     def to_dict(self) -> dict:
         return {"column_bytes": dict(self.column_bytes)}
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "MemoryBreakdown":
+        return cls(column_bytes=dict(data.get("column_bytes", {})))
 
 
 @dataclass
@@ -312,6 +370,52 @@ class DatasetStats:
             "target_correlations": {k: v.to_dict() for k, v in self.target_correlations.items()},
         }
 
+    @classmethod
+    def from_dict(cls, data: dict) -> "DatasetStats":
+        """
+        Reconstruct the dataset stats from a plain dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            Mapping produced by :meth:`to_dict`.
+
+        Returns
+        -------
+        DatasetStats
+            Reconstructed instance.
+        """
+        raw_memory_breakdown = data.get("memory_breakdown")
+        raw_feature_correlation = data.get("feature_correlation")
+        return cls(
+            modality=Modality(data.get("modality", Modality.Tabular)),
+            row_count=data.get("row_count", 0),
+            column_count=data.get("column_count", 0),
+            memory_bytes=data.get("memory_bytes", 0),
+            memory_breakdown=(
+                MemoryBreakdown.from_dict(raw_memory_breakdown)
+                if raw_memory_breakdown
+                else None
+            ),
+            duplicate_count=data.get("duplicate_count", 0),
+            duplicate_ratio=data.get("duplicate_ratio", 0.0),
+            overall_sparsity=data.get("overall_sparsity", 0.0),
+            was_chunked=data.get("was_chunked", False),
+            missingness_matrix=data.get("missingness_matrix"),
+            row_distribution=RowMissingnessDistribution.from_dict(
+                data.get("row_distribution", {})
+            ),
+            feature_correlation=(
+                CorrelationProfileResult.from_dict(raw_feature_correlation)
+                if raw_feature_correlation
+                else None
+            ),
+            target_correlations={
+                k: CorrelationProfileResult.from_dict(v)
+                for k, v in data.get("target_correlations", {}).items()
+            },
+        )
+
 
 @dataclass
 class StructuralProfileResult:
@@ -347,6 +451,43 @@ class StructuralProfileResult:
             "numeric_sentinels": dict(self.numeric_sentinels),
             "string_sentinels": {k: list(v) for k, v in self.string_sentinels.items()},
         }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "StructuralProfileResult":
+        """
+        Reconstruct a ``StructuralProfileResult`` from a plain dictionary.
+
+        The inverse of :meth:`to_dict`, rebuilding every nested column,
+        dataset, and target profile so ``from_dict(result.to_dict())`` is
+        structurally equal to ``result``.
+
+        Parameters
+        ----------
+        data : dict
+            Mapping produced by :meth:`to_dict`.
+
+        Returns
+        -------
+        StructuralProfileResult
+            Reconstructed profiling result.
+        """
+        return cls(
+            columns={
+                k: ColumnProfile.from_dict(v)
+                for k, v in data.get("columns", {}).items()
+            },
+            dataset=DatasetStats.from_dict(data.get("dataset", {})),
+            targets={
+                k: TargetProfileResult.from_dict(v)
+                for k, v in data.get("targets", {}).items()
+            },
+            numeric_sentinels={
+                k: list(v) for k, v in data.get("numeric_sentinels", {}).items()
+            },
+            string_sentinels={
+                k: list(v) for k, v in data.get("string_sentinels", {}).items()
+            },
+        )
 
     def to_json(self, indent: int = 2) -> str:
         """

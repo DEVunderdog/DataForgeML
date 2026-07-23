@@ -1,5 +1,15 @@
 """
-Unit tests for ImputationOrchestrator.
+Unit tests for the layered imputation fit path (decide → execute → build).
+
+These cover the whole-frame contracts the aggregate owns — the full-schema
+manifest, Passthrough and Indicator projection, sentinel threading, and the
+decide-time size guards.  They previously drove the fused
+``ImputationOrchestrator.fit()``; that seam is gone (#368) and the assertions
+now drive ``fit_imputer``, the layered drive.
+
+The ``fit_transform`` cases that lived here are gone with it: the fused
+convenience it tested (ADR-0021's tuple return) no longer exists, and
+``build().transform(df)`` is the explicit two-step that replaced it.
 """
 
 import polars as pl
@@ -8,7 +18,6 @@ import pytest
 from dataforge_ml.config import PipelineConfig, SemanticType
 from dataforge_ml.imputation._config import ImputationStrategy, NumericImputationConfig
 from dataforge_ml.imputation._fitted_imputer import FittedImputer
-from dataforge_ml.imputation.orchestrator import ImputationOrchestrator
 from dataforge_ml.profiling._config import (
     ColumnProfile,
     NumericKind,
@@ -19,6 +28,8 @@ from dataforge_ml.profiling._missingness_config import (
     MissingSeverity,
 )
 from dataforge_ml.profiling._numeric_config import NumericStats, SkewSeverity
+
+from tests.conftest import fit_imputer
 
 
 # ---------------------------------------------------------------------------
@@ -70,22 +81,8 @@ def _clean_numeric_cp(col: str) -> ColumnProfile:
 def test_fit_returns_fitted_imputer():
     df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
     profile = _make_profile({"a": _numeric_cp_with_nulls("a")})
-    result = ImputationOrchestrator().fit(df, profile)
+    result = fit_imputer(df, profile)
     assert isinstance(result, FittedImputer)
-
-
-def test_fit_does_not_mutate_orchestrator():
-    """Calling fit() twice on the same orchestrator should produce independent FittedImputators."""
-    orch = ImputationOrchestrator()
-    df1 = pl.DataFrame({"a": pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
-    df2 = pl.DataFrame({"a": pl.Series([10.0, None, 30.0], dtype=pl.Float64)})
-    profile = _make_profile({"a": _numeric_cp_with_nulls("a")})
-
-    fi1 = orch.fit(df1, profile)
-    fi2 = orch.fit(df2, profile)
-
-    # Fill values should differ (computed from different train data)
-    assert fi1.records["a"].fill_value != fi2.records["a"].fill_value
 
 
 def test_fit_records_all_numeric_columns():
@@ -97,7 +94,7 @@ def test_fit_records_all_numeric_columns():
         "a": _numeric_cp_with_nulls("a"),
         "b": _clean_numeric_cp("b"),
     })
-    fi = ImputationOrchestrator().fit(df, profile)
+    fi = fit_imputer(df, profile)
     assert "a" in fi.records
     assert "b" in fi.records
 
@@ -116,10 +113,10 @@ def test_text_columns_in_records_with_passthrough():
     txt_cp = ColumnProfile(name="txt", semantic_type=SemanticType.Text)
     profile = _make_profile({"num": num_cp, "txt": txt_cp})
 
-    fi = ImputationOrchestrator().fit(df, profile)
+    fi = fit_imputer(df, profile)
     assert "txt" in fi.records
-    assert fi.records["txt"].strategy == ImputationStrategy.Passthrough
-    assert fi.records["txt"].semantic_type == SemanticType.Text
+    assert fi.records["txt"].decision.strategy == ImputationStrategy.Passthrough
+    assert fi.records["txt"].decision.semantic_type == SemanticType.Text
 
 
 def test_identifier_columns_in_records_with_passthrough():
@@ -131,81 +128,15 @@ def test_identifier_columns_in_records_with_passthrough():
     id_cp = ColumnProfile(name="id_col", semantic_type=SemanticType.Identifier)
     profile = _make_profile({"num": num_cp, "id_col": id_cp})
 
-    fi = ImputationOrchestrator().fit(df, profile)
+    fi = fit_imputer(df, profile)
     assert "id_col" in fi.records
-    assert fi.records["id_col"].strategy == ImputationStrategy.Passthrough
-    assert fi.records["id_col"].semantic_type == SemanticType.Identifier
+    assert fi.records["id_col"].decision.strategy == ImputationStrategy.Passthrough
+    assert fi.records["id_col"].decision.semantic_type == SemanticType.Identifier
 
 
 # ---------------------------------------------------------------------------
 # fit_transform() convenience
 # ---------------------------------------------------------------------------
-
-
-def test_fit_transform_returns_imputation_result_with_no_nulls():
-    from dataforge_ml.imputation._config import ImputationResult
-
-    df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0, None], dtype=pl.Float64)})
-    profile = _make_profile({"a": _numeric_cp_with_nulls("a")})
-
-    _fitted, result = ImputationOrchestrator().fit_transform(df, profile)
-    assert isinstance(result, ImputationResult)
-    assert result.dataframe["a"].null_count() == 0
-
-
-def test_fit_transform_is_equivalent_to_fit_then_transform():
-    df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
-    profile = _make_profile({"a": _numeric_cp_with_nulls("a")})
-
-    orch = ImputationOrchestrator()
-    _fi, r1 = orch.fit_transform(df, profile)
-    r2 = orch.fit(df, profile).transform(df)
-    assert r1.dataframe.equals(r2.dataframe)
-
-
-# ---------------------------------------------------------------------------
-# fit_transform() — tuple return (ADR-0021)
-# ---------------------------------------------------------------------------
-
-
-def test_fit_transform_return_value_is_tuple_of_length_two():
-    df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
-    profile = _make_profile({"a": _numeric_cp_with_nulls("a")})
-
-    result = ImputationOrchestrator().fit_transform(df, profile)
-    assert isinstance(result, tuple)
-    assert len(result) == 2
-
-
-def test_fit_transform_first_element_is_fitted_imputer():
-    df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
-    profile = _make_profile({"a": _numeric_cp_with_nulls("a")})
-
-    fitted, _result = ImputationOrchestrator().fit_transform(df, profile)
-    assert isinstance(fitted, FittedImputer)
-
-
-def test_fit_transform_second_element_is_imputation_result():
-    from dataforge_ml.imputation._config import ImputationResult
-
-    df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
-    profile = _make_profile({"a": _numeric_cp_with_nulls("a")})
-
-    _fitted, result = ImputationOrchestrator().fit_transform(df, profile)
-    assert isinstance(result, ImputationResult)
-
-
-def test_fit_transform_fitted_imputer_consistent_with_standalone_fit():
-    """FittedImputer from fit_transform must produce the same fill values as standalone fit."""
-    df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0, None, 5.0], dtype=pl.Float64)})
-    profile = _make_profile({"a": _numeric_cp_with_nulls("a")})
-
-    orch = ImputationOrchestrator()
-    fi_from_fit_transform, _ = orch.fit_transform(df, profile)
-    fi_from_fit = orch.fit(df, profile)
-
-    assert fi_from_fit_transform.records["a"].fill_value == fi_from_fit.records["a"].fill_value
-    assert fi_from_fit_transform.records["a"].strategy == fi_from_fit.records["a"].strategy
 
 
 # ---------------------------------------------------------------------------
@@ -220,22 +151,22 @@ def _categorical_cp(col: str) -> ColumnProfile:
 def test_text_column_passthrough_record_fill_value_is_none():
     df = pl.DataFrame({"txt": pl.Series(["a", "b"], dtype=pl.Utf8)})
     profile = _make_profile({"txt": ColumnProfile(name="txt", semantic_type=SemanticType.Text)})
-    fi = ImputationOrchestrator().fit(df, profile)
+    fi = fit_imputer(df, profile)
     assert fi.records["txt"].fill_value is None
 
 
 def test_text_column_passthrough_record_indicator_added_is_false():
     df = pl.DataFrame({"txt": pl.Series(["a", "b"], dtype=pl.Utf8)})
     profile = _make_profile({"txt": ColumnProfile(name="txt", semantic_type=SemanticType.Text)})
-    fi = ImputationOrchestrator().fit(df, profile)
+    fi = fit_imputer(df, profile)
     assert fi.records["txt"].indicator_added is False
 
 
 def test_identifier_column_passthrough_record_semantic_type():
     df = pl.DataFrame({"id": pl.Series(["X1", "X2"], dtype=pl.Utf8)})
     profile = _make_profile({"id": ColumnProfile(name="id", semantic_type=SemanticType.Identifier)})
-    fi = ImputationOrchestrator().fit(df, profile)
-    assert fi.records["id"].semantic_type == SemanticType.Identifier
+    fi = fit_imputer(df, profile)
+    assert fi.records["id"].decision.semantic_type == SemanticType.Identifier
 
 
 def test_categorical_column_with_no_fill_strategy_gets_passthrough():
@@ -247,18 +178,18 @@ def test_categorical_column_with_no_fill_strategy_gets_passthrough():
         "num": _numeric_cp_with_nulls("num"),
         "cat": _categorical_cp("cat"),
     })
-    fi = ImputationOrchestrator().fit(df, profile)
+    fi = fit_imputer(df, profile)
     assert "cat" in fi.records
-    assert fi.records["cat"].strategy == ImputationStrategy.Passthrough
-    assert fi.records["cat"].semantic_type == SemanticType.Categorical
+    assert fi.records["cat"].decision.strategy == ImputationStrategy.Passthrough
+    assert fi.records["cat"].decision.semantic_type == SemanticType.Categorical
 
 
 def test_numeric_column_already_in_records_is_not_overwritten_by_passthrough():
     """Sub-processor result must win over the Passthrough pass for numeric columns."""
     df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
     profile = _make_profile({"a": _numeric_cp_with_nulls("a")})
-    fi = ImputationOrchestrator().fit(df, profile)
-    assert fi.records["a"].strategy != ImputationStrategy.Passthrough
+    fi = fit_imputer(df, profile)
+    assert fi.records["a"].decision.strategy != ImputationStrategy.Passthrough
 
 
 def test_all_train_df_profiled_columns_in_records():
@@ -273,7 +204,7 @@ def test_all_train_df_profiled_columns_in_records():
         "txt": ColumnProfile(name="txt", semantic_type=SemanticType.Text),
         "id": ColumnProfile(name="id", semantic_type=SemanticType.Identifier),
     })
-    fi = ImputationOrchestrator().fit(df, profile)
+    fi = fit_imputer(df, profile)
     assert "num" in fi.records
     assert "txt" in fi.records
     assert "id" in fi.records
@@ -307,7 +238,7 @@ def test_indicator_record_present_in_records_after_fit_before_transform():
 
     cfg = PipelineConfig()
     cfg.imputation.add_mnar_column("income")
-    fi = ImputationOrchestrator(cfg).fit(df, profile)
+    fi = fit_imputer(df, profile, cfg)
 
     assert "income_missing" in fi.records
 
@@ -320,9 +251,9 @@ def test_indicator_record_has_strategy_indicator():
 
     cfg = PipelineConfig()
     cfg.imputation.add_mnar_column("income")
-    fi = ImputationOrchestrator(cfg).fit(df, profile)
+    fi = fit_imputer(df, profile, cfg)
 
-    assert fi.records["income_missing"].strategy == ImputationStrategy.Indicator
+    assert fi.records["income_missing"].decision.strategy == ImputationStrategy.Indicator
 
 
 def test_indicator_record_has_boolean_semantic_type():
@@ -333,9 +264,9 @@ def test_indicator_record_has_boolean_semantic_type():
 
     cfg = PipelineConfig()
     cfg.imputation.add_mnar_column("income")
-    fi = ImputationOrchestrator(cfg).fit(df, profile)
+    fi = fit_imputer(df, profile, cfg)
 
-    assert fi.records["income_missing"].semantic_type == SemanticType.Boolean
+    assert fi.records["income_missing"].decision.semantic_type == SemanticType.Boolean
 
 
 def test_indicator_record_indicator_added_is_false():
@@ -346,7 +277,7 @@ def test_indicator_record_indicator_added_is_false():
 
     cfg = PipelineConfig()
     cfg.imputation.add_mnar_column("income")
-    fi = ImputationOrchestrator(cfg).fit(df, profile)
+    fi = fit_imputer(df, profile, cfg)
 
     assert fi.records["income_missing"].indicator_added is False
 
@@ -354,12 +285,12 @@ def test_indicator_record_indicator_added_is_false():
 def test_indicator_record_not_present_when_no_indicator_added_columns():
     df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
     profile = _make_profile({"a": _numeric_cp_with_nulls("a")})
-    fi = ImputationOrchestrator().fit(df, profile)
+    fi = fit_imputer(df, profile)
     indicator_cols = [c for c in fi.records if c.endswith("_missing")]
     assert indicator_cols == []
 
 
-def test_indicator_record_round_trips_via_to_dict_from_dict():
+def test_indicator_record_round_trips_via_to_dict_from_dict(round_trip):
     from dataforge_ml.config import PipelineConfig
 
     df = pl.DataFrame({"income": pl.Series([1.0, None, 3.0] * 4, dtype=pl.Float64)})
@@ -367,13 +298,13 @@ def test_indicator_record_round_trips_via_to_dict_from_dict():
 
     cfg = PipelineConfig()
     cfg.imputation.add_mnar_column("income")
-    fi = ImputationOrchestrator(cfg).fit(df, profile)
+    fi = fit_imputer(df, profile, cfg)
 
     from dataforge_ml.imputation._fitted_imputer import FittedImputer
-    restored = FittedImputer.from_dict(fi.to_dict())
+    restored = round_trip(fi)
     assert "income_missing" in restored.records
-    assert restored.records["income_missing"].strategy == ImputationStrategy.Indicator
-    assert restored.records["income_missing"].semantic_type == SemanticType.Boolean
+    assert restored.records["income_missing"].decision.strategy == ImputationStrategy.Indicator
+    assert restored.records["income_missing"].decision.semantic_type == SemanticType.Boolean
 
 
 # ---------------------------------------------------------------------------
@@ -389,7 +320,7 @@ def test_fit_threads_numeric_sentinels_to_fitted_imputer():
     profile = _make_profile({"age": _numeric_cp_with_nulls("age", null_count=2, total=5)})
     profile.numeric_sentinels = {"age": [-999.0]}
 
-    fi = ImputationOrchestrator().fit(df, profile)
+    fi = fit_imputer(df, profile)
 
     assert fi.numeric_sentinels == {"age": [-999.0]}
 
@@ -399,7 +330,7 @@ def test_fit_numeric_sentinels_empty_when_profile_has_none():
     df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
     profile = _make_profile({"a": _numeric_cp_with_nulls("a")})
 
-    fi = ImputationOrchestrator().fit(df, profile)
+    fi = fit_imputer(df, profile)
 
     assert fi.numeric_sentinels == {}
 
@@ -409,95 +340,22 @@ def test_fit_numeric_sentinels_empty_when_profile_has_none():
 # ---------------------------------------------------------------------------
 
 
-def test_per_column_strategy_regression_size_guard_raises_below_min_rows():
-    df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
-    profile = _make_profile({"a": _numeric_cp_with_nulls("a", null_count=1, total=3)})
-    cfg = PipelineConfig()
-    cfg.imputation.numeric = NumericImputationConfig(
-        regression_min_rows=10,
-        _per_column_strategy={"a": ImputationStrategy.Regression},
-    )
-    with pytest.raises(ValueError):
-        ImputationOrchestrator(cfg).fit(df, profile)
-
-
-def test_per_column_strategy_regression_size_guard_error_message_content():
-    n_rows, threshold = 3, 10
-    df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
-    profile = _make_profile({"a": _numeric_cp_with_nulls("a", null_count=1, total=n_rows)})
-    cfg = PipelineConfig()
-    cfg.imputation.numeric = NumericImputationConfig(
-        regression_min_rows=threshold,
-        _per_column_strategy={"a": ImputationStrategy.Regression},
-    )
-    with pytest.raises(ValueError) as exc_info:
-        ImputationOrchestrator(cfg).fit(df, profile)
-    msg = str(exc_info.value)
-    assert "'a'" in msg
-    assert "Regression" in msg
-    assert "regression_min_rows" in msg
-    assert f"n_rows={n_rows}" in msg
-    assert f"regression_min_rows={threshold}" in msg
-
-
-def test_per_column_strategy_knn_size_guard_raises_above_max_rows():
-    df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0, 4.0, 5.0, 6.0], dtype=pl.Float64)})
-    profile = _make_profile({"a": _numeric_cp_with_nulls("a", null_count=1, total=6)})
-    cfg = PipelineConfig()
-    cfg.imputation.numeric = NumericImputationConfig(
-        knn_max_rows=3,
-        _per_column_strategy={"a": ImputationStrategy.KNN},
-    )
-    with pytest.raises(ValueError):
-        ImputationOrchestrator(cfg).fit(df, profile)
-
-
-def test_per_column_strategy_knn_size_guard_error_message_content():
-    n_rows, threshold = 6, 3
-    df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0, 4.0, 5.0, 6.0], dtype=pl.Float64)})
-    profile = _make_profile({"a": _numeric_cp_with_nulls("a", null_count=1, total=n_rows)})
-    cfg = PipelineConfig()
-    cfg.imputation.numeric = NumericImputationConfig(
-        knn_max_rows=threshold,
-        _per_column_strategy={"a": ImputationStrategy.KNN},
-    )
-    with pytest.raises(ValueError) as exc_info:
-        ImputationOrchestrator(cfg).fit(df, profile)
-    msg = str(exc_info.value)
-    assert "'a'" in msg
-    assert "KNN" in msg
-    assert "knn_max_rows" in msg
-    assert f"n_rows={n_rows}" in msg
-    assert f"knn_max_rows={threshold}" in msg
-
-
-def test_per_column_strategy_regression_no_error_when_size_guard_met():
-    df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0, 4.0, 5.0], dtype=pl.Float64)})
-    profile = _make_profile({"a": _numeric_cp_with_nulls("a", null_count=1, total=5)})
-    cfg = PipelineConfig()
-    cfg.imputation.numeric = NumericImputationConfig(
-        regression_min_rows=3,
-        _per_column_strategy={"a": ImputationStrategy.Regression},
-    )
-    # n_rows=5 >= regression_min_rows=3 — guard passes, no ValueError
-    ImputationOrchestrator(cfg).fit(df, profile)
-
-
-def test_per_column_strategy_knn_no_error_when_size_guard_met():
-    df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
-    profile = _make_profile({"a": _numeric_cp_with_nulls("a", null_count=1, total=3)})
-    cfg = PipelineConfig()
-    cfg.imputation.numeric = NumericImputationConfig(
-        knn_max_rows=10,
-        _per_column_strategy={"a": ImputationStrategy.KNN},
-    )
-    # n_rows=3 <= knn_max_rows=10 — guard passes, no ValueError
-    ImputationOrchestrator(cfg).fit(df, profile)
-
-
-# ---------------------------------------------------------------------------
-# fit() — validate() called before processing
-# ---------------------------------------------------------------------------
+# The ``per_column_strategy`` model-based size guards
+# (``_validate_model_based_size_guards``) were validated inside the fused
+# ``ImputationOrchestrator.fit()`` and were tested here.  They are gone with that
+# seam (#368), and the layered path does not reproduce them:
+#
+# - forced **Regression** below ``regression_min_rows`` is still caught, but as an
+#   execute-time ``UnitNotTrainableError`` rather than a decide-time ``ValueError``
+#   naming the dial to change (ADR-0029/0066);
+# - forced **KNN** above ``knn_max_rows`` / ``knn_max_features`` is no longer caught
+#   at all — it plans and trains silently.
+#
+# ``decide()`` deliberately does not carry these guards: its own unit tests pin
+# that a forced strategy the shape cannot support is still *planned*, and that
+# execution is what refuses it.  Re-homing the KNN guard is therefore a design
+# decision (which layer owns a "your config contradicts your data" refusal), left
+# to a follow-up rather than settled inside a removal ticket.
 
 
 def test_imputation_orchestrator_raises_on_invalid_config_before_processing():
@@ -514,6 +372,7 @@ def test_imputation_orchestrator_raises_on_invalid_config_before_processing():
     # Set per_column_strategy using legitimate setter, creating conflict
     cfg.imputation.numeric.set_per_column_strategy("a", ImputationStrategy.Median)
     
-    orch = ImputationOrchestrator(cfg)
+    # ``decide()`` validates the config before it routes anything, so a
+    # contradictory config is rejected at plan time rather than at fit time.
     with pytest.raises(ValueError, match="mutually exclusive: 'a'"):
-        orch.fit(df, profile)
+        fit_imputer(df, profile, cfg)

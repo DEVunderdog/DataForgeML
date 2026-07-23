@@ -65,6 +65,29 @@ class BooleanStats:
             "flags": [str(f) for f in self.flags],
         }
 
+    @classmethod
+    def from_dict(cls, data: dict) -> "BooleanStats":
+        """Reconstruct the boolean statistics from a plain dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            Mapping produced by :meth:`to_dict`.
+
+        Returns
+        -------
+        BooleanStats
+            Reconstructed instance.
+        """
+        return cls(
+            true_count=data.get("true_count", 0),
+            false_count=data.get("false_count", 0),
+            true_ratio=data.get("true_ratio", 0.0),
+            false_ratio=data.get("false_ratio", 0.0),
+            mode=data.get("mode"),
+            flags=[BooleanFlag(f) for f in data.get("flags", [])],
+        )
+
 
 @dataclass
 class BooleanProfileResult:

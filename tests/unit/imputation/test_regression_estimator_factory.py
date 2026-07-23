@@ -261,3 +261,90 @@ def test_custom_gradient_boost_min_rows_respected():
     # Both must produce valid predictions
     assert np.all(np.isfinite(est_gb.predict(X_test)))
     assert np.all(np.isfinite(est_rf.predict(X_test)))
+
+
+# ---------------------------------------------------------------------------
+# The RandomForest branch is core-invariant (ADR-0069)
+#
+# These are the exception to this module's "behaviour, never internal type"
+# rule, and only just: what they assert is still behaviour -- that predictions
+# do not move with n_jobs -- but the reason the branch has to be built as a
+# wrapper at all is invisible from the outside, so `n_jobs` is passed
+# explicitly rather than left to the caller that derives it.
+# ---------------------------------------------------------------------------
+
+
+def _forest(n_jobs):
+    """The RandomForest branch of the factory, built at a given inner n_jobs."""
+    return RegressionEstimatorFactory.build(
+        tag=NonlinearityTag.MonotonicNonlinear,
+        n_rows=200,
+        config=NumericImputationConfig(),
+        n_jobs=n_jobs,
+    )
+
+
+def test_forest_predictions_do_not_move_with_n_jobs():
+    """Fitting wide must be bit-identical to fitting serially.
+
+    Tree building is invariant across ``n_jobs`` -- each tree draws its seed
+    sequentially -- so the whole of a forest's non-invariance lives in how
+    ``predict`` accumulates them.  Pinning that accumulation is what lets the
+    inner parallelism be spent without the derivation reaching the result.
+    """
+    X, y = _make_nonlinear_dataset()
+    X_train, y_train, X_test, _ = _split(X, y)
+
+    serial = _forest(1)
+    serial.fit(X_train, y_train)
+    expected = serial.predict(X_test)
+
+    for _ in range(3):
+        wide = _forest(-1)
+        wide.fit(X_train, y_train)
+        # Exact, not approximate: the defect this guards is a ~1e-15 drift that
+        # any tolerance-based assertion would wave through.
+        assert np.array_equal(wide.predict(X_test), expected)
+
+
+def test_forest_predictions_are_stable_against_themselves():
+    """One fitted forest, one input, repeated predicts: the artifact must settle.
+
+    A bare ``RandomForestRegressor`` holding ``n_jobs=-1`` fails this -- its
+    trees are summed in thread-completion order on every call -- and ``n_jobs``
+    pickles with the estimator, so it would fail for the life of the artifact.
+    """
+    X, y = _make_nonlinear_dataset()
+    X_train, y_train, X_test, _ = _split(X, y)
+
+    forest = _forest(-1)
+    forest.fit(X_train, y_train)
+
+    first = forest.predict(X_test)
+    for _ in range(5):
+        assert np.array_equal(forest.predict(X_test), first)
+
+
+def test_forest_survives_a_clone():
+    """IterativeImputer clones its estimator per feature, so the branch must.
+
+    A wrapper that dropped its params on ``clone`` would silently fit at the
+    sklearn default rather than the derived ``n_jobs``.
+    """
+    from sklearn.base import clone
+
+    forest = _forest(-1)
+    cloned = clone(forest)
+    assert cloned.get_params() == forest.get_params()
+
+    X, y = _make_nonlinear_dataset()
+    X_train, y_train, X_test, _ = _split(X, y)
+    cloned.fit(X_train, y_train)
+    assert np.all(np.isfinite(cloned.predict(X_test)))
+
+
+def test_forest_reports_its_model_choice_not_its_wrapper():
+    """Core-invariance is a mechanism; a fit signal names the family (ADR-0069)."""
+    from dataforge_ml.imputation._fitters import _estimator_name
+
+    assert _estimator_name(_forest(1)) == "RandomForestRegressor"

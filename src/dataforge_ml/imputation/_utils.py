@@ -1,4 +1,8 @@
-"""Shared array-conversion utilities for the imputation package."""
+"""Shared array-conversion and scalar-statistic utilities for the imputation package.
+
+Deliberately dependency-free with respect to the fitting engines and the fitters
+so anything in the package can reach these without a cycle.
+"""
 
 from __future__ import annotations
 
@@ -87,3 +91,60 @@ def _numpy_to_df(df: pl.DataFrame, cols: list[str], arr: np.ndarray) -> pl.DataF
                 "only integer and float columns are supported"
             )
     return df.with_columns(new_cols)
+
+
+def _preserve_observed(
+    original: pl.DataFrame, output: pl.DataFrame, cols: list[str]
+) -> pl.DataFrame:
+    """Restore observed cells of ``cols`` from ``original`` into ``output``.
+
+    The observed-value preservation seam: a fitted unit's ``transform`` may
+    rewrite a whole column (model write-back, domain snap), so as its final
+    step it hands the frame it received and the frame it produced through
+    here.  Every cell that was *not* missing in ``original`` is restored
+    bit-for-bit, and each touched column is cast back to its original dtype
+    (integer casts round, matching ``_numpy_to_df``).  Cells that *were*
+    missing keep the unit's fill.
+
+    A cell counts as missing under the Effective Null predicate:
+    ``is_null() OR is_nan() OR is_infinite()`` for float columns,
+    ``is_null()`` alone otherwise — matching what ``_df_to_numpy`` actually
+    hands the estimator as a hole.  Only the named columns are touched.
+    """
+    corrected = []
+    for col in cols:
+        dtype = original.schema[col]
+        src = original[col]
+        if dtype in _FLOAT_DTYPES:
+            observed = ~(src.is_null() | src.is_nan() | src.is_infinite())
+        else:
+            observed = src.is_not_null()
+        out = output[col]
+        if out.dtype != dtype:
+            if dtype in _INT_DTYPES and out.dtype in _FLOAT_DTYPES:
+                out = out.round(0)
+            out = out.cast(dtype)
+        corrected.append(src.zip_with(observed, out).alias(col))
+    return output.with_columns(corrected)
+
+
+def _clean(series: pl.Series) -> pl.Series:
+    return series.drop_nulls()
+
+
+def _compute_mean(df: pl.DataFrame, col: str) -> float:
+    val = _clean(df[col]).mean()
+    return float(val) if val is not None else 0.0
+
+
+def _compute_median(df: pl.DataFrame, col: str) -> float:
+    val = _clean(df[col]).median()
+    return float(val) if val is not None else 0.0
+
+
+def _compute_mode(df: pl.DataFrame, col: str) -> float:
+    clean = _clean(df[col])
+    if len(clean) == 0:
+        return 0.0
+    modes = clean.mode().sort()
+    return float(modes[0])

@@ -8,7 +8,8 @@ Every class, every public method on that class, and every exported standalone fu
 
 A symbol is **in scope** if it belongs to one of:
 - Everything exported from `dataforge_ml.__init__`
-- Phase Orchestrators (`StructuralProfiler`, `ImputationOrchestrator`, and future phase orchestrators)
+- Phase Orchestrators (`StructuralProfiler`, `EvaluationOrchestrator`, and future phase orchestrators)
+- The layered imputation door (`decide`, `ImputationExecutor`, `FittedUnit`, `FittedImputer`)
 - All Config dataclasses (`PipelineConfig`, `ProfileConfig`, `ImputationConfig`, all Phase Sub-Configs, `SplitConfig`)
 - All standalone public functions in the Public API
 

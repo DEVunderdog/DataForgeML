@@ -1,6 +1,6 @@
 # ADR 0005: Imputation sub-processors registered per SemanticType
 
-**Status:** Accepted
+**Status:** Superseded by ADR-0071 — the SemanticType-keyed registry (`_IMPUTATION_REGISTRY`, `NumericImputer`) was removed by the Decision/Execution split; the fit layer now dispatches on the decided `ImputationStrategy` via `_fitters.py`.
 
 ## Context
 

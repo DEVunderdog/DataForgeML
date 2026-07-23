@@ -21,12 +21,13 @@ from dataforge_ml import (
     AccuracyReport,
     EvaluationOrchestrator,
     EventType,
-    ImputationOrchestrator,
     PipelineConfig,
     PipelineEvent,
     StructuralProfiler,
 )
 from dataforge_ml.profiling._config import ProfileConfig
+
+from tests.conftest import fit_imputer
 
 
 class _Recorder:
@@ -78,7 +79,7 @@ def _build_setup(config: PipelineConfig):
     config.imputation.numeric.set_per_column_strategy("med", "median")
 
     profile = StructuralProfiler(config).profile(df)
-    fitted = ImputationOrchestrator(config).fit(df, profile)
+    fitted = fit_imputer(df, profile, config)
     return config, df, profile, fitted
 
 

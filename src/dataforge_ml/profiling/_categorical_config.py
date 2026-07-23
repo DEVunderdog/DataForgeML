@@ -283,6 +283,33 @@ class CategoricalStats:
             "flags": [str(f) for f in self.flags],
         }
 
+    @classmethod
+    def from_dict(cls, data: dict) -> "CategoricalStats":
+        """
+        Reconstruct this profile from a plain dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            Mapping produced by :meth:`to_dict`.
+
+        Returns
+        -------
+        CategoricalStats
+            Reconstructed profile instance.
+        """
+        return cls(
+            cardinality=data.get("cardinality", 0),
+            unique_ratio=data.get("unique_ratio", 0.0),
+            mode_frequency=data.get("mode_frequency", 0.0),
+            top_values=[TopValueEntry(**v) for v in data.get("top_values", [])],
+            rare_categories=RareCategoryStats(
+                **data.get("rare_categories", {"threshold_pct": 0.01})
+            ),
+            imbalance=ImbalanceMetrics(**data.get("imbalance", {})),
+            flags=[CategoricalFlag(f) for f in data.get("flags", [])],
+        )
+
 
 CategoricalColumnProfile = CategoricalStats
 
