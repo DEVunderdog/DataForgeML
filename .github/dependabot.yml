@@ -21,9 +21,18 @@ updates:
       prefix: "chore"
     open-pull-requests-limit: 5
     groups:
-      # One PR for routine transitive churn rather than a stream of them.
-      transitive:
-        dependency-type: "indirect"
+      # One PR for routine churn rather than a stream of them.
+      #
+      # This deliberately does NOT filter to transitive-only: a group's
+      # `dependency-type` accepts just "production"/"development" (the
+      # "indirect" value is only valid under `allow`), so Dependabot offers
+      # no direct/transitive split for grouping. A catch-all pattern is the
+      # closest valid expression of "one PR". In practice the group is mostly
+      # transitive anyway -- the four capped deps are invisible per the note
+      # above, so only the uncapped direct deps join the churn.
+      uv-deps:
+        patterns:
+          - "*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
