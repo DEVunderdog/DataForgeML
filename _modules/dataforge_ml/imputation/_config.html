@@ -26,16 +26,16 @@
   </noscript>
   
   <!-- Loaded before other Sphinx assets -->
-  <link href="../../../_static/styles/theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
-<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+  <link href="../../../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
 
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
   
   <!-- So that users can add custom icons -->
-  <script defer src="../../../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
+  <script defer src="../../../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
   <!-- Pre-loaded scripts that we'll load fully later -->
-  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5" />
-<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5" />
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
     <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
     <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
@@ -157,11 +157,35 @@
 
 
 <li class="nav-item ">
-  <a class="nav-link nav-internal" href="../../../api/utilities.html">
+  <a class="nav-link nav-internal" href="../../../api/persistence.html">
+    Persistence
+  </a>
+</li>
+
+            <li class="nav-item dropdown">
+                <button class="btn dropdown-toggle nav-item" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false"
+                aria-controls="pst-nav-more-links">
+                    More
+                </button>
+                <ul id="pst-nav-more-links" class="dropdown-menu">
+                    
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../api/observability.html">
+    Observability
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../api/utilities.html">
     Utilities
   </a>
 </li>
 
+                </ul>
+            </li>
+            
   </ul>
 </nav></div>
       
@@ -264,6 +288,20 @@
 <li class="nav-item ">
   <a class="nav-link nav-internal" href="../../../api/splitting.html">
     Splitting
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/persistence.html">
+    Persistence
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/observability.html">
+    Observability
   </a>
 </li>
 
@@ -387,7 +425,7 @@
 
 <span class="sd">    **Input strategies** — may be declared in ``per_column_strategy`` to</span>
 <span class="sd">    override automatic routing: ``Mean``, ``Median``, ``Mode``, ``KNN``,</span>
-<span class="sd">    ``Regression``, ``MICE``.</span>
+<span class="sd">    ``MICE``.</span>
 
 <span class="sd">    **Output-only labels** — assigned by the engine after ``fit()`` and</span>
 <span class="sd">    recorded in ``ColumnImputationRecord.strategy``; declaring them in</span>
@@ -402,7 +440,6 @@
     <span class="n">Median</span> <span class="o">=</span> <span class="s2">&quot;median&quot;</span>
     <span class="n">Mode</span> <span class="o">=</span> <span class="s2">&quot;mode&quot;</span>
     <span class="n">KNN</span> <span class="o">=</span> <span class="s2">&quot;knn&quot;</span>
-    <span class="n">Regression</span> <span class="o">=</span> <span class="s2">&quot;regression&quot;</span>
     <span class="n">MICE</span> <span class="o">=</span> <span class="s2">&quot;mice&quot;</span>
     <span class="n">MNAR</span> <span class="o">=</span> <span class="s2">&quot;mnar&quot;</span>
     <span class="n">Constant</span> <span class="o">=</span> <span class="s2">&quot;constant&quot;</span>
@@ -412,6 +449,116 @@
     <span class="n">GMMSampling</span> <span class="o">=</span> <span class="s2">&quot;gmm_sampling&quot;</span>
     <span class="n">Indicator</span> <span class="o">=</span> <span class="s2">&quot;indicator&quot;</span>  <span class="c1"># output-only: assigned to {col}_missing columns appended by the MNAR mechanism; cannot be declared in per_column_strategy</span></div>
 
+
+
+<span class="n">_MODEL_BASED_STRATEGIES</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="n">ImputationStrategy</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MICE</span><span class="p">,</span>
+        <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">KNN</span><span class="p">,</span>
+        <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">ClusterConditional</span><span class="p">,</span>
+        <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">GMMSampling</span><span class="p">,</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+
+<div class="viewcode-block" id="ModelChoice">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ModelChoice">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ModelChoice</span><span class="p">(</span><span class="n">StrEnum</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Concrete estimator family selected for a model-based imputation column.</span>
+
+<span class="sd">    A value-free *name* for the sklearn estimator family resolved at</span>
+<span class="sd">    decide-time from ``(NonlinearityTag, n_rows, config)`` — the Recipe half of</span>
+<span class="sd">    the Recipe/Learned split (ADR-0059) pulled one layer earlier so the plan is</span>
+<span class="sd">    inspectable and overridable before anything trains. It is a label, never a</span>
+<span class="sd">    live or fitted estimator object; the execution layer constructs and fits the</span>
+<span class="sd">    actual estimator from this choice.</span>
+
+<span class="sd">    Members map onto the branches of ``RegressionEstimatorFactory``:</span>
+<span class="sd">    ``BayesianRidge`` for the ``Linear`` branch (wrapped in a scaling pipeline</span>
+<span class="sd">    at fit-time), ``RandomForestRegressor`` for ``MonotonicNonlinear`` and the</span>
+<span class="sd">    small-sample ``ComplexNonlinear`` branch, and ``GradientBoostingRegressor``</span>
+<span class="sd">    for the large-sample ``ComplexNonlinear`` branch. An ``Unpredictable``</span>
+<span class="sd">    column resolves to no model choice (``None``) and routes to a scalar</span>
+<span class="sd">    fallback instead.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">BayesianRidge</span> <span class="o">=</span> <span class="s2">&quot;bayesian_ridge&quot;</span>
+    <span class="n">RandomForestRegressor</span> <span class="o">=</span> <span class="s2">&quot;random_forest_regressor&quot;</span>
+    <span class="n">GradientBoostingRegressor</span> <span class="o">=</span> <span class="s2">&quot;gradient_boosting_regressor&quot;</span></div>
+
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># Shared strategy-legality rules</span>
+<span class="c1">#</span>
+<span class="c1"># One source of truth for &quot;which strategies may a user declare, and what does</span>
+<span class="c1"># the redirect say when they cannot&quot; — consumed both by</span>
+<span class="c1"># ``NumericImputationConfig.set_per_column_strategy`` (declaring a strategy in</span>
+<span class="c1"># config) and by ``ImputationDecision.with_strategy`` (editing a built plan), so</span>
+<span class="c1"># both paths reject illegal strategies identically (ADR-0060).</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+<span class="c1"># Output-only labels that a user may never declare directly — the engine assigns</span>
+<span class="c1"># them after routing. ``Constant`` is handled separately: it is declarable in</span>
+<span class="c1"># config (paired with a fill value) but not editable onto a plan.</span>
+<span class="n">_OUTPUT_ONLY_STRATEGIES</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="n">ImputationStrategy</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Passthrough</span><span class="p">,</span>
+        <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Indicator</span><span class="p">,</span>
+        <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Dropped</span><span class="p">,</span>
+        <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MNAR</span><span class="p">,</span>
+        <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">ClusterConditional</span><span class="p">,</span>
+        <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">GMMSampling</span><span class="p">,</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+<span class="c1"># Signal recorded on the Passthrough decision of an Imputation-soft-excluded</span>
+<span class="c1"># column. Written by the decision assembler; matched by transform to tell</span>
+<span class="c1"># &quot;excluded by declaration&quot; (missing values ride through untouched) apart from</span>
+<span class="c1"># &quot;passed through because fit saw no missingness&quot; (missing values raise).</span>
+<span class="n">_EXCLUSION_SIGNAL</span> <span class="o">=</span> <span class="s2">&quot;soft-excluded for Imputation phase&quot;</span>
+
+<span class="c1"># Input strategies a user may declare, keyed by the column&#39;s semantic type. Only</span>
+<span class="c1"># semantic types with a registered imputer appear here; a strategy declared for</span>
+<span class="c1"># any other type has no engine that can execute it and is rejected. Future phases</span>
+<span class="c1"># extend this map as they gain imputers.</span>
+<span class="n">_DECLARABLE_STRATEGIES_BY_TYPE</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">SemanticType</span><span class="p">,</span> <span class="nb">frozenset</span><span class="p">[</span><span class="n">ImputationStrategy</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="n">SemanticType</span><span class="o">.</span><span class="n">Numeric</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">(</span>
+        <span class="p">{</span>
+            <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Mean</span><span class="p">,</span>
+            <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Median</span><span class="p">,</span>
+            <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Mode</span><span class="p">,</span>
+            <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">KNN</span><span class="p">,</span>
+            <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MICE</span><span class="p">,</span>
+        <span class="p">}</span>
+    <span class="p">),</span>
+<span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_output_only_redirect</span><span class="p">(</span><span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">strategy</span><span class="p">:</span> <span class="n">ImputationStrategy</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Build the redirect message for an output-only strategy declaration.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Dropped</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s2">&#39;: &#39;Dropped&#39; cannot be used in per_column_strategy. &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;To exclude a column, use PipelineConfig.exclude_columns.&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MNAR</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s2">&#39;: &#39;MNAR&#39; cannot be used in per_column_strategy. &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;To declare MNAR semantics, use mnar_columns.&quot;</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s2">&#39;: &#39;</span><span class="si">{</span><span class="n">strategy</span><span class="si">}</span><span class="s2">&#39; is an internal-only strategy and cannot &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;be used in per_column_strategy.&quot;</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_constant_without_fill_redirect</span><span class="p">(</span><span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Build the redirect message for a ``Constant`` declaration with no fill.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s2">&#39;: strategy is &#39;Constant&#39; but no fill value was provided. &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;Add an entry to per_column_constant_fill.&quot;</span>
+    <span class="p">)</span>
 
 
 <div class="viewcode-block" id="NumericImputationConfig">
@@ -424,11 +571,14 @@
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    knn_max_rows : int</span>
-<span class="sd">        Maximum number of rows before KNN is skipped in favour of Regression.</span>
+<span class="sd">        Maximum number of rows before KNN is skipped in favour of MICE.</span>
 <span class="sd">    knn_max_features : int</span>
-<span class="sd">        Maximum number of features before KNN is skipped in favour of Regression.</span>
-<span class="sd">    regression_min_rows : int</span>
-<span class="sd">        Minimum number of rows required to fit a stable Regression model.</span>
+<span class="sd">        Maximum number of features before KNN is skipped in favour of MICE.</span>
+<span class="sd">    mice_min_rows : int</span>
+<span class="sd">        Minimum number of rows required to fit a stable MICE (chained-equations)</span>
+<span class="sd">        model. Applied as a uniform floor to every routing path that can enter</span>
+<span class="sd">        the joint MICE block; a column below this floor diverts to KNN, then</span>
+<span class="sd">        Median, instead (ADR-0079). Renamed from ``regression_min_rows``.</span>
 <span class="sd">    gradient_boost_min_rows : int</span>
 <span class="sd">        Row count threshold above which ``GradientBoostingRegressor`` is preferred</span>
 <span class="sd">        over ``RandomForestRegressor`` for ``ComplexNonlinear`` columns. Below this</span>
@@ -469,7 +619,7 @@
 <span class="sd">        Maximum absolute Pearson correlation ``|r|`` below which MCAR</span>
 <span class="sd">        model-based routing is skipped in favour of Median. When no numeric</span>
 <span class="sd">        predictor exceeds this threshold against the target column, KNN and</span>
-<span class="sd">        Regression are not attempted because the feature set contains no useful</span>
+<span class="sd">        MICE are not attempted because the feature set contains no useful</span>
 <span class="sd">        predictive signal. Applies only to MCAR paths; MAR paths are not</span>
 <span class="sd">        affected. Default of ``0.2`` preserves existing behaviour (no check</span>
 <span class="sd">        applied today).</span>
@@ -478,7 +628,7 @@
 <span class="sd">        routing chain — after ``DropCandidate`` but before MNAR routing.  A</span>
 <span class="sd">        column listed here bypasses all routing priorities 2–7.  Defaults to</span>
 <span class="sd">        empty dict (no overrides).  Allowed values: ``Mean``, ``Median``,</span>
-<span class="sd">        ``Mode``, ``KNN``, ``Regression``, ``MICE``.  To route a column to a</span>
+<span class="sd">        ``Mode``, ``KNN``, ``MICE``.  To route a column to a</span>
 <span class="sd">        constant fill, use ``per_column_constant_fill``</span>
 <span class="sd">    per_column_constant_fill : dict[str, float]</span>
 <span class="sd">        Self-sufficient constant fill declarations.  Each column listed here</span>
@@ -486,11 +636,6 @@
 <span class="sd">        bypassing all routing priorities 2–7.  No companion entry in</span>
 <span class="sd">        ``per_column_strategy`` is required or allowed.  Keyed by column name.</span>
 <span class="sd">        Defaults to empty dict.</span>
-<span class="sd">    per_column_max_iter : dict[str, int]</span>
-<span class="sd">        Overrides the dynamically-computed ``max_iter`` for named Regression</span>
-<span class="sd">        columns only.  Keys are column names; values replace whatever</span>
-<span class="sd">        ``_compute_max_iter`` would produce.</span>
-<span class="sd">        Set manually.  Defaults to empty dict (no overrides).</span>
 <span class="sd">    knn_n_neighbors : int, optional</span>
 <span class="sd">        Overrides the dynamically-computed ``n_neighbors`` for the entire KNN</span>
 <span class="sd">        block. A single value governs all KNN columns.</span>
@@ -507,7 +652,7 @@
 <span class="sd">    refit_r2_cv_folds : int</span>
 <span class="sd">        Number of folds for the cross-validated accuracy computation</span>
 <span class="sd">        (:meth:`EvaluationOrchestrator.score_accuracy`).  Applied uniformly</span>
-<span class="sd">        across Regression, KNN, and MICE columns.  Default ``5``.</span>
+<span class="sd">        across KNN and MICE columns.  Default ``5``.</span>
 <span class="sd">    bimodal_grouping_variables : dict[str, str]</span>
 <span class="sd">        Maps a bimodal column name to the name of the grouping column that</span>
 <span class="sd">        explains the bimodal split (e.g. ``{&quot;age&quot;: &quot;employment_status&quot;}``).</span>
@@ -521,9 +666,9 @@
 <span class="sd">        the Bimodal Imputation Framework.</span>
 <span class="sd">    max_workers : int, optional</span>
 <span class="sd">        Degree of thread parallelism for the numeric fit (ADR-0056).  The</span>
-<span class="sd">        mutually-independent strategy blocks (MICE, KNN, the Regression set,</span>
-<span class="sd">        GMM, cluster) and the independent columns within a per-column strategy</span>
-<span class="sd">        are fitted concurrently on threads, capped at this many workers.</span>
+<span class="sd">        mutually-independent strategy blocks (MICE, KNN, GMM, cluster) and the</span>
+<span class="sd">        independent columns within a per-column strategy are fitted</span>
+<span class="sd">        concurrently on threads, capped at this many workers.</span>
 <span class="sd">        ``None`` (the default) auto-sizes to the available CPU count; ``1``</span>
 <span class="sd">        forces a fully sequential fit.  Concurrency never changes a result:</span>
 <span class="sd">        the same ``random_seed`` yields a byte-identical ``FittedImputer``</span>
@@ -542,7 +687,7 @@
 
     <span class="n">knn_max_rows</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50_000</span>
     <span class="n">knn_max_features</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50</span>
-    <span class="n">regression_min_rows</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">500</span>
+    <span class="n">mice_min_rows</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">500</span>
     <span class="n">gradient_boost_min_rows</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10_000</span>
     <span class="n">base_max_iter</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span>
     <span class="n">knn_min_neighbors</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span>
@@ -555,15 +700,14 @@
     <span class="n">mcar_feature_predictability_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.2</span>
     <span class="n">_per_column_strategy</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ImputationStrategy</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
     <span class="n">_per_column_constant_fill</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
-    <span class="n">_per_column_max_iter</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
-    <span class="n">knn_n_neighbors</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">mice_max_iter</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">knn_n_neighbors</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">mice_max_iter</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">refit_r2_min_complete_rows</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50</span>
     <span class="n">refit_r2_cv_folds</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span>
     <span class="n">_bimodal_grouping_variables</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
     <span class="n">bimodal_min_correlated_features</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span>
     <span class="n">bimodal_correlation_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.2</span>
-    <span class="n">max_workers</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">max_workers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">per_column_strategy</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MappingProxyType</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ImputationStrategy</span><span class="p">]:</span>
@@ -591,19 +735,6 @@
         <span class="k">return</span> <span class="n">MappingProxyType</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_per_column_constant_fill</span><span class="p">)</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">per_column_max_iter</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MappingProxyType</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Overrides the dynamically-computed ``max_iter`` for named Regression</span>
-<span class="sd">        columns only.</span>
-
-<span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-<span class="sd">        MappingProxyType[str, int]</span>
-<span class="sd">            Read-only view of per-column max iteration overrides.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">MappingProxyType</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_per_column_max_iter</span><span class="p">)</span>
-
-    <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">bimodal_grouping_variables</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MappingProxyType</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Maps a bimodal column name to the name of the grouping column that</span>
@@ -618,7 +749,9 @@
 
 <div class="viewcode-block" id="NumericImputationConfig.set_per_column_strategy">
 <a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.NumericImputationConfig.set_per_column_strategy">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">set_per_column_strategy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">strategy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">ImputationStrategy</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_per_column_strategy</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">strategy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">ImputationStrategy</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Set the imputation strategy for one or more columns.</span>
 
@@ -638,50 +771,27 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">column</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
             <span class="n">column</span> <span class="o">=</span> <span class="p">[</span><span class="n">column</span><span class="p">]</span>
-            
+
         <span class="n">strategy</span> <span class="o">=</span> <span class="n">ImputationStrategy</span><span class="p">(</span><span class="n">strategy</span><span class="p">)</span>
-        
-        <span class="n">_BLOCKED</span> <span class="o">=</span> <span class="p">{</span>
-            <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Passthrough</span><span class="p">,</span>
-            <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Indicator</span><span class="p">,</span>
-            <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Dropped</span><span class="p">,</span>
-            <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MNAR</span><span class="p">,</span>
-            <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">ClusterConditional</span><span class="p">,</span>
-            <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">GMMSampling</span><span class="p">,</span>
-        <span class="p">}</span>
-        
-        <span class="k">if</span> <span class="n">strategy</span> <span class="ow">in</span> <span class="n">_BLOCKED</span><span class="p">:</span>
+
+        <span class="k">if</span> <span class="n">strategy</span> <span class="ow">in</span> <span class="n">_OUTPUT_ONLY_STRATEGIES</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">column</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Dropped</span><span class="p">:</span>
-                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">&#39;: &#39;Dropped&#39; cannot be used in per_column_strategy. &quot;</span>
-                        <span class="sa">f</span><span class="s2">&quot;To exclude a column, use PipelineConfig.exclude_columns.&quot;</span>
-                    <span class="p">)</span>
-                <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MNAR</span><span class="p">:</span>
-                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">&#39;: &#39;MNAR&#39; cannot be used in per_column_strategy. &quot;</span>
-                        <span class="sa">f</span><span class="s2">&quot;To declare MNAR semantics, use mnar_columns.&quot;</span>
-                    <span class="p">)</span>
-                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">&#39;: &#39;</span><span class="si">{</span><span class="n">strategy</span><span class="si">}</span><span class="s2">&#39; is an internal-only strategy and cannot &quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot;be used in per_column_strategy.&quot;</span>
-                <span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">_output_only_redirect</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">strategy</span><span class="p">))</span>
 
         <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Constant</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">column</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_per_column_constant_fill</span><span class="p">:</span>
-                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">&#39;: strategy is &#39;Constant&#39; but no fill value was provided. &quot;</span>
-                        <span class="sa">f</span><span class="s2">&quot;Add an entry to per_column_constant_fill.&quot;</span>
-                    <span class="p">)</span>
-                    
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">_constant_without_fill_redirect</span><span class="p">(</span><span class="n">col</span><span class="p">))</span>
+
         <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">column</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_per_column_strategy</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">strategy</span></div>
 
 
 <div class="viewcode-block" id="NumericImputationConfig.set_per_column_constant_fill">
 <a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.NumericImputationConfig.set_per_column_constant_fill">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">set_per_column_constant_fill</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">value</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_per_column_constant_fill</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">value</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Set a constant fill value for one or more columns.</span>
 
@@ -698,47 +808,22 @@
 <span class="sd">            If the value is NaN or infinity.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+
         <span class="k">if</span> <span class="n">math</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="ow">or</span> <span class="n">math</span><span class="o">.</span><span class="n">isinf</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Fill value cannot be NaN or infinity, got </span><span class="si">{</span><span class="n">value</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
-            
+
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">column</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
             <span class="n">column</span> <span class="o">=</span> <span class="p">[</span><span class="n">column</span><span class="p">]</span>
-            
+
         <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">column</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_per_column_constant_fill</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span></div>
 
 
-<div class="viewcode-block" id="NumericImputationConfig.set_per_column_max_iter">
-<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.NumericImputationConfig.set_per_column_max_iter">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">set_per_column_max_iter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">value</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Set the maximum iterations for regression models on one or more columns.</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">        column : str | list[str]</span>
-<span class="sd">            A single column name or list of column names.</span>
-<span class="sd">        value : int</span>
-<span class="sd">            The maximum iterations count.</span>
-
-<span class="sd">        Raises</span>
-<span class="sd">        ------</span>
-<span class="sd">        ValueError</span>
-<span class="sd">            If the value is less than or equal to 0.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="n">value</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Max iterations must be &gt; 0, got </span><span class="si">{</span><span class="n">value</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
-            
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">column</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
-            <span class="n">column</span> <span class="o">=</span> <span class="p">[</span><span class="n">column</span><span class="p">]</span>
-            
-        <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">column</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_per_column_max_iter</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span></div>
-
-
 <div class="viewcode-block" id="NumericImputationConfig.set_bimodal_grouping_variable">
 <a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.NumericImputationConfig.set_bimodal_grouping_variable">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">set_bimodal_grouping_variable</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">grouping_variable</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_bimodal_grouping_variable</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">grouping_variable</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Set the grouping variable for one or more bimodal columns.</span>
 
@@ -756,10 +841,10 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">grouping_variable</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">grouping_variable</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Grouping variable cannot be empty or purely whitespace.&quot;</span><span class="p">)</span>
-            
+
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">column</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
             <span class="n">column</span> <span class="o">=</span> <span class="p">[</span><span class="n">column</span><span class="p">]</span>
-            
+
         <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">column</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_bimodal_grouping_variables</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">grouping_variable</span></div>
 
@@ -793,12 +878,14 @@
                     <span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">&#39;: &#39;</span><span class="si">{</span><span class="n">strategy</span><span class="si">}</span><span class="s2">&#39; is an internal-only strategy and cannot &quot;</span>
                     <span class="sa">f</span><span class="s2">&quot;be used in per_column_strategy.&quot;</span>
                 <span class="p">)</span>
-            <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Constant</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_per_column_constant_fill</span><span class="p">:</span>
-                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">&#39;: strategy is &#39;Constant&#39; but no fill value was provided. &quot;</span>
-                        <span class="sa">f</span><span class="s2">&quot;Add an entry to per_column_constant_fill.&quot;</span>
-                    <span class="p">)</span>
+            <span class="k">if</span> <span class="p">(</span>
+                <span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Constant</span>
+                <span class="ow">and</span> <span class="n">col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_per_column_constant_fill</span>
+            <span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">&#39;: strategy is &#39;Constant&#39; but no fill value was provided. &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;Add an entry to per_column_constant_fill.&quot;</span>
+                <span class="p">)</span>
 
 <div class="viewcode-block" id="NumericImputationConfig.to_dict">
 <a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.NumericImputationConfig.to_dict">[docs]</a>
@@ -814,7 +901,7 @@
         <span class="k">return</span> <span class="p">{</span>
             <span class="s2">&quot;knn_max_rows&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">knn_max_rows</span><span class="p">,</span>
             <span class="s2">&quot;knn_max_features&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">knn_max_features</span><span class="p">,</span>
-            <span class="s2">&quot;regression_min_rows&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">regression_min_rows</span><span class="p">,</span>
+            <span class="s2">&quot;mice_min_rows&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">mice_min_rows</span><span class="p">,</span>
             <span class="s2">&quot;gradient_boost_min_rows&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">gradient_boost_min_rows</span><span class="p">,</span>
             <span class="s2">&quot;base_max_iter&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">base_max_iter</span><span class="p">,</span>
             <span class="s2">&quot;knn_min_neighbors&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">knn_min_neighbors</span><span class="p">,</span>
@@ -825,9 +912,10 @@
             <span class="s2">&quot;mice_max_nearest_features&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">mice_max_nearest_features</span><span class="p">,</span>
             <span class="s2">&quot;mice_correlation_threshold&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">mice_correlation_threshold</span><span class="p">,</span>
             <span class="s2">&quot;mcar_feature_predictability_threshold&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">mcar_feature_predictability_threshold</span><span class="p">,</span>
-            <span class="s2">&quot;per_column_strategy&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_per_column_strategy</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span>
+            <span class="s2">&quot;per_column_strategy&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="n">k</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_per_column_strategy</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">},</span>
             <span class="s2">&quot;per_column_constant_fill&quot;</span><span class="p">:</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_per_column_constant_fill</span><span class="p">),</span>
-            <span class="s2">&quot;per_column_max_iter&quot;</span><span class="p">:</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_per_column_max_iter</span><span class="p">),</span>
             <span class="s2">&quot;knn_n_neighbors&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">knn_n_neighbors</span><span class="p">,</span>
             <span class="s2">&quot;mice_max_iter&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">mice_max_iter</span><span class="p">,</span>
             <span class="s2">&quot;refit_r2_min_complete_rows&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">refit_r2_min_complete_rows</span><span class="p">,</span>
@@ -860,7 +948,7 @@
         <span class="n">config</span> <span class="o">=</span> <span class="bp">cls</span><span class="p">(</span>
             <span class="n">knn_max_rows</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;knn_max_rows&quot;</span><span class="p">,</span> <span class="mi">50_000</span><span class="p">)),</span>
             <span class="n">knn_max_features</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;knn_max_features&quot;</span><span class="p">,</span> <span class="mi">50</span><span class="p">)),</span>
-            <span class="n">regression_min_rows</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;regression_min_rows&quot;</span><span class="p">,</span> <span class="mi">500</span><span class="p">)),</span>
+            <span class="n">mice_min_rows</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;mice_min_rows&quot;</span><span class="p">,</span> <span class="mi">500</span><span class="p">)),</span>
             <span class="n">gradient_boost_min_rows</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;gradient_boost_min_rows&quot;</span><span class="p">,</span> <span class="mi">10_000</span><span class="p">)),</span>
             <span class="n">base_max_iter</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;base_max_iter&quot;</span><span class="p">,</span> <span class="mi">10</span><span class="p">)),</span>
             <span class="n">knn_min_neighbors</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;knn_min_neighbors&quot;</span><span class="p">,</span> <span class="mi">5</span><span class="p">)),</span>
@@ -883,12 +971,15 @@
             <span class="p">),</span>
             <span class="n">_per_column_strategy</span><span class="o">=</span><span class="p">{},</span>
             <span class="n">_per_column_constant_fill</span><span class="o">=</span><span class="p">{},</span>
-            <span class="n">_per_column_max_iter</span><span class="o">=</span><span class="p">{},</span>
             <span class="n">knn_n_neighbors</span><span class="o">=</span><span class="p">(</span>
-                <span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;knn_n_neighbors&quot;</span><span class="p">])</span> <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;knn_n_neighbors&quot;</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+                <span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;knn_n_neighbors&quot;</span><span class="p">])</span>
+                <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;knn_n_neighbors&quot;</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="k">else</span> <span class="kc">None</span>
             <span class="p">),</span>
             <span class="n">mice_max_iter</span><span class="o">=</span><span class="p">(</span>
-                <span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;mice_max_iter&quot;</span><span class="p">])</span> <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;mice_max_iter&quot;</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+                <span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;mice_max_iter&quot;</span><span class="p">])</span>
+                <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;mice_max_iter&quot;</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="k">else</span> <span class="kc">None</span>
             <span class="p">),</span>
             <span class="n">refit_r2_min_complete_rows</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;refit_r2_min_complete_rows&quot;</span><span class="p">,</span> <span class="mi">50</span><span class="p">)),</span>
             <span class="n">refit_r2_cv_folds</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;refit_r2_cv_folds&quot;</span><span class="p">,</span> <span class="mi">5</span><span class="p">)),</span>
@@ -905,16 +996,14 @@
                 <span class="k">else</span> <span class="kc">None</span>
             <span class="p">),</span>
         <span class="p">)</span>
-        
+
         <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;per_column_constant_fill&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">config</span><span class="o">.</span><span class="n">set_per_column_constant_fill</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="n">val</span><span class="p">))</span>
         <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;per_column_strategy&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">config</span><span class="o">.</span><span class="n">set_per_column_strategy</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">ImputationStrategy</span><span class="p">(</span><span class="n">val</span><span class="p">))</span>
-        <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;per_column_max_iter&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="n">config</span><span class="o">.</span><span class="n">set_per_column_max_iter</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">val</span><span class="p">))</span>
         <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;bimodal_grouping_variables&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">config</span><span class="o">.</span><span class="n">set_bimodal_grouping_variable</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">val</span><span class="p">))</span>
-            
+
         <span class="k">return</span> <span class="n">config</span></div>
 </div>
 
@@ -997,10 +1086,8 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">column</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
             <span class="n">column</span> <span class="o">=</span> <span class="p">[</span><span class="n">column</span><span class="p">]</span>
-            
-        <span class="n">conflicts</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
-            <span class="nb">set</span><span class="p">(</span><span class="n">column</span><span class="p">)</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">numeric</span><span class="o">.</span><span class="n">per_column_strategy</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
-        <span class="p">)</span>
+
+        <span class="n">conflicts</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">column</span><span class="p">)</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">numeric</span><span class="o">.</span><span class="n">per_column_strategy</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
         <span class="k">if</span> <span class="n">conflicts</span><span class="p">:</span>
             <span class="n">names</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">c</span><span class="si">}</span><span class="s2">&#39;&quot;</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">conflicts</span><span class="p">)</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
@@ -1009,7 +1096,7 @@
                 <span class="sa">f</span><span class="s2">&quot;Use mnar_columns for MNAR semantics (data-derived fill + indicator) &quot;</span>
                 <span class="sa">f</span><span class="s2">&quot;or per_column_strategy for a user-specified strategy, not both.&quot;</span>
             <span class="p">)</span>
-            
+
         <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">column</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">c</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mnar_columns</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_mnar_columns</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="p">)</span></div>
@@ -1095,7 +1182,7 @@
 <span class="sd">            Reconstructed config instance.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">config</span> <span class="o">=</span> <span class="bp">cls</span><span class="p">(</span>
-            <span class="n">numeric</span><span class="o">=</span><span class="n">NumericImputationConfig</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;numeric&quot;</span><span class="p">,</span> <span class="p">{}))</span>
+            <span class="n">numeric</span><span class="o">=</span><span class="n">NumericImputationConfig</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;numeric&quot;</span><span class="p">,</span> <span class="p">{})),</span>
         <span class="p">)</span>
         <span class="k">if</span> <span class="s2">&quot;mnar_columns&quot;</span> <span class="ow">in</span> <span class="n">data</span><span class="p">:</span>
             <span class="n">config</span><span class="o">.</span><span class="n">add_mnar_column</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;mnar_columns&quot;</span><span class="p">])</span>
@@ -1120,7 +1207,7 @@
 <span class="sd">    carries no held-out accuracy numbers — those live on</span>
 <span class="sd">    :class:`AccuracyDiagnostic`, which is irreducibly a refit.</span>
 
-<span class="sd">    Present for KNN, Regression, MICE, and the bimodal strategies</span>
+<span class="sd">    Present for KNN, MICE, and the bimodal strategies</span>
 <span class="sd">    (Cluster-Conditional, GMM-Sampling); absent (no report entry) for</span>
 <span class="sd">    Passthrough, Dropped, Constant, MNAR, and the scalar strategies</span>
 <span class="sd">    (Mean, Median, Mode).</span>
@@ -1143,14 +1230,14 @@
 <span class="sd">        near-constant fills.</span>
 <span class="sd">    converged : bool, optional</span>
 <span class="sd">        Whether ``IterativeImputer`` halted before reaching ``max_iter``.  Read</span>
-<span class="sd">        from the fitted MICE or Regression model.  ``None`` for KNN and the</span>
+<span class="sd">        from the fitted MICE model.  ``None`` for KNN and the</span>
 <span class="sd">        bimodal strategies (convergence is not applicable).</span>
 <span class="sd">    n_iter : int, optional</span>
 <span class="sd">        Actual iteration count of the fitted ``IterativeImputer``.  ``None`` for</span>
 <span class="sd">        KNN and the bimodal strategies.</span>
 <span class="sd">    n_neighbors_used : int, optional</span>
 <span class="sd">        Actual ``n_neighbors`` used by the fitted KNN block.  ``None`` for</span>
-<span class="sd">        Regression, MICE, and the bimodal strategies.</span>
+<span class="sd">        MICE and the bimodal strategies.</span>
 <span class="sd">    k_capped : bool, optional</span>
 <span class="sd">        ``True`` when the KNN neighbour count was forced down to ``n_rows − 1``</span>
 <span class="sd">        (the model is averaging nearly every row).  ``None`` when a</span>
@@ -1228,7 +1315,7 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Per-column inspection report returned by :meth:`EvaluationOrchestrator.inspect`.</span>
 
 <span class="sd">    Holds one :class:`InspectionDiagnostic` per model-based column (KNN,</span>
-<span class="sd">    Regression, MICE, and the bimodal strategies); columns handled by scalar</span>
+<span class="sd">    MICE, and the bimodal strategies); columns handled by scalar</span>
 <span class="sd">    strategies, Passthrough, Dropped, Constant, or MNAR carry no entry.</span>
 <span class="sd">    Supports ``report[col]`` lookup and ``col in report`` membership tests</span>
 <span class="sd">    (ADR-0058).</span>
@@ -1287,11 +1374,7 @@
 <span class="sd">            Mapping with a single ``&quot;columns&quot;`` key whose value maps each</span>
 <span class="sd">            column name to its serialised diagnostic.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="p">{</span>
-            <span class="s2">&quot;columns&quot;</span><span class="p">:</span> <span class="p">{</span>
-                <span class="n">col</span><span class="p">:</span> <span class="n">diag</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span> <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">diag</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-            <span class="p">}</span>
-        <span class="p">}</span></div>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;columns&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">col</span><span class="p">:</span> <span class="n">diag</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span> <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">diag</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">items</span><span class="p">()}}</span></div>
 
 
 <div class="viewcode-block" id="InspectionReport.from_dict">
@@ -1333,7 +1416,7 @@
 <span class="sd">    cross-validating the column&#39;s recorded strategy on folds of the complete</span>
 <span class="sd">    rows, never from the final fitted model.</span>
 
-<span class="sd">    Present for KNN, Regression, MICE, and the bimodal strategies</span>
+<span class="sd">    Present for KNN, MICE, and the bimodal strategies</span>
 <span class="sd">    (Cluster-Conditional, GMM-Sampling); absent (no report entry) for</span>
 <span class="sd">    Passthrough, Dropped, Constant, MNAR, and the scalar strategies</span>
 <span class="sd">    (Mean, Median, Mode).</span>
@@ -1409,7 +1492,7 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Per-column accuracy report returned by :meth:`EvaluationOrchestrator.score_accuracy`.</span>
 
 <span class="sd">    Holds one :class:`AccuracyDiagnostic` per model-based column (KNN,</span>
-<span class="sd">    Regression, MICE, and the bimodal strategies); columns handled by scalar</span>
+<span class="sd">    MICE, and the bimodal strategies); columns handled by scalar</span>
 <span class="sd">    strategies, Passthrough, Dropped, Constant, or MNAR carry no entry.</span>
 <span class="sd">    Supports ``report[col]`` lookup and ``col in report`` membership tests</span>
 <span class="sd">    (ADR-0058).</span>
@@ -1468,11 +1551,7 @@
 <span class="sd">            Mapping with a single ``&quot;columns&quot;`` key whose value maps each</span>
 <span class="sd">            column name to its serialised diagnostic.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="p">{</span>
-            <span class="s2">&quot;columns&quot;</span><span class="p">:</span> <span class="p">{</span>
-                <span class="n">col</span><span class="p">:</span> <span class="n">diag</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span> <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">diag</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-            <span class="p">}</span>
-        <span class="p">}</span></div>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;columns&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">col</span><span class="p">:</span> <span class="n">diag</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span> <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">diag</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">items</span><span class="p">()}}</span></div>
 
 
 <div class="viewcode-block" id="AccuracyReport.from_dict">
@@ -1501,6 +1580,152 @@
 
 
 
+<div class="viewcode-block" id="ColumnImputationDecision">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ColumnImputationDecision">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ColumnImputationDecision</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Pure, value-free per-column imputation plan entry.</span>
+
+<span class="sd">    The decided half of the Decision/Execution split (ADR-0060): a complete,</span>
+<span class="sd">    inspectable description of *what will happen* to one column and *why*,</span>
+<span class="sd">    derived purely from ``(profile, shape, config)``. It structurally cannot</span>
+<span class="sd">    hold anything the execution layer learns from training data — no fill value,</span>
+<span class="sd">    no fitted model, no convergence/``n_iter`` — so &quot;what was decided&quot; is</span>
+<span class="sd">    un-blurrably separate from &quot;what was learned&quot;. ``ColumnImputationRecord``</span>
+<span class="sd">    composes this decision with those learned values.</span>
+
+<span class="sd">    The dataclass is frozen and every field holds an immutable value (enums,</span>
+<span class="sd">    ``str``, ``bool``, or hashable tuples), so a decision is safe to share and</span>
+<span class="sd">    edits produce new objects rather than mutating in place.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    column : str</span>
+<span class="sd">        Column name this decision applies to.</span>
+<span class="sd">    semantic_type : SemanticType</span>
+<span class="sd">        Detected semantic type of the column, carried from the profile.</span>
+<span class="sd">    strategy : ImputationStrategy</span>
+<span class="sd">        Strategy routed for this column.</span>
+<span class="sd">    signals : tuple[str, ...], optional</span>
+<span class="sd">        Human-readable routing rationale — the reasons that drove ``strategy``.</span>
+<span class="sd">        A tuple so the decision stays immutable.</span>
+<span class="sd">    model_choice : ModelChoice, optional</span>
+<span class="sd">        Concrete estimator family resolved at decide-time for model-based</span>
+<span class="sd">        strategies. ``None`` for scalar strategies and for columns whose</span>
+<span class="sd">        nonlinearity is ``Unpredictable``. A value-free label, never a live or</span>
+<span class="sd">        fitted estimator.</span>
+<span class="sd">    domain_snap_bounds : tuple[float, float], optional</span>
+<span class="sd">        ``(min, max)`` bounds used to snap model-based predictions for</span>
+<span class="sd">        BoundedDiscrete columns. ``None`` for all other columns. Sourced from</span>
+<span class="sd">        the profile, not learned from training data.</span>
+<span class="sd">    indicator_flag : bool</span>
+<span class="sd">        Whether a binary missingness indicator column will be appended.</span>
+<span class="sd">    mnar : bool</span>
+<span class="sd">        Whether the column is routed as Missing-Not-At-Random.</span>
+<span class="sd">    drop : bool</span>
+<span class="sd">        Whether the column will be dropped for exceeding the drop threshold.</span>
+<span class="sd">    forced : bool</span>
+<span class="sd">        Whether ``strategy`` was declared by the user rather than routed</span>
+<span class="sd">        automatically — set both by the router (from ``per_column_strategy``)</span>
+<span class="sd">        and by :meth:`ImputationDecision.with_strategy`. This is the machine</span>
+<span class="sd">        predicate for forced-ness (ADR-0066): a forced strategy that cannot</span>
+<span class="sd">        train raises instead of degrading, and because the fact lives on the</span>
+<span class="sd">        plan, a plan loaded from a store answers &quot;was this forced?&quot; without the</span>
+<span class="sd">        originating config. The ``per_column_strategy_override`` signal remains</span>
+<span class="sd">        for human readers only and is never parsed.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Fill values, fitted coefficients, convergence counts, and any other</span>
+<span class="sd">    training-derived state deliberately have no home on this type; they live on</span>
+<span class="sd">    the execution layer&#39;s fitted units (ADR-0060).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">column</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">semantic_type</span><span class="p">:</span> <span class="n">SemanticType</span>
+    <span class="n">strategy</span><span class="p">:</span> <span class="n">ImputationStrategy</span>
+    <span class="n">signals</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+    <span class="n">model_choice</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ModelChoice</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">domain_snap_bounds</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">indicator_flag</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">mnar</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">drop</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">forced</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+
+<div class="viewcode-block" id="ColumnImputationDecision.to_dict">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ColumnImputationDecision.to_dict">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Serialise the decision to a plain dictionary.</span>
+
+<span class="sd">        Enums are rendered by member *name* (per ADR-0063, so reordering an</span>
+<span class="sd">        enum later cannot silently corrupt a saved plan) and tuples as lists,</span>
+<span class="sd">        so the result is JSON-friendly and structurally round-trippable.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict</span>
+<span class="sd">            All field values keyed by field name.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;column&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">column</span><span class="p">,</span>
+            <span class="s2">&quot;semantic_type&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">semantic_type</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+            <span class="s2">&quot;strategy&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">strategy</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+            <span class="s2">&quot;signals&quot;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">signals</span><span class="p">),</span>
+            <span class="s2">&quot;model_choice&quot;</span><span class="p">:</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">model_choice</span><span class="o">.</span><span class="n">name</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_choice</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="p">),</span>
+            <span class="s2">&quot;domain_snap_bounds&quot;</span><span class="p">:</span> <span class="p">(</span>
+                <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">domain_snap_bounds</span><span class="p">)</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">domain_snap_bounds</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="k">else</span> <span class="kc">None</span>
+            <span class="p">),</span>
+            <span class="s2">&quot;indicator_flag&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">indicator_flag</span><span class="p">,</span>
+            <span class="s2">&quot;mnar&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">mnar</span><span class="p">,</span>
+            <span class="s2">&quot;drop&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">drop</span><span class="p">,</span>
+            <span class="s2">&quot;forced&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">forced</span><span class="p">,</span>
+        <span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="ColumnImputationDecision.from_dict">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ColumnImputationDecision.from_dict">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;ColumnImputationDecision&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reconstruct a ``ColumnImputationDecision`` from a plain dictionary.</span>
+
+<span class="sd">        The inverse of :meth:`to_dict`: enums are rebuilt by member name and</span>
+<span class="sd">        list fields are restored to their immutable tuple form so the</span>
+<span class="sd">        reconstructed decision is structurally equal to the original.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        data : dict</span>
+<span class="sd">            Mapping produced by :meth:`to_dict`.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        ColumnImputationDecision</span>
+<span class="sd">            Reconstructed decision instance.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">raw_bounds</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;domain_snap_bounds&quot;</span><span class="p">)</span>
+        <span class="n">raw_model_choice</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;model_choice&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+            <span class="n">column</span><span class="o">=</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;column&quot;</span><span class="p">],</span>
+            <span class="n">semantic_type</span><span class="o">=</span><span class="n">SemanticType</span><span class="p">[</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;semantic_type&quot;</span><span class="p">]],</span>
+            <span class="n">strategy</span><span class="o">=</span><span class="n">ImputationStrategy</span><span class="p">[</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;strategy&quot;</span><span class="p">]],</span>
+            <span class="n">signals</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;signals&quot;</span><span class="p">,</span> <span class="p">())),</span>
+            <span class="n">model_choice</span><span class="o">=</span><span class="p">(</span>
+                <span class="n">ModelChoice</span><span class="p">[</span><span class="n">raw_model_choice</span><span class="p">]</span> <span class="k">if</span> <span class="n">raw_model_choice</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="p">),</span>
+            <span class="n">domain_snap_bounds</span><span class="o">=</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">raw_bounds</span><span class="p">)</span> <span class="k">if</span> <span class="n">raw_bounds</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="n">indicator_flag</span><span class="o">=</span><span class="nb">bool</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;indicator_flag&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)),</span>
+            <span class="n">mnar</span><span class="o">=</span><span class="nb">bool</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;mnar&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)),</span>
+            <span class="n">drop</span><span class="o">=</span><span class="nb">bool</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;drop&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)),</span>
+            <span class="n">forced</span><span class="o">=</span><span class="nb">bool</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;forced&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)),</span>
+        <span class="p">)</span></div>
+</div>
+
+
+
 <div class="viewcode-block" id="ColumnImputationRecord">
 <a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ColumnImputationRecord">[docs]</a>
 <span class="nd">@dataclass</span>
@@ -1508,23 +1733,23 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Per-column audit entry produced after fit().</span>
 
+<span class="sd">    Composes the pure, value-free :class:`ColumnImputationDecision` (*what was</span>
+<span class="sd">    decided*, reachable via ``record.decision``) with the values ``fit()``</span>
+<span class="sd">    learned from the training data (*what was learned*): the scalar</span>
+<span class="sd">    ``fill_value`` and the ``indicator_added`` fit-metadata flag (ADR-0060).</span>
+<span class="sd">    Plan fields — ``column``, ``strategy``, ``signals``, ``domain_snap_bounds``</span>
+<span class="sd">    and the rest — are read through ``record.decision.*``.</span>
+
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
-<span class="sd">    column : str</span>
-<span class="sd">        Column name.</span>
-<span class="sd">    semantic_type : SemanticType</span>
-<span class="sd">        Detected semantic type of the column.</span>
-<span class="sd">    strategy : ImputationStrategy</span>
-<span class="sd">        Strategy applied to this column.</span>
+<span class="sd">    decision : ColumnImputationDecision</span>
+<span class="sd">        The decided, value-free per-column plan entry.</span>
 <span class="sd">    fill_value : Any, optional</span>
-<span class="sd">        Scalar fill value learned from training data (None for model-based strategies).</span>
+<span class="sd">        Scalar fill value learned from training data (None for model-based</span>
+<span class="sd">        strategies).</span>
 <span class="sd">    indicator_added : bool</span>
-<span class="sd">        Whether a binary missingness indicator column was appended.</span>
-<span class="sd">    signals : list[str]</span>
-<span class="sd">        Human-readable reasons that drove the strategy decision.</span>
-<span class="sd">    domain_snap_bounds : tuple[float, float], optional</span>
-<span class="sd">        ``(min, max)`` bounds applied to snap model-based predictions for</span>
-<span class="sd">        BoundedDiscrete columns.  ``None`` for all other columns.</span>
+<span class="sd">        Whether a binary missingness indicator column was appended — a</span>
+<span class="sd">        fit-time fact distinct from the decided ``decision.indicator_flag``.</span>
 
 <span class="sd">    Notes</span>
 <span class="sd">    -----</span>
@@ -1535,13 +1760,9 @@
 <span class="sd">    (ADR-0058).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">column</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="n">semantic_type</span><span class="p">:</span> <span class="n">SemanticType</span>
-    <span class="n">strategy</span><span class="p">:</span> <span class="n">ImputationStrategy</span>
+    <span class="n">decision</span><span class="p">:</span> <span class="n">ColumnImputationDecision</span>
     <span class="n">fill_value</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">indicator_added</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">signals</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
-    <span class="n">domain_snap_bounds</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>
 
 <div class="viewcode-block" id="ColumnImputationRecord.to_dict">
 <a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ColumnImputationRecord.to_dict">[docs]</a>
@@ -1549,24 +1770,690 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Serialise the audit record to a plain dictionary.</span>
 
+<span class="sd">        Flattens the decision&#39;s serialised fields alongside the learned</span>
+<span class="sd">        ``fill_value`` and ``indicator_added`` so the whole record round-trips</span>
+<span class="sd">        through :meth:`from_dict`.</span>
+
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
 <span class="sd">        dict</span>
-<span class="sd">            All field values keyed by field name.</span>
+<span class="sd">            The decision&#39;s fields plus ``fill_value`` and ``indicator_added``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="p">{</span>
-            <span class="s2">&quot;column&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">column</span><span class="p">,</span>
-            <span class="s2">&quot;semantic_type&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">semantic_type</span><span class="p">),</span>
-            <span class="s2">&quot;strategy&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">strategy</span><span class="p">),</span>
+            <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">decision</span><span class="o">.</span><span class="n">to_dict</span><span class="p">(),</span>
             <span class="s2">&quot;fill_value&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">fill_value</span><span class="p">,</span>
             <span class="s2">&quot;indicator_added&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">indicator_added</span><span class="p">,</span>
-            <span class="s2">&quot;signals&quot;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">signals</span><span class="p">),</span>
-            <span class="s2">&quot;domain_snap_bounds&quot;</span><span class="p">:</span> <span class="p">(</span>
-                <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">domain_snap_bounds</span><span class="p">)</span>
-                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">domain_snap_bounds</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="ColumnImputationRecord.from_dict">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ColumnImputationRecord.from_dict">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;ColumnImputationRecord&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Reconstruct a ``ColumnImputationRecord`` from a plain dictionary.</span>
+
+<span class="sd">        The inverse of :meth:`to_dict`: the decision is rebuilt from the same</span>
+<span class="sd">        flat mapping, then paired with the learned ``fill_value`` and</span>
+<span class="sd">        ``indicator_added``.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        data : dict</span>
+<span class="sd">            Mapping produced by :meth:`to_dict`.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        ColumnImputationRecord</span>
+<span class="sd">            Reconstructed audit record.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+            <span class="n">decision</span><span class="o">=</span><span class="n">ColumnImputationDecision</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">data</span><span class="p">),</span>
+            <span class="n">fill_value</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;fill_value&quot;</span><span class="p">),</span>
+            <span class="n">indicator_added</span><span class="o">=</span><span class="nb">bool</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;indicator_added&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)),</span>
+        <span class="p">)</span></div>
+</div>
+
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># ImputationDecision — the pure, immutable plan (ADR-0060, issue #345)</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+<span class="c1"># Strategies whose execution is one joint block over several columns; each</span>
+<span class="c1"># collapses to a single unit keyed by the block id rather than one unit per</span>
+<span class="c1"># column.</span>
+<span class="n">_JOINT_BLOCK_STRATEGIES</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="n">ImputationStrategy</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
+    <span class="p">{</span><span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MICE</span><span class="p">,</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">KNN</span><span class="p">}</span>
+<span class="p">)</span>
+
+<span class="c1"># Structural strategies carry no learned value and train nothing, so the plan</span>
+<span class="c1"># projects their records straight through without materialising a unit.</span>
+<span class="n">_STRUCTURAL_STRATEGIES</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="n">ImputationStrategy</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Dropped</span><span class="p">,</span>
+        <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Passthrough</span><span class="p">,</span>
+        <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Indicator</span><span class="p">,</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_validate_declarable_strategy</span><span class="p">(</span>
+    <span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">semantic_type</span><span class="p">:</span> <span class="n">SemanticType</span><span class="p">,</span>
+    <span class="n">strategy</span><span class="p">:</span> <span class="n">ImputationStrategy</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Validate that ``strategy`` may be declared on ``column`` when editing a plan.</span>
+
+<span class="sd">    Legality only — data-size feasibility (size guards) is deferred to execution</span>
+<span class="sd">    (ADR-0060). Output-only labels are rejected with the exact redirect the</span>
+<span class="sd">    config surfaces for ``per_column_strategy``; ``Constant`` redirects to</span>
+<span class="sd">    ``per_column_constant_fill``; a strategy the column&#39;s semantic type has no</span>
+<span class="sd">    imputer for is rejected as non-declarable.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">strategy</span> <span class="ow">in</span> <span class="n">_OUTPUT_ONLY_STRATEGIES</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">_output_only_redirect</span><span class="p">(</span><span class="n">column</span><span class="p">,</span> <span class="n">strategy</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Constant</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">_constant_without_fill_redirect</span><span class="p">(</span><span class="n">column</span><span class="p">))</span>
+    <span class="n">declarable</span> <span class="o">=</span> <span class="n">_DECLARABLE_STRATEGIES_BY_TYPE</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">semantic_type</span><span class="p">,</span> <span class="nb">frozenset</span><span class="p">())</span>
+    <span class="k">if</span> <span class="n">strategy</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">declarable</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s2">&#39;: &#39;</span><span class="si">{</span><span class="n">strategy</span><span class="si">}</span><span class="s2">&#39; is not a declarable strategy for a &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">semantic_type</span><span class="si">}</span><span class="s2">&#39; column.&quot;</span>
+        <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_hyperparameters_from_dict</span><span class="p">(</span>
+    <span class="n">hyperparameters</span><span class="p">:</span> <span class="s2">&quot;dict[str, Any]&quot;</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;tuple[tuple[str, Any], ...]&quot;</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Restore a hyperparameter mapping read off the wire to its in-memory form.</span>
+
+<span class="sd">    JSON has no tuple, so a sequence-valued dial (e.g. a Cluster-Conditional</span>
+<span class="sd">    unit&#39;s ``feature_cols``) arrives as a list. Restoring it to a tuple is what</span>
+<span class="sd">    keeps ``load(save(plan)) == plan`` (ADR-0063) and keeps every dial hashable.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="k">else</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">hyperparameters</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+    <span class="p">)</span>
+
+
+<div class="viewcode-block" id="ImputationUnit">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ImputationUnit">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ImputationUnit</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;One executable unit of an imputation plan.</span>
+
+<span class="sd">    The plan&#39;s materialised, re-derived projection of *what execution trains</span>
+<span class="sd">    together* (ADR-0060): the joint ``MICE`` block, the joint ``KNN`` block, and</span>
+<span class="sd">    one unit per independent column (GMM-Sampling /</span>
+<span class="sd">    Cluster-Conditional / scalar). Structural strategies (Dropped / Passthrough /</span>
+<span class="sd">    Indicator) train nothing and produce no unit. A unit is a value-free</span>
+<span class="sd">    projection — it names the columns and the estimator family, never a fitted</span>
+<span class="sd">    model; the execution layer keys its checkpoints against ``unit_id``.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    unit_id : str</span>
+<span class="sd">        Stable identifier: ``&quot;mice&quot;`` / ``&quot;knn&quot;`` for the joint blocks (exactly</span>
+<span class="sd">        one of each when present), ``&quot;{strategy}:{column}&quot;`` for a per-column</span>
+<span class="sd">        unit.</span>
+<span class="sd">    strategy : ImputationStrategy</span>
+<span class="sd">        Strategy the unit executes.</span>
+<span class="sd">    columns : tuple[str, ...]</span>
+<span class="sd">        Columns trained by this unit — every column in the block for the joint</span>
+<span class="sd">        units, a single-element tuple for a per-column unit.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    The unit is value-free and estimator-agnostic: the concrete estimator</span>
+<span class="sd">    family a model-based column trains with lives on its</span>
+<span class="sd">    :class:`ColumnImputationDecision` (``model_choice``), reachable through the</span>
+<span class="sd">    owning plan&#39;s ``column_decisions``, so it is never duplicated here.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">unit_id</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">strategy</span><span class="p">:</span> <span class="n">ImputationStrategy</span>
+    <span class="n">columns</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+    <span class="n">hyperparameters</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">...</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="ImputationUnit.to_dict">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ImputationUnit.to_dict">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Serialise the unit to a plain dictionary.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict</span>
+<span class="sd">            All field values keyed by field name, the strategy enum rendered by</span>
+<span class="sd">            member name and ``columns`` as a list.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;unit_id&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit_id</span><span class="p">,</span>
+            <span class="s2">&quot;strategy&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">strategy</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+            <span class="s2">&quot;columns&quot;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">),</span>
+            <span class="s2">&quot;hyperparameters&quot;</span><span class="p">:</span> <span class="p">(</span>
+                <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">hyperparameters</span><span class="p">}</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">hyperparameters</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
                 <span class="k">else</span> <span class="kc">None</span>
             <span class="p">),</span>
         <span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="ImputationUnit.from_dict">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ImputationUnit.from_dict">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;ImputationUnit&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reconstruct an ``ImputationUnit`` from a plain dictionary.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        data : dict</span>
+<span class="sd">            Mapping produced by :meth:`to_dict`.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        ImputationUnit</span>
+<span class="sd">            Reconstructed unit instance.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+            <span class="n">unit_id</span><span class="o">=</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;unit_id&quot;</span><span class="p">],</span>
+            <span class="n">strategy</span><span class="o">=</span><span class="n">ImputationStrategy</span><span class="p">[</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;strategy&quot;</span><span class="p">]],</span>
+            <span class="n">columns</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;columns&quot;</span><span class="p">,</span> <span class="p">())),</span>
+            <span class="n">hyperparameters</span><span class="o">=</span><span class="p">(</span>
+                <span class="n">_hyperparameters_from_dict</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;hyperparameters&quot;</span><span class="p">])</span>
+                <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;hyperparameters&quot;</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="k">else</span> <span class="kc">None</span>
+            <span class="p">),</span>
+        <span class="p">)</span></div>
+</div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_merge_unit_hyperparameters</span><span class="p">(</span>
+    <span class="n">decided_hyperparameters</span><span class="p">:</span> <span class="s2">&quot;dict[str, tuple[tuple[str, Any], ...]]&quot;</span><span class="p">,</span>
+    <span class="n">override_hyperparameters</span><span class="p">:</span> <span class="s2">&quot;dict[str, tuple[tuple[str, Any], ...]]&quot;</span><span class="p">,</span>
+    <span class="n">unit_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Optional[tuple[tuple[str, Any], ...]]&quot;</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Stamp ``merged = decided ⊕ delta`` for one unit (delta wins per key).</span>
+
+<span class="sd">    The decided base is complete for the unit&#39;s strategy and the override delta</span>
+<span class="sd">    is sparse (ADR-0073); merging them per key is what lets a fitter read one</span>
+<span class="sd">    complete dict while the two-map split stays invisible below the plan surface.</span>
+<span class="sd">    Returns ``None`` when neither map carries the unit — an empty hyperparameter</span>
+<span class="sd">    set, matching a unit no strategy resolved dials for.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">base</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">decided_hyperparameters</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">unit_id</span><span class="p">,</span> <span class="p">()))</span>
+    <span class="n">base</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">override_hyperparameters</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">unit_id</span><span class="p">,</span> <span class="p">())))</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">base</span><span class="o">.</span><span class="n">items</span><span class="p">())</span> <span class="k">if</span> <span class="n">base</span> <span class="k">else</span> <span class="kc">None</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_derive_units</span><span class="p">(</span>
+    <span class="n">column_decisions</span><span class="p">:</span> <span class="s2">&quot;dict[str, ColumnImputationDecision]&quot;</span><span class="p">,</span>
+    <span class="n">decided_hyperparameters</span><span class="p">:</span> <span class="s2">&quot;Optional[dict[str, tuple[tuple[str, Any], ...]]]&quot;</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">override_hyperparameters</span><span class="p">:</span> <span class="s2">&quot;Optional[dict[str, tuple[tuple[str, Any], ...]]]&quot;</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">ImputationUnit</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Project the per-column decision map into its execution units.</span>
+
+<span class="sd">    Called at every :class:`ImputationDecision` construction so the unit list</span>
+<span class="sd">    can never drift from the map it describes (ADR-0060). Each unit is stamped</span>
+<span class="sd">    with the per-key merge of the decided base and the override delta (ADR-0073).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">mice_cols</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
+        <span class="n">c</span> <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">column_decisions</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MICE</span>
+    <span class="p">)</span>
+    <span class="n">knn_cols</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
+        <span class="n">c</span> <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">column_decisions</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">KNN</span>
+    <span class="p">)</span>
+
+    <span class="n">decided_hyperparameters</span> <span class="o">=</span> <span class="n">decided_hyperparameters</span> <span class="ow">or</span> <span class="p">{}</span>
+    <span class="n">override_hyperparameters</span> <span class="o">=</span> <span class="n">override_hyperparameters</span> <span class="ow">or</span> <span class="p">{}</span>
+    <span class="n">units</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">ImputationUnit</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">mice_emitted</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">knn_emitted</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="k">for</span> <span class="n">column</span><span class="p">,</span> <span class="n">decision</span> <span class="ow">in</span> <span class="n">column_decisions</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">strategy</span> <span class="o">=</span> <span class="n">decision</span><span class="o">.</span><span class="n">strategy</span>
+        <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MICE</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">mice_emitted</span><span class="p">:</span>
+                <span class="n">units</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="n">ImputationUnit</span><span class="p">(</span>
+                        <span class="n">unit_id</span><span class="o">=</span><span class="s2">&quot;mice&quot;</span><span class="p">,</span>
+                        <span class="n">strategy</span><span class="o">=</span><span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MICE</span><span class="p">,</span>
+                        <span class="n">columns</span><span class="o">=</span><span class="n">mice_cols</span><span class="p">,</span>
+                        <span class="n">hyperparameters</span><span class="o">=</span><span class="n">_merge_unit_hyperparameters</span><span class="p">(</span>
+                            <span class="n">decided_hyperparameters</span><span class="p">,</span> <span class="n">override_hyperparameters</span><span class="p">,</span> <span class="s2">&quot;mice&quot;</span>
+                        <span class="p">),</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+                <span class="n">mice_emitted</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">elif</span> <span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">KNN</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">knn_emitted</span><span class="p">:</span>
+                <span class="n">units</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="n">ImputationUnit</span><span class="p">(</span>
+                        <span class="n">unit_id</span><span class="o">=</span><span class="s2">&quot;knn&quot;</span><span class="p">,</span>
+                        <span class="n">strategy</span><span class="o">=</span><span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">KNN</span><span class="p">,</span>
+                        <span class="n">columns</span><span class="o">=</span><span class="n">knn_cols</span><span class="p">,</span>
+                        <span class="n">hyperparameters</span><span class="o">=</span><span class="n">_merge_unit_hyperparameters</span><span class="p">(</span>
+                            <span class="n">decided_hyperparameters</span><span class="p">,</span> <span class="n">override_hyperparameters</span><span class="p">,</span> <span class="s2">&quot;knn&quot;</span>
+                        <span class="p">),</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+                <span class="n">knn_emitted</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">elif</span> <span class="n">strategy</span> <span class="ow">in</span> <span class="n">_STRUCTURAL_STRATEGIES</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">unit_id</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">strategy</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="n">units</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">ImputationUnit</span><span class="p">(</span>
+                    <span class="n">unit_id</span><span class="o">=</span><span class="n">unit_id</span><span class="p">,</span>
+                    <span class="n">strategy</span><span class="o">=</span><span class="n">strategy</span><span class="p">,</span>
+                    <span class="n">columns</span><span class="o">=</span><span class="p">(</span><span class="n">column</span><span class="p">,),</span>
+                    <span class="n">hyperparameters</span><span class="o">=</span><span class="n">_merge_unit_hyperparameters</span><span class="p">(</span>
+                        <span class="n">decided_hyperparameters</span><span class="p">,</span> <span class="n">override_hyperparameters</span><span class="p">,</span> <span class="n">unit_id</span>
+                    <span class="p">),</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">units</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="ImputationDecision">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ImputationDecision">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ImputationDecision</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The pure, immutable imputation plan produced by :func:`decide`.</span>
+
+<span class="sd">    The keystone of the Decision/Execution split (ADR-0060): a complete,</span>
+<span class="sd">    inspectable, editable description of *what will happen* to every column,</span>
+<span class="sd">    derived purely from ``(profile, shape, config)`` and holding no value the</span>
+<span class="sd">    execution layer learns from training data. The execution layer consumes it,</span>
+<span class="sd">    persistence serialises it, and the user can inspect and edit it before</span>
+<span class="sd">    anything trains.</span>
+
+<span class="sd">    The plan is immutable: :meth:`with_strategy` and :meth:`with_model_choice`</span>
+<span class="sd">    return a *new* ``ImputationDecision`` rather than mutating in place, and</span>
+<span class="sd">    ``units`` is re-derived from ``column_decisions`` at every construction, so a</span>
+<span class="sd">    stale unit list is structurally impossible and every plan that exists is</span>
+<span class="sd">    valid by construction.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    column_decisions : dict[str, ColumnImputationDecision]</span>
+<span class="sd">        Per-column plan entries keyed by column name, in decision order. Held as</span>
+<span class="sd">        an internal copy so the constructed plan is independent of the caller&#39;s</span>
+<span class="sd">        mapping.</span>
+<span class="sd">    decided_for_shape : tuple[int, int, tuple[str, ...]]</span>
+<span class="sd">        The ``(n_rows, n_features, column set)`` shape the plan was decided for;</span>
+<span class="sd">        the imputable-column population and size the routing depended on.</span>
+<span class="sd">        ``n_rows`` is the row count passed to :func:`decide` — the train split&#39;s</span>
+<span class="sd">        — so the plan is valid only for a split of that size (ADR-0066). It may</span>
+<span class="sd">        legitimately differ from ``profile_provenance[&quot;row_count&quot;]``.</span>
+<span class="sd">    config_snapshot : dict</span>
+<span class="sd">        Serialised :class:`~dataforge_ml.PipelineConfig` (``config.to_dict()``)</span>
+<span class="sd">        the plan was decided under.</span>
+<span class="sd">    profile_provenance : dict</span>
+<span class="sd">        Descriptive, non-load-bearing provenance of the source profile — its</span>
+<span class="sd">        ``row_count`` — carried for diagnosis only. ``row_count`` is the</span>
+<span class="sd">        *full-dataset* count, since provenance describes the profile rather than</span>
+<span class="sd">        the shape the plan was decided for (ADR-0066). Content-addressed identity</span>
+<span class="sd">        was retired with cross-process resume (ADR-0072).</span>
+<span class="sd">    decided_hyperparameters : dict[str, tuple[tuple[str, Any], ...]]</span>
+<span class="sd">        The decide-time hyperparameter base per unit id, complete for each unit&#39;s</span>
+<span class="sd">        strategy and written only by :func:`decide` (ADR-0073).</span>
+<span class="sd">    override_hyperparameters : dict[str, tuple[tuple[str, Any], ...]]</span>
+<span class="sd">        The sparse per-unit override delta, written only by</span>
+<span class="sd">        :meth:`with_hyperparameters`. ``_derive_units`` stamps the per-key merge</span>
+<span class="sd">        ``decided ⊕ delta`` onto each unit, so the two-map split is invisible</span>
+<span class="sd">        below the plan surface (ADR-0073).</span>
+<span class="sd">    numeric_sentinels : dict[str, list[float]]</span>
+<span class="sd">        Declared numeric sentinel values per column, carried from the source</span>
+<span class="sd">        profile so the execution layer can normalise effective nulls without it</span>
+<span class="sd">        (ADR-0068).</span>
+<span class="sd">    string_sentinels : dict[str, list[str]]</span>
+<span class="sd">        Declared string sentinel values per column, carried from the source</span>
+<span class="sd">        profile for the same reason as ``numeric_sentinels`` (ADR-0068).</span>
+<span class="sd">    units : tuple[ImputationUnit, ...]</span>
+<span class="sd">        Materialised execution units, re-derived from ``column_decisions`` at</span>
+<span class="sd">        construction. Not an init argument.</span>
+<span class="sd">    dropped_columns : tuple[str, ...]</span>
+<span class="sd">        Convenience projection of the columns routed to ``Dropped``. Not an init</span>
+<span class="sd">        argument.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    ``column_decisions`` is the single source of truth; ``units`` and</span>
+<span class="sd">    ``dropped_columns`` are always projections of it and are never set directly.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">column_decisions</span><span class="p">:</span> <span class="s2">&quot;dict[str, ColumnImputationDecision]&quot;</span>
+    <span class="n">decided_for_shape</span><span class="p">:</span> <span class="nb">tuple</span>
+    <span class="n">config_snapshot</span><span class="p">:</span> <span class="nb">dict</span>
+    <span class="n">profile_provenance</span><span class="p">:</span> <span class="nb">dict</span>
+    <span class="n">decided_hyperparameters</span><span class="p">:</span> <span class="s2">&quot;dict[str, tuple[tuple[str, Any], ...]]&quot;</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span>
+        <span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span>
+    <span class="p">)</span>
+    <span class="n">override_hyperparameters</span><span class="p">:</span> <span class="s2">&quot;dict[str, tuple[tuple[str, Any], ...]]&quot;</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span>
+        <span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span>
+    <span class="p">)</span>
+    <span class="n">numeric_sentinels</span><span class="p">:</span> <span class="s2">&quot;dict[str, list[float]]&quot;</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">string_sentinels</span><span class="p">:</span> <span class="s2">&quot;dict[str, list[str]]&quot;</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">units</span><span class="p">:</span> <span class="nb">tuple</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">init</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="p">())</span>
+    <span class="n">dropped_columns</span><span class="p">:</span> <span class="nb">tuple</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">init</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="p">())</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">decisions</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">column_decisions</span><span class="p">)</span>
+        <span class="n">decided_hyp</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">decided_hyperparameters</span><span class="p">)</span>
+        <span class="n">override_hyp</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">override_hyperparameters</span><span class="p">)</span>
+        <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;column_decisions&quot;</span><span class="p">,</span> <span class="n">decisions</span><span class="p">)</span>
+        <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;decided_hyperparameters&quot;</span><span class="p">,</span> <span class="n">decided_hyp</span><span class="p">)</span>
+        <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;override_hyperparameters&quot;</span><span class="p">,</span> <span class="n">override_hyp</span><span class="p">)</span>
+        <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="s2">&quot;numeric_sentinels&quot;</span><span class="p">,</span>
+            <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">numeric_sentinels</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span>
+        <span class="p">)</span>
+        <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="s2">&quot;string_sentinels&quot;</span><span class="p">,</span>
+            <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">string_sentinels</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span>
+        <span class="p">)</span>
+        <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;units&quot;</span><span class="p">,</span> <span class="n">_derive_units</span><span class="p">(</span><span class="n">decisions</span><span class="p">,</span> <span class="n">decided_hyp</span><span class="p">,</span> <span class="n">override_hyp</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="s2">&quot;dropped_columns&quot;</span><span class="p">,</span>
+            <span class="nb">tuple</span><span class="p">(</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">decisions</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">drop</span><span class="p">),</span>
+        <span class="p">)</span>
+
+<div class="viewcode-block" id="ImputationDecision.with_strategy">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ImputationDecision.with_strategy">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_strategy</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">strategy</span><span class="p">:</span> <span class="s2">&quot;str | ImputationStrategy&quot;</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;ImputationDecision&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a new plan with ``column`` routed to ``strategy``.</span>
+
+<span class="sd">        The plan is immutable; this builds a fresh :class:`ImputationDecision`</span>
+<span class="sd">        with the one column&#39;s strategy replaced and every unit re-derived, so the</span>
+<span class="sd">        edit is visible in ``units`` while the original plan is untouched. Only</span>
+<span class="sd">        edit-time *legality* is validated: the strategy must be declarable for the</span>
+<span class="sd">        column&#39;s semantic type, and the output-only labels ``Dropped`` /</span>
+<span class="sd">        ``Passthrough`` / ``Indicator`` / ``MNAR`` / ``Constant`` /</span>
+<span class="sd">        ``ClusterConditional`` / ``GMMSampling`` are rejected with the same</span>
+<span class="sd">        redirect messages ``NumericImputationConfig.set_per_column_strategy``</span>
+<span class="sd">        surfaces. Data-size feasibility (size guards) is deferred to execution</span>
+<span class="sd">        (ADR-0060). Because the new strategy may imply a different estimator</span>
+<span class="sd">        family, ``model_choice`` is reset to ``None``; use</span>
+<span class="sd">        :meth:`with_model_choice` to set it.</span>
+
+<span class="sd">        Editing a column&#39;s strategy *is* forcing it, so the new decision carries</span>
+<span class="sd">        ``forced=True`` (ADR-0066) and execution will raise rather than degrade</span>
+<span class="sd">        should the strategy fail to train — even when the edit happens to name</span>
+<span class="sd">        the strategy the router chose anyway.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        column : str</span>
+<span class="sd">            Column to re-route. Must already be present in the plan.</span>
+<span class="sd">        strategy : str or ImputationStrategy</span>
+<span class="sd">            The replacement strategy.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        ImputationDecision</span>
+<span class="sd">            A new plan with the edit applied.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        KeyError</span>
+<span class="sd">            If ``column`` is not part of the plan.</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If ``strategy`` is an output-only label, or is not declarable for the</span>
+<span class="sd">            column&#39;s semantic type.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">column</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">column_decisions</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s2">&#39; is not part of this plan.&quot;</span><span class="p">)</span>
+        <span class="n">strategy</span> <span class="o">=</span> <span class="n">ImputationStrategy</span><span class="p">(</span><span class="n">strategy</span><span class="p">)</span>
+        <span class="n">_validate_declarable_strategy</span><span class="p">(</span>
+            <span class="n">column</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">column_decisions</span><span class="p">[</span><span class="n">column</span><span class="p">]</span><span class="o">.</span><span class="n">semantic_type</span><span class="p">,</span> <span class="n">strategy</span>
+        <span class="p">)</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">replace</span>
+
+        <span class="n">new_decisions</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">column_decisions</span><span class="p">)</span>
+        <span class="n">new_decisions</span><span class="p">[</span><span class="n">column</span><span class="p">]</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span>
+            <span class="n">new_decisions</span><span class="p">[</span><span class="n">column</span><span class="p">],</span>
+            <span class="n">strategy</span><span class="o">=</span><span class="n">strategy</span><span class="p">,</span>
+            <span class="n">model_choice</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">forced</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">signals</span><span class="o">=</span><span class="n">new_decisions</span><span class="p">[</span><span class="n">column</span><span class="p">]</span><span class="o">.</span><span class="n">signals</span>
+            <span class="o">+</span> <span class="p">(</span><span class="sa">f</span><span class="s2">&quot;per_column_strategy_override: user forced strategy=</span><span class="si">{</span><span class="n">strategy</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">ImputationDecision</span><span class="p">(</span>
+            <span class="n">column_decisions</span><span class="o">=</span><span class="n">new_decisions</span><span class="p">,</span>
+            <span class="n">decided_for_shape</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">decided_for_shape</span><span class="p">,</span>
+            <span class="n">config_snapshot</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">config_snapshot</span><span class="p">,</span>
+            <span class="n">profile_provenance</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">profile_provenance</span><span class="p">,</span>
+            <span class="n">decided_hyperparameters</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">decided_hyperparameters</span><span class="p">,</span>
+            <span class="n">override_hyperparameters</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">override_hyperparameters</span><span class="p">,</span>
+            <span class="n">numeric_sentinels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">numeric_sentinels</span><span class="p">,</span>
+            <span class="n">string_sentinels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">string_sentinels</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ImputationDecision.with_model_choice">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ImputationDecision.with_model_choice">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_model_choice</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">model_choice</span><span class="p">:</span> <span class="s2">&quot;Optional[str | ModelChoice]&quot;</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;ImputationDecision&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a new plan overriding ``column``&#39;s estimator family.</span>
+
+<span class="sd">        The plan is immutable; this builds a fresh :class:`ImputationDecision`</span>
+<span class="sd">        with the one column&#39;s ``model_choice`` replaced and every unit</span>
+<span class="sd">        re-derived so the change is visible on the affected unit.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        column : str</span>
+<span class="sd">            Column whose estimator family to override. Must already be present</span>
+<span class="sd">            in the plan.</span>
+<span class="sd">        model_choice : str or ModelChoice or None</span>
+<span class="sd">            The replacement estimator family, or ``None`` to clear it.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        ImputationDecision</span>
+<span class="sd">            A new plan with the edit applied.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        KeyError</span>
+<span class="sd">            If ``column`` is not part of the plan.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">column</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">column_decisions</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s2">&#39; is not part of this plan.&quot;</span><span class="p">)</span>
+        <span class="n">resolved</span> <span class="o">=</span> <span class="n">ModelChoice</span><span class="p">(</span><span class="n">model_choice</span><span class="p">)</span> <span class="k">if</span> <span class="n">model_choice</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">replace</span>
+
+        <span class="n">new_decisions</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">column_decisions</span><span class="p">)</span>
+        <span class="n">new_decisions</span><span class="p">[</span><span class="n">column</span><span class="p">]</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">new_decisions</span><span class="p">[</span><span class="n">column</span><span class="p">],</span> <span class="n">model_choice</span><span class="o">=</span><span class="n">resolved</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ImputationDecision</span><span class="p">(</span>
+            <span class="n">column_decisions</span><span class="o">=</span><span class="n">new_decisions</span><span class="p">,</span>
+            <span class="n">decided_for_shape</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">decided_for_shape</span><span class="p">,</span>
+            <span class="n">config_snapshot</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">config_snapshot</span><span class="p">,</span>
+            <span class="n">profile_provenance</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">profile_provenance</span><span class="p">,</span>
+            <span class="n">decided_hyperparameters</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">decided_hyperparameters</span><span class="p">,</span>
+            <span class="n">override_hyperparameters</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">override_hyperparameters</span><span class="p">,</span>
+            <span class="n">numeric_sentinels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">numeric_sentinels</span><span class="p">,</span>
+            <span class="n">string_sentinels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">string_sentinels</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ImputationDecision.with_hyperparameters">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ImputationDecision.with_hyperparameters">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_hyperparameters</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">unit_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">hyperparameters</span><span class="p">:</span> <span class="s2">&quot;Optional[dict[str, Any]]&quot;</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;ImputationDecision&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a new plan overriding named hyperparameters on one unit.</span>
+
+<span class="sd">        A per-key merge onto the unit&#39;s always-complete decided base (ADR-0073):</span>
+<span class="sd">        the named keys are overridden and every other decided dial is kept, so</span>
+<span class="sd">        the plan the user inspects is exactly the plan that fits. The override is</span>
+<span class="sd">        stored as a sparse delta; ``units`` re-derives the merge at construction.</span>
+<span class="sd">        Successive edits to the same unit accumulate per key. Passing ``None``</span>
+<span class="sd">        resets the unit to its decided values by clearing its delta. Per-unit</span>
+<span class="sd">        only: a joint unit shares one estimator, so per-column overrides on it</span>
+<span class="sd">        would be meaningless.</span>
+
+<span class="sd">        Every key must already exist in the unit&#39;s decided base — the base *is*</span>
+<span class="sd">        the override schema (there is no separate allowlist), so a key the</span>
+<span class="sd">        strategy did not resolve is an unknown key and is rejected here. Values</span>
+<span class="sd">        are not type-checked: sklearn rejects an ill-typed value at fit time.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        unit_id : str</span>
+<span class="sd">            ID of the unit to override (e.g. ``&quot;mice&quot;``, ``&quot;knn&quot;``, or</span>
+<span class="sd">            ``&quot;median:age&quot;``). Must already be present in the plan.</span>
+<span class="sd">        hyperparameters : dict[str, Any] or None</span>
+<span class="sd">            The keys to override and their replacement values, or ``None`` to</span>
+<span class="sd">            reset the unit to its decided base.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        ImputationDecision</span>
+<span class="sd">            A new plan with the override applied.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        KeyError</span>
+<span class="sd">            If ``unit_id`` is not part of the plan&#39;s derived units.</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If ``hyperparameters`` names a key the unit&#39;s decided base does not</span>
+<span class="sd">            carry, identifying the unit and the offending key.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">unit_id</span> <span class="o">==</span> <span class="n">unit_id</span> <span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">units</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unit &#39;</span><span class="si">{</span><span class="n">unit_id</span><span class="si">}</span><span class="s2">&#39; is not part of this plan.&quot;</span><span class="p">)</span>
+
+        <span class="n">new_override_hyperparameters</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">override_hyperparameters</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">hyperparameters</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">new_override_hyperparameters</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">unit_id</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">decided_keys</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">decided_hyperparameters</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">unit_id</span><span class="p">,</span> <span class="p">())}</span>
+            <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">hyperparameters</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">decided_keys</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Unit &#39;</span><span class="si">{</span><span class="n">unit_id</span><span class="si">}</span><span class="s2">&#39; has no decided hyperparameter &#39;</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">&#39; &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;to override.&quot;</span>
+                    <span class="p">)</span>
+            <span class="n">merged_delta</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">new_override_hyperparameters</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">unit_id</span><span class="p">,</span> <span class="p">()))</span>
+            <span class="n">merged_delta</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">hyperparameters</span><span class="p">)</span>
+            <span class="n">new_override_hyperparameters</span><span class="p">[</span><span class="n">unit_id</span><span class="p">]</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">merged_delta</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+
+        <span class="k">return</span> <span class="n">ImputationDecision</span><span class="p">(</span>
+            <span class="n">column_decisions</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">column_decisions</span><span class="p">,</span>
+            <span class="n">decided_for_shape</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">decided_for_shape</span><span class="p">,</span>
+            <span class="n">config_snapshot</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">config_snapshot</span><span class="p">,</span>
+            <span class="n">profile_provenance</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">profile_provenance</span><span class="p">,</span>
+            <span class="n">decided_hyperparameters</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">decided_hyperparameters</span><span class="p">,</span>
+            <span class="n">override_hyperparameters</span><span class="o">=</span><span class="n">new_override_hyperparameters</span><span class="p">,</span>
+            <span class="n">numeric_sentinels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">numeric_sentinels</span><span class="p">,</span>
+            <span class="n">string_sentinels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">string_sentinels</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ImputationDecision.to_dict">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ImputationDecision.to_dict">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Serialise the plan to a plain, JSON-friendly dictionary.</span>
+
+<span class="sd">        ``units`` and ``dropped_columns`` are emitted for readability but are</span>
+<span class="sd">        re-derived — not consumed — on :meth:`from_dict`, so a hand-edited unit</span>
+<span class="sd">        list can never desynchronise a reloaded plan.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict</span>
+<span class="sd">            The plan&#39;s fields with nested objects serialised to dicts.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;column_decisions&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="n">col</span><span class="p">:</span> <span class="n">d</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span> <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">column_decisions</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">},</span>
+            <span class="s2">&quot;decided_for_shape&quot;</span><span class="p">:</span> <span class="p">[</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">decided_for_shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">decided_for_shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+                <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">decided_for_shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]),</span>
+            <span class="p">],</span>
+            <span class="s2">&quot;config_snapshot&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">config_snapshot</span><span class="p">,</span>
+            <span class="s2">&quot;profile_provenance&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile_provenance</span><span class="p">,</span>
+            <span class="s2">&quot;decided_hyperparameters&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="n">unit_id</span><span class="p">:</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">hyp</span><span class="p">}</span>
+                <span class="k">for</span> <span class="n">unit_id</span><span class="p">,</span> <span class="n">hyp</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">decided_hyperparameters</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">},</span>
+            <span class="s2">&quot;override_hyperparameters&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="n">unit_id</span><span class="p">:</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">hyp</span><span class="p">}</span>
+                <span class="k">for</span> <span class="n">unit_id</span><span class="p">,</span> <span class="n">hyp</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">override_hyperparameters</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">},</span>
+            <span class="s2">&quot;numeric_sentinels&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="n">col</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">numeric_sentinels</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">},</span>
+            <span class="s2">&quot;string_sentinels&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="n">col</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">string_sentinels</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">},</span>
+            <span class="s2">&quot;units&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">u</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span> <span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">units</span><span class="p">],</span>
+            <span class="s2">&quot;dropped_columns&quot;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dropped_columns</span><span class="p">),</span>
+        <span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="ImputationDecision.from_dict">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ImputationDecision.from_dict">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;ImputationDecision&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reconstruct an ``ImputationDecision`` from a plain dictionary.</span>
+
+<span class="sd">        The inverse of :meth:`to_dict`. ``column_decisions`` is the single</span>
+<span class="sd">        source of truth: ``units`` and ``dropped_columns`` are re-derived, never</span>
+<span class="sd">        read from ``data``, so ``from_dict(plan.to_dict())`` is structurally</span>
+<span class="sd">        equal to ``plan`` even if the serialised unit list was tampered with.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        data : dict</span>
+<span class="sd">            Mapping produced by :meth:`to_dict`.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        ImputationDecision</span>
+<span class="sd">            Reconstructed plan instance.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">raw_shape</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s2">&quot;decided_for_shape&quot;</span><span class="p">]</span>
+        <span class="n">decided_hyperparameters</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">unit_id</span><span class="p">:</span> <span class="n">_hyperparameters_from_dict</span><span class="p">(</span><span class="n">hyp</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">unit_id</span><span class="p">,</span> <span class="n">hyp</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;decided_hyperparameters&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="p">}</span>
+        <span class="n">override_hyperparameters</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">unit_id</span><span class="p">:</span> <span class="n">_hyperparameters_from_dict</span><span class="p">(</span><span class="n">hyp</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">unit_id</span><span class="p">,</span> <span class="n">hyp</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;override_hyperparameters&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+            <span class="n">column_decisions</span><span class="o">=</span><span class="p">{</span>
+                <span class="n">col</span><span class="p">:</span> <span class="n">ColumnImputationDecision</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">raw</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;column_decisions&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">},</span>
+            <span class="n">decided_for_shape</span><span class="o">=</span><span class="p">(</span>
+                <span class="n">raw_shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                <span class="n">raw_shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+                <span class="nb">tuple</span><span class="p">(</span><span class="n">raw_shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]),</span>
+            <span class="p">),</span>
+            <span class="n">config_snapshot</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;config_snapshot&quot;</span><span class="p">,</span> <span class="p">{}),</span>
+            <span class="n">profile_provenance</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;profile_provenance&quot;</span><span class="p">,</span> <span class="p">{}),</span>
+            <span class="n">decided_hyperparameters</span><span class="o">=</span><span class="n">decided_hyperparameters</span><span class="p">,</span>
+            <span class="n">override_hyperparameters</span><span class="o">=</span><span class="n">override_hyperparameters</span><span class="p">,</span>
+            <span class="n">numeric_sentinels</span><span class="o">=</span><span class="p">{</span>
+                <span class="n">col</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;numeric_sentinels&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">},</span>
+            <span class="n">string_sentinels</span><span class="o">=</span><span class="p">{</span>
+                <span class="n">col</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;string_sentinels&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">},</span>
+        <span class="p">)</span></div>
 </div>
 
 
@@ -1586,18 +2473,11 @@
 <span class="sd">        Per-column audit log keyed by column name.</span>
 <span class="sd">    dropped_columns : list[str]</span>
 <span class="sd">        Columns removed because they exceeded the drop threshold (&gt;50% missing).</span>
-<span class="sd">    exclusions_applied : bool</span>
-<span class="sd">        ``True`` when ``FittedImputer.apply_exclusions`` was called before</span>
-<span class="sd">        ``transform()``, meaning dropped columns have been propagated into the</span>
-<span class="sd">        pipeline config&#39;s hard exclusion set. A future Phase 3 orchestrator</span>
-<span class="sd">        will raise if this is ``False`` when it receives an</span>
-<span class="sd">        ``ImputationResult``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">dataframe</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span>
     <span class="n">records</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ColumnImputationRecord</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
-    <span class="n">dropped_columns</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
-    <span class="n">exclusions_applied</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></div>
+    <span class="n">dropped_columns</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span></div>
 
 </pre></div>
 
@@ -1628,8 +2508,8 @@
   </div>
   
   <!-- Scripts loaded after <body> so the DOM is not blocked -->
-  <script defer src="../../../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5"></script>
-<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5"></script>
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
 
   <footer class="bd-footer">
 <div class="bd-footer__inner bd-page-width">
@@ -1653,7 +2533,7 @@
         <div class="footer-item">
 <p class="theme-version">
   <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
-  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.19.0.
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
 </p></div>
       
     </div>

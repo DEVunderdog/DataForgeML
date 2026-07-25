@@ -26,16 +26,16 @@
   </noscript>
   
   <!-- Loaded before other Sphinx assets -->
-  <link href="../../../_static/styles/theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
-<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+  <link href="../../../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
 
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
   
   <!-- So that users can add custom icons -->
-  <script defer src="../../../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
+  <script defer src="../../../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
   <!-- Pre-loaded scripts that we'll load fully later -->
-  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5" />
-<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5" />
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
     <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
     <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
@@ -157,11 +157,35 @@
 
 
 <li class="nav-item ">
-  <a class="nav-link nav-internal" href="../../../api/utilities.html">
+  <a class="nav-link nav-internal" href="../../../api/persistence.html">
+    Persistence
+  </a>
+</li>
+
+            <li class="nav-item dropdown">
+                <button class="btn dropdown-toggle nav-item" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false"
+                aria-controls="pst-nav-more-links">
+                    More
+                </button>
+                <ul id="pst-nav-more-links" class="dropdown-menu">
+                    
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../api/observability.html">
+    Observability
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../api/utilities.html">
     Utilities
   </a>
 </li>
 
+                </ul>
+            </li>
+            
   </ul>
 </nav></div>
       
@@ -269,6 +293,20 @@
 
 
 <li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/persistence.html">
+    Persistence
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/observability.html">
+    Observability
+  </a>
+</li>
+
+
+<li class="nav-item ">
   <a class="nav-link nav-internal" href="../../../api/utilities.html">
     Utilities
   </a>
@@ -367,7 +405,7 @@
 <span class="sd">sanity check (&quot;do the imputed values look sensible?&quot;), and</span>
 <span class="sd">``score_accuracy(fitted_imputer, train_df, profile)`` is the expensive,</span>
 <span class="sd">cross-validated held-out accuracy measurement — an irreducible refit.  Neither</span>
-<span class="sd">is welded into ``ImputationOrchestrator.fit()``; both run deliberately, on the</span>
+<span class="sd">is welded into the imputation fit path; both run deliberately, on the</span>
 <span class="sd">user&#39;s clock.  The orchestrator is a phase orchestrator in the same shape as</span>
 <span class="sd">every other — construct it with an optional ``observer=`` and call an entry</span>
 <span class="sd">point — and it is stateless: the caller passes the ``FittedImputer`` and the</span>
@@ -377,6 +415,7 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">concurrent.futures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ThreadPoolExecutor</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Optional</span>
@@ -394,15 +433,12 @@
     <span class="n">SkewSeverity</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">_MODEL_BASED_STRATEGIES</span><span class="p">,</span>
     <span class="n">AccuracyDiagnostic</span><span class="p">,</span>
     <span class="n">AccuracyReport</span><span class="p">,</span>
     <span class="n">ImputationStrategy</span><span class="p">,</span>
     <span class="n">InspectionDiagnostic</span><span class="p">,</span>
     <span class="n">InspectionReport</span><span class="p">,</span>
-<span class="p">)</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">._numeric_imputer</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-    <span class="n">_MODEL_BASED_STRATEGIES</span><span class="p">,</span>
-    <span class="n">_resolve_fit_workers</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">_df_to_numpy</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">..utils._null_normalization</span><span class="w"> </span><span class="kn">import</span> <span class="n">_resolve_effective_nulls</span>
@@ -412,20 +448,82 @@
     <span class="kn">from</span><span class="w"> </span><span class="nn">..profiling._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">StructuralProfileResult</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_resolve_fit_workers</span><span class="p">(</span><span class="n">max_workers</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="n">n_units</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resolve the thread count for the concurrent evaluation units.</span>
+
+<span class="sd">    Never exceeds the number of independent units of work; ``max_workers=None``</span>
+<span class="sd">    auto-sizes to the available CPU count, and ``max_workers=1`` forces a</span>
+<span class="sd">    sequential run.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">n_units</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">1</span>
+    <span class="k">if</span> <span class="n">max_workers</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">resolved</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">()</span> <span class="ow">or</span> <span class="mi">1</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">resolved</span> <span class="o">=</span> <span class="n">max_workers</span>
+    <span class="k">return</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="n">resolved</span><span class="p">,</span> <span class="n">n_units</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_units_by_id</span><span class="p">(</span><span class="n">fitted_imputer</span><span class="p">:</span> <span class="s2">&quot;FittedImputer&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Key a composed imputer&#39;s ordered unit list back by plan unit id.</span>
+
+<span class="sd">    ``FittedImputer`` holds a bare ordered unit list since the compose collapse</span>
+<span class="sd">    (ADR-0071); Evaluation reads the model-based units by the plan ids the</span>
+<span class="sd">    routing produced, so this reconstructs those ids. A fitted unit no longer</span>
+<span class="sd">    restates its strategy (ADR-0074), so the strategy is read from the unit&#39;s</span>
+<span class="sd">    concrete type. The joint MICE and KNN blocks are the two ids that are not</span>
+<span class="sd">    ``&quot;{strategy}:{column}&quot;``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">._fitted_imputer</span><span class="w"> </span><span class="kn">import</span> <span class="n">FittedMICE</span><span class="p">,</span> <span class="n">_FittedKNN</span>
+
+    <span class="n">models</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">unit</span> <span class="ow">in</span> <span class="n">fitted_imputer</span><span class="o">.</span><span class="n">units</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">unit</span><span class="p">,</span> <span class="n">FittedMICE</span><span class="p">):</span>
+            <span class="n">models</span><span class="p">[</span><span class="s2">&quot;mice&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">unit</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">unit</span><span class="p">,</span> <span class="n">_FittedKNN</span><span class="p">):</span>
+            <span class="n">models</span><span class="p">[</span><span class="s2">&quot;knn&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">unit</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">strategy</span> <span class="o">=</span> <span class="n">_unit_strategy</span><span class="p">(</span><span class="n">unit</span><span class="p">)</span>
+            <span class="n">cols</span> <span class="o">=</span> <span class="n">unit</span><span class="o">.</span><span class="n">target_columns</span>
+            <span class="k">if</span> <span class="n">strategy</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">cols</span><span class="p">:</span>
+                <span class="n">models</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">strategy</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">cols</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">unit</span>
+    <span class="k">return</span> <span class="n">models</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_unit_strategy</span><span class="p">(</span><span class="n">unit</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ImputationStrategy</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Recover a fitted unit&#39;s strategy from its concrete type (ADR-0074).</span>
+
+<span class="sd">    A fitted unit carries only its fitted state and no longer restates the</span>
+<span class="sd">    strategy it executed, so Evaluation reads it back from the class. Returns</span>
+<span class="sd">    ``None`` for a unit type with no strategy mapping.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">._fitted_units</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+        <span class="n">FittedClusterConditional</span><span class="p">,</span>
+        <span class="n">FittedGMMSampling</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">unit</span><span class="p">,</span> <span class="n">FittedClusterConditional</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">ClusterConditional</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">unit</span><span class="p">,</span> <span class="n">FittedGMMSampling</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">GMMSampling</span>
+    <span class="k">return</span> <span class="kc">None</span>
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_read_model_metadata</span><span class="p">(</span>
     <span class="n">strategy</span><span class="p">:</span> <span class="n">ImputationStrategy</span><span class="p">,</span>
-    <span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">models</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span>
     <span class="n">n_rows</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
     <span class="n">knn_n_neighbors_override</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Read convergence/neighbour metadata straight off the fitted models.</span>
 
-<span class="sd">    Returns ``(converged, n_iter, n_neighbors_used, k_capped)``.  Regression and</span>
-<span class="sd">    MICE contribute ``converged``/``n_iter`` from their fitted</span>
-<span class="sd">    ``IterativeImputer``; KNN contributes ``n_neighbors_used`` (the model&#39;s own</span>
-<span class="sd">    ``n_neighbors``) and ``k_capped`` (the count was forced to ``n_rows − 1``);</span>
-<span class="sd">    the bimodal strategies contribute none.  ``k_capped`` is ``None`` whenever a</span>
+<span class="sd">    Returns ``(converged, n_iter, n_neighbors_used, k_capped)``.  MICE</span>
+<span class="sd">    contributes ``converged``/``n_iter`` from its fitted ``IterativeImputer``</span>
+<span class="sd">    — every chained-equations column, whether it would once have been</span>
+<span class="sd">    Regression or was always MICE, reports through this one block (ADR-0079);</span>
+<span class="sd">    KNN contributes ``n_neighbors_used`` (the model&#39;s own ``n_neighbors``) and</span>
+<span class="sd">    ``k_capped`` (the count was forced to ``n_rows − 1``); the bimodal</span>
+<span class="sd">    strategies contribute none.  ``k_capped`` is ``None`` whenever a</span>
 <span class="sd">    ``knn_n_neighbors`` override bypassed the adaptive formula.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">converged</span> <span class="o">=</span> <span class="kc">None</span>
@@ -433,16 +531,13 @@
     <span class="n">n_neighbors_used</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">k_capped</span> <span class="o">=</span> <span class="kc">None</span>
 
-    <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Regression</span><span class="p">:</span>
-        <span class="n">fitted_reg</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;regression:</span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">fitted_reg</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">converged</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">fitted_reg</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">n_iter_</span> <span class="o">&lt;</span> <span class="n">fitted_reg</span><span class="o">.</span><span class="n">max_iter_used</span><span class="p">)</span>
-            <span class="n">n_iter</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">fitted_reg</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">n_iter_</span><span class="p">)</span>
-    <span class="k">elif</span> <span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MICE</span><span class="p">:</span>
-        <span class="n">mice_model</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;mice&quot;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">mice_model</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">converged</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">mice_model</span><span class="o">.</span><span class="n">n_iter_</span> <span class="o">&lt;</span> <span class="n">mice_model</span><span class="o">.</span><span class="n">max_iter</span><span class="p">)</span>
-            <span class="n">n_iter</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">mice_model</span><span class="o">.</span><span class="n">n_iter_</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MICE</span><span class="p">:</span>
+        <span class="n">fitted_mice</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;mice&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">fitted_mice</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># ``FittedMICE`` carries the fitted ``IterativeImputer`` on</span>
+            <span class="c1"># ``.model`` (ADR-0079); read convergence off that solver.</span>
+            <span class="n">converged</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">fitted_mice</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">n_iter_</span> <span class="o">&lt;</span> <span class="n">fitted_mice</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">max_iter</span><span class="p">)</span>
+            <span class="n">n_iter</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">fitted_mice</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">n_iter_</span><span class="p">)</span>
     <span class="k">elif</span> <span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">KNN</span><span class="p">:</span>
         <span class="n">fitted_knn</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;knn&quot;</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">fitted_knn</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -504,86 +599,6 @@
     <span class="n">mae</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">mean_absolute_error</span><span class="p">(</span><span class="n">y_true</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">)))</span>
 
     <span class="k">return</span> <span class="n">r2</span><span class="p">,</span> <span class="n">rmse</span><span class="p">,</span> <span class="n">mae</span>
-
-
-<span class="k">def</span><span class="w"> </span><span class="nf">_score_regression_cv</span><span class="p">(</span>
-    <span class="n">train_df</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span>
-    <span class="n">col</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">fitted_reg</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-    <span class="n">config</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-    <span class="n">emitter</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Emitter</span><span class="p">],</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Cross-validate a single Regression-strategy column&#39;s held-out accuracy.</span>
-
-<span class="sd">    The fold stand-in freezes M&#39;s recipe — the ``estimator``, ``max_iter``, and</span>
-<span class="sd">    ``tol`` read straight off the fitted ``IterativeImputer`` — and only refits</span>
-<span class="sd">    it on the fold&#39;s training rows (ADR-0059).  Nothing is re-derived from the</span>
-<span class="sd">    fold or from the profile, so the score is a faithful baseline for M.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">feat_cols</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">fitted_reg</span><span class="o">.</span><span class="n">all_cols</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
-    <span class="n">all_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">+</span> <span class="n">feat_cols</span>
-    <span class="n">arr</span> <span class="o">=</span> <span class="n">_df_to_numpy</span><span class="p">(</span><span class="n">train_df</span><span class="p">,</span> <span class="n">all_cols</span><span class="p">)</span>
-    <span class="n">complete_mask</span> <span class="o">=</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-    <span class="n">n_complete</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">complete_mask</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
-    <span class="k">if</span> <span class="n">n_complete</span> <span class="o">&lt;</span> <span class="n">config</span><span class="o">.</span><span class="n">refit_r2_min_complete_rows</span><span class="p">:</span>
-        <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
-
-    <span class="c1"># Reuse the exact IterativeImputer recipe ``fit()`` settled on, read straight</span>
-    <span class="c1"># off the fitted Regression model rather than rebuilding it per fold.</span>
-    <span class="n">estimator</span> <span class="o">=</span> <span class="n">fitted_reg</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">estimator</span>
-    <span class="n">max_iter</span> <span class="o">=</span> <span class="n">fitted_reg</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">max_iter</span>
-    <span class="n">tol</span> <span class="o">=</span> <span class="n">fitted_reg</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">tol</span>
-
-    <span class="n">n_folds</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">refit_r2_cv_folds</span>
-    <span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
-    <span class="n">arr_shuffled</span> <span class="o">=</span> <span class="n">arr</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">complete_mask</span><span class="p">)[</span><span class="mi">0</span><span class="p">]][</span><span class="n">rng</span><span class="o">.</span><span class="n">permutation</span><span class="p">(</span><span class="n">n_complete</span><span class="p">)]</span>
-
-    <span class="n">fold_r2s</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="n">fold_rmses</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="n">fold_maes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="k">for</span> <span class="n">fold_idx</span><span class="p">,</span> <span class="n">val_start</span><span class="p">,</span> <span class="n">val_end</span> <span class="ow">in</span> <span class="n">_fold_slices</span><span class="p">(</span><span class="n">n_complete</span><span class="p">,</span> <span class="n">n_folds</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">emitter</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">emitter</span><span class="o">.</span><span class="n">substep</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2"> regression accuracy fold&quot;</span><span class="p">,</span>
-                <span class="n">column</span><span class="o">=</span><span class="n">col</span><span class="p">,</span>
-                <span class="n">index</span><span class="o">=</span><span class="n">fold_idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span>
-                <span class="n">total</span><span class="o">=</span><span class="n">n_folds</span><span class="p">,</span>
-            <span class="p">)</span>
-        <span class="n">arr_val_sub</span> <span class="o">=</span> <span class="n">arr_shuffled</span><span class="p">[</span><span class="n">val_start</span><span class="p">:</span><span class="n">val_end</span><span class="p">]</span>
-        <span class="n">arr_train_sub</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span>
-            <span class="p">[</span><span class="n">arr_shuffled</span><span class="p">[:</span><span class="n">val_start</span><span class="p">],</span> <span class="n">arr_shuffled</span><span class="p">[</span><span class="n">val_end</span><span class="p">:]]</span>
-        <span class="p">)</span>
-
-        <span class="n">y_true</span> <span class="o">=</span> <span class="n">arr_val_sub</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">y_true</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span> <span class="ow">or</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">y_true</span><span class="p">))</span> <span class="o">==</span> <span class="mf">0.0</span><span class="p">:</span>
-            <span class="k">continue</span>
-
-        <span class="n">temp_imputer</span> <span class="o">=</span> <span class="n">IterativeImputer</span><span class="p">(</span>
-            <span class="n">estimator</span><span class="o">=</span><span class="n">estimator</span><span class="p">,</span>
-            <span class="n">max_iter</span><span class="o">=</span><span class="n">max_iter</span><span class="p">,</span>
-            <span class="n">tol</span><span class="o">=</span><span class="n">tol</span><span class="p">,</span>
-            <span class="n">random_state</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
-        <span class="p">)</span>
-        <span class="n">temp_imputer</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">arr_train_sub</span><span class="p">)</span>
-
-        <span class="n">arr_val_masked</span> <span class="o">=</span> <span class="n">arr_val_sub</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
-        <span class="n">arr_val_masked</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
-        <span class="n">y_pred</span> <span class="o">=</span> <span class="n">temp_imputer</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">arr_val_masked</span><span class="p">)[:,</span> <span class="mi">0</span><span class="p">]</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">r2_f</span><span class="p">,</span> <span class="n">rmse_f</span><span class="p">,</span> <span class="n">mae_f</span> <span class="o">=</span> <span class="n">_compute_fold_metrics</span><span class="p">(</span><span class="n">y_true</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">)</span>
-            <span class="n">fold_r2s</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">r2_f</span><span class="p">)</span>
-            <span class="n">fold_rmses</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rmse_f</span><span class="p">)</span>
-            <span class="n">fold_maes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">mae_f</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
-            <span class="k">pass</span>
-
-    <span class="k">if</span> <span class="n">fold_r2s</span><span class="p">:</span>
-        <span class="k">return</span> <span class="p">(</span>
-            <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">fold_r2s</span><span class="p">)),</span>
-            <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">fold_rmses</span><span class="p">)),</span>
-            <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">fold_maes</span><span class="p">)),</span>
-        <span class="p">)</span>
-    <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_score_knn_cv</span><span class="p">(</span>
@@ -671,15 +686,34 @@
 <span class="k">def</span><span class="w"> </span><span class="nf">_score_mice_cv</span><span class="p">(</span>
     <span class="n">train_df</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span>
     <span class="n">mice_cols</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
-    <span class="n">mice_model</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">fitted_mice</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
     <span class="n">config</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
     <span class="n">emitter</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Emitter</span><span class="p">],</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]]]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Cross-validate held-out accuracy for every MICE-strategy column.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Cross-validate held-out accuracy for every chained-equations column.</span>
+
+<span class="sd">    Every column that would once have been ``Regression`` and every column that</span>
+<span class="sd">    was always ``MICE`` reports through this one path (ADR-0079).  The fold</span>
+<span class="sd">    stand-in sources its predictor set the same widened way the fitter does —</span>
+<span class="sd">    the block&#39;s full :attr:`~FittedMICE.all_cols`, not just the owned columns it</span>
+<span class="sd">    scores — and freezes M&#39;s recipe (``estimator``, ``max_iter``, ``tol``,</span>
+<span class="sd">    ``initial_strategy``, ``n_nearest_features``) read straight off the fitted</span>
+<span class="sd">    ``IterativeImputer``, only refitting it on each fold&#39;s training rows</span>
+<span class="sd">    (ADR-0059).  Held-out accuracy is scored for the block&#39;s owned columns</span>
+<span class="sd">    (``mice_cols``).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">result</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]]]</span> <span class="o">=</span> <span class="p">{</span>
         <span class="n">col</span><span class="p">:</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">mice_cols</span>
     <span class="p">}</span>
-    <span class="n">arr</span> <span class="o">=</span> <span class="n">_df_to_numpy</span><span class="p">(</span><span class="n">train_df</span><span class="p">,</span> <span class="n">mice_cols</span><span class="p">)</span>
+    <span class="c1"># Widen to the block&#39;s full predictor set, in the joint-array order the</span>
+    <span class="c1"># fitter trained on, keeping only columns present in the frame.</span>
+    <span class="n">all_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">fitted_mice</span><span class="o">.</span><span class="n">all_cols</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">train_df</span><span class="o">.</span><span class="n">columns</span><span class="p">]</span>
+    <span class="n">scored_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">mice_cols</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">all_cols</span><span class="p">]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">scored_cols</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">result</span>
+    <span class="n">col_idx</span> <span class="o">=</span> <span class="p">{</span><span class="n">c</span><span class="p">:</span> <span class="n">all_cols</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">scored_cols</span><span class="p">}</span>
+
+    <span class="n">arr</span> <span class="o">=</span> <span class="n">_df_to_numpy</span><span class="p">(</span><span class="n">train_df</span><span class="p">,</span> <span class="n">all_cols</span><span class="p">)</span>
     <span class="n">complete_mask</span> <span class="o">=</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
     <span class="n">n_complete</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">complete_mask</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
     <span class="k">if</span> <span class="n">n_complete</span> <span class="o">&lt;</span> <span class="n">config</span><span class="o">.</span><span class="n">refit_r2_min_complete_rows</span><span class="p">:</span>
@@ -687,19 +721,19 @@
 
     <span class="c1"># Reuse the exact IterativeImputer parameters ``fit()`` settled on, read</span>
     <span class="c1"># straight off the fitted MICE model rather than recomputing them.</span>
-    <span class="n">estimator</span> <span class="o">=</span> <span class="n">mice_model</span><span class="o">.</span><span class="n">estimator</span>
-    <span class="n">max_iter</span> <span class="o">=</span> <span class="n">mice_model</span><span class="o">.</span><span class="n">max_iter</span>
-    <span class="n">tol</span> <span class="o">=</span> <span class="n">mice_model</span><span class="o">.</span><span class="n">tol</span>
-    <span class="n">initial_strategy</span> <span class="o">=</span> <span class="n">mice_model</span><span class="o">.</span><span class="n">initial_strategy</span>
-    <span class="n">n_nearest_features</span> <span class="o">=</span> <span class="n">mice_model</span><span class="o">.</span><span class="n">n_nearest_features</span>
+    <span class="n">estimator</span> <span class="o">=</span> <span class="n">fitted_mice</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">estimator</span>
+    <span class="n">max_iter</span> <span class="o">=</span> <span class="n">fitted_mice</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">max_iter</span>
+    <span class="n">tol</span> <span class="o">=</span> <span class="n">fitted_mice</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">tol</span>
+    <span class="n">initial_strategy</span> <span class="o">=</span> <span class="n">fitted_mice</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">initial_strategy</span>
+    <span class="n">n_nearest_features</span> <span class="o">=</span> <span class="n">fitted_mice</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">n_nearest_features</span>
 
     <span class="n">n_folds</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">refit_r2_cv_folds</span>
     <span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
     <span class="n">arr_shuffled</span> <span class="o">=</span> <span class="n">arr</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">complete_mask</span><span class="p">)[</span><span class="mi">0</span><span class="p">]][</span><span class="n">rng</span><span class="o">.</span><span class="n">permutation</span><span class="p">(</span><span class="n">n_complete</span><span class="p">)]</span>
 
-    <span class="n">col_r2s</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span><span class="n">col</span><span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">mice_cols</span><span class="p">}</span>
-    <span class="n">col_rmses</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span><span class="n">col</span><span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">mice_cols</span><span class="p">}</span>
-    <span class="n">col_maes</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span><span class="n">col</span><span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">mice_cols</span><span class="p">}</span>
+    <span class="n">col_r2s</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span><span class="n">col</span><span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">scored_cols</span><span class="p">}</span>
+    <span class="n">col_rmses</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span><span class="n">col</span><span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">scored_cols</span><span class="p">}</span>
+    <span class="n">col_maes</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span><span class="n">col</span><span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">scored_cols</span><span class="p">}</span>
 
     <span class="k">for</span> <span class="n">fold_idx</span><span class="p">,</span> <span class="n">val_start</span><span class="p">,</span> <span class="n">val_end</span> <span class="ow">in</span> <span class="n">_fold_slices</span><span class="p">(</span><span class="n">n_complete</span><span class="p">,</span> <span class="n">n_folds</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">emitter</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -721,7 +755,8 @@
         <span class="p">)</span>
         <span class="n">temp_mice</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">arr_train_sub</span><span class="p">)</span>
 
-        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">col_k</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">mice_cols</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">col_k</span> <span class="ow">in</span> <span class="n">scored_cols</span><span class="p">:</span>
+            <span class="n">k</span> <span class="o">=</span> <span class="n">col_idx</span><span class="p">[</span><span class="n">col_k</span><span class="p">]</span>
             <span class="n">y_true</span> <span class="o">=</span> <span class="n">arr_val_sub</span><span class="p">[:,</span> <span class="n">k</span><span class="p">]</span>
             <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">y_true</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span> <span class="ow">or</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">y_true</span><span class="p">))</span> <span class="o">==</span> <span class="mf">0.0</span><span class="p">:</span>
                 <span class="k">continue</span>
@@ -736,7 +771,7 @@
             <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
                 <span class="k">pass</span>
 
-    <span class="k">for</span> <span class="n">col_k</span> <span class="ow">in</span> <span class="n">mice_cols</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">col_k</span> <span class="ow">in</span> <span class="n">scored_cols</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">col_r2s</span><span class="p">[</span><span class="n">col_k</span><span class="p">]:</span>
             <span class="n">result</span><span class="p">[</span><span class="n">col_k</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
                 <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">col_r2s</span><span class="p">[</span><span class="n">col_k</span><span class="p">])),</span>
@@ -900,7 +935,7 @@
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        fitted_imputer : FittedImputer</span>
-<span class="sd">            The imputer returned by :meth:`ImputationOrchestrator.fit`.  Its</span>
+<span class="sd">            The imputer returned by :meth:`FittedImputer.compose`.  Its</span>
 <span class="sd">            records and fitted models are reused as-is.</span>
 <span class="sd">        train_df : pl.DataFrame</span>
 <span class="sd">            Data to inspect against.  Passed back in explicitly because</span>
@@ -910,13 +945,14 @@
 <span class="sd">        -------</span>
 <span class="sd">        InspectionReport</span>
 <span class="sd">            Per-column inspection diagnostics.  Holds one entry per model-based</span>
-<span class="sd">            column (KNN, Regression, MICE, and the bimodal strategies); scalar,</span>
+<span class="sd">            column (KNN, MICE, and the bimodal strategies); scalar,</span>
 <span class="sd">            Passthrough, Dropped, Constant, and MNAR columns carry no entry.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># Fill the holes through the real application path so inspection</span>
         <span class="c1"># reflects exactly the imputation ``transform`` would apply — never a</span>
         <span class="c1"># re-implementation of model inference (ADR-0058).</span>
         <span class="n">filled_df</span> <span class="o">=</span> <span class="n">fitted_imputer</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">train_df</span><span class="p">)</span><span class="o">.</span><span class="n">dataframe</span>
+        <span class="n">models_by_id</span> <span class="o">=</span> <span class="n">_units_by_id</span><span class="p">(</span><span class="n">fitted_imputer</span><span class="p">)</span>
 
         <span class="c1"># Locate the originally-null cells the same way ``transform`` does:</span>
         <span class="c1"># normalise effective nulls first, then read the null mask.</span>
@@ -930,7 +966,7 @@
 
         <span class="n">columns</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">InspectionDiagnostic</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">rec</span> <span class="ow">in</span> <span class="n">fitted_imputer</span><span class="o">.</span><span class="n">records</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="k">if</span> <span class="n">rec</span><span class="o">.</span><span class="n">strategy</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_MODEL_BASED_STRATEGIES</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">rec</span><span class="o">.</span><span class="n">decision</span><span class="o">.</span><span class="n">strategy</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_MODEL_BASED_STRATEGIES</span><span class="p">:</span>
                 <span class="k">continue</span>
             <span class="k">if</span> <span class="n">col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">resolved</span><span class="o">.</span><span class="n">columns</span> <span class="ow">or</span> <span class="n">col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">filled_df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
                 <span class="k">continue</span>
@@ -952,9 +988,8 @@
             <span class="p">)</span>
 
             <span class="n">converged</span><span class="p">,</span> <span class="n">n_iter</span><span class="p">,</span> <span class="n">n_neighbors_used</span><span class="p">,</span> <span class="n">k_capped</span> <span class="o">=</span> <span class="n">_read_model_metadata</span><span class="p">(</span>
-                <span class="n">strategy</span><span class="o">=</span><span class="n">rec</span><span class="o">.</span><span class="n">strategy</span><span class="p">,</span>
-                <span class="n">column</span><span class="o">=</span><span class="n">col</span><span class="p">,</span>
-                <span class="n">models</span><span class="o">=</span><span class="n">fitted_imputer</span><span class="o">.</span><span class="n">models</span><span class="p">,</span>
+                <span class="n">strategy</span><span class="o">=</span><span class="n">rec</span><span class="o">.</span><span class="n">decision</span><span class="o">.</span><span class="n">strategy</span><span class="p">,</span>
+                <span class="n">models</span><span class="o">=</span><span class="n">models_by_id</span><span class="p">,</span>
                 <span class="n">n_rows</span><span class="o">=</span><span class="n">n_rows</span><span class="p">,</span>
                 <span class="n">knn_n_neighbors_override</span><span class="o">=</span><span class="n">numeric_cfg</span><span class="o">.</span><span class="n">knn_n_neighbors</span><span class="p">,</span>
             <span class="p">)</span>
@@ -1002,7 +1037,7 @@
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        fitted_imputer : FittedImputer</span>
-<span class="sd">            The imputer returned by :meth:`ImputationOrchestrator.fit`.  Its</span>
+<span class="sd">            The imputer returned by :meth:`FittedImputer.compose`.  Its</span>
 <span class="sd">            records supply the per-column strategy and its models supply the</span>
 <span class="sd">            fold-estimator parameters; neither is re-derived.</span>
 <span class="sd">        train_df : pl.DataFrame</span>
@@ -1011,13 +1046,13 @@
 <span class="sd">        profile : StructuralProfileResult</span>
 <span class="sd">            Full-dataset profile from Phase 1.  Used only for the</span>
 <span class="sd">            Cluster-Conditional fold fills (skewness selects mean vs. median),</span>
-<span class="sd">            never to re-route and never for Regression/KNN scoring.</span>
+<span class="sd">            never to re-route and never for MICE/KNN scoring.</span>
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
 <span class="sd">        AccuracyReport</span>
 <span class="sd">            Per-column held-out accuracy.  Holds one entry per model-based</span>
-<span class="sd">            column (KNN, Regression, MICE, and the bimodal strategies); scalar,</span>
+<span class="sd">            column (KNN, MICE, and the bimodal strategies); scalar,</span>
 <span class="sd">            Passthrough, Dropped, Constant, and MNAR columns carry no entry.</span>
 <span class="sd">            The three fields are ``None`` when fewer than</span>
 <span class="sd">            ``refit_r2_min_complete_rows`` complete rows are available, or when</span>
@@ -1032,6 +1067,7 @@
             <span class="n">string_sentinels</span><span class="o">=</span><span class="n">fitted_imputer</span><span class="o">.</span><span class="n">string_sentinels</span><span class="p">,</span>
         <span class="p">)</span>
         <span class="n">config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="o">.</span><span class="n">imputation</span><span class="o">.</span><span class="n">numeric</span>
+        <span class="n">models_by_id</span> <span class="o">=</span> <span class="n">_units_by_id</span><span class="p">(</span><span class="n">fitted_imputer</span><span class="p">)</span>
 
         <span class="c1"># Reuse the strategy decisions already recorded at fit time (ADR-0058);</span>
         <span class="c1"># routing is never recomputed here.</span>
@@ -1039,19 +1075,17 @@
             <span class="k">return</span> <span class="p">[</span>
                 <span class="n">col</span>
                 <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">rec</span> <span class="ow">in</span> <span class="n">fitted_imputer</span><span class="o">.</span><span class="n">records</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-                <span class="k">if</span> <span class="n">rec</span><span class="o">.</span><span class="n">strategy</span> <span class="o">==</span> <span class="n">strategy</span> <span class="ow">and</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">resolved</span><span class="o">.</span><span class="n">columns</span>
+                <span class="k">if</span> <span class="n">rec</span><span class="o">.</span><span class="n">decision</span><span class="o">.</span><span class="n">strategy</span> <span class="o">==</span> <span class="n">strategy</span> <span class="ow">and</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">resolved</span><span class="o">.</span><span class="n">columns</span>
             <span class="p">]</span>
 
         <span class="n">mice_cols</span> <span class="o">=</span> <span class="n">_cols_for</span><span class="p">(</span><span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MICE</span><span class="p">)</span>
         <span class="n">knn_cols</span> <span class="o">=</span> <span class="n">_cols_for</span><span class="p">(</span><span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">KNN</span><span class="p">)</span>
-        <span class="n">reg_cols</span> <span class="o">=</span> <span class="n">_cols_for</span><span class="p">(</span><span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Regression</span><span class="p">)</span>
         <span class="n">cluster_cols</span> <span class="o">=</span> <span class="n">_cols_for</span><span class="p">(</span><span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">ClusterConditional</span><span class="p">)</span>
         <span class="n">gmm_cols</span> <span class="o">=</span> <span class="n">_cols_for</span><span class="p">(</span><span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">GMMSampling</span><span class="p">)</span>
 
         <span class="n">n_model_cols</span> <span class="o">=</span> <span class="p">(</span>
             <span class="nb">len</span><span class="p">(</span><span class="n">mice_cols</span><span class="p">)</span>
             <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">knn_cols</span><span class="p">)</span>
-            <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">reg_cols</span><span class="p">)</span>
             <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">cluster_cols</span><span class="p">)</span>
             <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">gmm_cols</span><span class="p">)</span>
         <span class="p">)</span>
@@ -1070,7 +1104,7 @@
         <span class="n">units</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Callable</span><span class="p">[[],</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
 
         <span class="k">if</span> <span class="n">mice_cols</span><span class="p">:</span>
-            <span class="n">mice_model</span> <span class="o">=</span> <span class="n">fitted_imputer</span><span class="o">.</span><span class="n">models</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;mice&quot;</span><span class="p">)</span>
+            <span class="n">fitted_mice</span> <span class="o">=</span> <span class="n">models_by_id</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;mice&quot;</span><span class="p">)</span>
 
             <span class="k">def</span><span class="w"> </span><span class="nf">_run_mice</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">emitter</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -1078,7 +1112,7 @@
                         <span class="sa">f</span><span class="s2">&quot;MICE accuracy over </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">mice_cols</span><span class="p">)</span><span class="si">}</span><span class="s2"> columns&quot;</span>
                     <span class="p">)</span>
                 <span class="n">scores</span> <span class="o">=</span> <span class="n">_score_mice_cv</span><span class="p">(</span>
-                    <span class="n">resolved</span><span class="p">,</span> <span class="n">mice_cols</span><span class="p">,</span> <span class="n">mice_model</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">emitter</span>
+                    <span class="n">resolved</span><span class="p">,</span> <span class="n">mice_cols</span><span class="p">,</span> <span class="n">fitted_mice</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">emitter</span>
                 <span class="p">)</span>
                 <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">mice_cols</span><span class="p">:</span>
                     <span class="n">r2_cv</span><span class="p">,</span> <span class="n">rmse</span><span class="p">,</span> <span class="n">mae</span> <span class="o">=</span> <span class="n">scores</span><span class="p">[</span><span class="n">col</span><span class="p">]</span>
@@ -1088,7 +1122,7 @@
             <span class="n">units</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_run_mice</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="n">knn_cols</span><span class="p">:</span>
-            <span class="n">fitted_knn</span> <span class="o">=</span> <span class="n">fitted_imputer</span><span class="o">.</span><span class="n">models</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;knn&quot;</span><span class="p">)</span>
+            <span class="n">fitted_knn</span> <span class="o">=</span> <span class="n">models_by_id</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;knn&quot;</span><span class="p">)</span>
 
             <span class="k">def</span><span class="w"> </span><span class="nf">_run_knn</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">emitter</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -1105,23 +1139,8 @@
 
             <span class="n">units</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_run_knn</span><span class="p">)</span>
 
-        <span class="k">def</span><span class="w"> </span><span class="nf">_run_regression_col</span><span class="p">(</span><span class="n">col</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">fitted_reg</span> <span class="o">=</span> <span class="n">fitted_imputer</span><span class="o">.</span><span class="n">models</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;regression:</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">fitted_reg</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="n">accuracy</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">AccuracyDiagnostic</span><span class="p">(</span><span class="n">r2_cv</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">rmse</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mae</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
-                <span class="n">emitter</span><span class="o">.</span><span class="n">item</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
-                <span class="k">return</span>
-            <span class="n">r2_cv</span><span class="p">,</span> <span class="n">rmse</span><span class="p">,</span> <span class="n">mae</span> <span class="o">=</span> <span class="n">_score_regression_cv</span><span class="p">(</span>
-                <span class="n">resolved</span><span class="p">,</span> <span class="n">col</span><span class="p">,</span> <span class="n">fitted_reg</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">emitter</span>
-            <span class="p">)</span>
-            <span class="n">accuracy</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">AccuracyDiagnostic</span><span class="p">(</span><span class="n">r2_cv</span><span class="o">=</span><span class="n">r2_cv</span><span class="p">,</span> <span class="n">rmse</span><span class="o">=</span><span class="n">rmse</span><span class="p">,</span> <span class="n">mae</span><span class="o">=</span><span class="n">mae</span><span class="p">)</span>
-            <span class="n">emitter</span><span class="o">.</span><span class="n">item</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
-
-        <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">reg_cols</span><span class="p">:</span>
-            <span class="n">units</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">partial</span><span class="p">(</span><span class="n">_run_regression_col</span><span class="p">,</span> <span class="n">col</span><span class="p">))</span>
-
         <span class="k">def</span><span class="w"> </span><span class="nf">_run_cluster_col</span><span class="p">(</span><span class="n">col</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">fitted_cluster</span> <span class="o">=</span> <span class="n">fitted_imputer</span><span class="o">.</span><span class="n">models</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;cluster:</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">fitted_cluster</span> <span class="o">=</span> <span class="n">models_by_id</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;cluster:</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="n">r2_cv</span> <span class="o">=</span> <span class="n">rmse</span> <span class="o">=</span> <span class="n">mae</span> <span class="o">=</span> <span class="kc">None</span>
             <span class="c1"># Only the feature-based branch (no grouping variable) has held-out</span>
             <span class="c1"># truth to score; the grouping-variable branch does not.</span>
@@ -1213,8 +1232,8 @@
   </div>
   
   <!-- Scripts loaded after <body> so the DOM is not blocked -->
-  <script defer src="../../../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5"></script>
-<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5"></script>
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
 
   <footer class="bd-footer">
 <div class="bd-footer__inner bd-page-width">
@@ -1238,7 +1257,7 @@
         <div class="footer-item">
 <p class="theme-version">
   <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
-  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.19.0.
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
 </p></div>
       
     </div>

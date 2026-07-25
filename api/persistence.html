@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Utilities &#8212; DataForgeML  documentation</title>
+    <title>Persistence &#8212; DataForgeML  documentation</title>
   
   
   
@@ -41,11 +41,12 @@
     <script src="../_static/documentation_options.js?v=5929fcd5"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'api/utilities';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'api/persistence';</script>
     <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="prev" title="Observability" href="observability.html" />
+    <link rel="next" title="Observability" href="observability.html" />
+    <link rel="prev" title="Splitting" href="splitting.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="" />
@@ -158,8 +159,8 @@
 </li>
 
 
-<li class="nav-item ">
-  <a class="nav-link nav-internal" href="persistence.html">
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="#">
     Persistence
   </a>
 </li>
@@ -179,8 +180,8 @@
 </li>
 
 
-<li class=" current active">
-  <a class="nav-link dropdown-item nav-internal" href="#">
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="utilities.html">
     Utilities
   </a>
 </li>
@@ -296,8 +297,8 @@
 </li>
 
 
-<li class="nav-item ">
-  <a class="nav-link nav-internal" href="persistence.html">
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="#">
     Persistence
   </a>
 </li>
@@ -310,8 +311,8 @@
 </li>
 
 
-<li class="nav-item current active">
-  <a class="nav-link nav-internal" href="#">
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="utilities.html">
     Utilities
   </a>
 </li>
@@ -397,7 +398,7 @@
         <i class="fa-solid fa-home"></i>
       </a>
     </li>
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Utilities</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Persistence</span></li>
   </ul>
 </nav>
 </div>
@@ -414,35 +415,122 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="utilities">
-<h1>Utilities<a class="headerlink" href="#utilities" title="Link to this heading">#</a></h1>
-<dl class="py class">
-<dt class="sig sig-object py" id="dataforge_ml.utils.data_loader.DataLoader">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.utils.data_loader.</span></span><span class="sig-name descname"><span class="pre">DataLoader</span></span><a class="reference internal" href="../_modules/dataforge_ml/utils/data_loader.html#DataLoader"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.utils.data_loader.DataLoader" title="Link to this definition">#</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<dl class="py method">
-<dt class="sig sig-object py" id="dataforge_ml.utils.data_loader.DataLoader.load">
-<span class="sig-name descname"><span class="pre">load</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fmt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/utils/data_loader.html#DataLoader.load"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.utils.data_loader.DataLoader.load" title="Link to this definition">#</a></dt>
-<dd><dl class="field-list simple">
+  <section id="persistence">
+<h1>Persistence<a class="headerlink" href="#persistence" title="Link to this heading">#</a></h1>
+<p>Three free functions and nothing else (ADR-0072): the library hands back bytes
+and takes bytes; where those bytes live is entirely the user’s.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="dataforge_ml._serialization.serialize">
+<span class="sig-prename descclassname"><span class="pre">dataforge_ml._serialization.</span></span><span class="sig-name descname"><span class="pre">serialize</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">obj</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/_serialization.html#serialize"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml._serialization.serialize" title="Link to this definition">#</a></dt>
+<dd><p>Serialize a fitted unit, an imputation decision, or a profile to bytes.</p>
+<p>The single write door of the persistence boundary (ADR-0072). It dispatches
+on the object’s type and produces a self-describing JSON-header envelope the
+user stores anywhere; a fitted unit additionally carries an opaque joblib
+payload holding its learned state. A decision’s hyperparameter-override delta
+rides inside its envelope, so a round-tripped plan re-stamps the same merged
+units.</p>
+<dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>source</strong> (<em>str</em><em> | </em><em>Path</em><em> | </em><em>IOBase</em><em> | </em><em>RawIOBase</em><em> | </em><em>BufferedIOBase</em>)</p></li>
-<li><p><strong>fmt</strong> (<em>str</em><em> | </em><em>None</em>)</p></li>
-</ul>
+<dd class="field-odd"><p><strong>obj</strong> (<a class="reference internal" href="imputation.html#dataforge_ml.imputation._fitted_imputer.FittedUnit" title="dataforge_ml.imputation._fitted_imputer.FittedUnit"><em>FittedUnit</em></a><em> or </em><a class="reference internal" href="imputation.html#dataforge_ml.imputation._config.ImputationDecision" title="dataforge_ml.imputation._config.ImputationDecision"><em>ImputationDecision</em></a><em> or </em><a class="reference internal" href="profiling.html#dataforge_ml.profiling._config.StructuralProfileResult" title="dataforge_ml.profiling._config.StructuralProfileResult"><em>StructuralProfileResult</em></a>) – The object to persist. Any object satisfying the fitted-unit contract
+(a <code class="docutils literal notranslate"><span class="pre">target_columns</span></code> property) is serialized through the unit path.</p>
 </dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><em>DataFrame</em></p>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The serialized envelope, consumed by <a class="reference internal" href="#dataforge_ml._serialization.deserialize" title="dataforge_ml._serialization.deserialize"><code class="xref py py-func docutils literal notranslate"><span class="pre">deserialize()</span></code></a> and
+<a class="reference internal" href="#dataforge_ml._serialization.inspect" title="dataforge_ml._serialization.inspect"><code class="xref py py-func docutils literal notranslate"><span class="pre">inspect()</span></code></a>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bytes</p>
 </dd>
 </dl>
 </dd></dl>
 
+<dl class="py function">
+<dt class="sig sig-object py" id="dataforge_ml._serialization.deserialize">
+<span class="sig-prename descclassname"><span class="pre">dataforge_ml._serialization.</span></span><span class="sig-name descname"><span class="pre">deserialize</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">obj</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/_serialization.html#deserialize"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml._serialization.deserialize" title="Link to this definition">#</a></dt>
+<dd><p>Reconstruct the original object from bytes produced by <a class="reference internal" href="#dataforge_ml._serialization.serialize" title="dataforge_ml._serialization.serialize"><code class="xref py py-func docutils literal notranslate"><span class="pre">serialize()</span></code></a>.</p>
+<p>Polymorphic (ADR-0072): the envelope’s <code class="docutils literal notranslate"><span class="pre">kind</span></code> tag selects the object type,
+so the caller never declares what it is deserializing. A decision and a
+profile rebuild from their JSON <code class="docutils literal notranslate"><span class="pre">data</span></code>; a fitted unit runs the
+reconstruction gates — the <code class="docutils literal notranslate"><span class="pre">produced_with</span></code> version check and the payload
+SHA-256 — <strong>before</strong> its joblib payload is unpickled, so a unit produced
+under an incompatible library/estimator version refuses here rather than
+transforming to subtly wrong numbers later.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>obj</strong> (<em>bytes</em>) – Bytes previously returned by <a class="reference internal" href="#dataforge_ml._serialization.serialize" title="dataforge_ml._serialization.serialize"><code class="xref py py-func docutils literal notranslate"><span class="pre">serialize()</span></code></a>.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The reconstructed object; a fitted unit’s <code class="docutils literal notranslate"><span class="pre">transform</span></code> is bit-identical
+to the original’s on equal input.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="imputation.html#dataforge_ml.imputation._fitted_imputer.FittedUnit" title="dataforge_ml.imputation._fitted_imputer.FittedUnit">FittedUnit</a> or <a class="reference internal" href="imputation.html#dataforge_ml.imputation._config.ImputationDecision" title="dataforge_ml.imputation._config.ImputationDecision">ImputationDecision</a> or <a class="reference internal" href="profiling.html#dataforge_ml.profiling._config.StructuralProfileResult" title="dataforge_ml.profiling._config.StructuralProfileResult">StructuralProfileResult</a></p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#dataforge_ml._serialization.IncompatibleArtifactError" title="dataforge_ml._serialization.IncompatibleArtifactError"><strong>IncompatibleArtifactError</strong></a> – If the envelope’s <code class="docutils literal notranslate"><span class="pre">kind</span></code> is unrecognised, or a fitted unit’s format
+schema or reconstruction-critical dependency version is incompatible,
+or its payload checksum does not match.</p>
+</dd>
+</dl>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Deserializing a fitted unit unpickles its payload, which executes arbitrary
+code — only deserialize bytes you produced or trust. See the module-level
+trust-boundary note.</p>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="dataforge_ml._serialization.inspect">
+<span class="sig-prename descclassname"><span class="pre">dataforge_ml._serialization.</span></span><span class="sig-name descname"><span class="pre">inspect</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">obj</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/_serialization.html#inspect"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml._serialization.inspect" title="Link to this definition">#</a></dt>
+<dd><p>Read a serialized envelope’s header without unpickling its payload.</p>
+<p>The pre-deserialize probe (ADR-0072): it parses only the JSON header, so a
+caller can check an artifact’s <code class="docutils literal notranslate"><span class="pre">kind</span></code>, format-schema/library versions, and
+— for a fitted unit — its <code class="docutils literal notranslate"><span class="pre">produced_with</span></code> provenance stamp <em>before</em>
+trusting untrusted-transport bytes into an unpickling <a class="reference internal" href="#dataforge_ml._serialization.deserialize" title="dataforge_ml._serialization.deserialize"><code class="xref py py-func docutils literal notranslate"><span class="pre">deserialize()</span></code></a>.
+The bulky <code class="docutils literal notranslate"><span class="pre">data</span></code> payload of a decision or profile envelope is omitted; the
+fitted unit’s opaque joblib tail is never touched.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>obj</strong> (<em>bytes</em>) – Bytes previously returned by <a class="reference internal" href="#dataforge_ml._serialization.serialize" title="dataforge_ml._serialization.serialize"><code class="xref py py-func docutils literal notranslate"><span class="pre">serialize()</span></code></a>.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The envelope header: always <code class="docutils literal notranslate"><span class="pre">kind</span></code>, <code class="docutils literal notranslate"><span class="pre">format_schema_version</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">library_version</span></code>; for a fitted unit also <code class="docutils literal notranslate"><span class="pre">produced_with</span></code>,
+<code class="docutils literal notranslate"><span class="pre">payload_sha256</span></code>, <code class="docutils literal notranslate"><span class="pre">unit_type</span></code>, and <code class="docutils literal notranslate"><span class="pre">columns</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py class">
-<dt class="sig sig-object py" id="dataforge_ml.utils.data_loader.UnsupportedFormatError">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.utils.data_loader.</span></span><span class="sig-name descname"><span class="pre">UnsupportedFormatError</span></span><a class="reference internal" href="../_modules/dataforge_ml/utils/data_loader.html#UnsupportedFormatError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.utils.data_loader.UnsupportedFormatError" title="Link to this definition">#</a></dt>
+<dt class="sig sig-object py" id="dataforge_ml._serialization.IncompatibleArtifactError">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml._serialization.</span></span><span class="sig-name descname"><span class="pre">IncompatibleArtifactError</span></span><a class="reference internal" href="../_modules/dataforge_ml/_serialization.html#IncompatibleArtifactError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml._serialization.IncompatibleArtifactError" title="Link to this definition">#</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code></p>
-<p>Raised when a file extension has no registered loader</p>
+<p>Raised when a stored artifact cannot be <em>reconstructed</em> safely.</p>
+<p>Signals a reconstruction/correctness failure (ADR-0063): the saved bytes
+cannot be rebuilt faithfully under the format schema and libraries
+installed right now — a newer format-schema major, a mismatched
+DataForgeML / scikit-learn / numpy / joblib version, or a payload whose
+SHA-256 checksum does not match its header. With content-addressed identity
+and load-for-reuse validation retired (ADR-0072), this is the only load-time
+failure the library raises; relevance is no longer checked at deserialize.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="dataforge_ml._serialization.ArtifactPythonVersionWarning">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml._serialization.</span></span><span class="sig-name descname"><span class="pre">ArtifactPythonVersionWarning</span></span><a class="reference internal" href="../_modules/dataforge_ml/_serialization.html#ArtifactPythonVersionWarning"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml._serialization.ArtifactPythonVersionWarning" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">UserWarning</span></code></p>
+<p>Emitted when an artifact loads under a different Python version.</p>
+<p>Signals the one lenient branch of the ADR-0063 load policy: the artifact
+was saved under a Python version other than the one running now. CPython’s
+pickle protocol is stable across minor versions, so the load proceeds — this
+warning is the only signal. Unlike a scikit-learn / numpy / joblib mismatch
+(which refuses with <a class="reference internal" href="#dataforge_ml._serialization.IncompatibleArtifactError" title="dataforge_ml._serialization.IncompatibleArtifactError"><code class="xref py py-class docutils literal notranslate"><span class="pre">IncompatibleArtifactError</span></code></a>), a Python drift is
+tolerated. Suppress with
+<code class="docutils literal notranslate"><span class="pre">warnings.filterwarnings(&quot;ignore&quot;,</span> <span class="pre">category=ArtifactPythonVersionWarning)</span></code>.</p>
 </dd></dl>
 
 </section>
@@ -458,13 +546,22 @@
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="observability.html"
+       href="splitting.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Splitting</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="observability.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
         <p class="prev-next-title">Observability</p>
       </div>
+      <i class="fa-solid fa-angle-right"></i>
     </a>
 </div>
                 </footer>
@@ -485,18 +582,18 @@
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.utils.data_loader.DataLoader"><code class="docutils literal notranslate"><span class="pre">DataLoader</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.utils.data_loader.DataLoader.load"><code class="docutils literal notranslate"><span class="pre">DataLoader.load()</span></code></a></li>
-</ul>
-</li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.utils.data_loader.UnsupportedFormatError"><code class="docutils literal notranslate"><span class="pre">UnsupportedFormatError</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml._serialization.serialize"><code class="docutils literal notranslate"><span class="pre">serialize()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml._serialization.deserialize"><code class="docutils literal notranslate"><span class="pre">deserialize()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml._serialization.inspect"><code class="docutils literal notranslate"><span class="pre">inspect()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml._serialization.IncompatibleArtifactError"><code class="docutils literal notranslate"><span class="pre">IncompatibleArtifactError</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml._serialization.ArtifactPythonVersionWarning"><code class="docutils literal notranslate"><span class="pre">ArtifactPythonVersionWarning</span></code></a></li>
 </ul>
   </nav></div>
 
   <div class="sidebar-secondary-item">
 
   <div class="tocsection sourcelink">
-    <a href="../_sources/api/utilities.md.txt">
+    <a href="../_sources/api/persistence.md.txt">
       <i class="fa-solid fa-file-lines"></i> Show Source
     </a>
   </div>

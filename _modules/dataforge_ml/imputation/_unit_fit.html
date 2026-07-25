@@ -1,0 +1,717 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>dataforge_ml.imputation._unit_fit &#8212; DataForgeML  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../../../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/dataforge_ml/imputation/_unit_fit';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../../../_static/searchtools.js"></script>
+    <script src="../../../_static/language_data.js"></script>
+    <script src="../../../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">DataForgeML  documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/pipeline.html">
+    Pipeline
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/profiling.html">
+    Profiling
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/imputation.html">
+    Imputation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/splitting.html">
+    Splitting
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/persistence.html">
+    Persistence
+  </a>
+</li>
+
+            <li class="nav-item dropdown">
+                <button class="btn dropdown-toggle nav-item" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false"
+                aria-controls="pst-nav-more-links">
+                    More
+                </button>
+                <ul id="pst-nav-more-links" class="dropdown-menu">
+                    
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../api/observability.html">
+    Observability
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../api/utilities.html">
+    Utilities
+  </a>
+</li>
+
+                </ul>
+            </li>
+            
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/pipeline.html">
+    Pipeline
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/profiling.html">
+    Profiling
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/imputation.html">
+    Imputation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/splitting.html">
+    Splitting
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/persistence.html">
+    Persistence
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/observability.html">
+    Observability
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/utilities.html">
+    Utilities
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">dataforge_ml.imputation._unit_fit</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for dataforge_ml.imputation._unit_fit</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Stateless training surface for the user-orchestrated imputation layer.</span>
+
+<span class="sd">The execution half of the Decision/Execution split, redrawn around a single</span>
+<span class="sd">primitive (ADR-0071, ADR-0075): the user keeps the pure</span>
+<span class="sd">:class:`ImputationDecision` produced by</span>
+<span class="sd">:func:`~dataforge_ml.imputation.decide`, trains each planned unit with their</span>
+<span class="sd">own :func:`fit_unit` loop — batch scheduling is user-owned (ADR-0075) — and</span>
+<span class="sd">composes the fitted units into a whole-frame imputer with</span>
+<span class="sd">:meth:`FittedImputer.compose`. There is no executor, no state machine, and no</span>
+<span class="sd">store: a fit either produces a fitted unit or raises</span>
+<span class="sd">:class:`UnitNotTrainableError` (single-track failure, ADR-0071).</span>
+
+<span class="sd">The frame is normalised off the plan&#39;s declared sentinel maps before the unit</span>
+<span class="sd">trains (ADR-0068), so a raw frame may be handed straight in.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">replace</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">time</span><span class="w"> </span><span class="kn">import</span> <span class="n">perf_counter</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Optional</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">..config</span><span class="w"> </span><span class="kn">import</span> <span class="n">PipelineConfig</span><span class="p">,</span> <span class="n">SemanticType</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..utils._null_normalization</span><span class="w"> </span><span class="kn">import</span> <span class="n">_resolve_effective_nulls</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">ImputationStrategy</span><span class="p">,</span> <span class="n">ImputationUnit</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._fit_signals</span><span class="w"> </span><span class="kn">import</span> <span class="n">FitSignals</span><span class="p">,</span> <span class="n">ImputationFitWarning</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._fitters</span><span class="w"> </span><span class="kn">import</span> <span class="n">UnitFitContext</span><span class="p">,</span> <span class="n">_dispatch_unit_fit</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">ImputationDecision</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">._fitted_imputer</span><span class="w"> </span><span class="kn">import</span> <span class="n">FittedUnit</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">&quot;FitSignals&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;ImputationFitWarning&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;UnitFitResult&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;UnitNotTrainableError&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;fit_unit&quot;</span><span class="p">,</span>
+<span class="p">]</span>
+
+
+<div class="viewcode-block" id="UnitNotTrainableError">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._unit_fit.UnitNotTrainableError">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">UnitNotTrainableError</span><span class="p">(</span><span class="ne">RuntimeError</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Raised when a planned unit cannot be trained.</span>
+
+<span class="sd">    Single-track failure (ADR-0071): a unit that cannot train always raises,</span>
+<span class="sd">    carrying a structured payload — the unit id, its strategy, its columns, and</span>
+<span class="sd">    the fitter&#39;s reason — rather than silently degrading to a scalar. The</span>
+<span class="sd">    fitter&#39;s own diagnosis is chained as the cause.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    unit_id : str</span>
+<span class="sd">        The id of the unit that could not train.</span>
+<span class="sd">    strategy : ImputationStrategy</span>
+<span class="sd">        The strategy the unit was planned to execute.</span>
+<span class="sd">    columns : tuple[str, ...]</span>
+<span class="sd">        The columns the unit owns.</span>
+<span class="sd">    reason : str</span>
+<span class="sd">        The fitter&#39;s human-readable explanation of why training failed.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">unit_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">strategy</span><span class="p">:</span> <span class="n">ImputationStrategy</span><span class="p">,</span>
+        <span class="n">columns</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+        <span class="n">reason</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unit_id</span> <span class="o">=</span> <span class="n">unit_id</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">strategy</span> <span class="o">=</span> <span class="n">strategy</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">columns</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">columns</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reason</span> <span class="o">=</span> <span class="n">reason</span>
+        <span class="n">names</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">c</span><span class="si">}</span><span class="s2">&#39;&quot;</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Unit &#39;</span><span class="si">{</span><span class="n">unit_id</span><span class="si">}</span><span class="s2">&#39; (</span><span class="si">{</span><span class="n">strategy</span><span class="si">}</span><span class="s2">) could not train column(s) </span><span class="si">{</span><span class="n">names</span><span class="si">}</span><span class="s2">: &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">reason</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="UnitFitResult">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._unit_fit.UnitFitResult">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">UnitFitResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A trained unit bundled with a structured record of the fit.</span>
+
+<span class="sd">    What :func:`fit_unit` returns: the fitted unit that can transform its own</span>
+<span class="sd">    columns, alongside the plan-carried facts that identify it (``unit_id``,</span>
+<span class="sd">    ``strategy``, ``columns``) and the structured</span>
+<span class="sd">    :class:`~dataforge_ml.imputation.FitSignals` the fit produced (ADR-0074).</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    unit_id : str</span>
+<span class="sd">        The plan id of the trained unit.</span>
+<span class="sd">    strategy : ImputationStrategy</span>
+<span class="sd">        The strategy that was executed.</span>
+<span class="sd">    columns : tuple[str, ...]</span>
+<span class="sd">        The columns the unit owns.</span>
+<span class="sd">    fitted : FittedUnit</span>
+<span class="sd">        The trained unit; transforms its own columns with no completeness</span>
+<span class="sd">        requirement.</span>
+<span class="sd">    signals : FitSignals</span>
+<span class="sd">        The structured, ephemeral record of the fit — estimator, convergence,</span>
+<span class="sd">        duration, notes, and any warnings. Read it to answer &quot;did this fit</span>
+<span class="sd">        converge? which estimator ran? how long did it take?&quot; without parsing</span>
+<span class="sd">        strings.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">unit_id</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">strategy</span><span class="p">:</span> <span class="n">ImputationStrategy</span>
+    <span class="n">columns</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+    <span class="n">fitted</span><span class="p">:</span> <span class="s2">&quot;FittedUnit&quot;</span>
+    <span class="n">signals</span><span class="p">:</span> <span class="n">FitSignals</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_numeric_config</span><span class="p">(</span><span class="n">decision</span><span class="p">:</span> <span class="s2">&quot;ImputationDecision&quot;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Rebuild the numeric imputation config from the plan&#39;s config snapshot.</span>
+
+<span class="sd">    The plan carries the serialised :class:`PipelineConfig` it was decided</span>
+<span class="sd">    under, so a training function needs no config argument — everything a</span>
+<span class="sd">    fitter honours is reachable from the decision alone.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">PipelineConfig</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">decision</span><span class="o">.</span><span class="n">config_snapshot</span><span class="p">)</span><span class="o">.</span><span class="n">imputation</span><span class="o">.</span><span class="n">numeric</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_fit_context</span><span class="p">(</span>
+    <span class="n">decision</span><span class="p">:</span> <span class="s2">&quot;ImputationDecision&quot;</span><span class="p">,</span> <span class="n">random_seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">UnitFitContext</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Build the context the shared fitters read the plan through.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">UnitFitContext</span><span class="p">(</span>
+        <span class="n">column_decisions</span><span class="o">=</span><span class="n">decision</span><span class="o">.</span><span class="n">column_decisions</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="n">_numeric_config</span><span class="p">(</span><span class="n">decision</span><span class="p">),</span>
+        <span class="n">feature_columns</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span>
+            <span class="n">col</span>
+            <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">decision</span><span class="o">.</span><span class="n">column_decisions</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">semantic_type</span> <span class="o">==</span> <span class="n">SemanticType</span><span class="o">.</span><span class="n">Numeric</span>
+        <span class="p">),</span>
+        <span class="n">random_seed</span><span class="o">=</span><span class="n">random_seed</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_unit</span><span class="p">(</span><span class="n">decision</span><span class="p">:</span> <span class="s2">&quot;ImputationDecision&quot;</span><span class="p">,</span> <span class="n">unit_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ImputationUnit</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the plan&#39;s unit for ``unit_id``, or raise ``KeyError``.&quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">unit</span> <span class="ow">in</span> <span class="n">decision</span><span class="o">.</span><span class="n">units</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">unit</span><span class="o">.</span><span class="n">unit_id</span> <span class="o">==</span> <span class="n">unit_id</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">unit</span>
+    <span class="n">known</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">u</span><span class="o">.</span><span class="n">unit_id</span><span class="si">}</span><span class="s2">&#39;&quot;</span> <span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="n">decision</span><span class="o">.</span><span class="n">units</span><span class="p">)</span>
+    <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;Plan carries no unit &#39;</span><span class="si">{</span><span class="n">unit_id</span><span class="si">}</span><span class="s2">&#39;. Known units: </span><span class="si">{</span><span class="n">known</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">&#39;(none)&#39;</span><span class="si">}</span><span class="s2">.&quot;</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_emit_warnings</span><span class="p">(</span><span class="n">signals</span><span class="p">:</span> <span class="n">FitSignals</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Dual-channel every recorded warning through the standard mechanism.</span>
+
+<span class="sd">    Each entry already sits in ``signals.warnings``; re-raising it under</span>
+<span class="sd">    :class:`ImputationFitWarning` (ADR-0074) gives a caller who never inspects</span>
+<span class="sd">    the record stderr visibility and the ordinary ``filterwarnings`` toolkit.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">message</span> <span class="ow">in</span> <span class="n">signals</span><span class="o">.</span><span class="n">warnings</span><span class="p">:</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="n">message</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="n">ImputationFitWarning</span><span class="p">,</span> <span class="n">stacklevel</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="fit_unit">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._unit_fit.fit_unit">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">fit_unit</span><span class="p">(</span>
+    <span class="n">decision</span><span class="p">:</span> <span class="s2">&quot;ImputationDecision&quot;</span><span class="p">,</span>
+    <span class="n">unit_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">df</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span>
+    <span class="n">random_seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">n_jobs_inner</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">UnitFitResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Train exactly one planned unit and bundle it into a :class:`UnitFitResult`.</span>
+
+<span class="sd">    The one training primitive of the user-orchestrated flow: batch scheduling</span>
+<span class="sd">    is user-owned (ADR-0075), so training a whole plan is a caller-written loop</span>
+<span class="sd">    of ``fit_unit`` calls. The frame is normalised off the plan&#39;s declared</span>
+<span class="sd">    sentinel maps (ADR-0068) before the fit, so a raw frame may be handed</span>
+<span class="sd">    straight in.</span>
+
+<span class="sd">    **Concurrency — pin the inner layer when you parallelise the loop.** The</span>
+<span class="sd">    caller owns the outer/inner split (ADR-0069): parallelism lives in exactly</span>
+<span class="sd">    one layer, and ``n_jobs_inner`` is how you say which. A sequential loop —</span>
+<span class="sd">    one ``fit_unit`` at a time — takes the default ``n_jobs_inner=-1``, which</span>
+<span class="sd">    opens each fit&#39;s inner sklearn parallelism to every core. A self-parallelised</span>
+<span class="sd">    drive — units fitted side by side in your own thread pool — must pass</span>
+<span class="sd">    ``n_jobs_inner=1`` on every call, otherwise each concurrent fit also fans out</span>
+<span class="sd">    to every core and the two layers oversubscribe the machine. The value never</span>
+<span class="sd">    moves the result (ADR-0069); it only changes how the cores are spent.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    decision : ImputationDecision</span>
+<span class="sd">        The immutable plan. Supplies the unit recipe, the per-column decisions a</span>
+<span class="sd">        fitter honours, the config snapshot, and the sentinel maps used to</span>
+<span class="sd">        normalise ``df``.</span>
+<span class="sd">    unit_id : str</span>
+<span class="sd">        The id of the unit to train.</span>
+<span class="sd">    df : pl.DataFrame</span>
+<span class="sd">        Training data, raw or already normalised.</span>
+<span class="sd">    random_seed : int, optional</span>
+<span class="sd">        Seed for the stochastic strategies (GMM sampling).</span>
+<span class="sd">    n_jobs_inner : int, default -1</span>
+<span class="sd">        Inner estimator ``n_jobs`` (ADR-0056). Leave at ``-1`` for a sequential</span>
+<span class="sd">        drive; pin to ``1`` per call when your own loop already fits units</span>
+<span class="sd">        concurrently. Never affects results.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    UnitFitResult</span>
+<span class="sd">        The trained unit plus its structured fit record. The record&#39;s</span>
+<span class="sd">        ``duration_s`` spans this whole call, normalisation included.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    KeyError</span>
+<span class="sd">        If ``unit_id`` names no unit in the plan.</span>
+<span class="sd">    UnitNotTrainableError</span>
+<span class="sd">        If the unit cannot train, carrying its structured payload — the sole</span>
+<span class="sd">        failure track (ADR-0071).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">start</span> <span class="o">=</span> <span class="n">perf_counter</span><span class="p">()</span>
+    <span class="n">unit</span> <span class="o">=</span> <span class="n">_unit</span><span class="p">(</span><span class="n">decision</span><span class="p">,</span> <span class="n">unit_id</span><span class="p">)</span>
+    <span class="n">train_df</span> <span class="o">=</span> <span class="n">_resolve_effective_nulls</span><span class="p">(</span>
+        <span class="n">df</span><span class="p">,</span>
+        <span class="n">numeric_sentinels</span><span class="o">=</span><span class="n">decision</span><span class="o">.</span><span class="n">numeric_sentinels</span><span class="p">,</span>
+        <span class="n">string_sentinels</span><span class="o">=</span><span class="n">decision</span><span class="o">.</span><span class="n">string_sentinels</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">ctx</span> <span class="o">=</span> <span class="n">_fit_context</span><span class="p">(</span><span class="n">decision</span><span class="p">,</span> <span class="n">random_seed</span><span class="p">)</span>
+    <span class="n">outcome</span> <span class="o">=</span> <span class="n">_dispatch_unit_fit</span><span class="p">(</span><span class="n">unit</span><span class="p">,</span> <span class="n">train_df</span><span class="p">,</span> <span class="n">ctx</span><span class="p">,</span> <span class="n">n_jobs_inner</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">outcome</span><span class="o">.</span><span class="n">fitted</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">outcome</span><span class="o">.</span><span class="n">signals</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">UnitNotTrainableError</span><span class="p">(</span>
+            <span class="n">unit_id</span><span class="o">=</span><span class="n">unit</span><span class="o">.</span><span class="n">unit_id</span><span class="p">,</span>
+            <span class="n">strategy</span><span class="o">=</span><span class="n">unit</span><span class="o">.</span><span class="n">strategy</span><span class="p">,</span>
+            <span class="n">columns</span><span class="o">=</span><span class="n">unit</span><span class="o">.</span><span class="n">columns</span><span class="p">,</span>
+            <span class="n">reason</span><span class="o">=</span><span class="n">outcome</span><span class="o">.</span><span class="n">fallback_reason</span> <span class="ow">or</span> <span class="nb">str</span><span class="p">(</span><span class="n">unit</span><span class="o">.</span><span class="n">strategy</span><span class="p">),</span>
+        <span class="p">)</span>
+    <span class="n">signals</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">outcome</span><span class="o">.</span><span class="n">signals</span><span class="p">,</span> <span class="n">duration_s</span><span class="o">=</span><span class="n">perf_counter</span><span class="p">()</span> <span class="o">-</span> <span class="n">start</span><span class="p">)</span>
+    <span class="n">_emit_warnings</span><span class="p">(</span><span class="n">signals</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">UnitFitResult</span><span class="p">(</span>
+        <span class="n">unit_id</span><span class="o">=</span><span class="n">unit</span><span class="o">.</span><span class="n">unit_id</span><span class="p">,</span>
+        <span class="n">strategy</span><span class="o">=</span><span class="n">unit</span><span class="o">.</span><span class="n">strategy</span><span class="p">,</span>
+        <span class="n">columns</span><span class="o">=</span><span class="n">unit</span><span class="o">.</span><span class="n">columns</span><span class="p">,</span>
+        <span class="n">fitted</span><span class="o">=</span><span class="n">outcome</span><span class="o">.</span><span class="n">fitted</span><span class="p">,</span>
+        <span class="n">signals</span><span class="o">=</span><span class="n">signals</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

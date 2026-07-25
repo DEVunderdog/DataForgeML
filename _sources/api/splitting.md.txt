@@ -23,3 +23,8 @@
 .. autoclass:: dataforge_ml.splitting._config.FoldResult
    :show-inheritance:
 ```
+
+```{eval-rst}
+.. autoclass:: dataforge_ml.splitting._config.HoldoutCVResult
+   :show-inheritance:
+```

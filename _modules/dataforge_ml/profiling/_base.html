@@ -7,7 +7,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>dataforge_ml.splitting._config &#8212; DataForgeML  documentation</title>
+    <title>dataforge_ml.profiling._base &#8212; DataForgeML  documentation</title>
   
   
   
@@ -40,7 +40,7 @@
     <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
     <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/dataforge_ml/splitting/_config';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/dataforge_ml/profiling/_base';</script>
     <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
@@ -379,7 +379,7 @@
     
     <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">dataforge_ml.splitting._config</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">dataforge_ml.profiling._base</span></li>
   </ul>
 </nav>
 </div>
@@ -396,201 +396,188 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <h1>Source code for dataforge_ml.splitting._config</h1><div class="highlight"><pre>
-<span></span><span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+  <h1>Source code for dataforge_ml.profiling._base</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Abstract base classes for all structural profilers.</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+<span class="sd">Hierarchy</span>
+<span class="sd">---------</span>
+<span class="sd">Profiling[R]                    — root: thin ABC, provides _resolve_columns</span>
+<span class="sd">├── ColumnBatchProfiler[R]      — registry tier: profile(df, columns) processes a</span>
+<span class="sd">│   │                             typed column batch; no config, no eligibility gates</span>
+<span class="sd">│   ├── NumericProfiler</span>
+<span class="sd">│   ├── CategoricalProfiler</span>
+<span class="sd">│   ├── DatetimeProfiler</span>
+<span class="sd">│   ├── BooleanProfiler</span>
+<span class="sd">│   └── TextProfiler</span>
+<span class="sd">├── DatasetLevelProfiler[R]     — direct-call tier: may have extra __init__ params;</span>
+<span class="sd">│   │                             not compatible with the SemanticType registry</span>
+<span class="sd">│   ├── MissingnessProfiler</span>
+<span class="sd">│   ├── TargetProfiler</span>
+<span class="sd">│   └── CorrelationProfiler</span>
+<span class="sd">└── ModalityProfiler            — dataset-shape tier: profile(df) → DatasetStats</span>
+<span class="sd">    └── TabularProfiler</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">abstractmethod</span><span class="p">,</span> <span class="n">ABC</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Generic</span><span class="p">,</span> <span class="n">TypeVar</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">DatasetStats</span>
+
+<span class="n">R</span> <span class="o">=</span> <span class="n">TypeVar</span><span class="p">(</span><span class="s2">&quot;R&quot;</span><span class="p">)</span>
 
 
-<span class="c1"># ---------------------------------------------------------------------------</span>
-<span class="c1"># SplitConfig</span>
-<span class="c1"># ---------------------------------------------------------------------------</span>
-
-
-<div class="viewcode-block" id="SplitConfig">
-<a class="viewcode-back" href="../../../api/splitting.html#dataforge_ml.splitting._config.SplitConfig">[docs]</a>
-<span class="nd">@dataclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">SplitConfig</span><span class="p">:</span>
+<div class="viewcode-block" id="OverrideCoercionError">
+<a class="viewcode-back" href="../../../api/profiling.html#dataforge_ml.profiling._base.OverrideCoercionError">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">OverrideCoercionError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Threshold configuration for the splitting sub-processor.</span>
+<span class="sd">    Raised when a user-overridden column completely fails coercion.</span>
 
-<span class="sd">    All fields default to the library&#39;s original hard-coded constants so that</span>
-<span class="sd">    constructing ``SplitConfig()`` produces identical behaviour to the</span>
-<span class="sd">    pre-config implementation.</span>
+<span class="sd">    This exception is triggered when zero usable values remain after coercion,</span>
+<span class="sd">    despite the original column having at least one non-null value.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">pass</span></div>
 
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    max_stratification_signals : int</span>
-<span class="sd">        Upper bound on the number of binary stratification signals retained by</span>
-<span class="sd">        ``build_label_matrix``.  The effective cap (ADR-0047 gate 4) is</span>
-<span class="sd">        ``min(max_stratification_signals, n_rows / rows_per_signal)``; when more</span>
-<span class="sd">        signals survive the viability and redundancy gates than the cap allows,</span>
-<span class="sd">        signals are retained by importance rank (target first, missingness last)</span>
-<span class="sd">        rather than by rarity, to bound the multilabel-stratification cost.</span>
-<span class="sd">    rows_per_signal : int</span>
-<span class="sd">        Rows-per-signal budget (ADR-0047 gate 4).  The data can support at most</span>
-<span class="sd">        ``n_rows / rows_per_signal`` simultaneous stratification constraints, so</span>
-<span class="sd">        this term co-bounds the cap alongside ``max_stratification_signals``.</span>
-<span class="sd">        The default of 10 is a standard per-constraint rule of thumb; a</span>
-<span class="sd">        wide-but-short dataset is reduced to fewer columns, and one too small to</span>
-<span class="sd">        support even the target degrades to a random split.</span>
-<span class="sd">    boolean_minority_threshold : float</span>
-<span class="sd">        Minority-class ratio below which a boolean column contributes a</span>
-<span class="sd">        stratification signal.  A column whose ``true_ratio`` or ``false_ratio``</span>
-<span class="sd">        falls below this value is treated as imbalanced and receives a signal.</span>
-<span class="sd">    redundancy_correlation_threshold : float</span>
-<span class="sd">        Absolute-correlation strength at or above which two stratification</span>
-<span class="sd">        signals are treated as redundant (ADR-0047 gate 3) and collapsed to the</span>
-<span class="sd">        higher-priority one.  Correlation magnitude catches both near-identical</span>
-<span class="sd">        (``+1``) and mirror-image (``−1``) pairs.  The default is conservative so</span>
-<span class="sd">        that only near-perfect duplicates are removed, never merely-similar</span>
-<span class="sd">        signals.</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Profiling</span><span class="p">(</span><span class="n">ABC</span><span class="p">,</span> <span class="n">Generic</span><span class="p">[</span><span class="n">R</span><span class="p">]):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Root base for all profilers. Thin ABC — no config state.</span>
+
+<span class="sd">    Sub-processors are pure batch processors: given a DataFrame and a column</span>
+<span class="sd">    list, return a result. No routing, no scoping, no config.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">max_stratification_signals</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50</span>
-    <span class="n">rows_per_signal</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span>
-    <span class="n">boolean_minority_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.05</span>
-    <span class="n">redundancy_correlation_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.95</span>
-
-<div class="viewcode-block" id="SplitConfig.to_dict">
-<a class="viewcode-back" href="../../../api/splitting.html#dataforge_ml.splitting._config.SplitConfig.to_dict">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">profile</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">R</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Serialise the config to a plain dictionary.</span>
-
-<span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-<span class="sd">        dict</span>
-<span class="sd">            All field values keyed by field name.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="p">{</span>
-            <span class="s2">&quot;max_stratification_signals&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_stratification_signals</span><span class="p">,</span>
-            <span class="s2">&quot;rows_per_signal&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows_per_signal</span><span class="p">,</span>
-            <span class="s2">&quot;boolean_minority_threshold&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">boolean_minority_threshold</span><span class="p">,</span>
-            <span class="s2">&quot;redundancy_correlation_threshold&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">redundancy_correlation_threshold</span><span class="p">,</span>
-        <span class="p">}</span></div>
-
-
-<div class="viewcode-block" id="SplitConfig.from_dict">
-<a class="viewcode-back" href="../../../api/splitting.html#dataforge_ml.splitting._config.SplitConfig.from_dict">[docs]</a>
-    <span class="nd">@classmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SplitConfig</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Construct a ``SplitConfig`` from a plain dictionary.</span>
+<span class="sd">        Execute the profiling operation.</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        data : dict</span>
-<span class="sd">            Mapping produced by ``to_dict()``. Missing keys fall back to field</span>
-<span class="sd">            defaults.</span>
+<span class="sd">        data : pl.DataFrame</span>
+<span class="sd">            The dataset to profile.</span>
+<span class="sd">        **kwargs : dict</span>
+<span class="sd">            Additional arguments for specific profilers.</span>
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        SplitConfig</span>
-<span class="sd">            Reconstructed config instance.</span>
+<span class="sd">        R</span>
+<span class="sd">            The profiling result.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
-            <span class="n">max_stratification_signals</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span>
-                <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;max_stratification_signals&quot;</span><span class="p">,</span> <span class="mi">50</span><span class="p">)</span>
-            <span class="p">),</span>
-            <span class="n">rows_per_signal</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;rows_per_signal&quot;</span><span class="p">,</span> <span class="mi">10</span><span class="p">)),</span>
-            <span class="n">boolean_minority_threshold</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span>
-                <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;boolean_minority_threshold&quot;</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">)</span>
-            <span class="p">),</span>
-            <span class="n">redundancy_correlation_threshold</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span>
-                <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;redundancy_correlation_threshold&quot;</span><span class="p">,</span> <span class="mf">0.95</span><span class="p">)</span>
-            <span class="p">),</span>
-        <span class="p">)</span></div>
-</div>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_columns</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">available</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+        <span class="n">requested</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="n">requested</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">available</span><span class="p">)</span>
+        <span class="n">available_set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">available</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">requested</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">available_set</span><span class="p">]</span>
 
 
-
-<span class="c1"># ---------------------------------------------------------------------------</span>
-<span class="c1"># Result dataclasses</span>
-<span class="c1"># ---------------------------------------------------------------------------</span>
-
-
-<div class="viewcode-block" id="SplitResult">
-<a class="viewcode-back" href="../../../api/splitting.html#dataforge_ml.splitting._config.SplitResult">[docs]</a>
-<span class="nd">@dataclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">SplitResult</span><span class="p">:</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ColumnBatchProfiler</span><span class="p">(</span><span class="n">Profiling</span><span class="p">[</span><span class="n">R</span><span class="p">]):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Attributes</span>
-<span class="sd">    ----------</span>
-<span class="sd">    train : pl.DataFrame</span>
-<span class="sd">        Training partition.</span>
-<span class="sd">    test : pl.DataFrame</span>
-<span class="sd">        Test/hold-out partition.</span>
-<span class="sd">    train_size : int</span>
-<span class="sd">        Number of rows in the training partition.</span>
-<span class="sd">    test_size : int</span>
-<span class="sd">        Number of rows in the test partition.</span>
-<span class="sd">    train_ratio : float</span>
-<span class="sd">        Fraction of total rows assigned to training (0.0–1.0).</span>
-<span class="sd">    test_ratio : float</span>
-<span class="sd">        Fraction of total rows assigned to testing (0.0–1.0).</span>
+<span class="sd">    Registry-compatible column profiler.</span>
+
+<span class="sd">    Contract</span>
+<span class="sd">    --------</span>
+<span class="sd">    - __init__ takes no arguments (instantiated as profiler_cls()).</span>
+<span class="sd">    - profile(df, columns) receives the full DataFrame and the list of same-type</span>
+<span class="sd">      column names to process. Profiles every column in the list without any</span>
+<span class="sd">      internal eligibility gate or config consultation.</span>
+<span class="sd">    - Returns a result with:</span>
+<span class="sd">          .columns: dict[str, &lt;Stats&gt;]        — per-column stats</span>
+<span class="sd">          .analysed_columns: list[str]        — columns actually profiled</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">train</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span>
-    <span class="n">test</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span>
-    <span class="n">train_size</span><span class="p">:</span> <span class="nb">int</span>
-    <span class="n">test_size</span><span class="p">:</span> <span class="nb">int</span>
-    <span class="n">train_ratio</span><span class="p">:</span> <span class="nb">float</span>
-    <span class="n">test_ratio</span><span class="p">:</span> <span class="nb">float</span></div>
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">profile</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">columns</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">user_overrides</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">R</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Profile a batch of columns of the same semantic type.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        data : pl.DataFrame</span>
+<span class="sd">            The dataset containing the columns to profile.</span>
+<span class="sd">        columns : list[str]</span>
+<span class="sd">            A list of column names to profile.</span>
+<span class="sd">        user_overrides : set[str] | None, optional</span>
+<span class="sd">            A set of column names that have been manually overridden by the user.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        R</span>
+<span class="sd">            The profiling result containing column statistics.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        OverrideCoercionError</span>
+<span class="sd">            If a column in user_overrides completely fails coercion.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="o">...</span>  <span class="c1"># type: ignore[override]</span>
 
 
-
-<div class="viewcode-block" id="FoldResult">
-<a class="viewcode-back" href="../../../api/splitting.html#dataforge_ml.splitting._config.FoldResult">[docs]</a>
-<span class="nd">@dataclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">FoldResult</span><span class="p">:</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">DatasetLevelProfiler</span><span class="p">(</span><span class="n">Profiling</span><span class="p">[</span><span class="n">R</span><span class="p">]):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Attributes</span>
-<span class="sd">    ----------</span>
-<span class="sd">    train : pl.DataFrame</span>
-<span class="sd">        Training partition for this fold.</span>
-<span class="sd">    val : pl.DataFrame</span>
-<span class="sd">        Validation partition for this fold.</span>
-<span class="sd">    fold_index : int</span>
-<span class="sd">        Zero-based index of this fold within the CV run.</span>
-<span class="sd">    train_size : int</span>
-<span class="sd">        Number of rows in the training partition.</span>
-<span class="sd">    val_size : int</span>
-<span class="sd">        Number of rows in the validation partition.</span>
-<span class="sd">    repeat_index : int</span>
-<span class="sd">        Zero-based index of the repeat this fold belongs to. Defaults to ``0``</span>
-<span class="sd">        for single-pass schemes (``kfold``, ``profile_stratified_kfold``); only</span>
-<span class="sd">        ``repeated_kfold`` sets it to the originating repeat number.</span>
+<span class="sd">    Directly-called profiler.</span>
+
+<span class="sd">    May have extra __init__ params (e.g. target_column, numeric_columns).</span>
+<span class="sd">    Never registered in the SemanticType registry — always instantiated</span>
+<span class="sd">    explicitly with its specific arguments.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">train</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span>
-    <span class="n">val</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span>
-    <span class="n">fold_index</span><span class="p">:</span> <span class="nb">int</span>
-    <span class="n">train_size</span><span class="p">:</span> <span class="nb">int</span>
-    <span class="n">val_size</span><span class="p">:</span> <span class="nb">int</span>
-    <span class="n">repeat_index</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span></div>
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">profile</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">R</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Execute the dataset-level profiling operation.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        data : pl.DataFrame</span>
+<span class="sd">            The dataset to profile.</span>
+<span class="sd">        **kwargs : dict</span>
+<span class="sd">            Additional arguments for specific profilers.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        R</span>
+<span class="sd">            The profiling result.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="o">...</span>
 
 
-
-<div class="viewcode-block" id="HoldoutCVResult">
-<a class="viewcode-back" href="../../../api/splitting.html#dataforge_ml.splitting._config.HoldoutCVResult">[docs]</a>
-<span class="nd">@dataclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">HoldoutCVResult</span><span class="p">:</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ModalityProfiler</span><span class="p">(</span><span class="n">Profiling</span><span class="p">[</span><span class="n">DatasetStats</span><span class="p">]):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Attributes</span>
-<span class="sd">    ----------</span>
-<span class="sd">    test : pl.DataFrame</span>
-<span class="sd">        Held-out test partition, disjoint from every fold in ``folds``.</span>
-<span class="sd">    folds : list[FoldResult]</span>
-<span class="sd">        Cross-validation folds over the training remainder (all rows not in</span>
-<span class="sd">        ``test``).</span>
+<span class="sd">    Dataset-shape profiler.</span>
+
+<span class="sd">    One concrete implementation per Modality. Returns DatasetStats covering</span>
+<span class="sd">    shape, memory, duplicates, sparsity, and chunking metadata.</span>
+<span class="sd">    profile(df) takes only the DataFrame — no column list needed.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">test</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span>
-    <span class="n">folds</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">FoldResult</span><span class="p">]</span></div>
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">profile</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DatasetStats</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Execute the dataset-shape profiling operation.</span>
 
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        data : pl.DataFrame</span>
+<span class="sd">            The dataset to profile.</span>
+<span class="sd">        **kwargs : dict</span>
+<span class="sd">            Additional arguments for specific profilers.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        DatasetStats</span>
+<span class="sd">            The dataset statistics.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="o">...</span>  <span class="c1"># type: ignore[override]</span>
 </pre></div>
 
                 </article>

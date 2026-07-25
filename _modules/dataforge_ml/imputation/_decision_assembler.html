@@ -1,0 +1,1363 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>dataforge_ml.imputation._decision_assembler &#8212; DataForgeML  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../../../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/dataforge_ml/imputation/_decision_assembler';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../../../_static/searchtools.js"></script>
+    <script src="../../../_static/language_data.js"></script>
+    <script src="../../../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">DataForgeML  documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/pipeline.html">
+    Pipeline
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/profiling.html">
+    Profiling
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/imputation.html">
+    Imputation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/splitting.html">
+    Splitting
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/persistence.html">
+    Persistence
+  </a>
+</li>
+
+            <li class="nav-item dropdown">
+                <button class="btn dropdown-toggle nav-item" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false"
+                aria-controls="pst-nav-more-links">
+                    More
+                </button>
+                <ul id="pst-nav-more-links" class="dropdown-menu">
+                    
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../api/observability.html">
+    Observability
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../api/utilities.html">
+    Utilities
+  </a>
+</li>
+
+                </ul>
+            </li>
+            
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/pipeline.html">
+    Pipeline
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/profiling.html">
+    Profiling
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/imputation.html">
+    Imputation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/splitting.html">
+    Splitting
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/persistence.html">
+    Persistence
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/observability.html">
+    Observability
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/utilities.html">
+    Utilities
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">dataforge_ml.imputation._decision_assembler</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for dataforge_ml.imputation._decision_assembler</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Decision assembler for Phase 2 imputation — the pure decide-time layer.</span>
+
+<span class="sd">``decide(profile, n_rows, config)`` builds an :class:`ImputationDecision`: a</span>
+<span class="sd">complete, value-free imputation plan derived purely from</span>
+<span class="sd">``(profile, shape, config)``, where ``n_rows`` *is* the shape input. The</span>
+<span class="sd">assembler reuses the routing kernel ``_StrategyRouter.route()`` (which keeps its</span>
+<span class="sd">one job — return ``(strategy, signals)``), resolves each column&#39;s concrete</span>
+<span class="sd">``ModelChoice`` at decide-time via ``RegressionEstimatorFactory``, surfaces</span>
+<span class="sd">``domain_snap_bounds``, folds in the indicator/mnar/drop flags, and materialises</span>
+<span class="sd">the execution units. No training data is touched — routing is a pure function of</span>
+<span class="sd">the Phase 1 profile (ADR-0060).</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">dataclasses</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Any</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">..config</span><span class="w"> </span><span class="kn">import</span> <span class="n">PipelineConfig</span><span class="p">,</span> <span class="n">PipelinePhase</span><span class="p">,</span> <span class="n">SemanticType</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..profiling._missingness_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">MissingnessFlag</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..profiling._numeric_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">NonlinearityTag</span><span class="p">,</span> <span class="n">NumericStats</span><span class="p">,</span> <span class="n">SkewSeverity</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">_EXCLUSION_SIGNAL</span><span class="p">,</span>
+    <span class="n">ColumnImputationDecision</span><span class="p">,</span>
+    <span class="n">ImputationDecision</span><span class="p">,</span>
+    <span class="n">ImputationStrategy</span><span class="p">,</span>
+    <span class="n">ModelChoice</span><span class="p">,</span>
+    <span class="n">NumericImputationConfig</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._regression_estimator_factory</span><span class="w"> </span><span class="kn">import</span> <span class="n">RegressionEstimatorFactory</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._strategy_router</span><span class="w"> </span><span class="kn">import</span> <span class="n">_StrategyRouter</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..profiling._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">NumericKind</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">..profiling._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">ColumnProfile</span><span class="p">,</span> <span class="n">StructuralProfileResult</span>
+
+
+<span class="n">_MICE_TAG_PRECEDENCE</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">NonlinearityTag</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="n">NonlinearityTag</span><span class="o">.</span><span class="n">Unpredictable</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="n">NonlinearityTag</span><span class="o">.</span><span class="n">Linear</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="n">NonlinearityTag</span><span class="o">.</span><span class="n">MonotonicNonlinear</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+    <span class="n">NonlinearityTag</span><span class="o">.</span><span class="n">ComplexNonlinear</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+<span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_mice_winning_tag</span><span class="p">(</span><span class="n">tags</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">NonlinearityTag</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">NonlinearityTag</span><span class="p">:</span>
+    <span class="k">return</span> <span class="nb">max</span><span class="p">(</span><span class="n">tags</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">_MICE_TAG_PRECEDENCE</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_resolve_nonlinearity_tag</span><span class="p">(</span>
+    <span class="n">stats</span><span class="p">:</span> <span class="s2">&quot;Optional[NumericStats]&quot;</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NonlinearityTag</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resolve the effective NonlinearityTag for model-choice selection.</span>
+
+<span class="sd">    Mirrors the fit-time resolution: an absent tag defaults to ``Linear``, and a</span>
+<span class="sd">    bimodal ``Linear`` column is bumped to ``MonotonicNonlinear`` (a linear model</span>
+<span class="sd">    would straddle the two modes).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">tag</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">stats</span><span class="o">.</span><span class="n">nonlinearity_tag</span>
+        <span class="k">if</span> <span class="n">stats</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">stats</span><span class="o">.</span><span class="n">nonlinearity_tag</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">else</span> <span class="n">NonlinearityTag</span><span class="o">.</span><span class="n">Linear</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="p">(</span>
+        <span class="n">stats</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="ow">and</span> <span class="n">stats</span><span class="o">.</span><span class="n">bimodal_stats</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="ow">and</span> <span class="n">tag</span> <span class="o">==</span> <span class="n">NonlinearityTag</span><span class="o">.</span><span class="n">Linear</span>
+    <span class="p">):</span>
+        <span class="n">tag</span> <span class="o">=</span> <span class="n">NonlinearityTag</span><span class="o">.</span><span class="n">MonotonicNonlinear</span>
+    <span class="k">return</span> <span class="n">tag</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_column_stats</span><span class="p">(</span><span class="n">cp</span><span class="p">:</span> <span class="s2">&quot;ColumnProfile&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Optional[NumericStats]&quot;</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the column&#39;s NumericStats, or None when unavailable.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">cp</span><span class="o">.</span><span class="n">stats</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cp</span><span class="o">.</span><span class="n">stats</span><span class="p">,</span> <span class="n">NumericStats</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_raise_on_excluded_column_overrides</span><span class="p">(</span>
+    <span class="n">excluded</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">mnar_columns</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+    <span class="n">per_column_strategy</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">per_column_constant_fill</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+    <span class="n">add_indicator_columns</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Raise when an excluded column is also named in imputation config.</span>
+
+<span class="sd">    The user typed &quot;impute this column like so&quot; and &quot;don&#39;t impute this column&quot;</span>
+<span class="sd">    in the same config; neither side may silently win, so the contradiction</span>
+<span class="sd">    surfaces as one ``ValueError`` at decide-time — before any routing — listing</span>
+<span class="sd">    every offending column across the four override surfaces. Phase 1 keeps its</span>
+<span class="sd">    silent-ignore of overrides for excluded columns; the asymmetry is</span>
+<span class="sd">    deliberate.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">excluded</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="n">surfaces</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;mnar_columns&quot;</span><span class="p">:</span> <span class="n">mnar_columns</span><span class="p">,</span>
+        <span class="s2">&quot;per_column_strategy&quot;</span><span class="p">:</span> <span class="nb">set</span><span class="p">(</span><span class="n">per_column_strategy</span><span class="p">),</span>
+        <span class="s2">&quot;per_column_constant_fill&quot;</span><span class="p">:</span> <span class="nb">set</span><span class="p">(</span><span class="n">per_column_constant_fill</span><span class="p">),</span>
+        <span class="s2">&quot;add_indicator_columns&quot;</span><span class="p">:</span> <span class="nb">set</span><span class="p">(</span><span class="n">add_indicator_columns</span><span class="p">),</span>
+    <span class="p">}</span>
+    <span class="n">offending</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">surface</span><span class="p">:</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">excluded</span> <span class="o">&amp;</span> <span class="n">cols</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">surface</span><span class="p">,</span> <span class="n">cols</span> <span class="ow">in</span> <span class="n">surfaces</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">excluded</span> <span class="o">&amp;</span> <span class="n">cols</span>
+    <span class="p">}</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">offending</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="n">details</span> <span class="o">=</span> <span class="s2">&quot;; &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">surface</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">repr</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">cols</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="k">for</span> <span class="n">surface</span><span class="p">,</span> <span class="n">cols</span> <span class="ow">in</span> <span class="n">offending</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+    <span class="p">)</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;Columns excluded for the Imputation phase are also named in &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;imputation config, which is contradictory: </span><span class="si">{</span><span class="n">details</span><span class="si">}</span><span class="s2">. &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;Remove the exclusion or the conflicting config entry.&quot;</span>
+    <span class="p">)</span>
+
+
+<div class="viewcode-block" id="decide">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._decision_assembler.decide">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">decide</span><span class="p">(</span>
+    <span class="n">profile</span><span class="p">:</span> <span class="s2">&quot;StructuralProfileResult&quot;</span><span class="p">,</span>
+    <span class="n">n_rows</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">PipelineConfig</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ImputationDecision</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Build the pure, immutable imputation plan for a profiled dataset.</span>
+
+<span class="sd">    The single decide-time entry point of the Decision/Execution split</span>
+<span class="sd">    (ADR-0060). Routes every profiled column to its imputation strategy, resolves</span>
+<span class="sd">    the concrete estimator family for model-based columns, surfaces domain-snap</span>
+<span class="sd">    bounds and the indicator/mnar/drop flags, and materialises the execution</span>
+<span class="sd">    units — all as a pure function of ``(profile, shape, config)`` that trains</span>
+<span class="sd">    nothing and never touches a DataFrame.</span>
+
+<span class="sd">    ``decide`` resolves its own active column set for the Imputation phase from</span>
+<span class="sd">    ``config`` (Hard Exclusions plus Imputation-phase Soft Exclusions) — no</span>
+<span class="sd">    upstream filtering is relied on. A hard-excluded column is omitted from the</span>
+<span class="sd">    plan entirely (recoverable via the config snapshot); a soft-excluded column</span>
+<span class="sd">    stays visible as a ``Passthrough`` decision carrying a signal that records</span>
+<span class="sd">    the exclusion. Excluded columns leave the numeric block wholesale: they are</span>
+<span class="sd">    neither targets nor predictors, and every block-derived value — feature</span>
+<span class="sd">    counts, MICE/KNN block membership, multi-MAR counting, regression and</span>
+<span class="sd">    correlated-feature lists, block hyperparameter signals, and the plan&#39;s</span>
+<span class="sd">    decided-for shape — is computed over active columns only.</span>
+
+<span class="sd">    The plan is decided for the shape execution will face, so ``n_rows`` is the</span>
+<span class="sd">    **train** row count, not the profile&#39;s full-dataset count (ADR-0066). It</span>
+<span class="sd">    feeds both the size guards and the row-dependent hyperparameters (ADR-0062),</span>
+<span class="sd">    so a plan decided against the wrong count can request a model the train split</span>
+<span class="sd">    cannot train. A caller genuinely planning against the whole dataset passes</span>
+<span class="sd">    ``profile.dataset.row_count`` explicitly.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    profile : StructuralProfileResult</span>
+<span class="sd">        Full-dataset Phase 1 profile. Supplies the routing signals, the</span>
+<span class="sd">        imputable-column population, and the declared sentinel maps carried onto</span>
+<span class="sd">        the plan (ADR-0068).</span>
+<span class="sd">    n_rows : int</span>
+<span class="sd">        Row count the plan is decided for — the train split&#39;s. Only the row</span>
+<span class="sd">        dimension is accepted: splitting is row-wise, so ``n_features`` and the</span>
+<span class="sd">        column set stay derived from ``profile``.</span>
+<span class="sd">    config : PipelineConfig, optional</span>
+<span class="sd">        Pipeline configuration supplying the imputation thresholds, MNAR</span>
+<span class="sd">        declarations, per-column overrides, and the exclusion lists resolved</span>
+<span class="sd">        into the Imputation-phase active column set. Defaults to</span>
+<span class="sd">        ``PipelineConfig()`` when omitted.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    ImputationDecision</span>
+<span class="sd">        The immutable plan: per-column decisions, materialised units, the shape</span>
+<span class="sd">        it was decided for, the config snapshot, the declared sentinel maps, and</span>
+<span class="sd">        the profile provenance.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    ValueError</span>
+<span class="sd">        If ``n_rows`` is negative, or if a hard- or Imputation-soft-excluded</span>
+<span class="sd">        column is also named in ``mnar_columns``, ``per_column_strategy``,</span>
+<span class="sd">        ``per_column_constant_fill``, or ``add_indicator_columns`` —</span>
+<span class="sd">        contradictory configuration surfaces at decide-time, before any</span>
+<span class="sd">        routing, with every offending column reported in one raise.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">n_rows</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;n_rows must be non-negative; got </span><span class="si">{</span><span class="n">n_rows</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+    <span class="n">config</span> <span class="o">=</span> <span class="n">config</span> <span class="ow">or</span> <span class="n">PipelineConfig</span><span class="p">()</span>
+    <span class="n">config</span><span class="o">.</span><span class="n">imputation</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
+
+    <span class="n">imp_cfg</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">imputation</span>
+    <span class="n">numeric_cfg</span><span class="p">:</span> <span class="n">NumericImputationConfig</span> <span class="o">=</span> <span class="n">imp_cfg</span><span class="o">.</span><span class="n">numeric</span>
+    <span class="n">mnar_columns</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">imp_cfg</span><span class="o">.</span><span class="n">mnar_columns</span><span class="p">)</span>
+    <span class="n">per_column_strategy</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">numeric_cfg</span><span class="o">.</span><span class="n">per_column_strategy</span> <span class="ow">or</span> <span class="p">{})</span>
+    <span class="n">per_column_constant_fill</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">numeric_cfg</span><span class="o">.</span><span class="n">per_column_constant_fill</span> <span class="ow">or</span> <span class="p">{})</span>
+
+    <span class="c1"># Resolve the Imputation-phase active column set from the config it already</span>
+    <span class="c1"># receives — the phase&#39;s own exclusion enforcement, never inherited from an</span>
+    <span class="c1"># upstream phase. Hard-excluded columns are omitted from the plan entirely;</span>
+    <span class="c1"># Imputation-soft-excluded columns stay visible as Passthrough.</span>
+    <span class="n">hard_excluded</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">exclude_columns</span><span class="p">)</span>
+    <span class="n">soft_excluded</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span>
+        <span class="n">config</span><span class="o">.</span><span class="n">phase_exclusions</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">PipelinePhase</span><span class="o">.</span><span class="n">Imputation</span><span class="p">,</span> <span class="p">())</span>
+    <span class="p">)</span> <span class="o">-</span> <span class="n">hard_excluded</span>
+    <span class="n">active_cols</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span>
+        <span class="n">config</span><span class="o">.</span><span class="n">resolve_active_columns</span><span class="p">(</span><span class="n">PipelinePhase</span><span class="o">.</span><span class="n">Imputation</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">profile</span><span class="o">.</span><span class="n">columns</span><span class="p">))</span>
+    <span class="p">)</span>
+    <span class="n">_raise_on_excluded_column_overrides</span><span class="p">(</span>
+        <span class="n">hard_excluded</span> <span class="o">|</span> <span class="n">soft_excluded</span><span class="p">,</span>
+        <span class="n">mnar_columns</span><span class="o">=</span><span class="n">mnar_columns</span><span class="p">,</span>
+        <span class="n">per_column_strategy</span><span class="o">=</span><span class="n">per_column_strategy</span><span class="p">,</span>
+        <span class="n">per_column_constant_fill</span><span class="o">=</span><span class="n">per_column_constant_fill</span><span class="p">,</span>
+        <span class="n">add_indicator_columns</span><span class="o">=</span><span class="n">imp_cfg</span><span class="o">.</span><span class="n">add_indicator_columns</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">numeric_cols</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">col</span>
+        <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">cp</span> <span class="ow">in</span> <span class="n">profile</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">cp</span><span class="o">.</span><span class="n">semantic_type</span> <span class="o">==</span> <span class="n">SemanticType</span><span class="o">.</span><span class="n">Numeric</span> <span class="ow">and</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">active_cols</span>
+    <span class="p">]</span>
+    <span class="n">n_features</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">numeric_cols</span><span class="p">)</span>
+
+    <span class="c1"># Detect multi-MAR: &gt;=2 non-dropped, non-MNAR columns carrying MARSuspect.</span>
+    <span class="n">mar_candidates</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">numeric_cols</span><span class="p">:</span>
+        <span class="n">cp</span> <span class="o">=</span> <span class="n">profile</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">col</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">cp</span><span class="o">.</span><span class="n">missingness</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">mnar_columns</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">cp</span><span class="o">.</span><span class="n">missingness</span><span class="o">.</span><span class="n">has_flag</span><span class="p">(</span><span class="n">MissingnessFlag</span><span class="o">.</span><span class="n">DropCandidate</span><span class="p">):</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">cp</span><span class="o">.</span><span class="n">missingness</span><span class="o">.</span><span class="n">has_flag</span><span class="p">(</span><span class="n">MissingnessFlag</span><span class="o">.</span><span class="n">MARSuspect</span><span class="p">):</span>
+            <span class="n">mar_candidates</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
+    <span class="n">multi_mar</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">mar_candidates</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">2</span>
+
+    <span class="c1"># Excluded columns are banned as predictors too: restrict the pairwise</span>
+    <span class="c1"># correlation view to the active numeric block so no routing branch or</span>
+    <span class="c1"># hyperparameter signal ever counts an excluded column as a feature.</span>
+    <span class="n">feature_correlation</span> <span class="o">=</span> <span class="n">profile</span><span class="o">.</span><span class="n">dataset</span><span class="o">.</span><span class="n">feature_correlation</span>
+    <span class="k">if</span> <span class="n">feature_correlation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="p">(</span><span class="n">hard_excluded</span> <span class="ow">or</span> <span class="n">soft_excluded</span><span class="p">):</span>
+        <span class="n">feature_correlation</span> <span class="o">=</span> <span class="n">_filter_feature_correlation</span><span class="p">(</span>
+            <span class="n">feature_correlation</span><span class="p">,</span> <span class="nb">set</span><span class="p">(</span><span class="n">numeric_cols</span><span class="p">)</span>
+        <span class="p">)</span>
+    <span class="n">router</span> <span class="o">=</span> <span class="n">_StrategyRouter</span><span class="p">()</span>
+
+    <span class="c1"># First pass: route every numeric column, recording strategy, signals, and</span>
+    <span class="c1"># profile-derived descriptors. Non-numeric semantic columns pass through.</span>
+    <span class="n">routed</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">ImputationStrategy</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]]]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">forced_columns</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">numeric_cols</span><span class="p">:</span>
+        <span class="n">cp</span> <span class="o">=</span> <span class="n">profile</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">col</span><span class="p">]</span>
+        <span class="n">strategy</span><span class="p">,</span> <span class="n">signals</span><span class="p">,</span> <span class="n">forced</span> <span class="o">=</span> <span class="n">router</span><span class="o">.</span><span class="n">route</span><span class="p">(</span>
+            <span class="n">col</span><span class="o">=</span><span class="n">col</span><span class="p">,</span>
+            <span class="n">cp</span><span class="o">=</span><span class="n">cp</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">numeric_cfg</span><span class="p">,</span>
+            <span class="n">n_rows</span><span class="o">=</span><span class="n">n_rows</span><span class="p">,</span>
+            <span class="n">n_features</span><span class="o">=</span><span class="n">n_features</span><span class="p">,</span>
+            <span class="n">multi_mar</span><span class="o">=</span><span class="n">multi_mar</span><span class="p">,</span>
+            <span class="n">mnar_columns</span><span class="o">=</span><span class="n">mnar_columns</span><span class="p">,</span>
+            <span class="n">feature_correlation</span><span class="o">=</span><span class="n">feature_correlation</span><span class="p">,</span>
+            <span class="n">per_column_strategy</span><span class="o">=</span><span class="n">per_column_strategy</span><span class="p">,</span>
+            <span class="n">per_column_constant_fill</span><span class="o">=</span><span class="n">per_column_constant_fill</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">routed</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">strategy</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">signals</span><span class="p">))</span>
+        <span class="n">forced_columns</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">forced</span>
+
+    <span class="c1"># The MICE block trains one estimator chosen from the whole block&#39;s winning</span>
+    <span class="c1"># tag, so every MICE column carries that same block-level model choice.</span>
+    <span class="n">mice_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">_</span><span class="p">)</span> <span class="ow">in</span> <span class="n">routed</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">s</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MICE</span><span class="p">]</span>
+    <span class="n">mice_model_choice</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ModelChoice</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">mice_hyperparameters</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">...</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">mice_cols</span><span class="p">:</span>
+        <span class="n">mice_tags</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">_resolve_nonlinearity_tag</span><span class="p">(</span><span class="n">_column_stats</span><span class="p">(</span><span class="n">profile</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">c</span><span class="p">]))</span>
+            <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">mice_cols</span>
+        <span class="p">]</span>
+        <span class="n">winning_tag</span> <span class="o">=</span> <span class="n">_mice_winning_tag</span><span class="p">(</span><span class="n">mice_tags</span><span class="p">)</span>
+        <span class="n">mice_model_choice</span> <span class="o">=</span> <span class="n">RegressionEstimatorFactory</span><span class="o">.</span><span class="n">resolve_choice</span><span class="p">(</span>
+            <span class="n">winning_tag</span><span class="p">,</span> <span class="n">n_rows</span><span class="p">,</span> <span class="n">numeric_cfg</span>
+        <span class="p">)</span>
+        <span class="n">mice_stats</span> <span class="o">=</span> <span class="p">[</span><span class="n">_column_stats</span><span class="p">(</span><span class="n">profile</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">c</span><span class="p">])</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">mice_cols</span><span class="p">]</span>
+        <span class="n">mice_max_iter</span> <span class="o">=</span> <span class="n">_compute_mice_max_iter</span><span class="p">(</span>
+            <span class="n">winning_tag</span><span class="p">,</span>
+            <span class="n">mice_stats</span><span class="p">,</span>
+            <span class="n">_block_miss_fraction</span><span class="p">(</span><span class="n">profile</span><span class="p">,</span> <span class="n">mice_cols</span><span class="p">),</span>
+            <span class="n">_max_pairwise_pearson</span><span class="p">(</span><span class="n">feature_correlation</span><span class="p">,</span> <span class="n">mice_cols</span><span class="p">),</span>
+            <span class="n">_complete_row_fraction</span><span class="p">(</span><span class="n">profile</span><span class="p">),</span>
+            <span class="n">numeric_cfg</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">numeric_cfg</span><span class="o">.</span><span class="n">mice_max_iter</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">mice_max_iter</span> <span class="o">=</span> <span class="n">numeric_cfg</span><span class="o">.</span><span class="n">mice_max_iter</span>
+        <span class="n">mice_tol</span> <span class="o">=</span> <span class="n">_compute_mice_tol</span><span class="p">(</span><span class="n">winning_tag</span><span class="p">,</span> <span class="n">mice_stats</span><span class="p">)</span>
+        <span class="n">mice_initial_strategy</span> <span class="o">=</span> <span class="n">_mice_initial_strategy</span><span class="p">(</span><span class="n">mice_stats</span><span class="p">)</span>
+        <span class="n">mice_n_nearest</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">_compute_mice_n_nearest_features</span><span class="p">(</span>
+            <span class="n">feature_correlation</span><span class="p">,</span> <span class="n">mice_cols</span><span class="p">,</span> <span class="n">numeric_cols</span><span class="p">,</span> <span class="n">numeric_cfg</span>
+        <span class="p">)</span>
+        <span class="n">mice_hyperparameters</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
+            <span class="p">{</span>
+                <span class="s2">&quot;max_iter&quot;</span><span class="p">:</span> <span class="n">mice_max_iter</span><span class="p">,</span>
+                <span class="s2">&quot;tol&quot;</span><span class="p">:</span> <span class="n">mice_tol</span><span class="p">,</span>
+                <span class="s2">&quot;initial_strategy&quot;</span><span class="p">:</span> <span class="n">mice_initial_strategy</span><span class="p">,</span>
+                <span class="s2">&quot;n_nearest_features&quot;</span><span class="p">:</span> <span class="n">mice_n_nearest</span><span class="p">,</span>
+                <span class="s2">&quot;miss_frac&quot;</span><span class="p">:</span> <span class="n">_block_miss_fraction</span><span class="p">(</span><span class="n">profile</span><span class="p">,</span> <span class="n">mice_cols</span><span class="p">),</span>
+                <span class="s2">&quot;complete_frac&quot;</span><span class="p">:</span> <span class="n">_complete_row_fraction</span><span class="p">(</span><span class="n">profile</span><span class="p">),</span>
+                <span class="s2">&quot;nonlinearity_tag&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">winning_tag</span><span class="p">),</span>
+            <span class="p">}</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="p">)</span>
+
+    <span class="n">knn_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">_</span><span class="p">)</span> <span class="ow">in</span> <span class="n">routed</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">s</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">KNN</span><span class="p">]</span>
+    <span class="n">knn_hyperparameters</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">...</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">knn_cols</span><span class="p">:</span>
+        <span class="n">knn_n_neighbors</span><span class="p">,</span> <span class="n">knn_weights</span> <span class="o">=</span> <span class="n">_compute_knn_params</span><span class="p">(</span>
+            <span class="n">n_rows</span><span class="p">,</span>
+            <span class="nb">len</span><span class="p">(</span><span class="n">knn_cols</span><span class="p">),</span>
+            <span class="n">_block_miss_fraction</span><span class="p">(</span><span class="n">profile</span><span class="p">,</span> <span class="n">knn_cols</span><span class="p">),</span>
+            <span class="n">_complete_row_fraction</span><span class="p">(</span><span class="n">profile</span><span class="p">),</span>
+            <span class="n">numeric_cfg</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">numeric_cfg</span><span class="o">.</span><span class="n">knn_n_neighbors</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">knn_n_neighbors</span> <span class="o">=</span> <span class="n">numeric_cfg</span><span class="o">.</span><span class="n">knn_n_neighbors</span>
+        <span class="n">knn_hyperparameters</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
+            <span class="p">{</span>
+                <span class="s2">&quot;n_neighbors&quot;</span><span class="p">:</span> <span class="n">knn_n_neighbors</span><span class="p">,</span>
+                <span class="s2">&quot;weights&quot;</span><span class="p">:</span> <span class="n">knn_weights</span><span class="p">,</span>
+                <span class="s2">&quot;miss_frac&quot;</span><span class="p">:</span> <span class="n">_block_miss_fraction</span><span class="p">(</span><span class="n">profile</span><span class="p">,</span> <span class="n">knn_cols</span><span class="p">),</span>
+                <span class="s2">&quot;complete_frac&quot;</span><span class="p">:</span> <span class="n">_complete_row_fraction</span><span class="p">(</span><span class="n">profile</span><span class="p">),</span>
+            <span class="p">}</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="p">)</span>
+
+    <span class="n">decided_hyperparameters</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">if</span> <span class="n">mice_hyperparameters</span><span class="p">:</span>
+        <span class="n">decided_hyperparameters</span><span class="p">[</span><span class="s2">&quot;mice&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">mice_hyperparameters</span>
+    <span class="k">if</span> <span class="n">knn_hyperparameters</span><span class="p">:</span>
+        <span class="n">decided_hyperparameters</span><span class="p">[</span><span class="s2">&quot;knn&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">knn_hyperparameters</span>
+
+    <span class="c1"># Second pass: build the per-column decisions, resolving model_choice.</span>
+    <span class="n">decisions</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ColumnImputationDecision</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">cp</span> <span class="ow">in</span> <span class="n">profile</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">hard_excluded</span><span class="p">:</span>
+            <span class="k">continue</span>  <span class="c1"># omitted from the plan; recoverable via config_snapshot</span>
+        <span class="k">if</span> <span class="n">cp</span><span class="o">.</span><span class="n">semantic_type</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">soft_excluded</span><span class="p">:</span>
+            <span class="n">decisions</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">ColumnImputationDecision</span><span class="p">(</span>
+                <span class="n">column</span><span class="o">=</span><span class="n">col</span><span class="p">,</span>
+                <span class="n">semantic_type</span><span class="o">=</span><span class="n">cp</span><span class="o">.</span><span class="n">semantic_type</span><span class="p">,</span>
+                <span class="n">strategy</span><span class="o">=</span><span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Passthrough</span><span class="p">,</span>
+                <span class="n">signals</span><span class="o">=</span><span class="p">(</span><span class="n">_EXCLUSION_SIGNAL</span><span class="p">,),</span>
+            <span class="p">)</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">cp</span><span class="o">.</span><span class="n">semantic_type</span> <span class="o">!=</span> <span class="n">SemanticType</span><span class="o">.</span><span class="n">Numeric</span><span class="p">:</span>
+            <span class="n">decisions</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">ColumnImputationDecision</span><span class="p">(</span>
+                <span class="n">column</span><span class="o">=</span><span class="n">col</span><span class="p">,</span>
+                <span class="n">semantic_type</span><span class="o">=</span><span class="n">cp</span><span class="o">.</span><span class="n">semantic_type</span><span class="p">,</span>
+                <span class="n">strategy</span><span class="o">=</span><span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Passthrough</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">continue</span>
+
+        <span class="n">strategy</span><span class="p">,</span> <span class="n">signals</span> <span class="o">=</span> <span class="n">routed</span><span class="p">[</span><span class="n">col</span><span class="p">]</span>
+        <span class="n">model_choice</span> <span class="o">=</span> <span class="n">_resolve_model_choice</span><span class="p">(</span>
+            <span class="n">strategy</span><span class="o">=</span><span class="n">strategy</span><span class="p">,</span>
+            <span class="n">mice_model_choice</span><span class="o">=</span><span class="n">mice_model_choice</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">strategy</span> <span class="ow">in</span> <span class="p">(</span><span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MICE</span><span class="p">,</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">KNN</span><span class="p">):</span>
+            <span class="k">pass</span>  <span class="c1"># Resolved block-wide above.</span>
+        <span class="k">elif</span> <span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MNAR</span><span class="p">:</span>
+            <span class="n">decided_hyperparameters</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">strategy</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
+                <span class="p">{</span><span class="s2">&quot;central_tendency&quot;</span><span class="p">:</span> <span class="n">_mnar_central_tendency</span><span class="p">(</span><span class="n">cp</span><span class="p">)}</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">)</span>
+        <span class="k">elif</span> <span class="n">strategy</span> <span class="ow">in</span> <span class="p">(</span>
+            <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">GMMSampling</span><span class="p">,</span>
+            <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">ClusterConditional</span><span class="p">,</span>
+        <span class="p">):</span>
+            <span class="n">decided_hyperparameters</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">strategy</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">_bimodal_hyperparameters</span><span class="p">(</span>
+                <span class="n">col</span><span class="p">,</span> <span class="n">cp</span><span class="p">,</span> <span class="n">strategy</span><span class="p">,</span> <span class="n">feature_correlation</span><span class="p">,</span> <span class="n">numeric_cfg</span>
+            <span class="p">)</span>
+
+        <span class="n">decisions</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">ColumnImputationDecision</span><span class="p">(</span>
+            <span class="n">column</span><span class="o">=</span><span class="n">col</span><span class="p">,</span>
+            <span class="n">semantic_type</span><span class="o">=</span><span class="n">SemanticType</span><span class="o">.</span><span class="n">Numeric</span><span class="p">,</span>
+            <span class="n">strategy</span><span class="o">=</span><span class="n">strategy</span><span class="p">,</span>
+            <span class="n">signals</span><span class="o">=</span><span class="n">signals</span><span class="p">,</span>
+            <span class="n">model_choice</span><span class="o">=</span><span class="n">model_choice</span><span class="p">,</span>
+            <span class="n">domain_snap_bounds</span><span class="o">=</span><span class="n">_resolve_domain_snap_bounds</span><span class="p">(</span><span class="n">cp</span><span class="p">,</span> <span class="n">strategy</span><span class="p">),</span>
+            <span class="n">indicator_flag</span><span class="o">=</span><span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MNAR</span><span class="p">,</span>
+            <span class="n">mnar</span><span class="o">=</span><span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MNAR</span><span class="p">,</span>
+            <span class="n">drop</span><span class="o">=</span><span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Dropped</span><span class="p">,</span>
+            <span class="n">forced</span><span class="o">=</span><span class="n">forced_columns</span><span class="p">[</span><span class="n">col</span><span class="p">],</span>
+        <span class="p">)</span>
+
+    <span class="c1"># Indicator pass: pre-register the {col}_missing columns the MNAR mechanism</span>
+    <span class="c1"># appends at transform time, mirroring the fitted record set.</span>
+    <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">decision</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">decisions</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">decision</span><span class="o">.</span><span class="n">indicator_flag</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">indicator_col</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">_missing&quot;</span>
+        <span class="n">decisions</span><span class="p">[</span><span class="n">indicator_col</span><span class="p">]</span> <span class="o">=</span> <span class="n">ColumnImputationDecision</span><span class="p">(</span>
+            <span class="n">column</span><span class="o">=</span><span class="n">indicator_col</span><span class="p">,</span>
+            <span class="n">semantic_type</span><span class="o">=</span><span class="n">SemanticType</span><span class="o">.</span><span class="n">Boolean</span><span class="p">,</span>
+            <span class="n">strategy</span><span class="o">=</span><span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Indicator</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">ImputationDecision</span><span class="p">(</span>
+        <span class="n">column_decisions</span><span class="o">=</span><span class="n">decisions</span><span class="p">,</span>
+        <span class="n">decided_for_shape</span><span class="o">=</span><span class="p">(</span><span class="n">n_rows</span><span class="p">,</span> <span class="n">n_features</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">numeric_cols</span><span class="p">)),</span>
+        <span class="n">config_snapshot</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">to_dict</span><span class="p">(),</span>
+        <span class="n">profile_provenance</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">&quot;row_count&quot;</span><span class="p">:</span> <span class="n">profile</span><span class="o">.</span><span class="n">dataset</span><span class="o">.</span><span class="n">row_count</span><span class="p">,</span>
+        <span class="p">},</span>
+        <span class="n">decided_hyperparameters</span><span class="o">=</span><span class="n">decided_hyperparameters</span><span class="p">,</span>
+        <span class="n">numeric_sentinels</span><span class="o">=</span><span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">profile</span><span class="o">.</span><span class="n">numeric_sentinels</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span>
+        <span class="n">string_sentinels</span><span class="o">=</span><span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">profile</span><span class="o">.</span><span class="n">string_sentinels</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span>
+    <span class="p">)</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_mnar_central_tendency</span><span class="p">(</span><span class="n">cp</span><span class="p">:</span> <span class="s2">&quot;ColumnProfile&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resolve which central tendency an MNAR column&#39;s fill value will use.</span>
+
+<span class="sd">    Profile-fed (ADR-0062), so the execution layer learns the *number* from the</span>
+<span class="sd">    training frame while the plan already says — inspectably — which statistic it</span>
+<span class="sd">    will be: the mode for a BoundedDiscrete column, else the mean when the column</span>
+<span class="sd">    is normally skewed and the median otherwise.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">cp</span><span class="o">.</span><span class="n">numeric_kind</span> <span class="o">==</span> <span class="n">NumericKind</span><span class="o">.</span><span class="n">BoundedDiscrete</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;mode&quot;</span>
+    <span class="n">stats</span> <span class="o">=</span> <span class="n">_column_stats</span><span class="p">(</span><span class="n">cp</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">stats</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">stats</span><span class="o">.</span><span class="n">skewness_severity</span> <span class="o">==</span> <span class="n">SkewSeverity</span><span class="o">.</span><span class="n">Normal</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;mean&quot;</span>
+    <span class="k">return</span> <span class="s2">&quot;median&quot;</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_bimodal_hyperparameters</span><span class="p">(</span>
+    <span class="n">col</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">cp</span><span class="p">:</span> <span class="s2">&quot;ColumnProfile&quot;</span><span class="p">,</span>
+    <span class="n">strategy</span><span class="p">:</span> <span class="n">ImputationStrategy</span><span class="p">,</span>
+    <span class="n">feature_correlation</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">NumericImputationConfig</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resolve the decide-time dials for a GMM-Sampling or Cluster-Conditional unit.</span>
+
+<span class="sd">    Both bimodal strategies are driven by profile facts the execution layer has</span>
+<span class="sd">    no way to see — the two mode centres, the column&#39;s skewness, and (for</span>
+<span class="sd">    Cluster-Conditional&#39;s centroid branch) which features correlate with the</span>
+<span class="sd">    target. Carrying them on the unit is what lets a fitter be handed a plan and</span>
+<span class="sd">    a frame and nothing else (ADR-0062).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">stats</span> <span class="o">=</span> <span class="n">_column_stats</span><span class="p">(</span><span class="n">cp</span><span class="p">)</span>
+    <span class="n">bimodal</span> <span class="o">=</span> <span class="n">stats</span><span class="o">.</span><span class="n">bimodal_stats</span> <span class="k">if</span> <span class="n">stats</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">bimodal</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">()</span>
+
+    <span class="n">hyperparameters</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;center1&quot;</span><span class="p">:</span> <span class="n">bimodal</span><span class="o">.</span><span class="n">center1</span><span class="p">,</span>
+        <span class="s2">&quot;center2&quot;</span><span class="p">:</span> <span class="n">bimodal</span><span class="o">.</span><span class="n">center2</span><span class="p">,</span>
+        <span class="s2">&quot;central_tendency&quot;</span><span class="p">:</span> <span class="p">(</span>
+            <span class="s2">&quot;mean&quot;</span>
+            <span class="k">if</span> <span class="n">stats</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">stats</span><span class="o">.</span><span class="n">skewness_severity</span> <span class="o">==</span> <span class="n">SkewSeverity</span><span class="o">.</span><span class="n">Normal</span>
+            <span class="k">else</span> <span class="s2">&quot;median&quot;</span>
+        <span class="p">),</span>
+    <span class="p">}</span>
+
+    <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">ClusterConditional</span><span class="p">:</span>
+        <span class="n">hyperparameters</span><span class="p">[</span><span class="s2">&quot;feature_cols&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">_correlated_feature_cols</span><span class="p">(</span>
+            <span class="n">col</span><span class="p">,</span> <span class="n">feature_correlation</span><span class="p">,</span> <span class="n">config</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">hyperparameters</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_correlated_feature_cols</span><span class="p">(</span>
+    <span class="n">col</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">feature_correlation</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">NumericImputationConfig</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Features whose ``|r|`` with ``col`` clears ``bimodal_correlation_threshold``.</span>
+
+<span class="sd">    The Cluster-Conditional centroid branch assigns an unseen row to a mode by</span>
+<span class="sd">    its distance to each cluster&#39;s feature centroid; these are the features that</span>
+<span class="sd">    distance is measured over. ``feature_correlation`` is the caller&#39;s</span>
+<span class="sd">    active-column-filtered view, so an excluded column is banned as a predictor</span>
+<span class="sd">    here like everywhere else. Empty when the profiler recorded no</span>
+<span class="sd">    correlations — the neutral default, which degrades the branch to plain</span>
+<span class="sd">    centre-assignment rather than triggering a data peek.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">feature_correlation</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">()</span>
+    <span class="n">col_corrs</span> <span class="o">=</span> <span class="n">feature_correlation</span><span class="o">.</span><span class="n">pearson_matrix</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="p">{})</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span>
+        <span class="n">c</span>
+        <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">col_corrs</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">c</span> <span class="o">!=</span> <span class="n">col</span> <span class="ow">and</span> <span class="nb">abs</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">config</span><span class="o">.</span><span class="n">bimodal_correlation_threshold</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_resolve_model_choice</span><span class="p">(</span>
+    <span class="n">strategy</span><span class="p">:</span> <span class="n">ImputationStrategy</span><span class="p">,</span>
+    <span class="n">mice_model_choice</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ModelChoice</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ModelChoice</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resolve the estimator family for one column at decide-time.</span>
+
+<span class="sd">    MICE columns inherit the block-level choice; every other strategy (KNN,</span>
+<span class="sd">    the bimodal strategies, and every scalar/structural strategy) carries no</span>
+<span class="sd">    estimator family.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MICE</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">mice_model_choice</span>
+    <span class="k">return</span> <span class="kc">None</span>
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_filter_feature_correlation</span><span class="p">(</span><span class="n">feature_correlation</span><span class="p">,</span> <span class="n">active_cols</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Restrict the pairwise Pearson view to the active numeric block.</span>
+
+<span class="sd">    Returns a copy of the profiler&#39;s ``CorrelationProfileResult`` whose</span>
+<span class="sd">    ``pearson_matrix`` keeps only entries where both columns are active, so</span>
+<span class="sd">    every consumer downstream of :func:`decide` — routing branches, correlated</span>
+<span class="sd">    feature lists, block hyperparameter signals — is structurally unable to</span>
+<span class="sd">    count an excluded column as a predictor.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span>
+        <span class="n">feature_correlation</span><span class="p">,</span>
+        <span class="n">pearson_matrix</span><span class="o">=</span><span class="p">{</span>
+            <span class="n">col</span><span class="p">:</span> <span class="p">{</span><span class="n">c</span><span class="p">:</span> <span class="n">r</span> <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">corrs</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">active_cols</span><span class="p">}</span>
+            <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">corrs</span> <span class="ow">in</span> <span class="n">feature_correlation</span><span class="o">.</span><span class="n">pearson_matrix</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">active_cols</span>
+        <span class="p">},</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_block_miss_fraction</span><span class="p">(</span><span class="n">profile</span><span class="p">:</span> <span class="s2">&quot;StructuralProfileResult&quot;</span><span class="p">,</span> <span class="n">cols</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Mean per-column ``effective_null_ratio`` across a block of columns.</span>
+
+<span class="sd">    Additive by construction, so this equals the block&#39;s overall cell</span>
+<span class="sd">    missingness fraction (columns with no missingness contribute ``0.0``).</span>
+<span class="sd">    Returns ``0.0`` for an empty block.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">cols</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mf">0.0</span>
+    <span class="n">total</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cols</span><span class="p">:</span>
+        <span class="n">cp</span> <span class="o">=</span> <span class="n">profile</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">cp</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">cp</span><span class="o">.</span><span class="n">missingness</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">total</span> <span class="o">+=</span> <span class="n">cp</span><span class="o">.</span><span class="n">missingness</span><span class="o">.</span><span class="n">effective_null_ratio</span>
+    <span class="k">return</span> <span class="n">total</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">cols</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_n_missing_feature_cols</span><span class="p">(</span><span class="n">profile</span><span class="p">:</span> <span class="s2">&quot;StructuralProfileResult&quot;</span><span class="p">,</span> <span class="n">cols</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Count columns in ``cols`` whose ``effective_null_ratio`` is above zero.&quot;&quot;&quot;</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cols</span><span class="p">:</span>
+        <span class="n">cp</span> <span class="o">=</span> <span class="n">profile</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="n">cp</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="ow">and</span> <span class="n">cp</span><span class="o">.</span><span class="n">missingness</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="ow">and</span> <span class="n">cp</span><span class="o">.</span><span class="n">missingness</span><span class="o">.</span><span class="n">effective_null_ratio</span> <span class="o">&gt;</span> <span class="mi">0</span>
+        <span class="p">):</span>
+            <span class="n">n</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">n</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_complete_row_fraction</span><span class="p">(</span><span class="n">profile</span><span class="p">:</span> <span class="s2">&quot;StructuralProfileResult&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Dataset-level fraction of rows with no missing across analysed columns.</span>
+
+<span class="sd">    Read from the profiler&#39;s ``RowMissingnessDistribution.complete_row_fraction``</span>
+<span class="sd">    (ADR-0062). The dataset-wide fraction underestimates any single block&#39;s</span>
+<span class="sd">    completeness, so the convergence dials nudge slightly up — the safe</span>
+<span class="sd">    direction. Absent (``0.0`` default) when the profiler did not record it.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">rd</span> <span class="o">=</span> <span class="n">profile</span><span class="o">.</span><span class="n">dataset</span><span class="o">.</span><span class="n">row_distribution</span>
+    <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">rd</span><span class="o">.</span><span class="n">complete_row_fraction</span><span class="p">)</span> <span class="k">if</span> <span class="n">rd</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="mf">0.0</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_max_pairwise_pearson</span><span class="p">(</span><span class="n">feature_correlation</span><span class="p">,</span> <span class="n">cols</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Largest absolute pairwise Pearson ``|r|`` among ``cols``.</span>
+
+<span class="sd">    Sourced purely from the profiler&#39;s ``feature_correlation`` (no array</span>
+<span class="sd">    fallback). Returns ``None`` when correlations are unavailable or fewer than</span>
+<span class="sd">    two columns are given, so the caller&#39;s correlation signal contributes</span>
+<span class="sd">    nothing (the documented neutral default).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">feature_correlation</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">cols</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">values</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">cols</span><span class="p">)):</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">cols</span><span class="p">)):</span>
+            <span class="n">r</span> <span class="o">=</span> <span class="n">feature_correlation</span><span class="o">.</span><span class="n">get_pearson</span><span class="p">(</span><span class="n">cols</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">cols</span><span class="p">[</span><span class="n">j</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">r</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">values</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">r</span><span class="p">))</span>
+    <span class="k">return</span> <span class="nb">max</span><span class="p">(</span><span class="n">values</span><span class="p">)</span> <span class="k">if</span> <span class="n">values</span> <span class="k">else</span> <span class="kc">None</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_compute_mice_max_iter</span><span class="p">(</span>
+    <span class="n">winning_tag</span><span class="p">:</span> <span class="n">NonlinearityTag</span><span class="p">,</span>
+    <span class="n">mice_stats</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="n">NumericStats</span><span class="p">]],</span>
+    <span class="n">block_miss_fraction</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">max_pairwise_corr</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span>
+    <span class="n">complete_row_fraction</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">NumericImputationConfig</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Compute ``max_iter`` for the MICE ``IterativeImputer`` from five signals.</span>
+
+<span class="sd">    Profile-fed (ADR-0062), aggregated block-wide: minimum R² gap across</span>
+<span class="sd">    the block (worst-case convergence speed), maximum pairwise inter-column</span>
+<span class="sd">    Pearson ``|r|`` (strongest coupling driver), and the block missingness</span>
+<span class="sd">    fraction.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    winning_tag : NonlinearityTag</span>
+<span class="sd">        Most-complex nonlinearity tag across all MICE columns.</span>
+<span class="sd">    mice_stats : list[NumericStats or None]</span>
+<span class="sd">        Phase 1 statistics for each MICE column.  Entries may be ``None`` when</span>
+<span class="sd">        stats were not computed.</span>
+<span class="sd">    block_miss_fraction : float</span>
+<span class="sd">        Mean per-column ``effective_null_ratio`` across the MICE block (equal to</span>
+<span class="sd">        the block&#39;s overall cell missingness fraction).</span>
+<span class="sd">    max_pairwise_corr : float or None</span>
+<span class="sd">        Maximum absolute pairwise Pearson ``|r|`` among the MICE columns; ``None``</span>
+<span class="sd">        degrades the coupling signal to a no-op.</span>
+<span class="sd">    complete_row_fraction : float</span>
+<span class="sd">        Dataset-level fraction of fully-observed rows.</span>
+<span class="sd">    config : NumericImputationConfig</span>
+<span class="sd">        Imputation configuration supplying ``base_max_iter``.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    int</span>
+<span class="sd">        Computed ``max_iter`` value, always at least ``1``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">base</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">base_max_iter</span>
+
+    <span class="c1"># Signal 1: ComplexNonlinear → more iterations required</span>
+    <span class="k">if</span> <span class="n">winning_tag</span> <span class="o">==</span> <span class="n">NonlinearityTag</span><span class="o">.</span><span class="n">ComplexNonlinear</span><span class="p">:</span>
+        <span class="n">base</span> <span class="o">+=</span> <span class="mi">5</span>
+
+    <span class="c1"># Signal 2: block missingness fraction</span>
+    <span class="k">if</span> <span class="n">block_miss_fraction</span> <span class="o">&gt;=</span> <span class="mf">0.4</span><span class="p">:</span>
+        <span class="n">base</span> <span class="o">+=</span> <span class="mi">5</span>
+    <span class="k">elif</span> <span class="n">block_miss_fraction</span> <span class="o">&gt;=</span> <span class="mf">0.2</span><span class="p">:</span>
+        <span class="n">base</span> <span class="o">+=</span> <span class="mi">3</span>
+    <span class="k">elif</span> <span class="n">block_miss_fraction</span> <span class="o">&gt;=</span> <span class="mf">0.1</span><span class="p">:</span>
+        <span class="n">base</span> <span class="o">+=</span> <span class="mi">2</span>
+
+    <span class="c1"># Signal 3: minimum r2_gap across MICE columns; small gap means near-linear → fewer iterations</span>
+    <span class="n">r2_gaps</span> <span class="o">=</span> <span class="p">[</span><span class="n">s</span><span class="o">.</span><span class="n">r2_gap</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">mice_stats</span> <span class="k">if</span> <span class="n">s</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">s</span><span class="o">.</span><span class="n">r2_gap</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">r2_gaps</span> <span class="ow">and</span> <span class="nb">min</span><span class="p">(</span><span class="n">r2_gaps</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">0.05</span><span class="p">:</span>
+        <span class="n">base</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">base</span> <span class="o">-</span> <span class="mi">3</span><span class="p">)</span>
+
+    <span class="c1"># Signal 4: maximum pairwise Pearson |r| among MICE columns; high correlation → more iterations</span>
+    <span class="k">if</span> <span class="n">max_pairwise_corr</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">max_pairwise_corr</span> <span class="o">&gt;=</span> <span class="mf">0.7</span><span class="p">:</span>
+        <span class="n">base</span> <span class="o">+=</span> <span class="mi">3</span>
+
+    <span class="c1"># Signal 5: low complete-row fraction → more iterations needed</span>
+    <span class="k">if</span> <span class="n">complete_row_fraction</span> <span class="o">&lt;</span> <span class="mf">0.2</span><span class="p">:</span>
+        <span class="n">base</span> <span class="o">+=</span> <span class="mi">5</span>
+    <span class="k">elif</span> <span class="n">complete_row_fraction</span> <span class="o">&lt;</span> <span class="mf">0.5</span><span class="p">:</span>
+        <span class="n">base</span> <span class="o">+=</span> <span class="mi">3</span>
+
+    <span class="k">return</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">base</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_compute_mice_tol</span><span class="p">(</span>
+    <span class="n">winning_tag</span><span class="p">:</span> <span class="n">NonlinearityTag</span><span class="p">,</span>
+    <span class="n">mice_stats</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="n">NumericStats</span><span class="p">]],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Compute the convergence tolerance for the MICE ``IterativeImputer``.</span>
+
+<span class="sd">    Uses the minimum IQR across all MICE columns so that tolerance is</span>
+<span class="sd">    calibrated to the narrowest-range column in the block.  Applies tighter</span>
+<span class="sd">    scaling when the block contains complex non-linear structure.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    winning_tag : NonlinearityTag</span>
+<span class="sd">        Most-complex nonlinearity tag across all MICE columns.</span>
+<span class="sd">    mice_stats : list[NumericStats or None]</span>
+<span class="sd">        Phase 1 statistics for each MICE column.  Entries may be ``None``</span>
+<span class="sd">        when stats were not computed.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    float</span>
+<span class="sd">        Convergence tolerance, always at least ``1e-7``.  Falls back to</span>
+<span class="sd">        ``1e-3`` when no IQR is available.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">iqrs</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">s</span><span class="o">.</span><span class="n">iqr</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">mice_stats</span> <span class="k">if</span> <span class="n">s</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">s</span><span class="o">.</span><span class="n">iqr</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">s</span><span class="o">.</span><span class="n">iqr</span> <span class="o">&gt;</span> <span class="mi">0</span>
+    <span class="p">]</span>
+    <span class="k">if</span> <span class="n">iqrs</span><span class="p">:</span>
+        <span class="n">min_iqr</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">iqrs</span><span class="p">)</span>
+        <span class="n">scaling_factor</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="mf">5e-5</span> <span class="k">if</span> <span class="n">winning_tag</span> <span class="o">==</span> <span class="n">NonlinearityTag</span><span class="o">.</span><span class="n">ComplexNonlinear</span> <span class="k">else</span> <span class="mf">1e-4</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="nb">max</span><span class="p">(</span><span class="mf">1e-7</span><span class="p">,</span> <span class="n">min_iqr</span> <span class="o">*</span> <span class="n">scaling_factor</span><span class="p">)</span>
+    <span class="k">return</span> <span class="mf">1e-3</span>
+
+
+<span class="n">_MICE_SKEW_TRIGGERS_MEDIAN</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="n">SkewSeverity</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="n">SkewSeverity</span><span class="o">.</span><span class="n">Moderate</span><span class="p">,</span>
+        <span class="n">SkewSeverity</span><span class="o">.</span><span class="n">High</span><span class="p">,</span>
+        <span class="n">SkewSeverity</span><span class="o">.</span><span class="n">Severe</span><span class="p">,</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_mice_initial_strategy</span><span class="p">(</span><span class="n">mice_stats</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="n">NumericStats</span><span class="p">]])</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Determine the ``initial_strategy`` for the MICE ``IterativeImputer``.</span>
+
+<span class="sd">    Returns ``&quot;median&quot;`` when any MICE column has ``SkewSeverity &gt;= Moderate``;</span>
+<span class="sd">    otherwise returns ``&quot;mean&quot;``.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    mice_stats : list[NumericStats or None]</span>
+<span class="sd">        Phase 1 statistics for each MICE column.  Entries may be ``None``</span>
+<span class="sd">        when stats were not computed.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    str</span>
+<span class="sd">        Either ``&quot;median&quot;`` or ``&quot;mean&quot;``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">stats</span> <span class="ow">in</span> <span class="n">mice_stats</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">stats</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">stats</span><span class="o">.</span><span class="n">skewness_severity</span> <span class="ow">in</span> <span class="n">_MICE_SKEW_TRIGGERS_MEDIAN</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s2">&quot;median&quot;</span>
+    <span class="k">return</span> <span class="s2">&quot;mean&quot;</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_compute_mice_n_nearest_features</span><span class="p">(</span>
+    <span class="n">feature_correlation</span><span class="p">,</span>
+    <span class="n">mice_cols</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+    <span class="n">numeric_cols</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">NumericImputationConfig</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Compute ``n_nearest_features`` for the MICE ``IterativeImputer``.</span>
+
+<span class="sd">    Profile-fed (ADR-0062). For blocks at or below</span>
+<span class="sd">    ``mice_n_nearest_features_min_cols`` columns all predictors are used</span>
+<span class="sd">    (``n_nearest_features=None``). For larger blocks, the number of informative</span>
+<span class="sd">    predictors per column is counted against the full active-numeric breadth</span>
+<span class="sd">    (ADR-0079) — not just the block&#39;s own membership, matching the block&#39;s true,</span>
+<span class="sd">    widened predictor set once its fitter also reads every active numeric</span>
+<span class="sd">    column as a candidate predictor — and the median count across the block&#39;s</span>
+<span class="sd">    own columns is returned, capped at ``mice_max_nearest_features``.</span>
+
+<span class="sd">    Correlations are read solely from ``feature_correlation`` (the</span>
+<span class="sd">    ``CorrelationProfiler`` output). An absent correlation contributes nothing —</span>
+<span class="sd">    the neutral default — rather than triggering an array peek.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    feature_correlation : CorrelationProfileResult or None</span>
+<span class="sd">        Pre-computed pairwise correlations from Phase 1, or ``None`` when</span>
+<span class="sd">        unavailable.</span>
+<span class="sd">    mice_cols : list[str]</span>
+<span class="sd">        MICE block column names — the block&#39;s own owned columns. Gates the</span>
+<span class="sd">        ``mice_n_nearest_features_min_cols`` threshold and is the set the</span>
+<span class="sd">        per-column informative-predictor count is computed for.</span>
+<span class="sd">    numeric_cols : list[str]</span>
+<span class="sd">        Every active ``SemanticType.Numeric`` column in the plan — the</span>
+<span class="sd">        candidate predictor pool each block column&#39;s count is drawn from,</span>
+<span class="sd">        widened past the block&#39;s own membership.</span>
+<span class="sd">    config : NumericImputationConfig</span>
+<span class="sd">        Imputation configuration supplying ``mice_n_nearest_features_min_cols``,</span>
+<span class="sd">        ``mice_max_nearest_features``, and ``mice_correlation_threshold``.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    tuple[int or None, str]</span>
+<span class="sd">        Computed ``n_nearest_features`` value (``None`` for small blocks) and</span>
+<span class="sd">        a human-readable signal string recording the decision.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">n_cols</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">mice_cols</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">n_cols</span> <span class="o">&lt;=</span> <span class="n">config</span><span class="o">.</span><span class="n">mice_n_nearest_features_min_cols</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;mice_n_nearest_features: all predictors used &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;— block (</span><span class="si">{</span><span class="n">n_cols</span><span class="si">}</span><span class="s2"> cols) at or below min_cols threshold &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;(</span><span class="si">{</span><span class="n">config</span><span class="o">.</span><span class="n">mice_n_nearest_features_min_cols</span><span class="si">}</span><span class="s2">)&quot;</span>
+        <span class="p">)</span>
+
+    <span class="n">threshold</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">mice_correlation_threshold</span>
+    <span class="n">counts</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">col_i</span> <span class="ow">in</span> <span class="n">mice_cols</span><span class="p">:</span>
+        <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">col_j</span> <span class="ow">in</span> <span class="n">numeric_cols</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">col_i</span> <span class="o">==</span> <span class="n">col_j</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">r</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">feature_correlation</span><span class="o">.</span><span class="n">get_pearson</span><span class="p">(</span><span class="n">col_i</span><span class="p">,</span> <span class="n">col_j</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">feature_correlation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="k">else</span> <span class="kc">None</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">r</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">abs</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">threshold</span><span class="p">:</span>
+                <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">counts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">count</span><span class="p">)</span>
+
+    <span class="n">median_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">counts</span><span class="p">))</span> <span class="k">if</span> <span class="n">counts</span> <span class="k">else</span> <span class="mi">0</span>
+    <span class="n">n_nearest</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">median_count</span><span class="p">),</span> <span class="n">config</span><span class="o">.</span><span class="n">mice_max_nearest_features</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">n_nearest</span><span class="p">,</span> <span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;mice_n_nearest_features: </span><span class="si">{</span><span class="n">n_nearest</span><span class="si">}</span><span class="s2"> &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;(median informative predictors=</span><span class="si">{</span><span class="n">median_count</span><span class="si">}</span><span class="s2"> across &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">numeric_cols</span><span class="p">)</span><span class="si">}</span><span class="s2"> active numeric columns, &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;capped at mice_max_nearest_features=</span><span class="si">{</span><span class="n">config</span><span class="o">.</span><span class="n">mice_max_nearest_features</span><span class="si">}</span><span class="s2">, &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;threshold=</span><span class="si">{</span><span class="n">threshold</span><span class="si">}</span><span class="s2">)&quot;</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_compute_knn_params</span><span class="p">(</span>
+    <span class="n">n_rows</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">n_features</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">block_miss_fraction</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">complete_row_fraction</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">NumericImputationConfig</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resolve the adaptive ``n_neighbors`` and ``weights`` for the KNN block.</span>
+
+<span class="sd">    Profile-fed (ADR-0062). ``n_neighbors`` grows with block dimensionality and</span>
+<span class="sd">    missingness and shrinks with completeness; ``weights`` is ``&quot;distance&quot;`` only</span>
+<span class="sd">    when the block is reliable (low missingness and few features), else</span>
+<span class="sd">    ``&quot;uniform&quot;``. The KNN scaling params (``col_means``/``col_stds``) are</span>
+<span class="sd">    learned fitted-state and are resolved by execution, never here.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    n_rows : int</span>
+<span class="sd">        Number of rows the plan is decided for.</span>
+<span class="sd">    n_features : int</span>
+<span class="sd">        Number of columns in the KNN block.</span>
+<span class="sd">    block_miss_fraction : float</span>
+<span class="sd">        Mean per-column ``effective_null_ratio`` across the KNN block.</span>
+<span class="sd">    complete_row_fraction : float</span>
+<span class="sd">        Dataset-level fraction of fully-observed rows.</span>
+<span class="sd">    config : NumericImputationConfig</span>
+<span class="sd">        Imputation configuration supplying the neighbour bounds and the</span>
+<span class="sd">        distance-weight reliability thresholds.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    tuple[int, str]</span>
+<span class="sd">        The resolved ``n_neighbors`` and ``weights`` (``&quot;distance&quot;`` /</span>
+<span class="sd">        ``&quot;uniform&quot;``).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">base_k</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">knn_min_neighbors</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">n_features</span><span class="p">)))</span>
+    <span class="n">k_raw</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">base_k</span>
+        <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">+</span> <span class="n">block_miss_fraction</span><span class="p">)</span>
+        <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">/</span> <span class="nb">max</span><span class="p">(</span><span class="n">complete_row_fraction</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">))</span> <span class="o">**</span> <span class="mf">0.5</span>
+    <span class="p">)</span>
+    <span class="n">adaptive_raw</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">knn_min_neighbors</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">k_raw</span><span class="p">))</span>
+    <span class="n">n_neighbors</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">adaptive_raw</span><span class="p">,</span> <span class="n">n_rows</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">knn_max_neighbors</span><span class="p">)</span>
+    <span class="n">n_neighbors</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n_neighbors</span><span class="p">)</span>
+
+    <span class="n">reliability_high</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">block_miss_fraction</span> <span class="o">&lt;</span> <span class="n">config</span><span class="o">.</span><span class="n">knn_distance_weight_max_null_ratio</span>
+        <span class="ow">and</span> <span class="n">n_features</span> <span class="o">&lt;=</span> <span class="n">config</span><span class="o">.</span><span class="n">knn_distance_weight_max_features</span>
+    <span class="p">)</span>
+    <span class="n">weights</span> <span class="o">=</span> <span class="s2">&quot;distance&quot;</span> <span class="k">if</span> <span class="n">reliability_high</span> <span class="k">else</span> <span class="s2">&quot;uniform&quot;</span>
+    <span class="k">return</span> <span class="n">n_neighbors</span><span class="p">,</span> <span class="n">weights</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_resolve_domain_snap_bounds</span><span class="p">(</span>
+    <span class="n">cp</span><span class="p">:</span> <span class="s2">&quot;ColumnProfile&quot;</span><span class="p">,</span>
+    <span class="n">strategy</span><span class="p">:</span> <span class="n">ImputationStrategy</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return domain-snap bounds for BoundedDiscrete model-based strategies.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    cp : ColumnProfile</span>
+<span class="sd">        Phase 1 profile; ``numeric_kind`` and ``stats.min`` / ``stats.max``</span>
+<span class="sd">        are read to determine whether snapping applies.</span>
+<span class="sd">    strategy : ImputationStrategy</span>
+<span class="sd">        Strategy returned by ``_StrategyRouter.route()``.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    tuple[float, float] or None</span>
+<span class="sd">        ``(min, max)`` when the column is BoundedDiscrete and the strategy is</span>
+<span class="sd">        model-based; ``None`` otherwise.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">cp</span><span class="o">.</span><span class="n">numeric_kind</span> <span class="o">!=</span> <span class="n">NumericKind</span><span class="o">.</span><span class="n">BoundedDiscrete</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">strategy</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span>
+        <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">KNN</span><span class="p">,</span>
+        <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MICE</span><span class="p">,</span>
+        <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">GMMSampling</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">stats</span> <span class="o">=</span> <span class="n">cp</span><span class="o">.</span><span class="n">stats</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cp</span><span class="o">.</span><span class="n">stats</span><span class="p">,</span> <span class="n">NumericStats</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">stats</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">stats</span><span class="o">.</span><span class="n">min</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">stats</span><span class="o">.</span><span class="n">max</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">stats</span><span class="o">.</span><span class="n">min</span><span class="p">,</span> <span class="n">stats</span><span class="o">.</span><span class="n">max</span><span class="p">)</span>
+    <span class="k">return</span> <span class="kc">None</span>
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

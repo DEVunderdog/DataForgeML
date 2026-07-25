@@ -26,16 +26,16 @@
   </noscript>
   
   <!-- Loaded before other Sphinx assets -->
-  <link href="../../../_static/styles/theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
-<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+  <link href="../../../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
 
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
   
   <!-- So that users can add custom icons -->
-  <script defer src="../../../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
+  <script defer src="../../../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
   <!-- Pre-loaded scripts that we'll load fully later -->
-  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5" />
-<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5" />
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
     <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
     <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
@@ -157,11 +157,35 @@
 
 
 <li class="nav-item ">
-  <a class="nav-link nav-internal" href="../../../api/utilities.html">
+  <a class="nav-link nav-internal" href="../../../api/persistence.html">
+    Persistence
+  </a>
+</li>
+
+            <li class="nav-item dropdown">
+                <button class="btn dropdown-toggle nav-item" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false"
+                aria-controls="pst-nav-more-links">
+                    More
+                </button>
+                <ul id="pst-nav-more-links" class="dropdown-menu">
+                    
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../api/observability.html">
+    Observability
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../api/utilities.html">
     Utilities
   </a>
 </li>
 
+                </ul>
+            </li>
+            
   </ul>
 </nav></div>
       
@@ -264,6 +288,20 @@
 <li class="nav-item ">
   <a class="nav-link nav-internal" href="../../../api/splitting.html">
     Splitting
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/persistence.html">
+    Persistence
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/observability.html">
+    Observability
   </a>
 </li>
 
@@ -392,7 +430,6 @@
 <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._numeric_config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">NonlinearityTag</span><span class="p">,</span>
-    <span class="n">NumericFlag</span><span class="p">,</span>
     <span class="n">NumericStats</span><span class="p">,</span>
     <span class="n">NumericProfileConfig</span><span class="p">,</span>
     <span class="n">NonlinearityProfileConfig</span><span class="p">,</span>
@@ -411,9 +448,12 @@
 <span class="c1"># ---------------------------------------------------------------------------</span>
 
 
+<div class="viewcode-block" id="NumericKind">
+<a class="viewcode-back" href="../../../api/profiling.html#dataforge_ml.profiling._config.NumericKind">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">NumericKind</span><span class="p">(</span><span class="n">StrEnum</span><span class="p">):</span>
     <span class="n">Continuous</span> <span class="o">=</span> <span class="s2">&quot;continuous&quot;</span>
-    <span class="n">BoundedDiscrete</span> <span class="o">=</span> <span class="s2">&quot;bounded_discrete&quot;</span>
+    <span class="n">BoundedDiscrete</span> <span class="o">=</span> <span class="s2">&quot;bounded_discrete&quot;</span></div>
+
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">TypeFlag</span><span class="p">(</span><span class="n">StrEnum</span><span class="p">):</span>
@@ -603,6 +643,64 @@
             <span class="s2">&quot;is_target&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_target</span><span class="p">,</span>
             <span class="s2">&quot;stats&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">stats</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
         <span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="ColumnProfile.from_dict">
+<a class="viewcode-back" href="../../../api/profiling.html#dataforge_ml.profiling._config.ColumnProfile.from_dict">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;ColumnProfile&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Reconstruct a ``ColumnProfile`` from a plain dictionary.</span>
+
+<span class="sd">        ``stats`` is dispatched to the correct stats subtype (``NumericStats``,</span>
+<span class="sd">        ``CategoricalStats``, ``DatetimeStats``, ``BooleanStats``, or</span>
+<span class="sd">        ``TextStats``) using ``semantic_type`` as the discriminator, matching</span>
+<span class="sd">        the dispatch the profiler orchestrator itself uses.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        data : dict</span>
+<span class="sd">            Mapping produced by :meth:`to_dict`.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        ColumnProfile</span>
+<span class="sd">            Reconstructed column profile instance.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">raw_semantic_type</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;semantic_type&quot;</span><span class="p">)</span>
+        <span class="n">semantic_type</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">SemanticType</span><span class="p">(</span><span class="n">raw_semantic_type</span><span class="p">)</span> <span class="k">if</span> <span class="n">raw_semantic_type</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="p">)</span>
+        <span class="n">raw_numeric_kind</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;numeric_kind&quot;</span><span class="p">)</span>
+        <span class="n">raw_stats</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;stats&quot;</span><span class="p">)</span>
+        <span class="n">stats</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">AnyStats</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">raw_stats</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">stats_by_type</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="n">SemanticType</span><span class="o">.</span><span class="n">Numeric</span><span class="p">:</span> <span class="n">NumericStats</span><span class="p">,</span>
+                <span class="n">SemanticType</span><span class="o">.</span><span class="n">Categorical</span><span class="p">:</span> <span class="n">CategoricalStats</span><span class="p">,</span>
+                <span class="n">SemanticType</span><span class="o">.</span><span class="n">Datetime</span><span class="p">:</span> <span class="n">DatetimeStats</span><span class="p">,</span>
+                <span class="n">SemanticType</span><span class="o">.</span><span class="n">Boolean</span><span class="p">:</span> <span class="n">BooleanStats</span><span class="p">,</span>
+                <span class="n">SemanticType</span><span class="o">.</span><span class="n">Text</span><span class="p">:</span> <span class="n">TextStats</span><span class="p">,</span>
+            <span class="p">}</span>
+            <span class="n">stats_cls</span> <span class="o">=</span> <span class="n">stats_by_type</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">semantic_type</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">stats_cls</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">stats</span> <span class="o">=</span> <span class="n">stats_cls</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">raw_stats</span><span class="p">)</span>
+        <span class="n">raw_missingness</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;missingness&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;name&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
+            <span class="n">semantic_type</span><span class="o">=</span><span class="n">semantic_type</span><span class="p">,</span>
+            <span class="n">numeric_kind</span><span class="o">=</span><span class="n">NumericKind</span><span class="p">(</span><span class="n">raw_numeric_kind</span><span class="p">)</span> <span class="k">if</span> <span class="n">raw_numeric_kind</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">type_flags</span><span class="o">=</span><span class="p">[</span><span class="n">TypeFlag</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;type_flags&quot;</span><span class="p">,</span> <span class="p">[])],</span>
+            <span class="n">original_dtype</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;original_dtype&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
+            <span class="n">inferred_dtype</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;inferred_dtype&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
+            <span class="n">missingness</span><span class="o">=</span><span class="p">(</span>
+                <span class="n">ColumnMissingnessProfile</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">raw_missingness</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">raw_missingness</span>
+                <span class="k">else</span> <span class="kc">None</span>
+            <span class="p">),</span>
+            <span class="n">is_target</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;is_target&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">),</span>
+            <span class="n">stats</span><span class="o">=</span><span class="n">stats</span><span class="p">,</span>
+        <span class="p">)</span></div>
 </div>
 
 
@@ -621,6 +719,10 @@
 
     <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
         <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;column_bytes&quot;</span><span class="p">:</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">column_bytes</span><span class="p">)}</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;MemoryBreakdown&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">column_bytes</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;column_bytes&quot;</span><span class="p">,</span> <span class="p">{})))</span>
 
 
 <div class="viewcode-block" id="DatasetStats">
@@ -682,6 +784,55 @@
             <span class="s2">&quot;feature_correlation&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">feature_correlation</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">feature_correlation</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
             <span class="s2">&quot;target_correlations&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_correlations</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span>
         <span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="DatasetStats.from_dict">
+<a class="viewcode-back" href="../../../api/profiling.html#dataforge_ml.profiling._config.DatasetStats.from_dict">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;DatasetStats&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Reconstruct the dataset stats from a plain dictionary.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        data : dict</span>
+<span class="sd">            Mapping produced by :meth:`to_dict`.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        DatasetStats</span>
+<span class="sd">            Reconstructed instance.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">raw_memory_breakdown</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;memory_breakdown&quot;</span><span class="p">)</span>
+        <span class="n">raw_feature_correlation</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;feature_correlation&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+            <span class="n">modality</span><span class="o">=</span><span class="n">Modality</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;modality&quot;</span><span class="p">,</span> <span class="n">Modality</span><span class="o">.</span><span class="n">Tabular</span><span class="p">)),</span>
+            <span class="n">row_count</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;row_count&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+            <span class="n">column_count</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;column_count&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+            <span class="n">memory_bytes</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;memory_bytes&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+            <span class="n">memory_breakdown</span><span class="o">=</span><span class="p">(</span>
+                <span class="n">MemoryBreakdown</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">raw_memory_breakdown</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">raw_memory_breakdown</span>
+                <span class="k">else</span> <span class="kc">None</span>
+            <span class="p">),</span>
+            <span class="n">duplicate_count</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;duplicate_count&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+            <span class="n">duplicate_ratio</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;duplicate_ratio&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span>
+            <span class="n">overall_sparsity</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;overall_sparsity&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span>
+            <span class="n">was_chunked</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;was_chunked&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">),</span>
+            <span class="n">missingness_matrix</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;missingness_matrix&quot;</span><span class="p">),</span>
+            <span class="n">row_distribution</span><span class="o">=</span><span class="n">RowMissingnessDistribution</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span>
+                <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;row_distribution&quot;</span><span class="p">,</span> <span class="p">{})</span>
+            <span class="p">),</span>
+            <span class="n">feature_correlation</span><span class="o">=</span><span class="p">(</span>
+                <span class="n">CorrelationProfileResult</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">raw_feature_correlation</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">raw_feature_correlation</span>
+                <span class="k">else</span> <span class="kc">None</span>
+            <span class="p">),</span>
+            <span class="n">target_correlations</span><span class="o">=</span><span class="p">{</span>
+                <span class="n">k</span><span class="p">:</span> <span class="n">CorrelationProfileResult</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;target_correlations&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">},</span>
+        <span class="p">)</span></div>
 </div>
 
 
@@ -724,6 +875,46 @@
             <span class="s2">&quot;numeric_sentinels&quot;</span><span class="p">:</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">numeric_sentinels</span><span class="p">),</span>
             <span class="s2">&quot;string_sentinels&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">string_sentinels</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span>
         <span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="StructuralProfileResult.from_dict">
+<a class="viewcode-back" href="../../../api/profiling.html#dataforge_ml.profiling._config.StructuralProfileResult.from_dict">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;StructuralProfileResult&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Reconstruct a ``StructuralProfileResult`` from a plain dictionary.</span>
+
+<span class="sd">        The inverse of :meth:`to_dict`, rebuilding every nested column,</span>
+<span class="sd">        dataset, and target profile so ``from_dict(result.to_dict())`` is</span>
+<span class="sd">        structurally equal to ``result``.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        data : dict</span>
+<span class="sd">            Mapping produced by :meth:`to_dict`.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        StructuralProfileResult</span>
+<span class="sd">            Reconstructed profiling result.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+            <span class="n">columns</span><span class="o">=</span><span class="p">{</span>
+                <span class="n">k</span><span class="p">:</span> <span class="n">ColumnProfile</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;columns&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">},</span>
+            <span class="n">dataset</span><span class="o">=</span><span class="n">DatasetStats</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;dataset&quot;</span><span class="p">,</span> <span class="p">{})),</span>
+            <span class="n">targets</span><span class="o">=</span><span class="p">{</span>
+                <span class="n">k</span><span class="p">:</span> <span class="n">TargetProfileResult</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;targets&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">},</span>
+            <span class="n">numeric_sentinels</span><span class="o">=</span><span class="p">{</span>
+                <span class="n">k</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;numeric_sentinels&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">},</span>
+            <span class="n">string_sentinels</span><span class="o">=</span><span class="p">{</span>
+                <span class="n">k</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;string_sentinels&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">},</span>
+        <span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="StructuralProfileResult.to_json">
@@ -1433,8 +1624,8 @@
   </div>
   
   <!-- Scripts loaded after <body> so the DOM is not blocked -->
-  <script defer src="../../../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5"></script>
-<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5"></script>
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
 
   <footer class="bd-footer">
 <div class="bd-footer__inner bd-page-width">
@@ -1458,7 +1649,7 @@
         <div class="footer-item">
 <p class="theme-version">
   <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
-  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.19.0.
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
 </p></div>
       
     </div>

@@ -27,16 +27,16 @@
   </noscript>
   
   <!-- Loaded before other Sphinx assets -->
-  <link href="../_static/styles/theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
-<link href="../_static/styles/pydata-sphinx-theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+  <link href="../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
 
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
   
   <!-- So that users can add custom icons -->
-  <script defer src="../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
+  <script defer src="../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
   <!-- Pre-loaded scripts that we'll load fully later -->
-  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5" />
-<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5" />
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
     <script src="../_static/documentation_options.js?v=5929fcd5"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
@@ -160,11 +160,35 @@
 
 
 <li class="nav-item ">
-  <a class="nav-link nav-internal" href="utilities.html">
+  <a class="nav-link nav-internal" href="persistence.html">
+    Persistence
+  </a>
+</li>
+
+            <li class="nav-item dropdown">
+                <button class="btn dropdown-toggle nav-item" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false"
+                aria-controls="pst-nav-more-links">
+                    More
+                </button>
+                <ul id="pst-nav-more-links" class="dropdown-menu">
+                    
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="observability.html">
+    Observability
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="utilities.html">
     Utilities
   </a>
 </li>
 
+                </ul>
+            </li>
+            
   </ul>
 </nav></div>
       
@@ -274,6 +298,20 @@
 
 
 <li class="nav-item ">
+  <a class="nav-link nav-internal" href="persistence.html">
+    Persistence
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="observability.html">
+    Observability
+  </a>
+</li>
+
+
+<li class="nav-item ">
   <a class="nav-link nav-internal" href="utilities.html">
     Utilities
   </a>
@@ -309,7 +347,8 @@
   </div>
   
     <div class="sidebar-primary-items__start sidebar-primary__section">
-        <div class="sidebar-primary-item pst-sidebar-collapse"><button id="pst-collapse-sidebar-button" aria-expanded="true" aria-controls="pst-primary-sidebar"><svg class="pst-icon svg-inline--fa" role="img" aria-hidden="true" focusable="false" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+        <div class="sidebar-primary-item pst-sidebar-collapse"><button id="pst-collapse-sidebar-button" aria-expanded="true" aria-controls="pst-primary-sidebar">
+  <svg class="pst-icon" role="img" aria-hidden="true" focusable="false" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
     <path fill="currentColor" d="M3 15.5C2.36232 15.5 1.74874 15.2564 1.28478 14.8189C0.820828 14.3815 0.541576 13.7832 0.504167 13.1467L0.5 13L0.5 3C0.499965 2.36232 0.743605 1.74874 1.18107 1.28478C1.61854 0.820828 2.21676 0.541576 2.85333 0.504167L3 0.5L13 0.5C13.6377 0.499965 14.2513 0.743605 14.7152 1.18107C15.1792 1.61854 15.4584 2.21676 15.4958 2.85333L15.5 3L15.5 13C15.5 13.6377 15.2564 14.2513 14.8189 14.7152C14.3815 15.1792 13.7832 15.4584 13.1467 15.4958L13 15.5L3 15.5ZM3 13.8333L10.5 13.8333L10.5 2.16667L3 2.16667C2.79589 2.16669 2.59889 2.24163 2.44636 2.37726C2.29383 2.5129 2.19638 2.69979 2.1725 2.9025L2.16667 3L2.16667 13C2.16669 13.2041 2.24163 13.4011 2.37726 13.5536C2.5129 13.7062 2.69979 13.8036 2.9025 13.8275L3 13.8333ZM6.65583 10.325L6.5775 10.2558L4.91083 8.58917C4.76735 8.44567 4.68116 8.25476 4.66843 8.05223C4.65569 7.84971 4.71729 7.6495 4.84167 7.48917L4.91083 7.41083L6.5775 5.74417C6.72747 5.59471 6.9287 5.50794 7.14032 5.50148C7.35194 5.49502 7.55809 5.56935 7.7169 5.70937C7.8757 5.8494 7.97525 6.04463 7.99533 6.25539C8.01541 6.46616 7.95451 6.67667 7.825 6.84417L7.75583 6.9225L6.67917 8L7.75583 9.0775C7.89931 9.22099 7.98551 9.41191 7.99824 9.61443C8.01097 9.81695 7.94938 10.0172 7.825 10.1775L7.75583 10.2558C7.61234 10.3993 7.42142 10.4855 7.2189 10.4982C7.01638 10.511 6.81617 10.4494 6.65583 10.325Z"/>
   </svg>
   <span class="pst-collapse-sidebar-label">Collapse Sidebar</span>
@@ -389,7 +428,7 @@
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>config</strong> (<a class="reference internal" href="pipeline.html#dataforge_ml.config.PipelineConfig" title="dataforge_ml.config.PipelineConfig"><em>PipelineConfig</em></a><em>, </em><em>optional</em>) – Master pipeline configuration.  Defaults to <code class="docutils literal notranslate"><span class="pre">PipelineConfig()</span></code> which
 applies all sub-processor defaults exactly as they were before Scope 15.</p></li>
-<li><p><strong>observer</strong> (<em>Callable</em><em>[</em><em>[</em><em>PipelineEvent</em><em>]</em><em>, </em><em>None</em><em>]</em><em>, </em><em>optional</em>) – Live Progress Observer invoked with each <code class="xref py py-class docutils literal notranslate"><span class="pre">PipelineEvent</span></code> this
+<li><p><strong>observer</strong> (<em>Callable</em><em>[</em><em>[</em><a class="reference internal" href="observability.html#dataforge_ml.observability.PipelineEvent" title="dataforge_ml.observability.PipelineEvent"><em>PipelineEvent</em></a><em>]</em><em>, </em><em>None</em><em>]</em><em>, </em><em>optional</em>) – Live Progress Observer invoked with each <code class="xref py py-class docutils literal notranslate"><span class="pre">PipelineEvent</span></code> this
 orchestrator emits.  <code class="docutils literal notranslate"><span class="pre">None</span></code> (the default) disables Progress; Trace
 still flows to the <code class="docutils literal notranslate"><span class="pre">dataforge_ml</span></code> logger regardless (ADR-0054).</p></li>
 </ul>
@@ -416,7 +455,7 @@ from the nested sub-configs on <code class="docutils literal notranslate"><span 
 <dt class="field-even">Raises<span class="colon">:</span></dt>
 <dd class="field-even"><ul class="simple">
 <li><p><strong>TypeError</strong> – When <code class="docutils literal notranslate"><span class="pre">data</span></code> is not a <code class="docutils literal notranslate"><span class="pre">polars.DataFrame</span></code>.</p></li>
-<li><p><strong>OverrideCoercionError</strong> – When a column carrying <code class="docutils literal notranslate"><span class="pre">TypeFlag.UserOverride</span></code> completely fails
+<li><p><a class="reference internal" href="#dataforge_ml.profiling._base.OverrideCoercionError" title="dataforge_ml.profiling._base.OverrideCoercionError"><strong>OverrideCoercionError</strong></a> – When a column carrying <code class="docutils literal notranslate"><span class="pre">TypeFlag.UserOverride</span></code> completely fails
 coercion to its overridden <code class="docutils literal notranslate"><span class="pre">SemanticType</span></code> (zero usable values
 remain despite the original column having non-null data).</p></li>
 </ul>
@@ -1498,6 +1537,26 @@ can consume them without holding a config reference.</p>
 <span class="sig-name descname"><span class="pre">dataset</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#dataforge_ml.profiling._config.DatasetStats" title="dataforge_ml.profiling._config.DatasetStats"><span class="pre">DatasetStats</span></a></span><a class="headerlink" href="#dataforge_ml.profiling._config.StructuralProfileResult.dataset" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
+<dl class="py method">
+<dt class="sig sig-object py" id="dataforge_ml.profiling._config.StructuralProfileResult.from_dict">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/profiling/_config.html#StructuralProfileResult.from_dict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.profiling._config.StructuralProfileResult.from_dict" title="Link to this definition">#</a></dt>
+<dd><p>Reconstruct a <code class="docutils literal notranslate"><span class="pre">StructuralProfileResult</span></code> from a plain dictionary.</p>
+<p>The inverse of <a class="reference internal" href="#dataforge_ml.profiling._config.StructuralProfileResult.to_dict" title="dataforge_ml.profiling._config.StructuralProfileResult.to_dict"><code class="xref py py-meth docutils literal notranslate"><span class="pre">to_dict()</span></code></a>, rebuilding every nested column,
+dataset, and target profile so <code class="docutils literal notranslate"><span class="pre">from_dict(result.to_dict())</span></code> is
+structurally equal to <code class="docutils literal notranslate"><span class="pre">result</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>data</strong> (<em>dict</em>) – Mapping produced by <a class="reference internal" href="#dataforge_ml.profiling._config.StructuralProfileResult.to_dict" title="dataforge_ml.profiling._config.StructuralProfileResult.to_dict"><code class="xref py py-meth docutils literal notranslate"><span class="pre">to_dict()</span></code></a>.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Reconstructed profiling result.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#dataforge_ml.profiling._config.StructuralProfileResult" title="dataforge_ml.profiling._config.StructuralProfileResult">StructuralProfileResult</a></p>
+</dd>
+</dl>
+</dd></dl>
+
 <dl class="py attribute">
 <dt class="sig sig-object py" id="dataforge_ml.profiling._config.StructuralProfileResult.numeric_sentinels">
 <span class="sig-name descname"><span class="pre">numeric_sentinels</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#dataforge_ml.profiling._config.StructuralProfileResult.numeric_sentinels" title="Link to this definition">#</a></dt>
@@ -1612,7 +1671,7 @@ statistics for a single column after Phase 1 profiling completes.</p>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>name</strong> (<em>str</em>)</p></li>
 <li><p><strong>semantic_type</strong> (<a class="reference internal" href="pipeline.html#dataforge_ml.config.SemanticType" title="dataforge_ml.config.SemanticType"><em>SemanticType</em></a><em> | </em><em>None</em>)</p></li>
-<li><p><strong>numeric_kind</strong> (<em>NumericKind</em><em> | </em><em>None</em>)</p></li>
+<li><p><strong>numeric_kind</strong> (<a class="reference internal" href="#dataforge_ml.profiling._config.NumericKind" title="dataforge_ml.profiling._config.NumericKind"><em>NumericKind</em></a><em> | </em><em>None</em>)</p></li>
 <li><p><strong>type_flags</strong> (<em>list</em><em>[</em><em>TypeFlag</em><em>]</em>)</p></li>
 <li><p><strong>original_dtype</strong> (<em>str</em>)</p></li>
 <li><p><strong>inferred_dtype</strong> (<em>str</em>)</p></li>
@@ -1622,6 +1681,27 @@ statistics for a single column after Phase 1 profiling completes.</p>
 </ul>
 </dd>
 </dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="dataforge_ml.profiling._config.ColumnProfile.from_dict">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/profiling/_config.html#ColumnProfile.from_dict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.profiling._config.ColumnProfile.from_dict" title="Link to this definition">#</a></dt>
+<dd><p>Reconstruct a <code class="docutils literal notranslate"><span class="pre">ColumnProfile</span></code> from a plain dictionary.</p>
+<p><code class="docutils literal notranslate"><span class="pre">stats</span></code> is dispatched to the correct stats subtype (<code class="docutils literal notranslate"><span class="pre">NumericStats</span></code>,
+<code class="docutils literal notranslate"><span class="pre">CategoricalStats</span></code>, <code class="docutils literal notranslate"><span class="pre">DatetimeStats</span></code>, <code class="docutils literal notranslate"><span class="pre">BooleanStats</span></code>, or
+<code class="docutils literal notranslate"><span class="pre">TextStats</span></code>) using <code class="docutils literal notranslate"><span class="pre">semantic_type</span></code> as the discriminator, matching
+the dispatch the profiler orchestrator itself uses.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>data</strong> (<em>dict</em>) – Mapping produced by <a class="reference internal" href="#dataforge_ml.profiling._config.ColumnProfile.to_dict" title="dataforge_ml.profiling._config.ColumnProfile.to_dict"><code class="xref py py-meth docutils literal notranslate"><span class="pre">to_dict()</span></code></a>.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Reconstructed column profile instance.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#dataforge_ml.profiling._config.ColumnProfile" title="dataforge_ml.profiling._config.ColumnProfile">ColumnProfile</a></p>
+</dd>
+</dl>
+</dd></dl>
+
 <dl class="py attribute">
 <dt class="sig sig-object py" id="dataforge_ml.profiling._config.ColumnProfile.inferred_dtype">
 <span class="sig-name descname"><span class="pre">inferred_dtype</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">''</span></span><a class="headerlink" href="#dataforge_ml.profiling._config.ColumnProfile.inferred_dtype" title="Link to this definition">#</a></dt>
@@ -1644,7 +1724,7 @@ statistics for a single column after Phase 1 profiling completes.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="dataforge_ml.profiling._config.ColumnProfile.numeric_kind">
-<span class="sig-name descname"><span class="pre">numeric_kind</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">NumericKind</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.profiling._config.ColumnProfile.numeric_kind" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">numeric_kind</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#dataforge_ml.profiling._config.NumericKind" title="dataforge_ml.profiling._config.NumericKind"><span class="pre">NumericKind</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.profiling._config.ColumnProfile.numeric_kind" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
@@ -1731,6 +1811,23 @@ results for the full profiled DataFrame.</p>
 <span class="sig-name descname"><span class="pre">feature_correlation</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">CorrelationProfileResult</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.profiling._config.DatasetStats.feature_correlation" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
+<dl class="py method">
+<dt class="sig sig-object py" id="dataforge_ml.profiling._config.DatasetStats.from_dict">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/profiling/_config.html#DatasetStats.from_dict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.profiling._config.DatasetStats.from_dict" title="Link to this definition">#</a></dt>
+<dd><p>Reconstruct the dataset stats from a plain dictionary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>data</strong> (<em>dict</em>) – Mapping produced by <a class="reference internal" href="#dataforge_ml.profiling._config.DatasetStats.to_dict" title="dataforge_ml.profiling._config.DatasetStats.to_dict"><code class="xref py py-meth docutils literal notranslate"><span class="pre">to_dict()</span></code></a>.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Reconstructed instance.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#dataforge_ml.profiling._config.DatasetStats" title="dataforge_ml.profiling._config.DatasetStats">DatasetStats</a></p>
+</dd>
+</dl>
+</dd></dl>
+
 <dl class="py attribute">
 <dt class="sig sig-object py" id="dataforge_ml.profiling._config.DatasetStats.memory_breakdown">
 <span class="sig-name descname"><span class="pre">memory_breakdown</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">MemoryBreakdown</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.profiling._config.DatasetStats.memory_breakdown" title="Link to this definition">#</a></dt>
@@ -1791,6 +1888,31 @@ representations.</p>
 <span class="sig-name descname"><span class="pre">was_chunked</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></span><a class="headerlink" href="#dataforge_ml.profiling._config.DatasetStats.was_chunked" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="dataforge_ml.profiling._config.NumericKind">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.profiling._config.</span></span><span class="sig-name descname"><span class="pre">NumericKind</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">values</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/profiling/_config.html#NumericKind"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.profiling._config.NumericKind" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">StrEnum</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.profiling._config.NumericKind.BoundedDiscrete">
+<span class="sig-name descname"><span class="pre">BoundedDiscrete</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'bounded_discrete'</span></span><a class="headerlink" href="#dataforge_ml.profiling._config.NumericKind.BoundedDiscrete" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.profiling._config.NumericKind.Continuous">
+<span class="sig-name descname"><span class="pre">Continuous</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'continuous'</span></span><a class="headerlink" href="#dataforge_ml.profiling._config.NumericKind.Continuous" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="dataforge_ml.profiling._base.OverrideCoercionError">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.profiling._base.</span></span><span class="sig-name descname"><span class="pre">OverrideCoercionError</span></span><a class="reference internal" href="../_modules/dataforge_ml/profiling/_base.html#OverrideCoercionError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.profiling._base.OverrideCoercionError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code></p>
+<p>Raised when a user-overridden column completely fails coercion.</p>
+<p>This exception is triggered when zero usable values remain after coercion,
+despite the original column having at least one non-null value.</p>
 </dd></dl>
 
 </section>
@@ -1963,6 +2085,7 @@ representations.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.StructuralProfileResult"><code class="docutils literal notranslate"><span class="pre">StructuralProfileResult</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.StructuralProfileResult.columns"><code class="docutils literal notranslate"><span class="pre">StructuralProfileResult.columns</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.StructuralProfileResult.dataset"><code class="docutils literal notranslate"><span class="pre">StructuralProfileResult.dataset</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.StructuralProfileResult.from_dict"><code class="docutils literal notranslate"><span class="pre">StructuralProfileResult.from_dict()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.StructuralProfileResult.numeric_sentinels"><code class="docutils literal notranslate"><span class="pre">StructuralProfileResult.numeric_sentinels</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.StructuralProfileResult.string_sentinels"><code class="docutils literal notranslate"><span class="pre">StructuralProfileResult.string_sentinels</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.StructuralProfileResult.targets"><code class="docutils literal notranslate"><span class="pre">StructuralProfileResult.targets</span></code></a></li>
@@ -1973,6 +2096,7 @@ representations.</p>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.ColumnProfile"><code class="docutils literal notranslate"><span class="pre">ColumnProfile</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.ColumnProfile.from_dict"><code class="docutils literal notranslate"><span class="pre">ColumnProfile.from_dict()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.ColumnProfile.inferred_dtype"><code class="docutils literal notranslate"><span class="pre">ColumnProfile.inferred_dtype</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.ColumnProfile.is_target"><code class="docutils literal notranslate"><span class="pre">ColumnProfile.is_target</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.ColumnProfile.missingness"><code class="docutils literal notranslate"><span class="pre">ColumnProfile.missingness</span></code></a></li>
@@ -1990,6 +2114,7 @@ representations.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.DatasetStats.duplicate_count"><code class="docutils literal notranslate"><span class="pre">DatasetStats.duplicate_count</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.DatasetStats.duplicate_ratio"><code class="docutils literal notranslate"><span class="pre">DatasetStats.duplicate_ratio</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.DatasetStats.feature_correlation"><code class="docutils literal notranslate"><span class="pre">DatasetStats.feature_correlation</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.DatasetStats.from_dict"><code class="docutils literal notranslate"><span class="pre">DatasetStats.from_dict()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.DatasetStats.memory_breakdown"><code class="docutils literal notranslate"><span class="pre">DatasetStats.memory_breakdown</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.DatasetStats.memory_bytes"><code class="docutils literal notranslate"><span class="pre">DatasetStats.memory_bytes</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.DatasetStats.missingness_matrix"><code class="docutils literal notranslate"><span class="pre">DatasetStats.missingness_matrix</span></code></a></li>
@@ -2002,6 +2127,12 @@ representations.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.DatasetStats.was_chunked"><code class="docutils literal notranslate"><span class="pre">DatasetStats.was_chunked</span></code></a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.NumericKind"><code class="docutils literal notranslate"><span class="pre">NumericKind</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.NumericKind.BoundedDiscrete"><code class="docutils literal notranslate"><span class="pre">NumericKind.BoundedDiscrete</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._config.NumericKind.Continuous"><code class="docutils literal notranslate"><span class="pre">NumericKind.Continuous</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.profiling._base.OverrideCoercionError"><code class="docutils literal notranslate"><span class="pre">OverrideCoercionError</span></code></a></li>
 </ul>
   </nav></div>
 
@@ -2027,8 +2158,8 @@ representations.</p>
   </div>
   
   <!-- Scripts loaded after <body> so the DOM is not blocked -->
-  <script defer src="../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5"></script>
-<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5"></script>
+  <script defer src="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
 
   <footer class="bd-footer">
 <div class="bd-footer__inner bd-page-width">
@@ -2052,7 +2183,7 @@ representations.</p>
         <div class="footer-item">
 <p class="theme-version">
   <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
-  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.19.0.
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
 </p></div>
       
     </div>

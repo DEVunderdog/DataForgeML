@@ -27,16 +27,16 @@
   </noscript>
   
   <!-- Loaded before other Sphinx assets -->
-  <link href="_static/styles/theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
-<link href="_static/styles/pydata-sphinx-theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+  <link href="_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
 
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
   
   <!-- So that users can add custom icons -->
-  <script defer src="_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
+  <script defer src="_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
   <!-- Pre-loaded scripts that we'll load fully later -->
-  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5" />
-<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5" />
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
     <script src="_static/documentation_options.js?v=5929fcd5"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
@@ -159,11 +159,35 @@
 
 
 <li class="nav-item ">
-  <a class="nav-link nav-internal" href="api/utilities.html">
+  <a class="nav-link nav-internal" href="api/persistence.html">
+    Persistence
+  </a>
+</li>
+
+            <li class="nav-item dropdown">
+                <button class="btn dropdown-toggle nav-item" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false"
+                aria-controls="pst-nav-more-links">
+                    More
+                </button>
+                <ul id="pst-nav-more-links" class="dropdown-menu">
+                    
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="api/observability.html">
+    Observability
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="api/utilities.html">
     Utilities
   </a>
 </li>
 
+                </ul>
+            </li>
+            
   </ul>
 </nav></div>
       
@@ -275,6 +299,20 @@
 
 
 <li class="nav-item ">
+  <a class="nav-link nav-internal" href="api/persistence.html">
+    Persistence
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="api/observability.html">
+    Observability
+  </a>
+</li>
+
+
+<li class="nav-item ">
   <a class="nav-link nav-internal" href="api/utilities.html">
     Utilities
   </a>
@@ -363,24 +401,17 @@
 <li class="toctree-l2"><a class="reference internal" href="api/profiling.html#dataforge_ml.profiling._config.StructuralProfileResult"><code class="docutils literal notranslate"><span class="pre">StructuralProfileResult</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/profiling.html#dataforge_ml.profiling._config.ColumnProfile"><code class="docutils literal notranslate"><span class="pre">ColumnProfile</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/profiling.html#dataforge_ml.profiling._config.DatasetStats"><code class="docutils literal notranslate"><span class="pre">DatasetStats</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/profiling.html#dataforge_ml.profiling._config.NumericKind"><code class="docutils literal notranslate"><span class="pre">NumericKind</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/profiling.html#dataforge_ml.profiling._base.OverrideCoercionError"><code class="docutils literal notranslate"><span class="pre">OverrideCoercionError</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="api/imputation.html">Imputation</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="api/imputation.html#dataforge_ml.imputation.orchestrator.ImputationOrchestrator"><code class="docutils literal notranslate"><span class="pre">ImputationOrchestrator</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/imputation.html#dataforge_ml.imputation.evaluation.EvaluationOrchestrator"><code class="docutils literal notranslate"><span class="pre">EvaluationOrchestrator</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/imputation.html#dataforge_ml.imputation._config.ImputationConfig"><code class="docutils literal notranslate"><span class="pre">ImputationConfig</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/imputation.html#dataforge_ml.imputation._config.NumericImputationConfig"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/imputation.html#dataforge_ml.imputation._config.ImputationStrategy"><code class="docutils literal notranslate"><span class="pre">ImputationStrategy</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/imputation.html#dataforge_ml.imputation._fitted_imputer.FittedImputer"><code class="docutils literal notranslate"><span class="pre">FittedImputer</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/imputation.html#dataforge_ml.imputation._config.InspectionDiagnostic"><code class="docutils literal notranslate"><span class="pre">InspectionDiagnostic</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/imputation.html#dataforge_ml.imputation._config.InspectionReport"><code class="docutils literal notranslate"><span class="pre">InspectionReport</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/imputation.html#dataforge_ml.imputation._config.AccuracyDiagnostic"><code class="docutils literal notranslate"><span class="pre">AccuracyDiagnostic</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/imputation.html#dataforge_ml.imputation._config.AccuracyReport"><code class="docutils literal notranslate"><span class="pre">AccuracyReport</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/imputation.html#dataforge_ml.imputation._config.ImputationResult"><code class="docutils literal notranslate"><span class="pre">ImputationResult</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/imputation.html#dataforge_ml.imputation._config.ColumnImputationRecord"><code class="docutils literal notranslate"><span class="pre">ColumnImputationRecord</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/imputation.html#dataforge_ml.imputation._fitted_imputer.UnfittedColumnError"><code class="docutils literal notranslate"><span class="pre">UnfittedColumnError</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/imputation.html#dataforge_ml.imputation._fitted_imputer.UnseenColumnError"><code class="docutils literal notranslate"><span class="pre">UnseenColumnError</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/imputation.html#dataforge_ml.imputation._fitted_imputer.FittedColumnAbsentError"><code class="docutils literal notranslate"><span class="pre">FittedColumnAbsentError</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/imputation.html#decision-layer">Decision layer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/imputation.html#execution-layer">Execution layer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/imputation.html#evaluation">Evaluation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/imputation.html#configuration">Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/imputation.html#results">Results</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/imputation.html#exceptions-and-warnings">Exceptions and warnings</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="api/splitting.html">Splitting</a><ul>
@@ -388,6 +419,21 @@
 <li class="toctree-l2"><a class="reference internal" href="api/splitting.html#dataforge_ml.splitting._config.SplitConfig"><code class="docutils literal notranslate"><span class="pre">SplitConfig</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/splitting.html#dataforge_ml.splitting._config.SplitResult"><code class="docutils literal notranslate"><span class="pre">SplitResult</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/splitting.html#dataforge_ml.splitting._config.FoldResult"><code class="docutils literal notranslate"><span class="pre">FoldResult</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/splitting.html#dataforge_ml.splitting._config.HoldoutCVResult"><code class="docutils literal notranslate"><span class="pre">HoldoutCVResult</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/persistence.html">Persistence</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/persistence.html#dataforge_ml._serialization.serialize"><code class="docutils literal notranslate"><span class="pre">serialize()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/persistence.html#dataforge_ml._serialization.deserialize"><code class="docutils literal notranslate"><span class="pre">deserialize()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/persistence.html#dataforge_ml._serialization.inspect"><code class="docutils literal notranslate"><span class="pre">inspect()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/persistence.html#dataforge_ml._serialization.IncompatibleArtifactError"><code class="docutils literal notranslate"><span class="pre">IncompatibleArtifactError</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/persistence.html#dataforge_ml._serialization.ArtifactPythonVersionWarning"><code class="docutils literal notranslate"><span class="pre">ArtifactPythonVersionWarning</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/observability.html">Observability</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/observability.html#dataforge_ml.observability.PipelineEvent"><code class="docutils literal notranslate"><span class="pre">PipelineEvent</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/observability.html#dataforge_ml.observability.EventType"><code class="docutils literal notranslate"><span class="pre">EventType</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/observability.html#dataforge_ml.observability.stderr_observer"><code class="docutils literal notranslate"><span class="pre">stderr_observer()</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="api/utilities.html">Utilities</a><ul>
@@ -451,8 +497,8 @@
   </div>
   
   <!-- Scripts loaded after <body> so the DOM is not blocked -->
-  <script defer src="_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5"></script>
-<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5"></script>
+  <script defer src="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
 
   <footer class="bd-footer">
 <div class="bd-footer__inner bd-page-width">
@@ -476,7 +522,7 @@
         <div class="footer-item">
 <p class="theme-version">
   <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
-  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.19.0.
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
 </p></div>
       
     </div>
