@@ -2,14 +2,16 @@
 Integration test: Phase 1 → DataSplitter → Phase 2 imputation.
 
 Verifies the full fit/transform contract on real DataFrames using actual
-StructuralProfiler and ImputationOrchestrator (no stubs).
+StructuralProfiler and the layered decide -> execute -> build path (no stubs).
 """
 
 import polars as pl
 import pytest
 
 from dataforge_ml.config import PipelineConfig, PipelinePhase
-from dataforge_ml.imputation import FittedImputer, ImputationOrchestrator
+from dataforge_ml.imputation import FittedImputer, decide
+
+from tests.conftest import fit_imputer
 from dataforge_ml.profiling._config import ProfileConfig
 from dataforge_ml.profiling.orchestrator import StructuralProfiler
 from dataforge_ml.splitting import DataSplitter
@@ -22,6 +24,7 @@ from dataforge_ml.splitting import DataSplitter
 
 @pytest.fixture(scope="module")
 def imputation_df(rng):
+    rng = rng(seed=46)
     n = 400
     values_a = rng.normal(50.0, 10.0, n).tolist()
     values_b = rng.normal(200.0, 30.0, n).tolist()
@@ -58,7 +61,7 @@ def imputation_split(imputation_df, imputation_profile):
 
 @pytest.fixture(scope="module")
 def fitted_imputer(imputation_split, imputation_profile) -> FittedImputer:
-    return ImputationOrchestrator().fit(imputation_split.train, imputation_profile)
+    return fit_imputer(imputation_split.train, imputation_profile)
 
 
 # ---------------------------------------------------------------------------
@@ -67,7 +70,7 @@ def fitted_imputer(imputation_split, imputation_profile) -> FittedImputer:
 
 
 def test_fit_returns_fitted_imputer(imputation_split, imputation_profile):
-    fi = ImputationOrchestrator().fit(imputation_split.train, imputation_profile)
+    fi = fit_imputer(imputation_split.train, imputation_profile)
     assert isinstance(fi, FittedImputer)
 
 
@@ -110,8 +113,8 @@ def test_transform_applies_train_time_fill_values(fitted_imputer, imputation_spl
 def test_result_records_contain_strategy_and_signals(fitted_imputer):
     for col in ["score", "revenue", "rating"]:
         rec = fitted_imputer.records[col]
-        assert rec.strategy is not None
-        assert len(rec.signals) >= 1
+        assert rec.decision.strategy is not None
+        assert len(rec.decision.signals) >= 1
 
 
 def test_label_column_passes_through_untouched(fitted_imputer, imputation_split):
@@ -121,8 +124,8 @@ def test_label_column_passes_through_untouched(fitted_imputer, imputation_split)
     assert result.dataframe["label"].equals(imputation_split.train["label"])
 
 
-def test_fitted_imputer_serialisation_round_trip(fitted_imputer, imputation_split):
-    restored = FittedImputer.from_dict(fitted_imputer.to_dict())
+def test_fitted_imputer_serialisation_round_trip(fitted_imputer, imputation_split, round_trip):
+    restored = round_trip(fitted_imputer)
     r1 = fitted_imputer.transform(imputation_split.test)
     r2 = restored.transform(imputation_split.test)
     assert r1.dataframe.equals(r2.dataframe)
@@ -143,22 +146,25 @@ def test_mnar_column_receives_data_derived_fill_and_indicator():
     imputation_config.add_mnar_column("salary")
     config = PipelineConfig(imputation=imputation_config)
     profile = StructuralProfiler(PipelineConfig()).profile(data)
-    orch = ImputationOrchestrator(config=config)
-    _fitted, result = orch.fit_transform(data, profile)
+    result = fit_imputer(data, profile, config).transform(data)
 
     assert result.dataframe["salary"].null_count() == 0
     assert "salary_missing" in result.dataframe.columns
 
 
-def test_orchestrator_stateless_across_multiple_fits(imputation_df, imputation_profile):
-    """fit() must not accumulate state — two calls produce independent FittedImputors."""
-    orch = ImputationOrchestrator()
+def test_repeated_fits_are_independent(imputation_df, imputation_profile):
+    """Two drives must not share state — each produces its own FittedImputer.
+
+    ``decide()`` is a pure function and each ``ImputationExecutor`` owns its units,
+    so independence is structural on the layered path rather than a property of a
+    reused orchestrator; this pins that it stays so.
+    """
     splitter = DataSplitter(imputation_df, random_seed=1)
     split1 = splitter.random_split(test_size=0.5, stratify=False)
     split2 = splitter.random_split(test_size=0.5, stratify=False)
 
-    fi1 = orch.fit(split1.train, imputation_profile)
-    fi2 = orch.fit(split2.train, imputation_profile)
+    fi1 = fit_imputer(split1.train, imputation_profile)
+    fi2 = fit_imputer(split2.train, imputation_profile)
 
     # Both should produce valid results
     r1 = fi1.transform(split1.test)
@@ -192,28 +198,20 @@ def drop_candidate_profile(drop_candidate_df):
 
 
 def test_drop_candidate_column_in_dropped_columns(drop_candidate_df, drop_candidate_profile):
-    fi = ImputationOrchestrator().fit(drop_candidate_df, drop_candidate_profile)
+    fi = fit_imputer(drop_candidate_df, drop_candidate_profile)
     result = fi.transform(drop_candidate_df)
     assert "sparse" in result.dropped_columns
 
 
 def test_drop_candidate_apply_exclusions_adds_column_to_config(drop_candidate_df, drop_candidate_profile):
-    fi = ImputationOrchestrator().fit(drop_candidate_df, drop_candidate_profile)
+    fi = fit_imputer(drop_candidate_df, drop_candidate_profile)
     config = PipelineConfig()
     fi.apply_exclusions(config)
     assert "sparse" in config.exclude_columns
 
 
-def test_drop_candidate_exclusions_applied_true_after_apply_exclusions(drop_candidate_df, drop_candidate_profile):
-    fi = ImputationOrchestrator().fit(drop_candidate_df, drop_candidate_profile)
-    config = PipelineConfig()
-    fi.apply_exclusions(config)
-    result = fi.transform(drop_candidate_df)
-    assert result.exclusions_applied is True
-
-
 def test_drop_candidate_resolve_active_columns_excludes_dropped(drop_candidate_df, drop_candidate_profile):
-    fi = ImputationOrchestrator().fit(drop_candidate_df, drop_candidate_profile)
+    fi = fit_imputer(drop_candidate_df, drop_candidate_profile)
     config = PipelineConfig()
     fi.apply_exclusions(config)
     active = config.resolve_active_columns(
@@ -224,12 +222,13 @@ def test_drop_candidate_resolve_active_columns_excludes_dropped(drop_candidate_d
 
 
 # ---------------------------------------------------------------------------
-# Scope 143: Regression imputation with partially missing features
+# Scope 143: MICE imputation with partially missing features (formerly Regression,
+# collapsed by ADR-0079 — the MCAR-High/KNN-size-guard-failed branch now emits MICE)
 # ---------------------------------------------------------------------------
 
 
-def test_regression_imputation_with_partially_missing_features():
-    """Integration test: exercises regression imputation with partially missing features.
+def test_mice_imputation_with_partially_missing_features(round_trip):
+    """Integration test: exercises MICE imputation with partially missing features.
 
     Verifies the complete pipeline contract from profiling to imputation fitting
     and transformation, ensuring zero nulls, correct signals, and round-trip identity.
@@ -238,7 +237,6 @@ def test_regression_imputation_with_partially_missing_features():
     from dataforge_ml.config import PipelineConfig
     from dataforge_ml.imputation import (
         ImputationConfig,
-        ImputationOrchestrator,
         ImputationStrategy,
         NumericImputationConfig,
     )
@@ -264,7 +262,7 @@ def test_regression_imputation_with_partially_missing_features():
         "feat": pl.Series(feat_vals, dtype=pl.Float64),
     })
 
-    # Configure pipeline: force MCAR High columns to route to Regression
+    # Configure pipeline: force MCAR High columns past the KNN size guard into MICE
     config = PipelineConfig(
         profiling=ProfileConfig(
             compute_nonlinearity=True,
@@ -273,7 +271,7 @@ def test_regression_imputation_with_partially_missing_features():
         imputation=ImputationConfig(
             numeric=NumericImputationConfig(
                 knn_max_rows=10,
-                regression_min_rows=100,
+                mice_min_rows=100,
             )
         )
     )
@@ -285,24 +283,22 @@ def test_regression_imputation_with_partially_missing_features():
     assert target_profile.stats is not None
     assert target_profile.stats.nonlinearity_tag in list(NonlinearityTag)
 
-    # 2. Fit ImputationOrchestrator
-    orch = ImputationOrchestrator(config=config)
-    fi = orch.fit(df, profile)
+    # 2. Fit the imputer
+    plan = decide(profile, len(df), config)
+    fi = fit_imputer(df, profile, config)
 
-    # Verify strategy routed to Regression
+    # Verify strategy routed to MICE
     assert "target" in fi.records
     target_rec = fi.records["target"]
-    assert target_rec.strategy == ImputationStrategy.Regression
+    assert target_rec.decision.strategy == ImputationStrategy.MICE
 
-    # 3. Assert ColumnImputationRecord.signals contains correct entries
-    # Estimator chosen entry
-    assert any("regression_estimator:" in s for s in target_rec.signals)
-
-    # Convergence warning entry (if max_iter hit, check format)
-    assert len(target_rec.signals) > 0
-    convergence_warnings = [s for s in target_rec.signals if "convergence_warning:" in s]
-    for warning in convergence_warnings:
-        assert "max_iter=" in warning
+    # 3. The estimator family is resolved at decide-time and carried on the plan
+    # (ADR-0060), so it is read off the decision rather than a fit-time signal.
+    assert target_rec.decision.model_choice is not None, (
+        "a MICE column must carry the estimator family it will train"
+    )
+    assert plan.column_decisions["target"].model_choice == target_rec.decision.model_choice
+    assert len(target_rec.decision.signals) > 0
 
     # 4. Transform and assert zero nulls
     res = fi.transform(df)
@@ -310,7 +306,7 @@ def test_regression_imputation_with_partially_missing_features():
     assert res.dataframe["feat"].null_count() == 0
 
     # 5. Serialise / deserialise round-trip
-    restored = FittedImputer.from_dict(fi.to_dict())
+    restored = round_trip(fi)
     res_restored = restored.transform(df)
     assert res.dataframe.equals(res_restored.dataframe)
 
@@ -333,7 +329,6 @@ def test_knn_mixed_scale_imputation_integration():
     from dataforge_ml.config import PipelineConfig
     from dataforge_ml.imputation import (
         ImputationConfig,
-        ImputationOrchestrator,
         ImputationStrategy,
         NumericImputationConfig,
     )
@@ -371,23 +366,21 @@ def test_knn_mixed_scale_imputation_integration():
     )
 
     profile = StructuralProfiler(config).profile(df)
-    orch = ImputationOrchestrator(config=config)
-    fi = orch.fit(df, profile)
+    plan = decide(profile, len(df), config)
+    fi = fit_imputer(df, profile, config)
 
     # Verify at least one column routes to KNN
-    knn_cols = [col for col, rec in fi.records.items() if rec.strategy == ImputationStrategy.KNN]
+    knn_cols = [col for col, rec in fi.records.items() if rec.decision.strategy == ImputationStrategy.KNN]
     if not knn_cols:
         pytest.skip("No columns routed to KNN under current profile; check size guards.")
 
-    # Each KNN column must carry both signal entries
-    for col in knn_cols:
-        signals = fi.records[col].signals
-        assert any("knn_params:" in s for s in signals), (
-            f"Column '{col}' missing knn_params signal; got: {signals}"
-        )
-        assert any("knn_scaling: applied" in s for s in signals), (
-            f"Column '{col}' missing knn_scaling signal; got: {signals}"
-        )
+    # The resolved KNN dials are decision-carried on the plan's unit (ADR-0062),
+    # not a fit-time signal appended to the record: the assembler resolves them
+    # from profile statistics, so the number on the plan is the number that runs.
+    knn_unit = next(u for u in plan.units if u.strategy == ImputationStrategy.KNN)
+    dials = dict(knn_unit.hyperparameters or ())
+    assert "n_neighbors" in dials, f"KNN unit carries no n_neighbors; got: {dials}"
+    assert "weights" in dials, f"KNN unit carries no weights; got: {dials}"
 
     # Transform: zero nulls in imputed output
     result = fi.transform(df)
@@ -431,7 +424,6 @@ def test_knn_adaptive_end_to_end_mixed_scale():
     from dataforge_ml.config import PipelineConfig
     from dataforge_ml.imputation import (
         ImputationConfig,
-        ImputationOrchestrator,
         ImputationStrategy,
         NumericImputationConfig,
     )
@@ -480,22 +472,18 @@ def test_knn_adaptive_end_to_end_mixed_scale():
     )
 
     profile = StructuralProfiler(config).profile(df)
-    orch = ImputationOrchestrator(config=config)
-    fi = orch.fit(df, profile)
+    plan = decide(profile, len(df), config)
+    fi = fit_imputer(df, profile, config)
 
-    knn_cols = [col for col, rec in fi.records.items() if rec.strategy == ImputationStrategy.KNN]
+    knn_cols = [col for col, rec in fi.records.items() if rec.decision.strategy == ImputationStrategy.KNN]
     if not knn_cols:
         pytest.skip("No columns routed to KNN under current profile; check size guards.")
 
-    # 1. Both signals on every KNN column.
-    for col in knn_cols:
-        signals = fi.records[col].signals
-        assert any("knn_params:" in s for s in signals), (
-            f"Column '{col}' missing knn_params signal; got: {signals}"
-        )
-        assert any("knn_scaling: applied" in s for s in signals), (
-            f"Column '{col}' missing knn_scaling signal; got: {signals}"
-        )
+    # 1. The resolved dials are decision-carried on the plan's unit (ADR-0062).
+    knn_unit = next(u for u in plan.units if u.strategy == ImputationStrategy.KNN)
+    dials = dict(knn_unit.hyperparameters or ())
+    assert "n_neighbors" in dials, f"KNN unit carries no n_neighbors; got: {dials}"
+    assert "weights" in dials, f"KNN unit carries no weights; got: {dials}"
 
     # 2. No nulls after transform.
     result = fi.transform(df)
@@ -540,7 +528,6 @@ def test_mice_adaptive_end_to_end_nonlinear_dataset():
     from dataforge_ml.config import PipelineConfig
     from dataforge_ml.imputation import (
         ImputationConfig,
-        ImputationOrchestrator,
         ImputationStrategy,
         NumericImputationConfig,
     )
@@ -588,10 +575,10 @@ def test_mice_adaptive_end_to_end_nonlinear_dataset():
     )
 
     profile = StructuralProfiler(config).profile(df)
-    orch = ImputationOrchestrator(config=config)
-    fi = orch.fit(df, profile)
+    plan = decide(profile, len(df), config)
+    fi = fit_imputer(df, profile, config)
 
-    mice_cols = [col for col, rec in fi.records.items() if rec.strategy == ImputationStrategy.MICE]
+    mice_cols = [col for col, rec in fi.records.items() if rec.decision.strategy == ImputationStrategy.MICE]
     if not mice_cols:
         pytest.skip("No columns routed to MICE under current profile; check missingness thresholds.")
 
@@ -602,23 +589,132 @@ def test_mice_adaptive_end_to_end_nonlinear_dataset():
             f"Column '{col}' still has nulls after adaptive MICE imputation"
         )
 
-    # 2. Every MICE column record has a mice_estimator: signal.
+    # 2. Every MICE column carries its estimator family, resolved at decide-time
+    # and read off the decision rather than a fit-time signal (ADR-0060).
     for col in mice_cols:
-        signals = fi.records[col].signals
-        assert any("mice_estimator:" in s for s in signals), (
-            f"Column '{col}' missing mice_estimator signal; got: {signals}"
+        assert fi.records[col].decision.model_choice is not None, (
+            f"Column '{col}' carries no model_choice"
         )
 
-    # 3. Every MICE column record has a convergence-status signal.
-    for col in mice_cols:
-        signals = fi.records[col].signals
-        has_status = any(
-            "mice_convergence_warning:" in s or "mice_converged:" in s
-            for s in signals
-        )
-        assert has_status, (
-            f"Column '{col}' missing convergence-status signal; got: {signals}"
-        )
+    # 3. The MICE dials are decision-carried on the block unit (ADR-0062).
+    mice_unit = next(u for u in plan.units if u.strategy == ImputationStrategy.MICE)
+    dials = dict(mice_unit.hyperparameters or ())
+    assert "max_iter" in dials, f"MICE unit carries no max_iter; got: {dials}"
+
+
+# ---------------------------------------------------------------------------
+# Issue #394 — end-to-end exclusion flow through the imputation door
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def exclusion_df(rng):
+    """Three numeric columns with missing values plus a text column.
+
+    ``kept`` stays active, ``soft_out`` will be soft-excluded for Imputation,
+    ``hard_out`` will be hard-excluded after profiling.
+    """
+    rng = rng(seed=394)
+    n = 300
+    base = rng.normal(100.0, 15.0, n)
+    kept = base + rng.normal(0, 5.0, n)
+    soft_out = base * 0.5 + rng.normal(0, 3.0, n)
+    hard_out = base * 2.0 + rng.normal(0, 8.0, n)
+
+    null_kept = rng.random(n) < 0.10
+    null_soft = rng.random(n) < 0.12
+    null_hard = rng.random(n) < 0.10
+
+    return pl.DataFrame({
+        "kept": pl.Series(
+            [None if null_kept[i] else float(kept[i]) for i in range(n)],
+            dtype=pl.Float64,
+        ),
+        "soft_out": pl.Series(
+            [None if null_soft[i] else float(soft_out[i]) for i in range(n)],
+            dtype=pl.Float64,
+        ),
+        "hard_out": pl.Series(
+            [None if null_hard[i] else float(hard_out[i]) for i in range(n)],
+            dtype=pl.Float64,
+        ),
+        "label": pl.Series(
+            ["A" if i % 2 == 0 else "B" for i in range(n)], dtype=pl.Utf8
+        ),
+    })
+
+
+@pytest.fixture(scope="module")
+def exclusion_profile(exclusion_df):
+    # Profiled with no exclusions declared: both exclusions are added after
+    # profiling, exercising the decide()-time enforcement path on its own.
+    return StructuralProfiler(PipelineConfig()).profile(exclusion_df)
+
+
+@pytest.fixture(scope="module")
+def exclusion_config():
+    config = PipelineConfig()
+    config.add_exclusion("hard_out")
+    config.add_phase_exclusion(PipelinePhase.Imputation, "soft_out")
+    return config
+
+
+@pytest.fixture(scope="module")
+def exclusion_fitted(exclusion_df, exclusion_profile, exclusion_config):
+    """Fit over the full door with the hard-excluded column dropped by the user."""
+    train = exclusion_df.drop("hard_out")
+    return fit_imputer(train, exclusion_profile, exclusion_config)
+
+
+def test_exclusion_plan_shape(exclusion_df, exclusion_profile, exclusion_config):
+    """Soft-excluded column is Passthrough with the exclusion signal; hard-excluded column is absent."""
+    from dataforge_ml.imputation import ImputationStrategy
+
+    plan = decide(exclusion_profile, len(exclusion_df), exclusion_config)
+    assert "hard_out" not in plan.column_decisions
+    soft = plan.column_decisions["soft_out"]
+    assert soft.strategy == ImputationStrategy.Passthrough
+    assert any("soft-excluded" in s for s in soft.signals)
+
+
+def test_soft_excluded_column_rides_through_transform_untouched(
+    exclusion_df, exclusion_fitted
+):
+    """A soft-excluded column appears in the output untouched, missing values intact."""
+    frame = exclusion_df.drop("hard_out")
+    result = exclusion_fitted.transform(frame)
+
+    assert result.dataframe["soft_out"].equals(frame["soft_out"])
+    assert result.dataframe["soft_out"].null_count() == frame["soft_out"].null_count()
+    assert result.dataframe["soft_out"].null_count() > 0
+    # The active column is still imputed normally.
+    assert result.dataframe["kept"].null_count() == 0
+
+
+def test_hard_excluded_column_still_present_raises_before_mutation(
+    exclusion_df, exclusion_fitted
+):
+    """A hard-excluded column the user forgot to drop hits the strict unknown-column raise."""
+    from dataforge_ml.imputation import UnseenColumnError
+
+    with pytest.raises(UnseenColumnError, match="hard_out"):
+        exclusion_fitted.transform(exclusion_df)
+
+
+def test_flow_succeeds_once_hard_excluded_column_dropped(
+    exclusion_df, exclusion_fitted
+):
+    """The same flow succeeds when the user drops the hard-excluded column."""
+    result = exclusion_fitted.transform(exclusion_df.drop("hard_out"))
+    assert result.dataframe["kept"].null_count() == 0
+    assert "hard_out" not in result.dataframe.columns
+
+
+def test_fitted_imputer_holds_no_config_and_never_auto_drops(exclusion_fitted):
+    """FittedImputer stays config-free; the hard-excluded column simply has no record."""
+    assert not hasattr(exclusion_fitted, "config")
+    assert "hard_out" not in exclusion_fitted.records
+    assert "soft_out" in exclusion_fitted.records
 
 
 # ---------------------------------------------------------------------------
@@ -626,7 +722,7 @@ def test_mice_adaptive_end_to_end_nonlinear_dataset():
 # ---------------------------------------------------------------------------
 
 
-def test_numeric_sentinel_end_to_end_fit_transform():
+def test_numeric_sentinel_end_to_end_fit_transform(round_trip):
     """Full sentinel pipeline: -999 normalised before fit; fill derived from real values only.
 
     Uses an Int64 column where some rows contain -999 (sentinel) and some are
@@ -664,7 +760,7 @@ def test_numeric_sentinel_end_to_end_fit_transform():
     # Profile must carry the declared sentinels.
     assert profile.numeric_sentinels == {"age": [-999.0]}
 
-    fi = ImputationOrchestrator(config).fit(df, profile)
+    fi = fit_imputer(df, profile, config)
 
     # FittedImputer must carry the sentinels.
     assert fi.numeric_sentinels == {"age": [-999.0]}
@@ -684,7 +780,7 @@ def test_numeric_sentinel_end_to_end_fit_transform():
         )
 
     # Round-trip serialisation preserves sentinel behaviour.
-    restored = FittedImputer.from_dict(fi.to_dict())
+    restored = round_trip(fi)
     r_restored = restored.transform(df)
     assert result.dataframe.equals(r_restored.dataframe)
 

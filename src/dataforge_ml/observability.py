@@ -203,7 +203,7 @@ class _ObservabilityMixin:
 class Emitter:
     """Threaded event source that lets deep fit methods emit progress.
 
-    An orchestrator's sub-processors (``NumericImputer.fit`` and its fitting
+    An orchestrator's sub-processors (the imputation fitters and their
     helpers) are otherwise observer-blind: the Progress Observer lives only on
     the orchestrator, so the methods doing the slow work cannot report activity.
     The orchestrator builds exactly one :class:`Emitter` — carrying the

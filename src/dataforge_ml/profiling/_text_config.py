@@ -49,6 +49,32 @@ class TextStats:
             "whitespace_ratio": self.whitespace_ratio,
         }
 
+    @classmethod
+    def from_dict(cls, data: dict) -> "TextStats":
+        """Reconstruct the text statistics from a plain dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            Mapping produced by :meth:`to_dict`.
+
+        Returns
+        -------
+        TextStats
+            Reconstructed instance.
+        """
+        return cls(
+            avg_token_count=data.get("avg_token_count", 0.0),
+            median_token_count=data.get("median_token_count", 0.0),
+            vocabulary_size=data.get("vocabulary_size", 0),
+            char_length_min=data.get("char_length_min", 0),
+            char_length_max=data.get("char_length_max", 0),
+            char_length_mean=data.get("char_length_mean", 0.0),
+            char_length_median=data.get("char_length_median", 0.0),
+            empty_ratio=data.get("empty_ratio", 0.0),
+            whitespace_ratio=data.get("whitespace_ratio", 0.0),
+        )
+
 
 @dataclass
 class TextProfileResult:

@@ -1,0 +1,42 @@
+version: 2
+
+updates:
+  # NOTE -- read before trusting this file to keep you current.
+  #
+  # Dependabot updates uv.lock but NOT the version constraints in pyproject.toml,
+  # and `versioning-strategy` is not supported for the uv ecosystem
+  # (dependabot-core #12788, #12162). Dependabot never proposes a version outside
+  # a declared constraint, so the four capped, pickle-critical dependencies --
+  # scikit-learn, numpy, scipy, joblib -- are INVISIBLE to it. It will not tell
+  # you when a new minor lands, and it will not tell you that it isn't telling you.
+  #
+  # Those four are bumped by the manual runbook in CONTRIBUTING.md. What is
+  # configured here covers everything else: the uncapped deps, the transitive
+  # graph, and the Actions used by the workflows.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore"
+    open-pull-requests-limit: 5
+    groups:
+      # One PR for routine churn rather than a stream of them.
+      #
+      # This deliberately does NOT filter to transitive-only: a group's
+      # `dependency-type` accepts just "production"/"development" (the
+      # "indirect" value is only valid under `allow`), so Dependabot offers
+      # no direct/transitive split for grouping. A catch-all pattern is the
+      # closest valid expression of "one PR". In practice the group is mostly
+      # transitive anyway -- the four capped deps are invisible per the note
+      # above, so only the uncapped direct deps join the churn.
+      uv-deps:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore"

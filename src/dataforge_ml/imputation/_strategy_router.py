@@ -51,7 +51,7 @@ class _StrategyRouter:
         feature_correlation: "Optional[CorrelationProfileResult]" = None,
         per_column_strategy: "Optional[dict[str, ImputationStrategy]]" = None,
         per_column_constant_fill: "Optional[dict[str, float]]" = None,
-    ) -> tuple[ImputationStrategy, list[str]]:
+    ) -> tuple[ImputationStrategy, list[str], bool]:
         """Route a single column to its imputation strategy.
 
         Parameters
@@ -87,9 +87,12 @@ class _StrategyRouter:
 
         Returns
         -------
-        tuple[ImputationStrategy, list[str]]
-            ``(strategy, signals)`` where ``signals`` records every routing
-            decision in order.
+        tuple[ImputationStrategy, list[str], bool]
+            ``(strategy, signals, forced)`` where ``signals`` records every
+            routing decision in order and ``forced`` is ``True`` only when the
+            Priority 1.5 ``per_column_strategy`` override actually fired — a
+            column pre-empted by ``DropCandidate`` or ``per_column_constant_fill``
+            is not forced, however the user declared it (ADR-0066).
         """
         missingness = cp.missingness
         signals: list[str] = []
@@ -99,18 +102,18 @@ class _StrategyRouter:
             signals.append(
                 f"drop_candidate: {missingness.effective_null_ratio:.1%} effective missing"
             )
-            return ImputationStrategy.Dropped, signals
+            return ImputationStrategy.Dropped, signals, False
 
         # Priority 1.5: per_column_constant_fill override — fires before per_column_strategy
         if per_column_constant_fill and col in per_column_constant_fill:
             signals.append("per_column_constant_fill_override: user declared constant fill")
-            return ImputationStrategy.Constant, signals
+            return ImputationStrategy.Constant, signals, False
 
         # Priority 1.5: per_column_strategy override — fires after DropCandidate, before MNAR
         if per_column_strategy and col in per_column_strategy:
             declared = per_column_strategy[col]
             signals.append(f"per_column_strategy_override: user forced strategy={declared}")
-            return declared, signals
+            return declared, signals, True
 
         # Priority 2: MNAR declared by user
         if col in mnar_columns:
@@ -122,33 +125,39 @@ class _StrategyRouter:
                 skew_sev = mnar_stats.skewness_severity if mnar_stats is not None else None
                 fill_stat = "mean" if skew_sev == SkewSeverity.Normal else "median"
                 signals.append(f"mnar_fill: {fill_stat} (skew={skew_sev or 'unknown'})")
-            return ImputationStrategy.MNAR, signals
+            return ImputationStrategy.MNAR, signals, False
 
         # No effective missingness → Passthrough
         if missingness is None or missingness.effective_null_count == 0:
             signals.append("no missing values in full-dataset profile")
-            return ImputationStrategy.Passthrough, signals
+            return ImputationStrategy.Passthrough, signals, False
 
         # Priority 3: BoundedDiscrete gate — model-aware sub-chain with domain-snap
         if cp.numeric_kind == NumericKind.BoundedDiscrete:
-            return self._route_bounded_discrete(
-                col=col,
-                cp=cp,
-                config=config,
-                missingness=missingness,
-                n_rows=n_rows,
-                n_features=n_features,
-                multi_mar=multi_mar,
-                signals=signals,
-                feature_correlation=feature_correlation,
+            return (
+                *self._route_bounded_discrete(
+                    col=col,
+                    cp=cp,
+                    config=config,
+                    missingness=missingness,
+                    n_rows=n_rows,
+                    n_features=n_features,
+                    multi_mar=multi_mar,
+                    signals=signals,
+                    feature_correlation=feature_correlation,
+                ),
+                False,
             )
 
         stats = cp.stats if isinstance(cp.stats, NumericStats) else None
 
         # Priority 3.5: Bimodal Imputation Framework (non-BoundedDiscrete only)
         if stats is not None and stats.has_flag(NumericFlag.Bimodal):
-            return self._route_bimodal(
-                col, cp, config, n_rows, n_features, multi_mar, signals, feature_correlation
+            return (
+                *self._route_bimodal(
+                    col, cp, config, n_rows, n_features, multi_mar, signals, feature_correlation
+                ),
+                False,
             )
 
         # Priority 4: Unpredictable guard — non-BoundedDiscrete columns with no predictive signal
@@ -159,7 +168,7 @@ class _StrategyRouter:
             signals.append(
                 f"unpredictable_guard: nonlinearity_tag=Unpredictable, mar_suspect={mar_suspect}"
             )
-            return ImputationStrategy.Median, signals
+            return ImputationStrategy.Median, signals, False
 
         # Priority 5: MARSuspect — full fallback chain
         if missingness.has_flag(MissingnessFlag.MARSuspect):
@@ -176,7 +185,7 @@ class _StrategyRouter:
                 skewness_severity=stats.skewness_severity if stats is not None else None,
             )
             signals.append(signal)
-            return strategy, signals
+            return strategy, signals, False
 
         # Priority 6: MCAR routing by severity and distribution shape
         severity = missingness.severity
@@ -186,7 +195,7 @@ class _StrategyRouter:
         # NearConstant cap — model-based escalation is wasteful when 90%+ share the mode
         if stats is not None and stats.has_flag(NumericFlag.NearConstant):
             signals.append("near_constant: model-based escalation suppressed")
-            return ImputationStrategy.Median, signals
+            return ImputationStrategy.Median, signals, False
 
         if severity in (MissingSeverity.High, MissingSeverity.Severe):
             strategy, signal = self._mcar_model_strategy(
@@ -198,7 +207,7 @@ class _StrategyRouter:
                 feature_correlation=feature_correlation,
             )
             signals.append(signal)
-            return strategy, signals
+            return strategy, signals, False
 
         # MCAR Minor: Leptokurtic escalates to model-based regardless of skew
         if severity == MissingSeverity.Minor and kurtosis_tag == KurtosisTag.Leptokurtic:
@@ -214,7 +223,7 @@ class _StrategyRouter:
                 feature_correlation=feature_correlation,
             )
             signals.append(signal)
-            return strategy, signals
+            return strategy, signals, False
 
         # Minor + Normal skew → Mean (Platykurtic noted but does not escalate)
         if severity == MissingSeverity.Minor and skew_sev in (None, SkewSeverity.Normal):
@@ -223,7 +232,7 @@ class _StrategyRouter:
                     "mcar minor + platykurtic: thin-tailed distribution, scalar fill representative"
                 )
             signals.append(f"mcar minor + skew={skew_sev or 'normal'}: mean imputation")
-            return ImputationStrategy.Mean, signals
+            return ImputationStrategy.Mean, signals, False
 
         # MCAR Moderate: Leptokurtic or Severe skew escalates to model-based
         if severity == MissingSeverity.Moderate and (
@@ -246,11 +255,11 @@ class _StrategyRouter:
                 feature_correlation=feature_correlation,
             )
             signals.append(signal)
-            return strategy, signals
+            return strategy, signals, False
 
         # Minor/Moderate + skew >= Moderate → Median
         signals.append(f"mcar {severity} + skew={skew_sev or 'unknown'}: median imputation")
-        return ImputationStrategy.Median, signals
+        return ImputationStrategy.Median, signals, False
 
     def _route_bimodal(
         self,
@@ -484,7 +493,14 @@ class _StrategyRouter:
         kurtosis_tag: "KurtosisTag | None" = None,
         skewness_severity: "SkewSeverity | None" = None,
     ) -> tuple[ImputationStrategy, str]:
-        """Full fallback chain for MAR-suspect columns: MICE → Regression → KNN → Median.
+        """Full fallback chain for MAR-suspect columns: MICE → KNN → Median.
+
+        The ``multi_mar``, ``Severe``, and ``High`` + correlated-predictors
+        branches all enter the joint MICE block; the last of these is the
+        former ``Regression`` trigger, collapsed into MICE by ADR-0079. Every
+        MICE entry point here is floored by ``config.mice_min_rows`` — a
+        column that fails the floor diverts to KNN, then Median, rather than
+        entering an unstable chained fit.
 
         Parameters
         ----------
@@ -513,30 +529,52 @@ class _StrategyRouter:
         tuple[ImputationStrategy, str]
             ``(strategy, signal)`` where ``signal`` records the routing decision.
         """
-        # Multi-MAR or Severe → MICE
+        # Multi-MAR → MICE, floored by mice_min_rows (ADR-0079: previously ungated)
         if multi_mar:
-            return ImputationStrategy.MICE, "mice: ≥2 MAR-suspect columns (multi-MAR)"
-        if severity == MissingSeverity.Severe:
-            return ImputationStrategy.MICE, "mice: MAR-suspect + severe missingness"
-
-        # High with correlations → Regression → KNN → Median
-        if severity == MissingSeverity.High and corrs:
-            if n_rows >= config.regression_min_rows:
-                return (
-                    ImputationStrategy.Regression,
-                    f"regression: MAR high + correlations, {n_rows:,} rows >= regression_min_rows={config.regression_min_rows:,}",
-                )
+            if n_rows >= config.mice_min_rows:
+                return ImputationStrategy.MICE, "mice: ≥2 MAR-suspect columns (multi-MAR)"
             if n_rows <= config.knn_max_rows and n_features <= config.knn_max_features:
                 return (
                     ImputationStrategy.KNN,
-                    f"knn: regression size guard failed ({n_rows:,} rows < {config.regression_min_rows:,})",
+                    f"knn: multi-mar mice_min_rows floor failed ({n_rows:,} rows < {config.mice_min_rows:,})",
                 )
             return (
                 ImputationStrategy.Median,
                 f"median: all size guards failed (rows={n_rows:,}, features={n_features})",
             )
 
-        # High with empty correlations → MCAR High fallback chain (KNN → Regression → Median)
+        # Severe → MICE, floored by mice_min_rows (ADR-0079: previously ungated)
+        if severity == MissingSeverity.Severe:
+            if n_rows >= config.mice_min_rows:
+                return ImputationStrategy.MICE, "mice: MAR-suspect + severe missingness"
+            if n_rows <= config.knn_max_rows and n_features <= config.knn_max_features:
+                return (
+                    ImputationStrategy.KNN,
+                    f"knn: mar severe mice_min_rows floor failed ({n_rows:,} rows < {config.mice_min_rows:,})",
+                )
+            return (
+                ImputationStrategy.Median,
+                f"median: all size guards failed (rows={n_rows:,}, features={n_features})",
+            )
+
+        # High with correlations → MICE (formerly Regression) → KNN → Median
+        if severity == MissingSeverity.High and corrs:
+            if n_rows >= config.mice_min_rows:
+                return (
+                    ImputationStrategy.MICE,
+                    f"mice: MAR high + correlations, {n_rows:,} rows >= mice_min_rows={config.mice_min_rows:,}",
+                )
+            if n_rows <= config.knn_max_rows and n_features <= config.knn_max_features:
+                return (
+                    ImputationStrategy.KNN,
+                    f"knn: mice size guard failed ({n_rows:,} rows < {config.mice_min_rows:,})",
+                )
+            return (
+                ImputationStrategy.Median,
+                f"median: all size guards failed (rows={n_rows:,}, features={n_features})",
+            )
+
+        # High with empty correlations → MCAR High fallback chain (KNN → MICE → Median)
         if severity == MissingSeverity.High and not corrs:
             strategy, inner_signal = self._mcar_model_strategy(
                 severity=MissingSeverity.High,
@@ -546,7 +584,7 @@ class _StrategyRouter:
             )
             return (
                 strategy,
-                f"knn/regression: MAR high + no missingness correlations detected, applying MCAR High fallback chain | {inner_signal}",
+                f"knn/mice: MAR high + no missingness correlations detected, applying MCAR High fallback chain | {inner_signal}",
             )
 
         # Minor/Moderate: distribution shape escalation — Leptokurtic or Severe skew → attempt KNN
@@ -582,7 +620,7 @@ class _StrategyRouter:
         col: "Optional[str]" = None,
         feature_correlation: "Optional[CorrelationProfileResult]" = None,
     ) -> tuple[ImputationStrategy, str]:
-        """Full fallback chain for MCAR High/Severe: KNN → Regression → Median (High); MICE (Severe).
+        """Full fallback chain for MCAR High/Severe: KNN → MICE → Median (High); MICE → KNN → Median (Severe).
 
         Parameters
         ----------
@@ -602,17 +640,28 @@ class _StrategyRouter:
         feature_correlation : CorrelationProfileResult, optional
             Pre-computed Pearson correlation matrix from Phase 1.  When
             provided and ``col`` is set, the feature-predictability check is
-            applied before routing to KNN or Regression.
+            applied before routing to KNN or MICE.
 
         Returns
         -------
         tuple[ImputationStrategy, str]
             ``(strategy, signal)`` where ``signal`` records the routing decision.
         """
+        # Severe → MICE, floored by mice_min_rows (ADR-0079: previously ungated)
         if severity == MissingSeverity.Severe:
-            return ImputationStrategy.MICE, "mice: MCAR severe missingness"
+            if n_rows >= config.mice_min_rows:
+                return ImputationStrategy.MICE, "mice: MCAR severe missingness"
+            if n_rows <= config.knn_max_rows and n_features <= config.knn_max_features:
+                return (
+                    ImputationStrategy.KNN,
+                    f"knn: mcar severe mice_min_rows floor failed ({n_rows:,} rows < {config.mice_min_rows:,})",
+                )
+            return (
+                ImputationStrategy.Median,
+                f"median: all size guards failed (rows={n_rows:,}, features={n_features})",
+            )
 
-        # Feature-predictability check: skip KNN/Regression when no predictor carries useful signal
+        # Feature-predictability check: skip KNN/MICE when no predictor carries useful signal
         if feature_correlation is not None and col is not None:
             col_corrs = feature_correlation.pearson_matrix.get(col, {})
             abs_rs = [abs(r) for c, r in col_corrs.items() if c != col]
@@ -625,16 +674,16 @@ class _StrategyRouter:
                         f"median: feature-predictability check failed (max |r|={max_abs_r:.2f} < threshold={threshold})",
                     )
 
-        # KNN → Regression → Median
+        # KNN → MICE (formerly Regression) → Median
         if n_rows <= config.knn_max_rows and n_features <= config.knn_max_features:
             return (
                 ImputationStrategy.KNN,
                 f"knn: MCAR {severity}, rows={n_rows:,} <= {config.knn_max_rows:,}, features={n_features} <= {config.knn_max_features}",
             )
-        if n_rows >= config.regression_min_rows:
+        if n_rows >= config.mice_min_rows:
             return (
-                ImputationStrategy.Regression,
-                f"regression: knn size guard failed, {n_rows:,} rows >= regression_min_rows={config.regression_min_rows:,}",
+                ImputationStrategy.MICE,
+                f"mice: knn size guard failed, {n_rows:,} rows >= mice_min_rows={config.mice_min_rows:,}",
             )
         return (
             ImputationStrategy.Median,

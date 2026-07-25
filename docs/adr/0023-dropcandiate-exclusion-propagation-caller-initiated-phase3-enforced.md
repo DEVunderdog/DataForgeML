@@ -1,6 +1,11 @@
 # ADR 0023: DropCandidate exclusion propagation is caller-initiated and Phase-3-enforced
 
-**Status:** Accepted
+**Status:** Accepted, with the flag mechanism **amended by ADR-0076**. The
+caller-initiated shape and the Phase-3-not-Phase-2 placement of enforcement both
+survive. The `_exclusions_applied` flag and `ImputationResult.exclusions_applied` do
+not — they were write-only for their entire life, and could not detect the case where
+`apply_exclusions` was called on a different config than the one Phase 3 receives.
+Read every mention of the flag below as historical.
 
 ## Context
 

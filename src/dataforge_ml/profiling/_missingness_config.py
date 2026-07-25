@@ -46,6 +46,12 @@ class RowMissingnessDistribution:
         effective null.
     drop_candidate_row_count : int
         Number of rows exceeding the ``row_drop_threshold`` fraction.
+    complete_row_fraction : float
+        Dataset-level fraction of analysed rows with zero missing values,
+        equal to ``(row_missing == 0).mean()`` over the analysed columns.
+        Harvested from the same per-row missing-count vector as
+        ``row_missingness_p90`` and consumed by the imputation decision layer
+        as a joint-convergence signal.
     """
 
     row_missingness_p90: int = 0
@@ -55,6 +61,7 @@ class RowMissingnessDistribution:
     pct_over_five: float = 0.0
     pct_over_half_missing: float = 0.0
     drop_candidate_row_count: int = 0
+    complete_row_fraction: float = 0.0
 
     def to_dict(self) -> dict:
         """
@@ -73,7 +80,34 @@ class RowMissingnessDistribution:
             "pct_over_five": self.pct_over_five,
             "pct_over_half_missing": self.pct_over_half_missing,
             "drop_candidate_row_count": self.drop_candidate_row_count,
+            "complete_row_fraction": self.complete_row_fraction,
         }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "RowMissingnessDistribution":
+        """
+        Reconstruct a distribution from a plain dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            Mapping produced by :meth:`to_dict`.
+
+        Returns
+        -------
+        RowMissingnessDistribution
+            Reconstructed distribution instance.
+        """
+        return cls(
+            row_missingness_p90=data.get("row_missingness_p90", 0),
+            pct_zero_missing=data.get("pct_zero_missing", 0.0),
+            pct_one_to_two=data.get("pct_one_to_two", 0.0),
+            pct_three_to_five=data.get("pct_three_to_five", 0.0),
+            pct_over_five=data.get("pct_over_five", 0.0),
+            pct_over_half_missing=data.get("pct_over_half_missing", 0.0),
+            drop_candidate_row_count=data.get("drop_candidate_row_count", 0),
+            complete_row_fraction=data.get("complete_row_fraction", 0.0),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -178,6 +212,33 @@ class ColumnMissingnessProfile:
             "flags": [str(f) for f in self.flags],
             "correlated_with": list(self.correlated_with),
         }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ColumnMissingnessProfile":
+        """Reconstruct a column missingness profile from a plain dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            Mapping produced by :meth:`to_dict`.
+
+        Returns
+        -------
+        ColumnMissingnessProfile
+            Reconstructed profile instance.
+        """
+        raw_severity = data.get("severity")
+        return cls(
+            column=data["column"],
+            total_rows=data["total_rows"],
+            standard_null_count=data.get("standard_null_count", 0),
+            effective_null_count=data.get("effective_null_count", 0),
+            standard_null_ratio=data.get("standard_null_ratio", 0.0),
+            effective_null_ratio=data.get("effective_null_ratio", 0.0),
+            severity=MissingSeverity(raw_severity) if raw_severity else None,
+            flags=[MissingnessFlag(f) for f in data.get("flags", [])],
+            correlated_with=list(data.get("correlated_with", [])),
+        )
 
     def __str__(self) -> str:  # pragma: no cover
         lines = [

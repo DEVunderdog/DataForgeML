@@ -1,6 +1,6 @@
 # ADR 0021: fit_transform returns tuple[FittedImputer, ImputationResult]
 
-**Status:** Accepted
+**Status:** Superseded by ADR-0071 — `fit_transform` was removed along with `ImputationOrchestrator`; the user-orchestrated flow is `decide()` → `fit_unit` loop → `FittedImputer.compose` → `transform`.
 
 ## Context
 

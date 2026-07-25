@@ -10,8 +10,8 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Optional
 
-from ._categorical_config import CategoricalColumnProfile
-from ._numeric_config import ColumnNumericProfile
+from ._categorical_config import CategoricalColumnProfile, CategoricalStats
+from ._numeric_config import ColumnNumericProfile, NumericStats
 
 class TargetProblemType(StrEnum):
     Regression = "regression"
@@ -87,6 +87,34 @@ class TargetProfileResult:
             "categorical_profile": self.categorical_profile.to_dict() if self.categorical_profile else None,
             "flags": [str(f) for f in self.flags],
         }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "TargetProfileResult":
+        """Reconstruct the target profile from a plain dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            Mapping produced by :meth:`to_dict`.
+
+        Returns
+        -------
+        TargetProfileResult
+            Reconstructed instance.
+        """
+        raw_numeric = data.get("numeric_profile")
+        raw_categorical = data.get("categorical_profile")
+        return cls(
+            column=data["column"],
+            problem_type=TargetProblemType(data["problem_type"]),
+            missing_count=data.get("missing_count", 0),
+            missing_ratio=data.get("missing_ratio", 0.0),
+            numeric_profile=NumericStats.from_dict(raw_numeric) if raw_numeric else None,
+            categorical_profile=(
+                CategoricalStats.from_dict(raw_categorical) if raw_categorical else None
+            ),
+            flags=[TargetFlag(f) for f in data.get("flags", [])],
+        )
 
     def __str__(self) -> str:
         lines = [

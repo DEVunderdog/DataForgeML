@@ -1,5 +1,7 @@
 # ADR 0015: RMSE and MAE are diagnostic-only — not used for automated decisions
 
+**Status:** Accepted, terminology amended by ADR-0057 / ADR-0058 — `ImputationFitDiagnostic`/`r2_train` are now `AccuracyDiagnostic`/`r2_cv` on `EvaluationOrchestrator.score_accuracy`, and `suggest_refit` no longer exists (evaluation is opt-in and drives no automated decisions). The core stance — RMSE/MAE are diagnostic-only, never thresholds — stands.
+
 `ImputationFitDiagnostic` exposes `r2_train`, `rmse`, and `mae`. Only `r2_train` and `converged` are consumed by automated decision logic; `rmse` and `mae` are reporting fields only.
 
 The reason is unit scale. R² is dimensionless and bounded [−∞, 1] regardless of the column. A universal threshold (e.g. `r2_train < 0.1`) means the same thing for every column: the model explains less than 10% of variance. RMSE and MAE are in the column's own units — an RMSE of 5.0 is catastrophic on a 0–10 column and irrelevant on a 0–100,000 column. There is no universal "RMSE too high" number that works across all columns, so no sensible automated rule can be written against it.

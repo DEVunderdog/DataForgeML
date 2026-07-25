@@ -555,3 +555,68 @@ class CorrelationProfileResult:
             ],
             "mutual_information": [m.to_dict() for m in self.mutual_information],
         }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "CorrelationProfileResult":
+        """
+        Reconstruct the full correlation profile from a plain dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            Mapping produced by :meth:`to_dict`.
+
+        Returns
+        -------
+        CorrelationProfileResult
+            Reconstructed instance.
+        """
+        raw_target_type = data.get("target_type")
+        return cls(
+            analysed_numeric_columns=list(data.get("analysed_numeric_columns", [])),
+            analysed_categorical_columns=list(
+                data.get("analysed_categorical_columns", [])
+            ),
+            pearson_matrix={
+                k: dict(v) for k, v in data.get("pearson_matrix", {}).items()
+            },
+            spearman_matrix={
+                k: dict(v) for k, v in data.get("spearman_matrix", {}).items()
+            },
+            pairwise=[CorrelationPair(**p) for p in data.get("pairwise", [])],
+            near_redundant_pairs=[
+                CorrelationPair(**p) for p in data.get("near_redundant_pairs", [])
+            ],
+            near_redundancy_groups=[
+                NearRedundancyGroup(**g)
+                for g in data.get("near_redundancy_groups", [])
+            ],
+            cramer_v_pairs=[
+                CramerVPair(**p) for p in data.get("cramer_v_pairs", [])
+            ],
+            near_redundant_cramer_v_pairs=[
+                CramerVPair(**p)
+                for p in data.get("near_redundant_cramer_v_pairs", [])
+            ],
+            eta_squared_pairs=[
+                EtaSquaredPair(**p) for p in data.get("eta_squared_pairs", [])
+            ],
+            near_redundant_eta_squared_pairs=[
+                EtaSquaredPair(**p)
+                for p in data.get("near_redundant_eta_squared_pairs", [])
+            ],
+            target_column=data.get("target_column"),
+            target_type=TargetType(raw_target_type) if raw_target_type else None,
+            feature_target_numeric=[
+                NumericTargetCorrelation(**f)
+                for f in data.get("feature_target_numeric", [])
+            ],
+            feature_target_categorical=[
+                CategoricalTargetCorrelation(**f)
+                for f in data.get("feature_target_categorical", [])
+            ],
+            mutual_information=[
+                MutualInformationEntry(**m)
+                for m in data.get("mutual_information", [])
+            ],
+        )

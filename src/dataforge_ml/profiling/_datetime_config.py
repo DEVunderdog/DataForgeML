@@ -8,6 +8,7 @@ ProfileConfig.datetime_columns.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import StrEnum
 from typing import Optional
 
@@ -39,8 +40,8 @@ class DatetimeStats:
     range, gap regularity, and inferred granularity.
     """
 
-    min_date: Optional[str] = None
-    max_date: Optional[str] = None
+    min_date: Optional[datetime] = None
+    max_date: Optional[datetime] = None
     date_range_days: Optional[float] = None
     future_date_count: int = 0
     inferred_granularity: Optional[InferredGranularity] = None
@@ -75,8 +76,8 @@ class DatetimeStats:
             their string values.
         """
         return {
-            "min_date": self.min_date,
-            "max_date": self.max_date,
+            "min_date": self.min_date.isoformat() if self.min_date else None,
+            "max_date": self.max_date.isoformat() if self.max_date else None,
             "date_range_days": self.date_range_days,
             "future_date_count": self.future_date_count,
             "inferred_granularity": str(self.inferred_granularity) if self.inferred_granularity else None,
@@ -84,6 +85,36 @@ class DatetimeStats:
             "gap_cv": self.gap_cv,
             "flags": [str(f) for f in self.flags],
         }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "DatetimeStats":
+        """Reconstruct the datetime statistics from a plain dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            Mapping produced by :meth:`to_dict`.
+
+        Returns
+        -------
+        DatetimeStats
+            Reconstructed instance.
+        """
+        raw_granularity = data.get("inferred_granularity")
+        raw_min_date = data.get("min_date")
+        raw_max_date = data.get("max_date")
+        return cls(
+            min_date=datetime.fromisoformat(raw_min_date) if raw_min_date else None,
+            max_date=datetime.fromisoformat(raw_max_date) if raw_max_date else None,
+            date_range_days=data.get("date_range_days"),
+            future_date_count=data.get("future_date_count", 0),
+            inferred_granularity=(
+                InferredGranularity(raw_granularity) if raw_granularity else None
+            ),
+            median_gap_seconds=data.get("median_gap_seconds"),
+            gap_cv=data.get("gap_cv"),
+            flags=[DatetimeFlag(f) for f in data.get("flags", [])],
+        )
 
 
 @dataclass

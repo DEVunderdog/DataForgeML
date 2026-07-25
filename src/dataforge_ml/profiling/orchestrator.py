@@ -467,6 +467,7 @@ class StructuralProfiler(_ObservabilityMixin):
         half_threshold = math.ceil(n_cols * row_drop_threshold)
 
         dist.pct_zero_missing = float((row_missing == 0).sum()) / n_rows
+        dist.complete_row_fraction = float((row_missing == 0).mean())
         dist.pct_one_to_two = (
             float(((row_missing >= 1) & (row_missing <= 2)).sum()) / n_rows
         )

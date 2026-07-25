@@ -1,5 +1,7 @@
 # Held-back evaluation for ImputationFitDiagnostic R² — k-fold CV on complete rows
 
+**Status:** Amended by ADR-0057 / ADR-0058 — fit-time diagnostics no longer exist; this k-fold-CV-on-complete-rows design survives as `EvaluationOrchestrator.score_accuracy`, with `ImputationFitDiagnostic.r2_train` renamed `AccuracyDiagnostic.r2_cv`.
+
 When computing `r2_train` for `ImputationFitDiagnostic`, we use k-fold cross-validation (k=5, configurable via `refit_r2_cv_folds`) on the complete rows of the column's joint array. In each fold a throwaway model is trained on (k-1)/k of the complete rows and evaluated on the remaining 1/k; `r2_train` is the mean R² across all k folds. The final stored model is fitted on all of `train_df` before the diagnostic runs and is never touched by the evaluation step.
 
 **Why k-fold CV instead of a single 80/20 holdout (original approach, superseded):**

@@ -1,6 +1,6 @@
 # ADR 0029: `per_column_strategy` fires after `DropCandidate` and raises at fit time when size guards fail
 
-**Status:** Accepted
+**Status:** Accepted; amended by ADR-0071 / ADR-0074 — the fit-time size-guard `ValueError` for forced model-based strategies is gone (forcing past a routing threshold is informed consent: the unit trains and the condition is warned via `ImputationFitWarning`). The Priority 1.5 ordering after `DropCandidate` stands.
 
 ## Context
 

@@ -19,16 +19,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.12"
+          enable-cache: true
 
-      - name: Install build
-        run: pip install build
-
+      # uv_build is the backend (pyproject.toml [build-system]). The wheel's
+      # Requires-Dist still carries ranges, so the consumer contract is unchanged
+      # -- only the machinery that produces the artifact moved to uv.
       - name: Build distribution
-        run: python -m build
+        run: uv build
 
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        run: uv publish --trusted-publishing always

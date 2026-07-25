@@ -348,6 +348,23 @@ def test_row_drop_threshold_override_via_profile_config():
     assert result_custom.dataset.row_distribution.drop_candidate_row_count == 0
 
 
+def test_complete_row_fraction_surfaced():
+    # 5 rows, 4 columns. Rows 0 and 1 are missing values; rows 2, 3, 4 are
+    # fully complete → complete_row_fraction == 3 / 5 == 0.6.
+    df = pl.DataFrame({
+        "a": pl.Series([None, 1.0, 1.0, 1.0, 1.0], dtype=pl.Float64),
+        "b": pl.Series([1.0, None, 1.0, 1.0, 1.0], dtype=pl.Float64),
+        "c": pl.Series([1.0, 1.0, 1.0, 1.0, 1.0], dtype=pl.Float64),
+        "d": pl.Series([1.0, 1.0, 1.0, 1.0, 1.0], dtype=pl.Float64),
+    })
+
+    result = StructuralProfiler(PipelineConfig()).profile(df)
+    dist = result.dataset.row_distribution
+    assert dist.complete_row_fraction == pytest.approx(0.6)
+    # Surfaced in the serialised form as well.
+    assert dist.to_dict()["complete_row_fraction"] == pytest.approx(0.6)
+
+
 # ---------------------------------------------------------------------------
 # numeric_sentinels propagation — ProfileConfig → StructuralProfileResult
 # ---------------------------------------------------------------------------

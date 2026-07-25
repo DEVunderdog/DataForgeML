@@ -6,7 +6,7 @@ call site: ``inspect(fitted_imputer, train_df)`` is the cheap, retrain-free
 sanity check ("do the imputed values look sensible?"), and
 ``score_accuracy(fitted_imputer, train_df, profile)`` is the expensive,
 cross-validated held-out accuracy measurement — an irreducible refit.  Neither
-is welded into ``ImputationOrchestrator.fit()``; both run deliberately, on the
+is welded into the imputation fit path; both run deliberately, on the
 user's clock.  The orchestrator is a phase orchestrator in the same shape as
 every other — construct it with an optional ``observer=`` and call an entry
 point — and it is stateless: the caller passes the ``FittedImputer`` and the
@@ -16,6 +16,7 @@ serializable.
 
 from __future__ import annotations
 
+import os
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from typing import TYPE_CHECKING, Any, Callable, Optional
@@ -33,15 +34,12 @@ from ..profiling._numeric_config import (
     SkewSeverity,
 )
 from ._config import (
+    _MODEL_BASED_STRATEGIES,
     AccuracyDiagnostic,
     AccuracyReport,
     ImputationStrategy,
     InspectionDiagnostic,
     InspectionReport,
-)
-from ._numeric_imputer import (
-    _MODEL_BASED_STRATEGIES,
-    _resolve_fit_workers,
 )
 from ._utils import _df_to_numpy
 from ..utils._null_normalization import _resolve_effective_nulls
@@ -51,20 +49,82 @@ if TYPE_CHECKING:
     from ..profiling._config import StructuralProfileResult
 
 
+def _resolve_fit_workers(max_workers: Optional[int], n_units: int) -> int:
+    """Resolve the thread count for the concurrent evaluation units.
+
+    Never exceeds the number of independent units of work; ``max_workers=None``
+    auto-sizes to the available CPU count, and ``max_workers=1`` forces a
+    sequential run.
+    """
+    if n_units <= 1:
+        return 1
+    if max_workers is None:
+        resolved = os.cpu_count() or 1
+    else:
+        resolved = max_workers
+    return max(1, min(resolved, n_units))
+
+
+def _units_by_id(fitted_imputer: "FittedImputer") -> dict:
+    """Key a composed imputer's ordered unit list back by plan unit id.
+
+    ``FittedImputer`` holds a bare ordered unit list since the compose collapse
+    (ADR-0071); Evaluation reads the model-based units by the plan ids the
+    routing produced, so this reconstructs those ids. A fitted unit no longer
+    restates its strategy (ADR-0074), so the strategy is read from the unit's
+    concrete type. The joint MICE and KNN blocks are the two ids that are not
+    ``"{strategy}:{column}"``.
+    """
+    from ._fitted_imputer import FittedMICE, _FittedKNN
+
+    models: dict = {}
+    for unit in fitted_imputer.units:
+        if isinstance(unit, FittedMICE):
+            models["mice"] = unit
+        elif isinstance(unit, _FittedKNN):
+            models["knn"] = unit
+        else:
+            strategy = _unit_strategy(unit)
+            cols = unit.target_columns
+            if strategy is not None and cols:
+                models[f"{strategy}:{cols[0]}"] = unit
+    return models
+
+
+def _unit_strategy(unit: Any) -> Optional[ImputationStrategy]:
+    """Recover a fitted unit's strategy from its concrete type (ADR-0074).
+
+    A fitted unit carries only its fitted state and no longer restates the
+    strategy it executed, so Evaluation reads it back from the class. Returns
+    ``None`` for a unit type with no strategy mapping.
+    """
+    from ._fitted_units import (
+        FittedClusterConditional,
+        FittedGMMSampling,
+    )
+
+    if isinstance(unit, FittedClusterConditional):
+        return ImputationStrategy.ClusterConditional
+    if isinstance(unit, FittedGMMSampling):
+        return ImputationStrategy.GMMSampling
+    return None
+
+
 def _read_model_metadata(
     strategy: ImputationStrategy,
-    column: str,
     models: dict,
     n_rows: int,
     knn_n_neighbors_override: int | None,
 ) -> tuple:
     """Read convergence/neighbour metadata straight off the fitted models.
 
-    Returns ``(converged, n_iter, n_neighbors_used, k_capped)``.  Regression and
-    MICE contribute ``converged``/``n_iter`` from their fitted
-    ``IterativeImputer``; KNN contributes ``n_neighbors_used`` (the model's own
-    ``n_neighbors``) and ``k_capped`` (the count was forced to ``n_rows − 1``);
-    the bimodal strategies contribute none.  ``k_capped`` is ``None`` whenever a
+    Returns ``(converged, n_iter, n_neighbors_used, k_capped)``.  MICE
+    contributes ``converged``/``n_iter`` from its fitted ``IterativeImputer``
+    — every chained-equations column, whether it would once have been
+    Regression or was always MICE, reports through this one block (ADR-0079);
+    KNN contributes ``n_neighbors_used`` (the model's own ``n_neighbors``) and
+    ``k_capped`` (the count was forced to ``n_rows − 1``); the bimodal
+    strategies contribute none.  ``k_capped`` is ``None`` whenever a
     ``knn_n_neighbors`` override bypassed the adaptive formula.
     """
     converged = None
@@ -72,16 +132,13 @@ def _read_model_metadata(
     n_neighbors_used = None
     k_capped = None
 
-    if strategy == ImputationStrategy.Regression:
-        fitted_reg = models.get(f"regression:{column}")
-        if fitted_reg is not None:
-            converged = bool(fitted_reg.model.n_iter_ < fitted_reg.max_iter_used)
-            n_iter = int(fitted_reg.model.n_iter_)
-    elif strategy == ImputationStrategy.MICE:
-        mice_model = models.get("mice")
-        if mice_model is not None:
-            converged = bool(mice_model.n_iter_ < mice_model.max_iter)
-            n_iter = int(mice_model.n_iter_)
+    if strategy == ImputationStrategy.MICE:
+        fitted_mice = models.get("mice")
+        if fitted_mice is not None:
+            # ``FittedMICE`` carries the fitted ``IterativeImputer`` on
+            # ``.model`` (ADR-0079); read convergence off that solver.
+            converged = bool(fitted_mice.model.n_iter_ < fitted_mice.model.max_iter)
+            n_iter = int(fitted_mice.model.n_iter_)
     elif strategy == ImputationStrategy.KNN:
         fitted_knn = models.get("knn")
         if fitted_knn is not None:
@@ -143,86 +200,6 @@ def _compute_fold_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> tuple[float
     mae = float(max(0.0, mean_absolute_error(y_true, y_pred)))
 
     return r2, rmse, mae
-
-
-def _score_regression_cv(
-    train_df: pl.DataFrame,
-    col: str,
-    fitted_reg: Any,
-    config: Any,
-    emitter: Optional[Emitter],
-) -> tuple[Optional[float], Optional[float], Optional[float]]:
-    """Cross-validate a single Regression-strategy column's held-out accuracy.
-
-    The fold stand-in freezes M's recipe — the ``estimator``, ``max_iter``, and
-    ``tol`` read straight off the fitted ``IterativeImputer`` — and only refits
-    it on the fold's training rows (ADR-0059).  Nothing is re-derived from the
-    fold or from the profile, so the score is a faithful baseline for M.
-    """
-    feat_cols = list(fitted_reg.all_cols[1:])
-    all_cols = [col] + feat_cols
-    arr = _df_to_numpy(train_df, all_cols)
-    complete_mask = ~np.isnan(arr).any(axis=1)
-    n_complete = int(complete_mask.sum())
-    if n_complete < config.refit_r2_min_complete_rows:
-        return None, None, None
-
-    # Reuse the exact IterativeImputer recipe ``fit()`` settled on, read straight
-    # off the fitted Regression model rather than rebuilding it per fold.
-    estimator = fitted_reg.model.estimator
-    max_iter = fitted_reg.model.max_iter
-    tol = fitted_reg.model.tol
-
-    n_folds = config.refit_r2_cv_folds
-    rng = np.random.default_rng(0)
-    arr_shuffled = arr[np.where(complete_mask)[0]][rng.permutation(n_complete)]
-
-    fold_r2s: list[float] = []
-    fold_rmses: list[float] = []
-    fold_maes: list[float] = []
-    for fold_idx, val_start, val_end in _fold_slices(n_complete, n_folds):
-        if emitter is not None:
-            emitter.substep(
-                f"{col} regression accuracy fold",
-                column=col,
-                index=fold_idx + 1,
-                total=n_folds,
-            )
-        arr_val_sub = arr_shuffled[val_start:val_end]
-        arr_train_sub = np.concatenate(
-            [arr_shuffled[:val_start], arr_shuffled[val_end:]]
-        )
-
-        y_true = arr_val_sub[:, 0]
-        if len(y_true) < 2 or float(np.std(y_true)) == 0.0:
-            continue
-
-        temp_imputer = IterativeImputer(
-            estimator=estimator,
-            max_iter=max_iter,
-            tol=tol,
-            random_state=0,
-        )
-        temp_imputer.fit(arr_train_sub)
-
-        arr_val_masked = arr_val_sub.copy()
-        arr_val_masked[:, 0] = np.nan
-        y_pred = temp_imputer.transform(arr_val_masked)[:, 0]
-        try:
-            r2_f, rmse_f, mae_f = _compute_fold_metrics(y_true, y_pred)
-            fold_r2s.append(r2_f)
-            fold_rmses.append(rmse_f)
-            fold_maes.append(mae_f)
-        except Exception:  # noqa: BLE001
-            pass
-
-    if fold_r2s:
-        return (
-            float(np.mean(fold_r2s)),
-            float(np.mean(fold_rmses)),
-            float(np.mean(fold_maes)),
-        )
-    return None, None, None
 
 
 def _score_knn_cv(
@@ -310,15 +287,34 @@ def _score_knn_cv(
 def _score_mice_cv(
     train_df: pl.DataFrame,
     mice_cols: list[str],
-    mice_model: Any,
+    fitted_mice: Any,
     config: Any,
     emitter: Optional[Emitter],
 ) -> dict[str, tuple[Optional[float], Optional[float], Optional[float]]]:
-    """Cross-validate held-out accuracy for every MICE-strategy column."""
+    """Cross-validate held-out accuracy for every chained-equations column.
+
+    Every column that would once have been ``Regression`` and every column that
+    was always ``MICE`` reports through this one path (ADR-0079).  The fold
+    stand-in sources its predictor set the same widened way the fitter does —
+    the block's full :attr:`~FittedMICE.all_cols`, not just the owned columns it
+    scores — and freezes M's recipe (``estimator``, ``max_iter``, ``tol``,
+    ``initial_strategy``, ``n_nearest_features``) read straight off the fitted
+    ``IterativeImputer``, only refitting it on each fold's training rows
+    (ADR-0059).  Held-out accuracy is scored for the block's owned columns
+    (``mice_cols``).
+    """
     result: dict[str, tuple[Optional[float], Optional[float], Optional[float]]] = {
         col: (None, None, None) for col in mice_cols
     }
-    arr = _df_to_numpy(train_df, mice_cols)
+    # Widen to the block's full predictor set, in the joint-array order the
+    # fitter trained on, keeping only columns present in the frame.
+    all_cols = [c for c in fitted_mice.all_cols if c in train_df.columns]
+    scored_cols = [c for c in mice_cols if c in all_cols]
+    if not scored_cols:
+        return result
+    col_idx = {c: all_cols.index(c) for c in scored_cols}
+
+    arr = _df_to_numpy(train_df, all_cols)
     complete_mask = ~np.isnan(arr).any(axis=1)
     n_complete = int(complete_mask.sum())
     if n_complete < config.refit_r2_min_complete_rows:
@@ -326,19 +322,19 @@ def _score_mice_cv(
 
     # Reuse the exact IterativeImputer parameters ``fit()`` settled on, read
     # straight off the fitted MICE model rather than recomputing them.
-    estimator = mice_model.estimator
-    max_iter = mice_model.max_iter
-    tol = mice_model.tol
-    initial_strategy = mice_model.initial_strategy
-    n_nearest_features = mice_model.n_nearest_features
+    estimator = fitted_mice.model.estimator
+    max_iter = fitted_mice.model.max_iter
+    tol = fitted_mice.model.tol
+    initial_strategy = fitted_mice.model.initial_strategy
+    n_nearest_features = fitted_mice.model.n_nearest_features
 
     n_folds = config.refit_r2_cv_folds
     rng = np.random.default_rng(0)
     arr_shuffled = arr[np.where(complete_mask)[0]][rng.permutation(n_complete)]
 
-    col_r2s: dict[str, list[float]] = {col: [] for col in mice_cols}
-    col_rmses: dict[str, list[float]] = {col: [] for col in mice_cols}
-    col_maes: dict[str, list[float]] = {col: [] for col in mice_cols}
+    col_r2s: dict[str, list[float]] = {col: [] for col in scored_cols}
+    col_rmses: dict[str, list[float]] = {col: [] for col in scored_cols}
+    col_maes: dict[str, list[float]] = {col: [] for col in scored_cols}
 
     for fold_idx, val_start, val_end in _fold_slices(n_complete, n_folds):
         if emitter is not None:
@@ -360,7 +356,8 @@ def _score_mice_cv(
         )
         temp_mice.fit(arr_train_sub)
 
-        for k, col_k in enumerate(mice_cols):
+        for col_k in scored_cols:
+            k = col_idx[col_k]
             y_true = arr_val_sub[:, k]
             if len(y_true) < 2 or float(np.std(y_true)) == 0.0:
                 continue
@@ -375,7 +372,7 @@ def _score_mice_cv(
             except Exception:  # noqa: BLE001
                 pass
 
-    for col_k in mice_cols:
+    for col_k in scored_cols:
         if col_r2s[col_k]:
             result[col_k] = (
                 float(np.mean(col_r2s[col_k])),
@@ -535,7 +532,7 @@ class EvaluationOrchestrator(_ObservabilityMixin):
         Parameters
         ----------
         fitted_imputer : FittedImputer
-            The imputer returned by :meth:`ImputationOrchestrator.fit`.  Its
+            The imputer returned by :meth:`FittedImputer.compose`.  Its
             records and fitted models are reused as-is.
         train_df : pl.DataFrame
             Data to inspect against.  Passed back in explicitly because
@@ -545,13 +542,14 @@ class EvaluationOrchestrator(_ObservabilityMixin):
         -------
         InspectionReport
             Per-column inspection diagnostics.  Holds one entry per model-based
-            column (KNN, Regression, MICE, and the bimodal strategies); scalar,
+            column (KNN, MICE, and the bimodal strategies); scalar,
             Passthrough, Dropped, Constant, and MNAR columns carry no entry.
         """
         # Fill the holes through the real application path so inspection
         # reflects exactly the imputation ``transform`` would apply — never a
         # re-implementation of model inference (ADR-0058).
         filled_df = fitted_imputer.transform(train_df).dataframe
+        models_by_id = _units_by_id(fitted_imputer)
 
         # Locate the originally-null cells the same way ``transform`` does:
         # normalise effective nulls first, then read the null mask.
@@ -565,7 +563,7 @@ class EvaluationOrchestrator(_ObservabilityMixin):
 
         columns: dict[str, InspectionDiagnostic] = {}
         for col, rec in fitted_imputer.records.items():
-            if rec.strategy not in _MODEL_BASED_STRATEGIES:
+            if rec.decision.strategy not in _MODEL_BASED_STRATEGIES:
                 continue
             if col not in resolved.columns or col not in filled_df.columns:
                 continue
@@ -587,9 +585,8 @@ class EvaluationOrchestrator(_ObservabilityMixin):
             )
 
             converged, n_iter, n_neighbors_used, k_capped = _read_model_metadata(
-                strategy=rec.strategy,
-                column=col,
-                models=fitted_imputer.models,
+                strategy=rec.decision.strategy,
+                models=models_by_id,
                 n_rows=n_rows,
                 knn_n_neighbors_override=numeric_cfg.knn_n_neighbors,
             )
@@ -634,7 +631,7 @@ class EvaluationOrchestrator(_ObservabilityMixin):
         Parameters
         ----------
         fitted_imputer : FittedImputer
-            The imputer returned by :meth:`ImputationOrchestrator.fit`.  Its
+            The imputer returned by :meth:`FittedImputer.compose`.  Its
             records supply the per-column strategy and its models supply the
             fold-estimator parameters; neither is re-derived.
         train_df : pl.DataFrame
@@ -643,13 +640,13 @@ class EvaluationOrchestrator(_ObservabilityMixin):
         profile : StructuralProfileResult
             Full-dataset profile from Phase 1.  Used only for the
             Cluster-Conditional fold fills (skewness selects mean vs. median),
-            never to re-route and never for Regression/KNN scoring.
+            never to re-route and never for MICE/KNN scoring.
 
         Returns
         -------
         AccuracyReport
             Per-column held-out accuracy.  Holds one entry per model-based
-            column (KNN, Regression, MICE, and the bimodal strategies); scalar,
+            column (KNN, MICE, and the bimodal strategies); scalar,
             Passthrough, Dropped, Constant, and MNAR columns carry no entry.
             The three fields are ``None`` when fewer than
             ``refit_r2_min_complete_rows`` complete rows are available, or when
@@ -664,6 +661,7 @@ class EvaluationOrchestrator(_ObservabilityMixin):
             string_sentinels=fitted_imputer.string_sentinels,
         )
         config = self._config.imputation.numeric
+        models_by_id = _units_by_id(fitted_imputer)
 
         # Reuse the strategy decisions already recorded at fit time (ADR-0058);
         # routing is never recomputed here.
@@ -671,19 +669,17 @@ class EvaluationOrchestrator(_ObservabilityMixin):
             return [
                 col
                 for col, rec in fitted_imputer.records.items()
-                if rec.strategy == strategy and col in resolved.columns
+                if rec.decision.strategy == strategy and col in resolved.columns
             ]
 
         mice_cols = _cols_for(ImputationStrategy.MICE)
         knn_cols = _cols_for(ImputationStrategy.KNN)
-        reg_cols = _cols_for(ImputationStrategy.Regression)
         cluster_cols = _cols_for(ImputationStrategy.ClusterConditional)
         gmm_cols = _cols_for(ImputationStrategy.GMMSampling)
 
         n_model_cols = (
             len(mice_cols)
             + len(knn_cols)
-            + len(reg_cols)
             + len(cluster_cols)
             + len(gmm_cols)
         )
@@ -702,7 +698,7 @@ class EvaluationOrchestrator(_ObservabilityMixin):
         units: list[Callable[[], None]] = []
 
         if mice_cols:
-            mice_model = fitted_imputer.models.get("mice")
+            fitted_mice = models_by_id.get("mice")
 
             def _run_mice() -> None:
                 if emitter is not None:
@@ -710,7 +706,7 @@ class EvaluationOrchestrator(_ObservabilityMixin):
                         f"MICE accuracy over {len(mice_cols)} columns"
                     )
                 scores = _score_mice_cv(
-                    resolved, mice_cols, mice_model, config, emitter
+                    resolved, mice_cols, fitted_mice, config, emitter
                 )
                 for col in mice_cols:
                     r2_cv, rmse, mae = scores[col]
@@ -720,7 +716,7 @@ class EvaluationOrchestrator(_ObservabilityMixin):
             units.append(_run_mice)
 
         if knn_cols:
-            fitted_knn = fitted_imputer.models.get("knn")
+            fitted_knn = models_by_id.get("knn")
 
             def _run_knn() -> None:
                 if emitter is not None:
@@ -737,23 +733,8 @@ class EvaluationOrchestrator(_ObservabilityMixin):
 
             units.append(_run_knn)
 
-        def _run_regression_col(col: str) -> None:
-            fitted_reg = fitted_imputer.models.get(f"regression:{col}")
-            if fitted_reg is None:
-                accuracy[col] = AccuracyDiagnostic(r2_cv=None, rmse=None, mae=None)
-                emitter.item(col)
-                return
-            r2_cv, rmse, mae = _score_regression_cv(
-                resolved, col, fitted_reg, config, emitter
-            )
-            accuracy[col] = AccuracyDiagnostic(r2_cv=r2_cv, rmse=rmse, mae=mae)
-            emitter.item(col)
-
-        for col in reg_cols:
-            units.append(partial(_run_regression_col, col))
-
         def _run_cluster_col(col: str) -> None:
-            fitted_cluster = fitted_imputer.models.get(f"cluster:{col}")
+            fitted_cluster = models_by_id.get(f"cluster:{col}")
             r2_cv = rmse = mae = None
             # Only the feature-based branch (no grouping variable) has held-out
             # truth to score; the grouping-variable branch does not.

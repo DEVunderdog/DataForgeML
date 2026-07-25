@@ -83,3 +83,17 @@
    :undoc-members:
    :show-inheritance:
 ```
+
+```{eval-rst}
+.. autoclass:: dataforge_ml.profiling._config.NumericKind
+   :members:
+   :undoc-members:
+   :show-inheritance:
+```
+
+```{eval-rst}
+.. autoclass:: dataforge_ml.profiling._base.OverrideCoercionError
+   :members:
+   :undoc-members:
+   :show-inheritance:
+```

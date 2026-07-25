@@ -55,11 +55,12 @@ ever leak into training.
 ```python
 from dataforge_ml import (
     DataSplitter,
-    ImputationOrchestrator,
+    ImputationExecutor,
     PipelineConfig,
     ProfileConfig,
     SemanticType,
     StructuralProfiler,
+    decide,
 )
 
 pipeline_config = PipelineConfig(profiling=ProfileConfig(), random_seed=42)
@@ -76,9 +77,18 @@ split = DataSplitter(df=df, target="Life expectancy", random_seed=42).profile_st
 train_df, test_df = split.train, split.test
 
 # Fit imputation on train, then transform test with the SAME fitted state.
+# Imputation is layered: decide() plans, the executor trains, build() aggregates.
 train_profile = profiler.profile(data=train_df)
-orchestrator = ImputationOrchestrator(config=pipeline_config)
-fitted, _ = orchestrator.fit_transform(train_df=train_df, profile=train_profile)
+plan = decide(train_profile, len(train_df), pipeline_config)
+
+executor = ImputationExecutor(
+    plan,
+    train_df,
+    pipeline_config.imputation.numeric,
+    random_seed=pipeline_config.random_seed,
+)
+executor.execute_all_pending()
+fitted = executor.build()
 
 test_result = fitted.transform(df=test_df)
 ```
@@ -114,7 +124,7 @@ profiler.profile(data=df)
 # ...
 ```
 
-The same `observer=` argument is available on `ImputationOrchestrator`, and you
+The same `observer=` argument is available on `ImputationExecutor`, and you
 can pass a different observer (or none) to each call independently.
 
 ### 2. Your own observer
@@ -124,7 +134,7 @@ An observer is just a `Callable[[PipelineEvent], None]`. Each event carries raw
 `event_type` you can filter on:
 
 ```python
-from dataforge_ml import EventType, ImputationOrchestrator, PipelineEvent
+from dataforge_ml import EventType, ImputationExecutor, PipelineEvent
 
 def my_observer(event: PipelineEvent) -> None:
     # Keep only per-item heartbeats; ignore stage boundaries.
@@ -132,7 +142,7 @@ def my_observer(event: PipelineEvent) -> None:
         pct = 100 * event.index / event.total
         print(f"{event.stage}: {event.column} — {pct:.0f}%")
 
-ImputationOrchestrator(config=pipeline_config, observer=my_observer)
+ImputationExecutor(plan, train_df, pipeline_config.imputation.numeric, observer=my_observer)
 ```
 
 `EventType` values: `stage_start`, `stage_end`, `item`, `decision`, `warning`.

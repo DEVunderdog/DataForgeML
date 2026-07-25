@@ -10,5 +10,7 @@ api/pipeline
 api/profiling
 api/imputation
 api/splitting
+api/persistence
+api/observability
 api/utilities
 ```
