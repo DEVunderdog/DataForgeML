@@ -13,20 +13,54 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.11", "3.12", "3.13"]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      # uv provides the interpreter as well as the packages -- actions/setup-python
+      # is deliberately absent, because it floats the patch version from whatever
+      # the runner image ships that week. The environment is locked, and that has
+      # to include the interpreter.
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          enable-cache: true
 
-      - name: Install dependencies
-        run: |
-          pip install -e ".[dev]"
+      # --locked fails the build if uv.lock disagrees with pyproject.toml, which is
+      # what stops the two from ever being bumped separately.
+      # Only the `test` group is synced: pytest jobs have no business installing the
+      # Sphinx toolchain, and a docs-tool release must not be able to redden tests.
+      - name: Install project and test dependencies
+        run: uv sync --locked --no-default-groups --group test
+        env:
+          UV_PYTHON: ${{ matrix.python-version }}
 
       - name: Run tests
-        run: pytest
+        run: uv run --no-sync pytest
+        env:
+          UV_PYTHON: ${{ matrix.python-version }}
+
+  audit:
+    name: pip-audit (known CVEs)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # Audit exactly what the lock resolves, not a fresh resolution.
+      - name: Export locked dependencies
+        run: uv export --locked --no-emit-project --all-groups --output-file requirements-audit.txt
+
+      # The scanner binary is pinned so a pip-audit release cannot redden an
+      # unrelated commit; the CVE *database* is still fetched fresh on every run.
+      # Bumping this pin is a deliberate edit, like any other dependency bump.
+      - name: Audit for known vulnerabilities
+        run: uvx pip-audit@2.10.1 --requirement requirements-audit.txt --strict

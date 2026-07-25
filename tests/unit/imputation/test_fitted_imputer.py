@@ -519,7 +519,7 @@ def test_round_trip_preserves_strategy(round_trip):
 
 def test_records_carry_no_diagnostic_attribute():
     """Fit-quality metrics moved to the Evaluation report; records drop the field (ADR-0057)."""
-    record = ColumnImputationRecord(decision=ColumnImputationDecision(column="score", semantic_type=SemanticType.Numeric, strategy=ImputationStrategy.Regression))
+    record = ColumnImputationRecord(decision=ColumnImputationDecision(column="score", semantic_type=SemanticType.Numeric, strategy=ImputationStrategy.MICE))
     assert not hasattr(record, "diagnostic")
 
 
@@ -976,106 +976,6 @@ def test_new_error_classes_exported_from_package():
 
 
 # ---------------------------------------------------------------------------
-# Regression Overhaul Tests (Issue #142)
-# ---------------------------------------------------------------------------
-
-
-def test_regression_new_format_round_trip(round_trip):
-    """Verify that a FittedImputer with a new-format FittedRegression model
-    can be serialized, deserialized, and used for transform successfully.
-    """
-    from sklearn.impute import IterativeImputer
-    from sklearn.linear_model import BayesianRidge
-    from dataforge_ml.imputation._fitted_units import FittedRegression
-    import numpy as np
-
-    # Create dummy data and fit an IterativeImputer
-    arr = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [np.nan, 8.0]])
-    imputer = IterativeImputer(estimator=BayesianRidge(), random_state=0)
-    imputer.fit(arr)
-
-    # Build FittedRegression
-    fitted_reg = FittedRegression(
-        model=imputer,
-        target_idx=0,
-        all_cols=["y", "x"],
-    )
-
-    fi = FittedImputer(
-        records={
-            "y": _record("y", ImputationStrategy.Regression),
-            "x": _record("x", ImputationStrategy.Passthrough),
-        },
-        units=[fitted_reg],
-    )
-
-    # Round-trip
-    restored = round_trip(fi)
-
-    # Verify model format
-    assert isinstance(restored.units[0], FittedRegression)
-    assert restored.units[0].all_cols == ["y", "x"]
-
-    # Transform
-    df = pl.DataFrame({
-        "y": pl.Series([1.0, None, 5.0], dtype=pl.Float64),
-        "x": pl.Series([2.0, 4.0, 6.0], dtype=pl.Float64),
-    })
-    res = restored.transform(df)
-    assert res.dataframe["y"].null_count() == 0
-    assert res.dataframe["y"][1] is not None
-
-
-def test_regression_target_vs_feature_identification():
-    """Verify that inference correctly distinguishes between target and feature columns
-    using target_idx, even when a feature has a distinctive value pattern.
-    """
-    from sklearn.impute import IterativeImputer
-    from sklearn.linear_model import BayesianRidge
-    from dataforge_ml.imputation._fitted_units import FittedRegression
-    import numpy as np
-
-    # We want to verify that when target_idx = 1, it fills the column at index 1.
-    # Let's say all_cols is ["x", "y"]. The target is "y" (at index 1).
-    # Feature "x" has a distinctive pattern (always 999.0).
-    arr = np.array([
-        [999.0, 1.0],
-        [999.0, 2.0],
-        [999.0, 3.0],
-        [999.0, np.nan],
-    ])
-    imputer = IterativeImputer(estimator=BayesianRidge(), random_state=0)
-    imputer.fit(arr)
-
-    fitted_reg = FittedRegression(
-        model=imputer,
-        target_idx=1,  # target is index 1 ("y")
-        all_cols=["x", "y"],
-    )
-
-    fi = FittedImputer(
-        records={
-            "x": _record("x", ImputationStrategy.Passthrough),
-            "y": _record("y", ImputationStrategy.Regression),
-        },
-        units=[fitted_reg],
-    )
-
-    df = pl.DataFrame({
-        "x": pl.Series([999.0, 999.0, 999.0], dtype=pl.Float64),
-        "y": pl.Series([1.0, None, 3.0], dtype=pl.Float64),
-    })
-
-    res = fi.transform(df)
-    # The imputed value for "y" should be close to 2.0 (based on training)
-    # and definitely NOT 999.0 (the feature value).
-    imputed_val = res.dataframe["y"][1]
-    assert imputed_val is not None
-    assert abs(imputed_val - 2.0) < 0.5
-    assert imputed_val != 999.0
-
-
-# ---------------------------------------------------------------------------
 # _FittedKNN — transform, scale-sensitivity, round-trip
 # ---------------------------------------------------------------------------
 
@@ -1326,14 +1226,53 @@ def test_mice_gradient_boosting_backed_round_trip(round_trip):
     assert r2.dataframe["b"].null_count() == 0
 
 
-def test_regression_inference_time_feature_nans():
-    """Verify that regression imputation handles feature columns with missing values
-    at inference time without errors and without resorting to a feat_means patching loop
-    in the apply path.
+def test_mice_all_cols_write_back_restricted_to_owned_columns():
+    """#417 / ADR-0079: FittedMICE reads every column in ``all_cols`` but
+    writes back only ``columns`` — the block-wide generalization of the former
+    per-column regression unit's target-only write-back.
+
+    A predictor column outside the block carries a distinctive value (``999.0``);
+    the block's owned column must recover its real signal and the predictor must
+    never be touched by the block's transform.
     """
     from sklearn.impute import IterativeImputer
     from sklearn.linear_model import BayesianRidge
-    from dataforge_ml.imputation._fitted_units import FittedRegression
+    import numpy as np
+
+    # all_cols order is ["y", "outside"]; the block owns only "y".
+    arr = np.array([
+        [1.0, 999.0],
+        [2.0, 999.0],
+        [3.0, 999.0],
+        [np.nan, 999.0],
+    ])
+    imputer = IterativeImputer(estimator=BayesianRidge(), random_state=0)
+    imputer.fit(arr)
+
+    fitted_mice = FittedMICE(model=imputer, columns=["y"], all_cols=["y", "outside"])
+    assert fitted_mice.target_columns == ["y"]
+
+    df = pl.DataFrame({
+        "y": pl.Series([1.0, None, 3.0], dtype=pl.Float64),
+        "outside": pl.Series([999.0, 999.0, 999.0], dtype=pl.Float64),
+    })
+    out = fitted_mice.transform(df)
+    imputed_val = out["y"][1]
+    assert imputed_val is not None
+    assert abs(imputed_val - 2.0) < 0.5
+    assert imputed_val != 999.0
+    # The block read "outside" as a predictor but does not own it: its own
+    # transform must never write back a column it does not own.
+    assert out["outside"].equals(df["outside"])
+
+
+def test_mice_inference_time_feature_nans():
+    """Verify that a MICE block handles predictor columns with missing values at
+    inference time without errors and without resorting to a feat_means patching
+    loop in the apply path.
+    """
+    from sklearn.impute import IterativeImputer
+    from sklearn.linear_model import BayesianRidge
     import numpy as np
 
     # Train imputer with some missing values in features to support it
@@ -1346,21 +1285,18 @@ def test_regression_inference_time_feature_nans():
     imputer = IterativeImputer(estimator=BayesianRidge(), random_state=0)
     imputer.fit(arr)
 
-    fitted_reg = FittedRegression(
-        model=imputer,
-        target_idx=0,
-        all_cols=["y", "x"],
-    )
+    # The block owns only "y" but reads "x" as a widened predictor (all_cols).
+    fitted_mice = FittedMICE(model=imputer, columns=["y"], all_cols=["y", "x"])
 
     fi = FittedImputer(
         records={
-            "y": _record("y", ImputationStrategy.Regression),
-            "x": _record("x", ImputationStrategy.Regression),
+            "y": _record("y", ImputationStrategy.MICE),
+            "x": _record("x", ImputationStrategy.MICE),
         },
-        units=[fitted_reg],
+        units=[fitted_mice],
     )
 
-    # During transform, both the target 'y' and the feature 'x' have NaNs
+    # During transform, both the owned target 'y' and the predictor 'x' have NaNs
     df = pl.DataFrame({
         "y": pl.Series([1.0, None, 5.0], dtype=pl.Float64),
         "x": pl.Series([2.0, np.nan, 6.0], dtype=pl.Float64),

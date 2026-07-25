@@ -189,26 +189,26 @@ def test_shape_rows_and_provenance_rows_are_different_facts() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_regression_model_choice_resolved_at_decide_time() -> None:
+def test_single_column_mice_model_choice_resolved_at_decide_time() -> None:
     profile = _profile(
         {"r": _numeric_cp("r", nonlinearity_tag=NonlinearityTag.Linear)}
     )
     config = PipelineConfig()
     config.imputation.numeric.set_per_column_strategy(
-        "r", ImputationStrategy.Regression
+        "r", ImputationStrategy.MICE
     )
     plan = decide(profile, profile.dataset.row_count, config)
     assert plan.column_decisions["r"].model_choice == ModelChoice.BayesianRidge
 
 
-def test_regression_complex_nonlinear_large_sample_picks_gradient_boosting() -> None:
+def test_single_column_mice_complex_nonlinear_large_sample_picks_gradient_boosting() -> None:
     profile = _profile(
         {"r": _numeric_cp("r", nonlinearity_tag=NonlinearityTag.ComplexNonlinear)},
         row_count=10_000_000,
     )
     config = PipelineConfig()
     config.imputation.numeric.set_per_column_strategy(
-        "r", ImputationStrategy.Regression
+        "r", ImputationStrategy.MICE
     )
     plan = decide(profile, profile.dataset.row_count, config)
     assert (
@@ -331,14 +331,12 @@ def test_decided_base_is_complete_for_every_strategy() -> None:
             "b": _numeric_cp("b", nonlinearity_tag=NonlinearityTag.Linear),
             "k1": _numeric_cp("k1"),
             "k2": _numeric_cp("k2"),
-            "r": _numeric_cp("r", nonlinearity_tag=NonlinearityTag.ComplexNonlinear),
             "n": _numeric_cp("n"),
         }
     )
     config = PipelineConfig()
     config.imputation.numeric.set_per_column_strategy(["a", "b"], ImputationStrategy.MICE)
     config.imputation.numeric.set_per_column_strategy(["k1", "k2"], ImputationStrategy.KNN)
-    config.imputation.numeric.set_per_column_strategy("r", ImputationStrategy.Regression)
     config.imputation.add_mnar_column("n")
 
     plan = decide(profile, profile.dataset.row_count, config)
@@ -347,7 +345,6 @@ def test_decided_base_is_complete_for_every_strategy() -> None:
     required = {
         "mice": {"max_iter", "tol", "initial_strategy", "n_nearest_features", "nonlinearity_tag"},
         "knn": {"n_neighbors", "weights", "miss_frac", "complete_frac"},
-        "regression:r": {"max_iter", "tol", "nonlinearity_tag"},
         "mnar:n": {"central_tendency"},
     }
     for unit_id, keys in required.items():
@@ -442,7 +439,7 @@ def test_with_model_choice_returns_new_plan() -> None:
     )
     config = PipelineConfig()
     config.imputation.numeric.set_per_column_strategy(
-        "r", ImputationStrategy.Regression
+        "r", ImputationStrategy.MICE
     )
     plan = decide(profile, profile.dataset.row_count, config)
     edited = plan.with_model_choice("r", ModelChoice.RandomForestRegressor)
@@ -555,56 +552,28 @@ def test_excluded_column_leaves_shape_and_block_membership() -> None:
 
 
 def test_multi_mar_counting_ignores_excluded_columns() -> None:
-    """One of two MAR-suspect columns excluded → no multi-MAR, no MICE block."""
+    """One of two MAR-suspect columns excluded → no multi-MAR, no MICE block.
+
+    ``n_rows`` is kept above the default ``mice_min_rows`` floor (ADR-0079) so
+    the multi-MAR branch itself routes to MICE and this test stays isolated to
+    the exclusion-counting invariant it targets, not the floor gate.
+    """
 
     def _mar_col(name: str) -> ColumnProfile:
         return _numeric_cp(name, flags=[MissingnessFlag.MARSuspect])
 
     columns = {"b": _mar_col("b"), "x": _mar_col("x")}
-    plain = decide(_profile(columns), 100, PipelineConfig())
+    plain = decide(_profile(columns), 600, PipelineConfig())
     assert "mice" in {u.unit_id for u in plain.units}
 
     config = PipelineConfig()
     config.add_phase_exclusion(PipelinePhase.Imputation, "x")
-    plan = decide(_profile(columns), 100, config)
+    plan = decide(_profile(columns), 600, config)
     assert "mice" not in {u.unit_id for u in plan.units}
     # b routes exactly as it would in a profile that never contained x
-    without_x = decide(_profile({"b": _mar_col("b")}), 100, PipelineConfig())
+    without_x = decide(_profile({"b": _mar_col("b")}), 600, PipelineConfig())
     assert plan.units == without_x.units
     assert plan.column_decisions["b"] == without_x.column_decisions["b"]
-
-
-def test_hyperparameter_signals_computed_over_active_columns_only() -> None:
-    """The regression dials match a plan decided on a profile without the column."""
-    columns = {
-        "r": _numeric_cp("r", nonlinearity_tag=NonlinearityTag.Linear),
-        "f": _numeric_cp("f", null_count=0, severity=None),
-        "x": _numeric_cp("x", null_count=40),
-    }
-
-    def _reg_config() -> PipelineConfig:
-        config = PipelineConfig()
-        config.imputation.numeric.set_per_column_strategy(
-            "r", ImputationStrategy.Regression
-        )
-        return config
-
-    config = _reg_config()
-    config.add_phase_exclusion(PipelinePhase.Imputation, "x")
-    plan = decide(_profile(columns), 100, config)
-    without_x = decide(
-        _profile({k: v for k, v in columns.items() if k != "x"}), 100, _reg_config()
-    )
-    assert (
-        plan.decided_hyperparameters["regression:r"]
-        == without_x.decided_hyperparameters["regression:r"]
-    )
-    # and the excluded missing-feature column did move the dial when active
-    with_x = decide(_profile(columns), 100, _reg_config())
-    assert (
-        dict(with_x.decided_hyperparameters["regression:r"])["max_iter"]
-        > dict(plan.decided_hyperparameters["regression:r"])["max_iter"]
-    )
 
 
 def test_cluster_conditional_feature_list_excludes_excluded_columns() -> None:

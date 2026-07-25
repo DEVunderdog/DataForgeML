@@ -37,12 +37,17 @@ def test_imputation_strategy_has_expected_values():
     assert ImputationStrategy.Median == "median"
     assert ImputationStrategy.Mode == "mode"
     assert ImputationStrategy.KNN == "knn"
-    assert ImputationStrategy.Regression == "regression"
     assert ImputationStrategy.MICE == "mice"
     assert ImputationStrategy.MNAR == "mnar"
     assert ImputationStrategy.Constant == "constant"
     assert ImputationStrategy.Dropped == "dropped"
     assert ImputationStrategy.Passthrough == "passthrough"
+
+
+def test_imputation_strategy_has_no_regression_member():
+    assert "Regression" not in ImputationStrategy.__members__
+    with pytest.raises(ValueError):
+        ImputationStrategy("regression")
 
 
 # ---------------------------------------------------------------------------
@@ -60,9 +65,9 @@ def test_numeric_imputation_config_default_knn_max_features():
     assert cfg.knn_max_features == 50
 
 
-def test_numeric_imputation_config_default_regression_min_rows():
+def test_numeric_imputation_config_default_mice_min_rows():
     cfg = NumericImputationConfig()
-    assert cfg.regression_min_rows == 500
+    assert cfg.mice_min_rows == 500
 
 
 def test_numeric_imputation_config_mnar_constant_fill_removed():
@@ -86,7 +91,7 @@ def test_numeric_config_to_dict_contains_all_keys():
     assert set(d.keys()) == {
         "knn_max_rows",
         "knn_max_features",
-        "regression_min_rows",
+        "mice_min_rows",
         "gradient_boost_min_rows",
         "base_max_iter",
         "knn_min_neighbors",
@@ -99,7 +104,6 @@ def test_numeric_config_to_dict_contains_all_keys():
         "mcar_feature_predictability_threshold",
         "per_column_strategy",
         "per_column_constant_fill",
-        "per_column_max_iter",
         "knn_n_neighbors",
         "mice_max_iter",
         "refit_r2_min_complete_rows",
@@ -116,7 +120,7 @@ def test_numeric_config_round_trip_default_values():
     restored = NumericImputationConfig.from_dict(original.to_dict())
     assert restored.knn_max_rows == original.knn_max_rows
     assert restored.knn_max_features == original.knn_max_features
-    assert restored.regression_min_rows == original.regression_min_rows
+    assert restored.mice_min_rows == original.mice_min_rows
     assert restored.gradient_boost_min_rows == original.gradient_boost_min_rows
     assert restored.base_max_iter == original.base_max_iter
 
@@ -125,14 +129,14 @@ def test_numeric_config_round_trip_non_default_values():
     original = NumericImputationConfig(
         knn_max_rows=10_000,
         knn_max_features=20,
-        regression_min_rows=1_000,
+        mice_min_rows=1_000,
         gradient_boost_min_rows=25_000,
         base_max_iter=20,
     )
     restored = NumericImputationConfig.from_dict(original.to_dict())
     assert restored.knn_max_rows == 10_000
     assert restored.knn_max_features == 20
-    assert restored.regression_min_rows == 1_000
+    assert restored.mice_min_rows == 1_000
     assert restored.gradient_boost_min_rows == 25_000
     assert restored.base_max_iter == 20
 
@@ -141,7 +145,7 @@ def test_numeric_config_from_dict_empty_uses_defaults():
     cfg = NumericImputationConfig.from_dict({})
     assert cfg.knn_max_rows == 50_000
     assert cfg.knn_max_features == 50
-    assert cfg.regression_min_rows == 500
+    assert cfg.mice_min_rows == 500
     assert cfg.gradient_boost_min_rows == 10_000
     assert cfg.base_max_iter == 10
     assert cfg.bimodal_correlation_threshold == 0.2
@@ -162,13 +166,13 @@ def test_numeric_config_round_trip_per_column_strategy_non_empty():
     original = NumericImputationConfig(
         _per_column_strategy={
             "sensor": ImputationStrategy.Median,
-            "income": ImputationStrategy.Regression,
+            "income": ImputationStrategy.MICE,
         },
     )
     restored = NumericImputationConfig.from_dict(original.to_dict())
     assert restored.per_column_strategy == {
         "sensor": ImputationStrategy.Median,
-        "income": ImputationStrategy.Regression,
+        "income": ImputationStrategy.MICE,
     }
 
 
@@ -409,7 +413,7 @@ def test_imputation_config_round_trip_default_values():
 
 def test_imputation_config_round_trip_non_default_values():
     original = ImputationConfig(
-        numeric=NumericImputationConfig(knn_max_rows=5_000, regression_min_rows=200),
+        numeric=NumericImputationConfig(knn_max_rows=5_000, mice_min_rows=200),
     )
     original.add_mnar_column(["income", "age"])
     original.add_indicator_column(["score"])
@@ -417,7 +421,7 @@ def test_imputation_config_round_trip_non_default_values():
     assert restored.mnar_columns == ("income", "age")
     assert restored.add_indicator_columns == ("score",)
     assert restored.numeric.knn_max_rows == 5_000
-    assert restored.numeric.regression_min_rows == 200
+    assert restored.numeric.mice_min_rows == 200
 
 
 def test_imputation_config_from_dict_empty_uses_defaults():
@@ -462,7 +466,7 @@ def test_pipeline_config_imputation_default_has_correct_thresholds():
     cfg = PipelineConfig()
     assert cfg.imputation.numeric.knn_max_rows == 50_000
     assert cfg.imputation.numeric.knn_max_features == 50
-    assert cfg.imputation.numeric.regression_min_rows == 500
+    assert cfg.imputation.numeric.mice_min_rows == 500
 
 
 def test_pipeline_config_two_instances_have_independent_imputation_configs():
@@ -546,7 +550,7 @@ def test_pipeline_config_round_trip_includes_imputation():
         numeric=NumericImputationConfig(
             knn_max_rows=15_000,
             knn_max_features=25,
-            regression_min_rows=300,
+            mice_min_rows=300,
         ),
     )
     original.imputation.add_mnar_column(["salary", "age"])
@@ -557,7 +561,7 @@ def test_pipeline_config_round_trip_includes_imputation():
     assert isinstance(restored.imputation, ImputationConfig)
     assert restored.imputation.numeric.knn_max_rows == 15_000
     assert restored.imputation.numeric.knn_max_features == 25
-    assert restored.imputation.numeric.regression_min_rows == 300
+    assert restored.imputation.numeric.mice_min_rows == 300
     assert restored.imputation.mnar_columns == ("salary", "age")
     assert restored.imputation.add_indicator_columns == ("credit_score",)
 
@@ -579,7 +583,7 @@ def test_pipeline_config_round_trip_empty_config_imputation_defaults():
 def test_column_imputation_record_domain_snap_bounds_round_trips(round_trip):
     from dataforge_ml.imputation._fitted_imputer import FittedImputer
 
-    record = ColumnImputationRecord(decision=ColumnImputationDecision(column="rating", semantic_type=SemanticType.Numeric, strategy=ImputationStrategy.Regression, domain_snap_bounds=(1.0, 5.0)))
+    record = ColumnImputationRecord(decision=ColumnImputationDecision(column="rating", semantic_type=SemanticType.Numeric, strategy=ImputationStrategy.MICE, domain_snap_bounds=(1.0, 5.0)))
     d = record.to_dict()
     assert d["domain_snap_bounds"] == [1.0, 5.0]
 
@@ -664,11 +668,10 @@ def test_per_column_strategy_all_allowed_strategies_construct():
         "col_median": ImputationStrategy.Median,
         "col_mode": ImputationStrategy.Mode,
         "col_knn": ImputationStrategy.KNN,
-        "col_reg": ImputationStrategy.Regression,
         "col_mice": ImputationStrategy.MICE,
     }
     cfg = NumericImputationConfig(_per_column_strategy=allowed)
-    assert len(cfg.per_column_strategy) == 6
+    assert len(cfg.per_column_strategy) == 5
 
 
 def test_per_column_strategy_error_names_the_column():
@@ -776,13 +779,8 @@ def test_column_imputation_record_to_dict_excludes_diagnostic_key():
 
 
 # ---------------------------------------------------------------------------
-# NumericImputationConfig — per_column_max_iter / knn_n_neighbors / mice_max_iter defaults
+# NumericImputationConfig — knn_n_neighbors / mice_max_iter defaults
 # ---------------------------------------------------------------------------
-
-
-def test_numeric_config_default_per_column_max_iter():
-    cfg = NumericImputationConfig()
-    assert cfg.per_column_max_iter == {}
 
 
 def test_numeric_config_default_knn_n_neighbors():
@@ -803,12 +801,6 @@ def test_numeric_config_default_refit_r2_min_complete_rows():
 # ---------------------------------------------------------------------------
 # NumericImputationConfig — six new fields in to_dict
 # ---------------------------------------------------------------------------
-
-
-def test_numeric_config_per_column_max_iter_in_to_dict():
-    cfg = NumericImputationConfig(_per_column_max_iter={"income": 20})
-    d = cfg.to_dict()
-    assert d["per_column_max_iter"] == {"income": 20}
 
 
 def test_numeric_config_knn_n_neighbors_in_to_dict():
@@ -836,7 +828,6 @@ def test_numeric_config_refit_fields_in_to_dict():
 
 def test_numeric_config_new_fields_from_dict_empty_uses_defaults():
     cfg = NumericImputationConfig.from_dict({})
-    assert cfg.per_column_max_iter == {}
     assert cfg.knn_n_neighbors is None
     assert cfg.mice_max_iter is None
     assert cfg.refit_r2_min_complete_rows == 50
@@ -846,12 +837,6 @@ def test_numeric_config_new_fields_from_dict_empty_uses_defaults():
 # ---------------------------------------------------------------------------
 # NumericImputationConfig — from_dict round-trips for non-default values
 # ---------------------------------------------------------------------------
-
-
-def test_numeric_config_per_column_max_iter_round_trip():
-    original = NumericImputationConfig(_per_column_max_iter={"age": 30, "income": 50})
-    restored = NumericImputationConfig.from_dict(original.to_dict())
-    assert restored.per_column_max_iter == {"age": 30, "income": 50}
 
 
 def test_numeric_config_knn_n_neighbors_round_trip():
@@ -912,10 +897,7 @@ def test_numeric_config_direct_writes_raise_type_error():
         
     with pytest.raises(TypeError):
         cfg.per_column_constant_fill["age"] = 1.0
-        
-    with pytest.raises(TypeError):
-        cfg.per_column_max_iter["age"] = 10
-        
+
     with pytest.raises(TypeError):
         cfg.bimodal_grouping_variables["age"] = "group"
 
@@ -956,12 +938,10 @@ def test_numeric_config_setter_validation_constant_fill_nan_inf():
         cfg.set_per_column_constant_fill("col", float("inf"))
 
 
-def test_numeric_config_setter_validation_max_iter():
+def test_numeric_config_set_per_column_max_iter_removed():
     cfg = NumericImputationConfig()
-    with pytest.raises(ValueError, match="must be > 0"):
-        cfg.set_per_column_max_iter("col", 0)
-    with pytest.raises(ValueError, match="must be > 0"):
-        cfg.set_per_column_max_iter("col", -5)
+    assert not hasattr(cfg, "set_per_column_max_iter")
+    assert not hasattr(cfg, "per_column_max_iter")
 
 
 def test_numeric_config_setter_validation_grouping_variable():
@@ -973,9 +953,6 @@ def test_numeric_config_setter_validation_grouping_variable():
 
 
 def test_numeric_config_from_dict_raises_on_invalid_entry():
-    with pytest.raises(ValueError, match="must be > 0"):
-        NumericImputationConfig.from_dict({"per_column_max_iter": {"col": -1}})
-        
     with pytest.raises(ValueError, match="NaN or infinity"):
         NumericImputationConfig.from_dict({"per_column_constant_fill": {"col": float("inf")}})
         
@@ -990,10 +967,8 @@ def test_numeric_config_setters_accept_lists():
     cfg = NumericImputationConfig()
     cfg.set_per_column_constant_fill(["c1", "c2"], 0.0)
     cfg.set_per_column_strategy(["c1", "c2"], ImputationStrategy.Constant)
-    cfg.set_per_column_max_iter(["c1", "c2"], 100)
     cfg.set_bimodal_grouping_variable(["c1", "c2"], "group")
-    
+
     assert cfg.per_column_constant_fill == {"c1": 0.0, "c2": 0.0}
     assert cfg.per_column_strategy == {"c1": ImputationStrategy.Constant, "c2": ImputationStrategy.Constant}
-    assert cfg.per_column_max_iter == {"c1": 100, "c2": 100}
     assert cfg.bimodal_grouping_variables == {"c1": "group", "c2": "group"}

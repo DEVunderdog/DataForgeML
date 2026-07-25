@@ -493,7 +493,14 @@ class _StrategyRouter:
         kurtosis_tag: "KurtosisTag | None" = None,
         skewness_severity: "SkewSeverity | None" = None,
     ) -> tuple[ImputationStrategy, str]:
-        """Full fallback chain for MAR-suspect columns: MICE → Regression → KNN → Median.
+        """Full fallback chain for MAR-suspect columns: MICE → KNN → Median.
+
+        The ``multi_mar``, ``Severe``, and ``High`` + correlated-predictors
+        branches all enter the joint MICE block; the last of these is the
+        former ``Regression`` trigger, collapsed into MICE by ADR-0079. Every
+        MICE entry point here is floored by ``config.mice_min_rows`` — a
+        column that fails the floor diverts to KNN, then Median, rather than
+        entering an unstable chained fit.
 
         Parameters
         ----------
@@ -522,30 +529,52 @@ class _StrategyRouter:
         tuple[ImputationStrategy, str]
             ``(strategy, signal)`` where ``signal`` records the routing decision.
         """
-        # Multi-MAR or Severe → MICE
+        # Multi-MAR → MICE, floored by mice_min_rows (ADR-0079: previously ungated)
         if multi_mar:
-            return ImputationStrategy.MICE, "mice: ≥2 MAR-suspect columns (multi-MAR)"
-        if severity == MissingSeverity.Severe:
-            return ImputationStrategy.MICE, "mice: MAR-suspect + severe missingness"
-
-        # High with correlations → Regression → KNN → Median
-        if severity == MissingSeverity.High and corrs:
-            if n_rows >= config.regression_min_rows:
-                return (
-                    ImputationStrategy.Regression,
-                    f"regression: MAR high + correlations, {n_rows:,} rows >= regression_min_rows={config.regression_min_rows:,}",
-                )
+            if n_rows >= config.mice_min_rows:
+                return ImputationStrategy.MICE, "mice: ≥2 MAR-suspect columns (multi-MAR)"
             if n_rows <= config.knn_max_rows and n_features <= config.knn_max_features:
                 return (
                     ImputationStrategy.KNN,
-                    f"knn: regression size guard failed ({n_rows:,} rows < {config.regression_min_rows:,})",
+                    f"knn: multi-mar mice_min_rows floor failed ({n_rows:,} rows < {config.mice_min_rows:,})",
                 )
             return (
                 ImputationStrategy.Median,
                 f"median: all size guards failed (rows={n_rows:,}, features={n_features})",
             )
 
-        # High with empty correlations → MCAR High fallback chain (KNN → Regression → Median)
+        # Severe → MICE, floored by mice_min_rows (ADR-0079: previously ungated)
+        if severity == MissingSeverity.Severe:
+            if n_rows >= config.mice_min_rows:
+                return ImputationStrategy.MICE, "mice: MAR-suspect + severe missingness"
+            if n_rows <= config.knn_max_rows and n_features <= config.knn_max_features:
+                return (
+                    ImputationStrategy.KNN,
+                    f"knn: mar severe mice_min_rows floor failed ({n_rows:,} rows < {config.mice_min_rows:,})",
+                )
+            return (
+                ImputationStrategy.Median,
+                f"median: all size guards failed (rows={n_rows:,}, features={n_features})",
+            )
+
+        # High with correlations → MICE (formerly Regression) → KNN → Median
+        if severity == MissingSeverity.High and corrs:
+            if n_rows >= config.mice_min_rows:
+                return (
+                    ImputationStrategy.MICE,
+                    f"mice: MAR high + correlations, {n_rows:,} rows >= mice_min_rows={config.mice_min_rows:,}",
+                )
+            if n_rows <= config.knn_max_rows and n_features <= config.knn_max_features:
+                return (
+                    ImputationStrategy.KNN,
+                    f"knn: mice size guard failed ({n_rows:,} rows < {config.mice_min_rows:,})",
+                )
+            return (
+                ImputationStrategy.Median,
+                f"median: all size guards failed (rows={n_rows:,}, features={n_features})",
+            )
+
+        # High with empty correlations → MCAR High fallback chain (KNN → MICE → Median)
         if severity == MissingSeverity.High and not corrs:
             strategy, inner_signal = self._mcar_model_strategy(
                 severity=MissingSeverity.High,
@@ -555,7 +584,7 @@ class _StrategyRouter:
             )
             return (
                 strategy,
-                f"knn/regression: MAR high + no missingness correlations detected, applying MCAR High fallback chain | {inner_signal}",
+                f"knn/mice: MAR high + no missingness correlations detected, applying MCAR High fallback chain | {inner_signal}",
             )
 
         # Minor/Moderate: distribution shape escalation — Leptokurtic or Severe skew → attempt KNN
@@ -591,7 +620,7 @@ class _StrategyRouter:
         col: "Optional[str]" = None,
         feature_correlation: "Optional[CorrelationProfileResult]" = None,
     ) -> tuple[ImputationStrategy, str]:
-        """Full fallback chain for MCAR High/Severe: KNN → Regression → Median (High); MICE (Severe).
+        """Full fallback chain for MCAR High/Severe: KNN → MICE → Median (High); MICE → KNN → Median (Severe).
 
         Parameters
         ----------
@@ -611,17 +640,28 @@ class _StrategyRouter:
         feature_correlation : CorrelationProfileResult, optional
             Pre-computed Pearson correlation matrix from Phase 1.  When
             provided and ``col`` is set, the feature-predictability check is
-            applied before routing to KNN or Regression.
+            applied before routing to KNN or MICE.
 
         Returns
         -------
         tuple[ImputationStrategy, str]
             ``(strategy, signal)`` where ``signal`` records the routing decision.
         """
+        # Severe → MICE, floored by mice_min_rows (ADR-0079: previously ungated)
         if severity == MissingSeverity.Severe:
-            return ImputationStrategy.MICE, "mice: MCAR severe missingness"
+            if n_rows >= config.mice_min_rows:
+                return ImputationStrategy.MICE, "mice: MCAR severe missingness"
+            if n_rows <= config.knn_max_rows and n_features <= config.knn_max_features:
+                return (
+                    ImputationStrategy.KNN,
+                    f"knn: mcar severe mice_min_rows floor failed ({n_rows:,} rows < {config.mice_min_rows:,})",
+                )
+            return (
+                ImputationStrategy.Median,
+                f"median: all size guards failed (rows={n_rows:,}, features={n_features})",
+            )
 
-        # Feature-predictability check: skip KNN/Regression when no predictor carries useful signal
+        # Feature-predictability check: skip KNN/MICE when no predictor carries useful signal
         if feature_correlation is not None and col is not None:
             col_corrs = feature_correlation.pearson_matrix.get(col, {})
             abs_rs = [abs(r) for c, r in col_corrs.items() if c != col]
@@ -634,16 +674,16 @@ class _StrategyRouter:
                         f"median: feature-predictability check failed (max |r|={max_abs_r:.2f} < threshold={threshold})",
                     )
 
-        # KNN → Regression → Median
+        # KNN → MICE (formerly Regression) → Median
         if n_rows <= config.knn_max_rows and n_features <= config.knn_max_features:
             return (
                 ImputationStrategy.KNN,
                 f"knn: MCAR {severity}, rows={n_rows:,} <= {config.knn_max_rows:,}, features={n_features} <= {config.knn_max_features}",
             )
-        if n_rows >= config.regression_min_rows:
+        if n_rows >= config.mice_min_rows:
             return (
-                ImputationStrategy.Regression,
-                f"regression: knn size guard failed, {n_rows:,} rows >= regression_min_rows={config.regression_min_rows:,}",
+                ImputationStrategy.MICE,
+                f"mice: knn size guard failed, {n_rows:,} rows >= mice_min_rows={config.mice_min_rows:,}",
             )
         return (
             ImputationStrategy.Median,

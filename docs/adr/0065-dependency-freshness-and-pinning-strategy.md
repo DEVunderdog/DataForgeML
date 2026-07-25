@@ -1,5 +1,7 @@
 # Dependency freshness rests on retrain-only recovery, ranged pins guarded by tightened numeric caps, and an automated fresh-and-safe update pipeline
 
+> **Amended by ADR-0080 on two points.** (1) "the `setuptools` build backend is unchanged" no longer holds — `uv_build` is now the backend, though the *published* range contract this ADR specifies is untouched. (2) **The claim that Dependabot "covers both jobs" is false once the caps below exist.** Dependabot cannot propose a version outside a declared constraint, so the four capped deps are invisible to it; they are bumped by a manual runbook in `CONTRIBUTING.md`. Every policy decision below otherwise stands.
+
 ADR-0063 named the **DataForgeML library version the single master key** for reconstructing a persisted `FittedUnit`, on the premise that "same library version" transitively guarantees a compatible sklearn/numpy/joblib environment — a premise that only holds if each release pins the dependency *ranges* it was tested against. It deferred the machinery that makes that true to a sibling ticket. This ADR is that ticket (#339): it fixes what happens on a version mismatch, how the dependency *ranges* are shaped, how the tested environment is frozen for CI, and how the project stays current and free of known vulnerabilities over time. It is the last of the persistence-boundary contracts charted in the wayfinder map (#333).
 
 ## The problem, stated plainly

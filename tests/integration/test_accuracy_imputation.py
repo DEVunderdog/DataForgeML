@@ -42,9 +42,9 @@ class _Recorder:
 
 # ---------------------------------------------------------------------------
 # A wide, correlated numeric frame so several columns route to model-based
-# strategies (KNN), with one independent column forced to Regression and a
-# scalar (Median) / no-missing (Passthrough) column that must never earn an
-# entry in the accuracy report.
+# strategies (KNN), with one independent column forced to MICE (the unified
+# chained-equations block, ADR-0079) and a scalar (Median) / no-missing
+# (Passthrough) column that must never earn an entry in the accuracy report.
 # ---------------------------------------------------------------------------
 
 
@@ -75,7 +75,7 @@ def _build_setup(config: PipelineConfig):
     cols["full"] = pl.Series(rng.normal(0.0, 1.0, n).tolist(), dtype=pl.Float64)
 
     df = pl.DataFrame(cols)
-    config.imputation.numeric.set_per_column_strategy("noise", "regression")
+    config.imputation.numeric.set_per_column_strategy("noise", "mice")
     config.imputation.numeric.set_per_column_strategy("med", "median")
 
     profile = StructuralProfiler(config).profile(df)

@@ -41,7 +41,7 @@ class _Recorder:
 
 # ---------------------------------------------------------------------------
 # A wide, correlated numeric frame so several columns route to model-based
-# strategies (MICE / Regression) whose cross-validated folds would emit
+# strategies (MICE) whose cross-validated folds would emit
 # substeps — if fit() ran them (it must not).
 # ---------------------------------------------------------------------------
 

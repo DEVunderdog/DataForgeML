@@ -69,7 +69,7 @@ def _numeric_cp(
 
 
 def _rich_plan() -> ImputationDecision:
-    """A plan exercising MICE, KNN, Regression, MNAR/indicator, and a
+    """A plan exercising MICE, KNN, MNAR/indicator, and a
     domain-snapped BoundedDiscrete column, so the round-trip covers every
     field family on ``ColumnImputationDecision``."""
     profile = StructuralProfileResult()
@@ -91,9 +91,8 @@ def _rich_plan() -> ImputationDecision:
     profile.dataset.row_count = 10_000
 
     config = PipelineConfig()
-    config.imputation.numeric.set_per_column_strategy(["a", "b"], ImputationStrategy.MICE)
+    config.imputation.numeric.set_per_column_strategy(["a", "b", "r"], ImputationStrategy.MICE)
     config.imputation.numeric.set_per_column_strategy("k", ImputationStrategy.KNN)
-    config.imputation.numeric.set_per_column_strategy("r", ImputationStrategy.Regression)
     config.imputation.numeric.set_per_column_strategy("d", ImputationStrategy.KNN)
     config.imputation.add_mnar_column("n")
 

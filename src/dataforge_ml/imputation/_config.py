@@ -24,7 +24,7 @@ class ImputationStrategy(StrEnum):
 
     **Input strategies** — may be declared in ``per_column_strategy`` to
     override automatic routing: ``Mean``, ``Median``, ``Mode``, ``KNN``,
-    ``Regression``, ``MICE``.
+    ``MICE``.
 
     **Output-only labels** — assigned by the engine after ``fit()`` and
     recorded in ``ColumnImputationRecord.strategy``; declaring them in
@@ -39,7 +39,6 @@ class ImputationStrategy(StrEnum):
     Median = "median"
     Mode = "mode"
     KNN = "knn"
-    Regression = "regression"
     MICE = "mice"
     MNAR = "mnar"
     Constant = "constant"
@@ -54,7 +53,6 @@ _MODEL_BASED_STRATEGIES: frozenset[ImputationStrategy] = frozenset(
     {
         ImputationStrategy.MICE,
         ImputationStrategy.KNN,
-        ImputationStrategy.Regression,
         ImputationStrategy.ClusterConditional,
         ImputationStrategy.GMMSampling,
     }
@@ -98,7 +96,7 @@ class ModelChoice(StrEnum):
 # Output-only labels that a user may never declare directly — the engine assigns
 # them after routing. ``Constant`` is handled separately: it is declarable in
 # config (paired with a fill value) but not editable onto a plan.
-_OUTPUT_ONLY_STRATEGIES: frozenset["ImputationStrategy"] = frozenset(
+_OUTPUT_ONLY_STRATEGIES: frozenset[ImputationStrategy] = frozenset(
     {
         ImputationStrategy.Passthrough,
         ImputationStrategy.Indicator,
@@ -119,21 +117,20 @@ _EXCLUSION_SIGNAL = "soft-excluded for Imputation phase"
 # semantic types with a registered imputer appear here; a strategy declared for
 # any other type has no engine that can execute it and is rejected. Future phases
 # extend this map as they gain imputers.
-_DECLARABLE_STRATEGIES_BY_TYPE: dict[SemanticType, frozenset["ImputationStrategy"]] = {
+_DECLARABLE_STRATEGIES_BY_TYPE: dict[SemanticType, frozenset[ImputationStrategy]] = {
     SemanticType.Numeric: frozenset(
         {
             ImputationStrategy.Mean,
             ImputationStrategy.Median,
             ImputationStrategy.Mode,
             ImputationStrategy.KNN,
-            ImputationStrategy.Regression,
             ImputationStrategy.MICE,
         }
     ),
 }
 
 
-def _output_only_redirect(column: str, strategy: "ImputationStrategy") -> str:
+def _output_only_redirect(column: str, strategy: ImputationStrategy) -> str:
     """Build the redirect message for an output-only strategy declaration."""
     if strategy == ImputationStrategy.Dropped:
         return (
@@ -167,11 +164,14 @@ class NumericImputationConfig:
     Parameters
     ----------
     knn_max_rows : int
-        Maximum number of rows before KNN is skipped in favour of Regression.
+        Maximum number of rows before KNN is skipped in favour of MICE.
     knn_max_features : int
-        Maximum number of features before KNN is skipped in favour of Regression.
-    regression_min_rows : int
-        Minimum number of rows required to fit a stable Regression model.
+        Maximum number of features before KNN is skipped in favour of MICE.
+    mice_min_rows : int
+        Minimum number of rows required to fit a stable MICE (chained-equations)
+        model. Applied as a uniform floor to every routing path that can enter
+        the joint MICE block; a column below this floor diverts to KNN, then
+        Median, instead (ADR-0079). Renamed from ``regression_min_rows``.
     gradient_boost_min_rows : int
         Row count threshold above which ``GradientBoostingRegressor`` is preferred
         over ``RandomForestRegressor`` for ``ComplexNonlinear`` columns. Below this
@@ -212,7 +212,7 @@ class NumericImputationConfig:
         Maximum absolute Pearson correlation ``|r|`` below which MCAR
         model-based routing is skipped in favour of Median. When no numeric
         predictor exceeds this threshold against the target column, KNN and
-        Regression are not attempted because the feature set contains no useful
+        MICE are not attempted because the feature set contains no useful
         predictive signal. Applies only to MCAR paths; MAR paths are not
         affected. Default of ``0.2`` preserves existing behaviour (no check
         applied today).
@@ -221,7 +221,7 @@ class NumericImputationConfig:
         routing chain — after ``DropCandidate`` but before MNAR routing.  A
         column listed here bypasses all routing priorities 2–7.  Defaults to
         empty dict (no overrides).  Allowed values: ``Mean``, ``Median``,
-        ``Mode``, ``KNN``, ``Regression``, ``MICE``.  To route a column to a
+        ``Mode``, ``KNN``, ``MICE``.  To route a column to a
         constant fill, use ``per_column_constant_fill``
     per_column_constant_fill : dict[str, float]
         Self-sufficient constant fill declarations.  Each column listed here
@@ -229,11 +229,6 @@ class NumericImputationConfig:
         bypassing all routing priorities 2–7.  No companion entry in
         ``per_column_strategy`` is required or allowed.  Keyed by column name.
         Defaults to empty dict.
-    per_column_max_iter : dict[str, int]
-        Overrides the dynamically-computed ``max_iter`` for named Regression
-        columns only.  Keys are column names; values replace whatever
-        ``_compute_max_iter`` would produce.
-        Set manually.  Defaults to empty dict (no overrides).
     knn_n_neighbors : int, optional
         Overrides the dynamically-computed ``n_neighbors`` for the entire KNN
         block. A single value governs all KNN columns.
@@ -250,7 +245,7 @@ class NumericImputationConfig:
     refit_r2_cv_folds : int
         Number of folds for the cross-validated accuracy computation
         (:meth:`EvaluationOrchestrator.score_accuracy`).  Applied uniformly
-        across Regression, KNN, and MICE columns.  Default ``5``.
+        across KNN and MICE columns.  Default ``5``.
     bimodal_grouping_variables : dict[str, str]
         Maps a bimodal column name to the name of the grouping column that
         explains the bimodal split (e.g. ``{"age": "employment_status"}``).
@@ -264,9 +259,9 @@ class NumericImputationConfig:
         the Bimodal Imputation Framework.
     max_workers : int, optional
         Degree of thread parallelism for the numeric fit (ADR-0056).  The
-        mutually-independent strategy blocks (MICE, KNN, the Regression set,
-        GMM, cluster) and the independent columns within a per-column strategy
-        are fitted concurrently on threads, capped at this many workers.
+        mutually-independent strategy blocks (MICE, KNN, GMM, cluster) and the
+        independent columns within a per-column strategy are fitted
+        concurrently on threads, capped at this many workers.
         ``None`` (the default) auto-sizes to the available CPU count; ``1``
         forces a fully sequential fit.  Concurrency never changes a result:
         the same ``random_seed`` yields a byte-identical ``FittedImputer``
@@ -285,7 +280,7 @@ class NumericImputationConfig:
 
     knn_max_rows: int = 50_000
     knn_max_features: int = 50
-    regression_min_rows: int = 500
+    mice_min_rows: int = 500
     gradient_boost_min_rows: int = 10_000
     base_max_iter: int = 10
     knn_min_neighbors: int = 5
@@ -298,15 +293,14 @@ class NumericImputationConfig:
     mcar_feature_predictability_threshold: float = 0.2
     _per_column_strategy: dict[str, ImputationStrategy] = field(default_factory=dict)
     _per_column_constant_fill: dict[str, float] = field(default_factory=dict)
-    _per_column_max_iter: dict[str, int] = field(default_factory=dict)
-    knn_n_neighbors: Optional[int] = None
-    mice_max_iter: Optional[int] = None
+    knn_n_neighbors: int | None = None
+    mice_max_iter: int | None = None
     refit_r2_min_complete_rows: int = 50
     refit_r2_cv_folds: int = 5
     _bimodal_grouping_variables: dict[str, str] = field(default_factory=dict)
     bimodal_min_correlated_features: int = 3
     bimodal_correlation_threshold: float = 0.2
-    max_workers: Optional[int] = None
+    max_workers: int | None = None
 
     @property
     def per_column_strategy(self) -> MappingProxyType[str, ImputationStrategy]:
@@ -332,19 +326,6 @@ class NumericImputationConfig:
             Read-only view of per-column constant fill values.
         """
         return MappingProxyType(self._per_column_constant_fill)
-
-    @property
-    def per_column_max_iter(self) -> MappingProxyType[str, int]:
-        """
-        Overrides the dynamically-computed ``max_iter`` for named Regression
-        columns only.
-
-        Returns
-        -------
-        MappingProxyType[str, int]
-            Read-only view of per-column max iteration overrides.
-        """
-        return MappingProxyType(self._per_column_max_iter)
 
     @property
     def bimodal_grouping_variables(self) -> MappingProxyType[str, str]:
@@ -425,31 +406,6 @@ class NumericImputationConfig:
         for col in column:
             self._per_column_constant_fill[col] = value
 
-    def set_per_column_max_iter(self, column: str | list[str], value: int) -> None:
-        """
-        Set the maximum iterations for regression models on one or more columns.
-
-        Parameters
-        ----------
-        column : str | list[str]
-            A single column name or list of column names.
-        value : int
-            The maximum iterations count.
-
-        Raises
-        ------
-        ValueError
-            If the value is less than or equal to 0.
-        """
-        if value <= 0:
-            raise ValueError(f"Max iterations must be > 0, got {value}.")
-
-        if isinstance(column, str):
-            column = [column]
-
-        for col in column:
-            self._per_column_max_iter[col] = value
-
     def set_bimodal_grouping_variable(
         self, column: str | list[str], grouping_variable: str
     ) -> None:
@@ -506,12 +462,14 @@ class NumericImputationConfig:
                     f"Column '{col}': '{strategy}' is an internal-only strategy and cannot "
                     f"be used in per_column_strategy."
                 )
-            if strategy == ImputationStrategy.Constant:
-                if col not in self._per_column_constant_fill:
-                    raise ValueError(
-                        f"Column '{col}': strategy is 'Constant' but no fill value was provided. "
-                        f"Add an entry to per_column_constant_fill."
-                    )
+            if (
+                strategy == ImputationStrategy.Constant
+                and col not in self._per_column_constant_fill
+            ):
+                raise ValueError(
+                    f"Column '{col}': strategy is 'Constant' but no fill value was provided. "
+                    f"Add an entry to per_column_constant_fill."
+                )
 
     def to_dict(self) -> dict:
         """
@@ -525,7 +483,7 @@ class NumericImputationConfig:
         return {
             "knn_max_rows": self.knn_max_rows,
             "knn_max_features": self.knn_max_features,
-            "regression_min_rows": self.regression_min_rows,
+            "mice_min_rows": self.mice_min_rows,
             "gradient_boost_min_rows": self.gradient_boost_min_rows,
             "base_max_iter": self.base_max_iter,
             "knn_min_neighbors": self.knn_min_neighbors,
@@ -540,7 +498,6 @@ class NumericImputationConfig:
                 k: str(v) for k, v in self._per_column_strategy.items()
             },
             "per_column_constant_fill": dict(self._per_column_constant_fill),
-            "per_column_max_iter": dict(self._per_column_max_iter),
             "knn_n_neighbors": self.knn_n_neighbors,
             "mice_max_iter": self.mice_max_iter,
             "refit_r2_min_complete_rows": self.refit_r2_min_complete_rows,
@@ -570,7 +527,7 @@ class NumericImputationConfig:
         config = cls(
             knn_max_rows=int(data.get("knn_max_rows", 50_000)),
             knn_max_features=int(data.get("knn_max_features", 50)),
-            regression_min_rows=int(data.get("regression_min_rows", 500)),
+            mice_min_rows=int(data.get("mice_min_rows", 500)),
             gradient_boost_min_rows=int(data.get("gradient_boost_min_rows", 10_000)),
             base_max_iter=int(data.get("base_max_iter", 10)),
             knn_min_neighbors=int(data.get("knn_min_neighbors", 5)),
@@ -593,7 +550,6 @@ class NumericImputationConfig:
             ),
             _per_column_strategy={},
             _per_column_constant_fill={},
-            _per_column_max_iter={},
             knn_n_neighbors=(
                 int(data["knn_n_neighbors"])
                 if data.get("knn_n_neighbors") is not None
@@ -624,8 +580,6 @@ class NumericImputationConfig:
             config.set_per_column_constant_fill(col, float(val))
         for col, val in data.get("per_column_strategy", {}).items():
             config.set_per_column_strategy(col, ImputationStrategy(val))
-        for col, val in data.get("per_column_max_iter", {}).items():
-            config.set_per_column_max_iter(col, int(val))
         for col, val in data.get("bimodal_grouping_variables", {}).items():
             config.set_bimodal_grouping_variable(col, str(val))
 
@@ -810,7 +764,7 @@ class InspectionDiagnostic:
     carries no held-out accuracy numbers — those live on
     :class:`AccuracyDiagnostic`, which is irreducibly a refit.
 
-    Present for KNN, Regression, MICE, and the bimodal strategies
+    Present for KNN, MICE, and the bimodal strategies
     (Cluster-Conditional, GMM-Sampling); absent (no report entry) for
     Passthrough, Dropped, Constant, MNAR, and the scalar strategies
     (Mean, Median, Mode).
@@ -833,14 +787,14 @@ class InspectionDiagnostic:
         near-constant fills.
     converged : bool, optional
         Whether ``IterativeImputer`` halted before reaching ``max_iter``.  Read
-        from the fitted MICE or Regression model.  ``None`` for KNN and the
+        from the fitted MICE model.  ``None`` for KNN and the
         bimodal strategies (convergence is not applicable).
     n_iter : int, optional
         Actual iteration count of the fitted ``IterativeImputer``.  ``None`` for
         KNN and the bimodal strategies.
     n_neighbors_used : int, optional
         Actual ``n_neighbors`` used by the fitted KNN block.  ``None`` for
-        Regression, MICE, and the bimodal strategies.
+        MICE and the bimodal strategies.
     k_capped : bool, optional
         ``True`` when the KNN neighbour count was forced down to ``n_rows − 1``
         (the model is averaging nearly every row).  ``None`` when a
@@ -909,7 +863,7 @@ class InspectionReport:
     """Per-column inspection report returned by :meth:`EvaluationOrchestrator.inspect`.
 
     Holds one :class:`InspectionDiagnostic` per model-based column (KNN,
-    Regression, MICE, and the bimodal strategies); columns handled by scalar
+    MICE, and the bimodal strategies); columns handled by scalar
     strategies, Passthrough, Dropped, Constant, or MNAR carry no entry.
     Supports ``report[col]`` lookup and ``col in report`` membership tests
     (ADR-0058).
@@ -1001,7 +955,7 @@ class AccuracyDiagnostic:
     cross-validating the column's recorded strategy on folds of the complete
     rows, never from the final fitted model.
 
-    Present for KNN, Regression, MICE, and the bimodal strategies
+    Present for KNN, MICE, and the bimodal strategies
     (Cluster-Conditional, GMM-Sampling); absent (no report entry) for
     Passthrough, Dropped, Constant, MNAR, and the scalar strategies
     (Mean, Median, Mode).
@@ -1068,7 +1022,7 @@ class AccuracyReport:
     """Per-column accuracy report returned by :meth:`EvaluationOrchestrator.score_accuracy`.
 
     Holds one :class:`AccuracyDiagnostic` per model-based column (KNN,
-    Regression, MICE, and the bimodal strategies); columns handled by scalar
+    MICE, and the bimodal strategies); columns handled by scalar
     strategies, Passthrough, Dropped, Constant, or MNAR carry no entry.
     Supports ``report[col]`` lookup and ``col in report`` membership tests
     (ADR-0058).
@@ -1434,7 +1388,7 @@ class ImputationUnit:
 
     The plan's materialised, re-derived projection of *what execution trains
     together* (ADR-0060): the joint ``MICE`` block, the joint ``KNN`` block, and
-    one unit per independent column (Regression / GMM-Sampling /
+    one unit per independent column (GMM-Sampling /
     Cluster-Conditional / scalar). Structural strategies (Dropped / Passthrough /
     Indicator) train nothing and produce no unit. A unit is a value-free
     projection — it names the columns and the estimator family, never a fitted
@@ -1843,7 +1797,7 @@ class ImputationDecision:
         ----------
         unit_id : str
             ID of the unit to override (e.g. ``"mice"``, ``"knn"``, or
-            ``"regression:age"``). Must already be present in the plan.
+            ``"median:age"``). Must already be present in the plan.
         hyperparameters : dict[str, Any] or None
             The keys to override and their replacement values, or ``None`` to
             reset the unit to its decided base.

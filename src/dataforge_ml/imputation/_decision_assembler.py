@@ -292,7 +292,7 @@ def decide(
         mice_tol = _compute_mice_tol(winning_tag, mice_stats)
         mice_initial_strategy = _mice_initial_strategy(mice_stats)
         mice_n_nearest, _ = _compute_mice_n_nearest_features(
-            feature_correlation, mice_cols, numeric_cfg
+            feature_correlation, mice_cols, numeric_cols, numeric_cfg
         )
         mice_hyperparameters = tuple(
             {
@@ -359,9 +359,6 @@ def decide(
         strategy, signals = routed[col]
         model_choice = _resolve_model_choice(
             strategy=strategy,
-            stats=_column_stats(cp),
-            n_rows=n_rows,
-            config=numeric_cfg,
             mice_model_choice=mice_model_choice,
         )
 
@@ -377,36 +374,6 @@ def decide(
         ):
             decided_hyperparameters[f"{strategy}:{col}"] = _bimodal_hyperparameters(
                 col, cp, strategy, feature_correlation, numeric_cfg
-            )
-        elif strategy == ImputationStrategy.Regression:
-            feat_cols = [c for c in numeric_cols if c != col]
-            missing_feat_cols = [
-                c
-                for c in feat_cols
-                if profile.columns[c].missingness is not None
-                and profile.columns[c].missingness.effective_null_ratio > 0
-            ]
-            mean_corr = _mean_pairwise_pearson(feature_correlation, missing_feat_cols)
-            complete_row_fraction = _complete_row_fraction(profile)
-            tag = _resolve_nonlinearity_tag(_column_stats(cp))
-            reg_max_iter = _compute_max_iter(
-                tag,
-                _column_stats(cp),
-                len(missing_feat_cols),
-                mean_corr,
-                complete_row_fraction,
-                numeric_cfg,
-            )
-            _reg_override = (numeric_cfg.per_column_max_iter or {}).get(col)
-            if _reg_override is not None:
-                reg_max_iter = int(_reg_override)
-            reg_tol = _compute_tol(tag, _column_stats(cp))
-            decided_hyperparameters[f"regression:{col}"] = tuple(
-                {
-                    "max_iter": reg_max_iter,
-                    "tol": reg_tol,
-                    "nonlinearity_tag": str(tag),
-                }.items()
             )
 
         decisions[col] = ColumnImputationDecision(
@@ -528,21 +495,14 @@ def _correlated_feature_cols(
 
 def _resolve_model_choice(
     strategy: ImputationStrategy,
-    stats: "Optional[NumericStats]",
-    n_rows: int,
-    config: NumericImputationConfig,
     mice_model_choice: Optional[ModelChoice],
 ) -> Optional[ModelChoice]:
     """Resolve the estimator family for one column at decide-time.
 
-    Regression columns resolve their own estimator from the column's
-    nonlinearity tag; MICE columns inherit the block-level choice; all other
-    strategies (KNN, the bimodal strategies, and every scalar/structural
-    strategy) carry no estimator family.
+    MICE columns inherit the block-level choice; every other strategy (KNN,
+    the bimodal strategies, and every scalar/structural strategy) carries no
+    estimator family.
     """
-    if strategy == ImputationStrategy.Regression:
-        tag = _resolve_nonlinearity_tag(stats)
-        return RegressionEstimatorFactory.resolve_choice(tag, n_rows, config)
     if strategy == ImputationStrategy.MICE:
         return mice_model_choice
     return None
@@ -632,98 +592,6 @@ def _max_pairwise_pearson(feature_correlation, cols: list[str]) -> Optional[floa
     return max(values) if values else None
 
 
-def _mean_pairwise_pearson(feature_correlation, cols: list[str]) -> Optional[float]:
-    """Mean absolute pairwise Pearson ``|r|`` among ``cols``.
-
-    The regression ``max_iter`` coupling signal averages (rather than maximises)
-    over the missing-feature columns. Sourced purely from ``feature_correlation``
-    with no array fallback; ``None`` when unavailable so the signal contributes
-    nothing.
-    """
-    if feature_correlation is None or len(cols) < 2:
-        return None
-    values: list[float] = []
-    for i in range(len(cols)):
-        for j in range(i + 1, len(cols)):
-            r = feature_correlation.get_pearson(cols[i], cols[j])
-            if r is not None:
-                values.append(abs(r))
-    if not values:
-        return None
-    return sum(values) / len(values)
-
-
-def _compute_max_iter(
-    tag: NonlinearityTag,
-    stats: Optional[NumericStats],
-    n_missing_features: int,
-    mean_missing_feat_corr: Optional[float],
-    complete_row_fraction: float,
-    config: NumericImputationConfig,
-) -> int:
-    """Compute ``max_iter`` for the single-column Regression ``IterativeImputer``.
-
-    Profile-fed (ADR-0062): every convergence signal is resolved from Phase 1
-    statistics, never a peek at the fitted array.
-
-    Parameters
-    ----------
-    tag : NonlinearityTag
-        Nonlinearity classification of the target column.
-    stats : NumericStats or None
-        Phase 1 statistics for the target; ``r2_gap`` drives the near-linear
-        signal.
-    n_missing_features : int
-        Number of feature columns carrying missing values.
-    mean_missing_feat_corr : float or None
-        Mean absolute pairwise Pearson correlation among the missing-feature
-        columns; ``None`` degrades the coupling signal to a no-op.
-    complete_row_fraction : float
-        Dataset-level fraction of fully-observed rows.
-    config : NumericImputationConfig
-        Imputation configuration supplying ``base_max_iter``.
-
-    Returns
-    -------
-    int
-        Computed ``max_iter`` value, always at least ``1``.
-    """
-    base = config.base_max_iter
-
-    # Signal 1: ComplexNonlinear → more iterations required
-    if tag == NonlinearityTag.ComplexNonlinear:
-        base += 5
-
-    # Signal 2: count of feature columns with missing values
-    base += n_missing_features * 2
-
-    # Signal 3: low R² gap indicates a near-linear relationship → fewer iterations
-    if stats is not None and stats.r2_gap is not None and stats.r2_gap < 0.05:
-        base = max(1, base - 3)
-
-    # Signal 4: high pairwise correlation among missing-feature columns → more iterations
-    if mean_missing_feat_corr is not None and mean_missing_feat_corr >= 0.7:
-        base += 3
-
-    # Signal 5: low complete-row fraction → more iterations needed
-    if complete_row_fraction < 0.2:
-        base += 5
-    elif complete_row_fraction < 0.5:
-        base += 3
-
-    return max(1, base)
-
-
-def _compute_tol(
-    tag: NonlinearityTag,
-    stats: Optional[NumericStats],
-) -> float:
-    if stats is not None and stats.iqr is not None and stats.iqr > 0:
-        scaling_factor = 5e-5 if tag == NonlinearityTag.ComplexNonlinear else 1e-4
-        return max(1e-7, stats.iqr * scaling_factor)
-    return 1e-3
-
-
 def _compute_mice_max_iter(
     winning_tag: NonlinearityTag,
     mice_stats: list[Optional[NumericStats]],
@@ -734,8 +602,7 @@ def _compute_mice_max_iter(
 ) -> int:
     """Compute ``max_iter`` for the MICE ``IterativeImputer`` from five signals.
 
-    Profile-fed (ADR-0062). Mirrors ``_compute_max_iter`` for the single-column
-    Regression strategy but uses MICE-specific aggregation: minimum R² gap across
+    Profile-fed (ADR-0062), aggregated block-wide: minimum R² gap across
     the block (worst-case convergence speed), maximum pairwise inter-column
     Pearson ``|r|`` (strongest coupling driver), and the block missingness
     fraction.
@@ -866,6 +733,7 @@ def _mice_initial_strategy(mice_stats: list[Optional[NumericStats]]) -> str:
 def _compute_mice_n_nearest_features(
     feature_correlation,
     mice_cols: list[str],
+    numeric_cols: list[str],
     config: NumericImputationConfig,
 ) -> tuple[Optional[int], str]:
     """Compute ``n_nearest_features`` for the MICE ``IterativeImputer``.
@@ -873,9 +741,11 @@ def _compute_mice_n_nearest_features(
     Profile-fed (ADR-0062). For blocks at or below
     ``mice_n_nearest_features_min_cols`` columns all predictors are used
     (``n_nearest_features=None``). For larger blocks, the number of informative
-    predictors per column is counted from the profiler's pairwise Pearson
-    correlations and the median count across columns is returned, capped at
-    ``mice_max_nearest_features``.
+    predictors per column is counted against the full active-numeric breadth
+    (ADR-0079) — not just the block's own membership, matching the block's true,
+    widened predictor set once its fitter also reads every active numeric
+    column as a candidate predictor — and the median count across the block's
+    own columns is returned, capped at ``mice_max_nearest_features``.
 
     Correlations are read solely from ``feature_correlation`` (the
     ``CorrelationProfiler`` output). An absent correlation contributes nothing —
@@ -887,7 +757,13 @@ def _compute_mice_n_nearest_features(
         Pre-computed pairwise correlations from Phase 1, or ``None`` when
         unavailable.
     mice_cols : list[str]
-        MICE block column names.
+        MICE block column names — the block's own owned columns. Gates the
+        ``mice_n_nearest_features_min_cols`` threshold and is the set the
+        per-column informative-predictor count is computed for.
+    numeric_cols : list[str]
+        Every active ``SemanticType.Numeric`` column in the plan — the
+        candidate predictor pool each block column's count is drawn from,
+        widened past the block's own membership.
     config : NumericImputationConfig
         Imputation configuration supplying ``mice_n_nearest_features_min_cols``,
         ``mice_max_nearest_features``, and ``mice_correlation_threshold``.
@@ -911,7 +787,7 @@ def _compute_mice_n_nearest_features(
 
     for col_i in mice_cols:
         count = 0
-        for col_j in mice_cols:
+        for col_j in numeric_cols:
             if col_i == col_j:
                 continue
             r: Optional[float] = (
@@ -928,7 +804,8 @@ def _compute_mice_n_nearest_features(
 
     return n_nearest, (
         f"mice_n_nearest_features: {n_nearest} "
-        f"(median informative predictors={median_count}, "
+        f"(median informative predictors={median_count} across "
+        f"{len(numeric_cols)} active numeric columns, "
         f"capped at mice_max_nearest_features={config.mice_max_nearest_features}, "
         f"threshold={threshold})"
     )
@@ -1010,7 +887,6 @@ def _resolve_domain_snap_bounds(
         return None
     if strategy not in (
         ImputationStrategy.KNN,
-        ImputationStrategy.Regression,
         ImputationStrategy.MICE,
         ImputationStrategy.GMMSampling,
     ):

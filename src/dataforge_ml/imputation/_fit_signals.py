@@ -40,8 +40,8 @@ class ImputationFitWarning(UserWarning):
 
     The two conditions that raise it are a model that hit its iteration cap
     without converging, and a strategy forced past its routing threshold (KNN
-    above the row/feature caps, or Regression below the row floor) — the latter
-    is warned, never blocked (ADR-0071).
+    above the row/feature caps) — the latter is warned, never blocked
+    (ADR-0071).
     """
 
 

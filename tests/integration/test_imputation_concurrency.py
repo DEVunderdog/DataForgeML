@@ -29,9 +29,8 @@ from dataforge_ml.profiling._config import ProfileConfig
 
 
 # ---------------------------------------------------------------------------
-# A wide, mixed-strategy dataset: several mutually-independent units of work
-# (a joint MICE block plus multiple per-column Regression fits) so the outer
-# thread parallelism actually engages.
+# A wide, mixed-strategy dataset: two mutually-independent joint blocks (MICE
+# and KNN) so the outer thread parallelism actually engages.
 # ---------------------------------------------------------------------------
 
 
@@ -56,19 +55,21 @@ def wide_profile(wide_df):
 
 
 def _mixed_config() -> PipelineConfig:
-    """Force a joint MICE block and three per-column Regression fits.
+    """Force a joint MICE block and a joint KNN block.
 
-    Yields four mutually-independent units of work so both kinds of concurrency
-    (independent blocks and independent columns) are exercised at once.
+    Yields two mutually-independent units of work so the outer thread
+    parallelism actually engages (ADR-0079 collapsed the per-column
+    Regression fits this fixture used to force into the joint MICE block, so
+    a single plan can no longer carry more than one MICE unit).
     """
     numeric = NumericImputationConfig(
-        regression_min_rows=10,
+        mice_min_rows=10,
         _per_column_strategy={
             "a": ImputationStrategy.MICE,
             "b": ImputationStrategy.MICE,
-            "c": ImputationStrategy.Regression,
-            "d": ImputationStrategy.Regression,
-            "e": ImputationStrategy.Regression,
+            "c": ImputationStrategy.MICE,
+            "d": ImputationStrategy.KNN,
+            "e": ImputationStrategy.KNN,
         },
     )
     return PipelineConfig(
@@ -171,9 +172,14 @@ def test_pooled_fit_matches_default_sized_pool(wide_df, wide_profile):
 
 
 def _forest_plan(profile):
-    """A plan with every unit routed to RandomForest."""
+    """A plan with the MICE block routed to RandomForest.
+
+    KNN carries no ``model_choice`` (it never reads one), so only the MICE
+    columns are forced; the KNN block still runs concurrently alongside it,
+    exercising the outer schedule the RandomForest determinism claim is about.
+    """
     plan, config = _mixed_plan(profile)
-    for col in ("a", "b", "c", "d", "e"):
+    for col in ("a", "b", "c"):
         plan = plan.with_model_choice(col, ModelChoice.RandomForestRegressor)
     return plan, config
 

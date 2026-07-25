@@ -1,35 +1,42 @@
 [build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
+requires = ["uv_build>=0.11,<0.12"]
+build-backend = "uv_build"
 
 [project]
 name = "dataforge-ml"
 version = "2.2.1"
 description = "A automated feature engineering and designing pipeline library"
 readme = "README.md"
-requires-python = ">3.10"
-license = {text = "MIT"}
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
 classifiers = [
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
+# Upper caps on the numeric/pickle-critical deps (ADR-0065): a fresh install can
+# never silently pull an upstream the test matrix has not exercised. The bands are
+# read off uv.lock -- which forks per interpreter -- so a cap may span two minors.
+# Raising one is a deliberate ritual; see the dependency bump runbook in CONTRIBUTING.
 dependencies = [
+    "scikit-learn>=1.9,<1.10",
+    "numpy>=2.4,<2.6",
+    "scipy>=1.17,<1.19",
+    "joblib>=1.5,<1.6",
     "polars>=1.0.0",
-    "scikit-learn>=1.0.0",
-    "scipy>=1.10.0",
-    "numpy>=2.0.0",
     "pandas>=2.0.0",
     "chardet>=5.0.0",
     "iterative-stratification>=0.1.9",
     "diptest",
 ]
 
-[project.optional-dependencies]
-dev = [
+[dependency-groups]
+test = [
     "pytest>=8.0",
+]
+docs = [
     "sphinx>=8.0",
     "pydata-sphinx-theme>=0.16",
     "myst-parser>=4.0",
@@ -37,8 +44,9 @@ dev = [
     "sphinx-autobuild>=2024.0",
 ]
 
+[tool.uv]
+required-version = ">=0.11"
+default-groups = ["test", "docs"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-
-[tool.setuptools.packages.find]
-where = ["src"]

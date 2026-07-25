@@ -51,7 +51,7 @@ def test_with_strategy_returns_new_plan_original_unchanged() -> None:
 
 
 def test_with_model_choice_returns_new_plan_original_unchanged() -> None:
-    plan = _plan(_numeric("a", S.Regression, model_choice=ModelChoice.BayesianRidge))
+    plan = _plan(_numeric("a", S.MICE, model_choice=ModelChoice.BayesianRidge))
     edited = plan.with_model_choice("a", ModelChoice.RandomForestRegressor)
     assert edited is not plan
     assert plan.column_decisions["a"].model_choice == ModelChoice.BayesianRidge
@@ -88,13 +88,13 @@ def test_with_strategy_forced_is_not_read_from_the_signal_string() -> None:
 
 
 def test_with_strategy_resets_model_choice() -> None:
-    plan = _plan(_numeric("a", S.Regression, model_choice=ModelChoice.GradientBoostingRegressor))
+    plan = _plan(_numeric("a", S.MICE, model_choice=ModelChoice.GradientBoostingRegressor))
     edited = plan.with_strategy("a", S.Median)
     assert edited.column_decisions["a"].model_choice is None
 
 
 def test_with_model_choice_accepts_none_and_string() -> None:
-    plan = _plan(_numeric("a", S.Regression, model_choice=ModelChoice.BayesianRidge))
+    plan = _plan(_numeric("a", S.MICE, model_choice=ModelChoice.BayesianRidge))
     assert plan.with_model_choice("a", None).column_decisions["a"].model_choice is None
     assert (
         plan.with_model_choice("a", "random_forest_regressor").column_decisions["a"].model_choice
@@ -121,10 +121,10 @@ def test_units_reflect_the_edit() -> None:
 
 
 def test_with_model_choice_edit_visible_on_unit_owner() -> None:
-    plan = _plan(_numeric("a", S.Regression, model_choice=ModelChoice.BayesianRidge))
+    plan = _plan(_numeric("a", S.MICE, model_choice=ModelChoice.BayesianRidge))
     edited = plan.with_model_choice("a", ModelChoice.RandomForestRegressor)
     # the estimator family is reachable through the plan the unit belongs to
-    assert edited.units[0].unit_id == "regression:a"
+    assert edited.units[0].unit_id == "mice"
     assert edited.column_decisions["a"].model_choice == ModelChoice.RandomForestRegressor
 
 
@@ -170,7 +170,7 @@ def test_constant_rejected_with_config_redirect() -> None:
 
 
 @pytest.mark.parametrize(
-    "strategy", [S.Regression, S.MICE, S.KNN, S.Mean, S.Median, S.Mode]
+    "strategy", [S.MICE, S.KNN, S.Mean, S.Median, S.Mode]
 )
 def test_numeric_input_strategies_are_declarable(strategy) -> None:
     plan = _plan(_numeric("a", S.Median))
@@ -204,7 +204,7 @@ def test_with_strategy_unknown_column_raises_keyerror() -> None:
 
 
 def test_with_model_choice_unknown_column_raises_keyerror() -> None:
-    plan = _plan(_numeric("a", S.Regression))
+    plan = _plan(_numeric("a", S.MICE))
     with pytest.raises(KeyError):
         plan.with_model_choice("nope", ModelChoice.BayesianRidge)
 

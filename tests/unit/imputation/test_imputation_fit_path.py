@@ -345,9 +345,10 @@ def test_fit_numeric_sentinels_empty_when_profile_has_none():
 # ``ImputationOrchestrator.fit()`` and were tested here.  They are gone with that
 # seam (#368), and the layered path does not reproduce them:
 #
-# - forced **Regression** below ``regression_min_rows`` is still caught, but as an
-#   execute-time ``UnitNotTrainableError`` rather than a decide-time ``ValueError``
-#   naming the dial to change (ADR-0029/0066);
+# - forced **MICE** below ``mice_min_rows`` (the floor formerly named
+#   ``regression_min_rows``, before the ADR-0079 collapse folded Regression into
+#   MICE) is still caught, but as an execute-time ``UnitNotTrainableError`` rather
+#   than a decide-time ``ValueError`` naming the dial to change (ADR-0029/0066);
 # - forced **KNN** above ``knn_max_rows`` / ``knn_max_features`` is no longer caught
 #   at all — it plans and trains silently.
 #

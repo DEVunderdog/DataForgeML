@@ -24,17 +24,17 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_branch }}
 
-      # Python version matches the upper bound tested in CI (pyproject.toml requires >3.10)
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.12"
+          enable-cache: true
 
-      - name: Install dependencies
-        run: pip install -e ".[dev]"
+      # The interpreter comes from .python-version; only the `docs` group is synced.
+      - name: Install project and docs dependencies
+        run: uv sync --locked --no-default-groups --group docs
 
       - name: Build docs
-        run: sphinx-build -W -b html docs/ docs/_build/html
+        run: uv run --no-sync sphinx-build -W -b html docs/ docs/_build/html
 
       # One-time manual step: after the first successful run, go to
       # repo Settings → Pages → Source and select the gh-pages branch.

@@ -7,7 +7,7 @@ receive fill values. The contract is enforced inside each unit's own
 ``transform``, so it holds on the stateless user-orchestrated door (ADR-0071)
 where a user holds a single Fitted Unit with no ``FittedImputer`` involved.
 
-Parametrized over every Fitted Unit type. Regression, MICE, KNN and the scalar
+Parametrized over every Fitted Unit type. MICE, KNN and the scalar
 control are forced per column; the bimodal strategies cannot be forced, so
 their cases route naturally off bimodal fixtures (grouping variable declared →
 Cluster-Conditional, no correlated features → GMM Sampling). ``median`` rides
@@ -25,7 +25,6 @@ import pytest
 from dataforge_ml import PipelineConfig, StructuralProfiler, decide, fit_unit
 
 STRATEGY_CASES = [
-    pytest.param("regression", id="regression"),
     pytest.param("mice", id="mice"),
     pytest.param("knn", id="knn"),
     pytest.param("median", id="scalar-control"),
@@ -33,7 +32,7 @@ STRATEGY_CASES = [
     pytest.param("gmm_sampling", id="gmm-sampling"),
 ]
 
-_FORCED_STRATEGIES = ("regression", "mice", "knn", "median")
+_FORCED_STRATEGIES = ("mice", "knn", "median")
 
 _TARGET_COLS = ("rating", "stock", "noisy")
 

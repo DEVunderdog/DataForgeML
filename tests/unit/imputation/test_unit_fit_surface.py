@@ -27,6 +27,7 @@ from dataforge_ml.imputation import (
     UnitNotTrainableError,
 )
 from dataforge_ml.imputation._fitted_units import FittedScalar
+from dataforge_ml.profiling._config import ProfileConfig
 
 
 def _holey_frame(n=250, seed=0):
@@ -110,51 +111,61 @@ def test_compose_rejects_a_set_that_does_not_cover_the_plan():
 
 
 def test_application_order_is_plan_order():
-    # Force several columns to model-based strategies so the composed imputer
+    # Force columns onto distinct model-based blocks so the composed imputer
     # carries more than one unit, then assert the ordered ``units`` list tracks
     # the plan's model-unit order rather than any training/completion order.
     df = _holey_frame(seed=3)
     config = PipelineConfig()
-    for col in ("a", "b", "c"):
-        config.imputation.numeric.set_per_column_strategy(col, "regression")
+    config.imputation.numeric.set_per_column_strategy(["a", "b"], "mice")
+    config.imputation.numeric.set_per_column_strategy("c", "knn")
     plan = _plan(df, config)
-    imputer = FittedImputer.compose(plan, _fit_all(plan, df))
+    results = _fit_all(plan, df)
+    imputer = FittedImputer.compose(plan, results)
 
-    plan_model_units = [
+    plan_model_unit_ids = [
         u.unit_id
         for u in plan.units
         if u.strategy.value not in ("mean", "median", "mode", "constant", "mnar")
     ]
-    fitted_targets = [u.target_columns[0] for u in imputer.units]
-    fitted_ids = [f"regression:{c}" for c in fitted_targets]
-    assert fitted_ids == plan_model_units
+    assert len(plan_model_unit_ids) >= 2
+    expected = [results[unit_id].fitted for unit_id in plan_model_unit_ids]
+    assert len(imputer.units) == len(expected)
+    assert all(a is b for a, b in zip(imputer.units, expected))
 
 
-def _single_column_forced_regression_plan():
-    # A regression forced on the only column has no feature columns to predict
-    # from, so its fitter reports it cannot train — with the column well under
-    # the drop threshold so the plan really does route it to a regression unit.
+def _unpredictable_mice_plan():
+    # A MICE column whose values are white noise, uncorrelated with every
+    # other numeric column, profiles Unpredictable (near-zero R²_RF) — the
+    # block resolves no model choice and its fitter reports it cannot train.
+    # Nonlinearity profiling must be explicitly enabled (off by default) and
+    # driven straight into StructuralProfiler, bypassing ``_plan``'s
+    # default-config profile.
     rng = np.random.default_rng(1)
-    vals = rng.normal(0.0, 1.0, 250).tolist()
-    for i in range(250):
-        if rng.random() < 0.12:
-            vals[i] = None
-    df = pl.DataFrame({"a": pl.Series(vals, dtype=pl.Float64)})
-    config = PipelineConfig()
-    config.imputation.numeric.set_per_column_strategy("a", "regression")
-    return df, _plan(df, config)
+    n = 500
+    x1 = rng.normal(0.0, 1.0, n)
+    x2 = rng.normal(0.0, 1.0, n)
+    y = np.random.default_rng(99).normal(0.0, 1.0, n)
+    holes = rng.choice(n, int(n * 0.12), replace=False)
+    y[holes] = np.nan
+    df = pl.DataFrame({"x1": x1, "x2": x2, "y": y})
+    config = PipelineConfig(profiling=ProfileConfig(compute_nonlinearity=True))
+    config.imputation.numeric.set_per_column_strategy("y", "mice")
+    profile = StructuralProfiler(config=config).profile(df)
+    plan = decide(profile, len(df), config)
+    return df, plan
 
 
 def test_untrainable_unit_raises_with_structured_payload():
-    df, plan = _single_column_forced_regression_plan()
-    unit_id = "regression:a"
+    df, plan = _unpredictable_mice_plan()
+    unit_id = "mice"
     assert any(u.unit_id == unit_id for u in plan.units)
+    assert plan.column_decisions["y"].model_choice is None
 
     with pytest.raises(UnitNotTrainableError) as exc:
         fit_unit(plan, unit_id, df)
     err = exc.value
     assert err.unit_id == unit_id
-    assert err.columns == ("a",)
+    assert err.columns == ("y",)
     assert err.reason
 
 
@@ -188,9 +199,9 @@ def test_forced_oversize_warns_structurally_and_records_it():
 
 def test_genuine_failure_still_raises_not_warns():
     """A forced but untrainable unit raises; it does not degrade to a warning."""
-    df, plan = _single_column_forced_regression_plan()
+    df, plan = _unpredictable_mice_plan()
     with pytest.raises(UnitNotTrainableError):
-        fit_unit(plan, "regression:a", df)
+        fit_unit(plan, "mice", df)
 
 
 def test_fit_result_carries_a_populated_fit_signals_record():
@@ -212,9 +223,9 @@ def test_fit_result_carries_a_populated_fit_signals_record():
 def test_fit_signals_reports_estimator_and_convergence_for_a_model_unit():
     df = _holey_frame(n=600)
     config = PipelineConfig()
-    config.imputation.numeric.set_per_column_strategy("a", "regression")
+    config.imputation.numeric.set_per_column_strategy("a", "mice")
     plan = _plan(df, config)
-    unit_id = "regression:a"
+    unit_id = "mice"
     assert any(u.unit_id == unit_id for u in plan.units)
 
     signals = fit_unit(plan, unit_id, df).signals

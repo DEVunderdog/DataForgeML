@@ -21,6 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Mapping, Optional
 
+
 import numpy as np
 import polars as pl
 from sklearn.experimental import enable_iterative_imputer  # noqa: F401
@@ -38,7 +39,6 @@ from ._fit_signals import FitSignals
 from ._fitted_units import (
     FittedClusterConditional,
     FittedGMMSampling,
-    FittedRegression,
     FittedScalar,
 )
 from ._regression_estimator_factory import (
@@ -60,7 +60,6 @@ __all__ = [
     "fit_gmm_unit",
     "fit_knn_unit",
     "fit_mice_unit",
-    "fit_regression_unit",
     "fit_scalar_unit",
 ]
 
@@ -93,8 +92,9 @@ class UnitFitContext:
     config : NumericImputationConfig
         Numeric imputation configuration.
     feature_columns : tuple[str, ...], optional
-        The numeric column population a per-column model may predict from. A
-        Regression unit's predictors are these columns minus its own target.
+        The numeric column population a model-based unit may predict from. The
+        joint MICE block's predictors are these columns minus its own owned
+        columns (ADR-0079).
     random_seed : int, optional
         Seed for the stochastic strategies (GMM sampling).
     """
@@ -139,10 +139,9 @@ def _oversize_warning(
     """Detect a strategy forced past its routing threshold (ADR-0074).
 
     Reconstructed purely from the unit's shape against the config thresholds — no
-    stored ``forced`` flag: KNN over ``knn_max_rows`` / ``knn_max_features``, or
-    Regression under ``regression_min_rows``. Returns the warning text, or
-    ``None`` when the shape sits within its routing envelope. It warns; it never
-    blocks (ADR-0071).
+    stored ``forced`` flag: KNN over ``knn_max_rows`` / ``knn_max_features``.
+    Returns the warning text, or ``None`` when the shape sits within its
+    routing envelope. It warns; it never blocks (ADR-0071).
     """
     n_rows = train_df.height
     cfg = ctx.config
@@ -153,14 +152,7 @@ def _oversize_warning(
                 f"KNN forced past its routing threshold: {n_rows} rows "
                 f"(cap {cfg.knn_max_rows}), {n_features} features "
                 f"(cap {cfg.knn_max_features}); routing would have preferred "
-                f"Regression at this shape"
-            )
-    elif unit.strategy == ImputationStrategy.Regression:
-        if n_rows < cfg.regression_min_rows:
-            return (
-                f"Regression forced below its routing threshold: {n_rows} rows "
-                f"(floor {cfg.regression_min_rows}); routing would have preferred "
-                f"KNN at this shape"
+                f"MICE at this shape"
             )
     return None
 
@@ -221,6 +213,54 @@ _CENTRAL_TENDENCY: dict[str, Any] = {
 }
 
 
+def _fill_scalar_predictors(
+    train_df: pl.DataFrame, ctx: UnitFitContext, extra_cols: list[str]
+) -> tuple[pl.DataFrame, list[str]]:
+    """Pre-fill a joint block's scalar-owned predictors to match the serve frame.
+
+    At serve time every model-based unit reads the same pre-model snapshot,
+    which already carries the scalar fills (``FittedImputer.transform``
+    applies Mean / Median / Mode before any model unit runs). A joint block's
+    fit frame must see the same filled values for those predictors rather
+    than their raw nulls, or the fit trains against a distribution it will
+    never serve against (#418). The fill is recomputed here from ``train_df``
+    under each predictor's own decided strategy — never read off a sibling
+    ``FittedScalar`` unit's learned state — so ``fit_unit`` calls stay
+    independent of one another (ADR-0074). A predictor routed to a
+    model-based strategy (KNN / MICE) is left untouched: it
+    arrives raw at serve time too, so raw is already the matching frame.
+
+    Parameters
+    ----------
+    train_df : pl.DataFrame
+        Training split.
+    ctx : UnitFitContext
+        Plan decisions; each predictor's decided strategy is read from here.
+    extra_cols : list[str]
+        Predictor columns outside the block's own membership.
+
+    Returns
+    -------
+    tuple[pl.DataFrame, list[str]]
+        ``train_df`` (or a copy with the scalar-owned predictors' nulls
+        filled) paired with the names of the columns that were filled.
+    """
+    filled_cols = []
+    fill_exprs = []
+    for c in extra_cols:
+        decision = ctx.column_decisions.get(c)
+        if decision is None:
+            continue
+        tendency = _CENTRAL_TENDENCY.get(str(decision.strategy))
+        if tendency is None:
+            continue
+        fill_exprs.append(pl.col(c).fill_null(tendency(train_df, c)))
+        filled_cols.append(c)
+    if not fill_exprs:
+        return train_df, filled_cols
+    return train_df.with_columns(fill_exprs), filled_cols
+
+
 def _dispatch_unit_fit(
     unit: "ImputationUnit",
     train_df: pl.DataFrame,
@@ -264,8 +304,6 @@ def _dispatch_unit_fit(
         return fit_mice_unit(unit, train_df, ctx, n_jobs_inner=n_jobs_inner)
     if strategy == ImputationStrategy.KNN:
         return fit_knn_unit(unit, train_df, ctx)
-    if strategy == ImputationStrategy.Regression:
-        return fit_regression_unit(unit, train_df, ctx, n_jobs_inner=n_jobs_inner)
     if strategy == ImputationStrategy.GMMSampling:
         return fit_gmm_unit(unit, train_df, ctx)
     if strategy == ImputationStrategy.ClusterConditional:
@@ -306,9 +344,7 @@ def fit_scalar_unit(
     col = unit.columns[0]
 
     def _signals(notes: tuple[str, ...] = ()) -> FitSignals:
-        return FitSignals(
-            unit_id=unit.unit_id, strategy=unit.strategy, notes=notes
-        )
+        return FitSignals(unit_id=unit.unit_id, strategy=unit.strategy, notes=notes)
 
     if unit.strategy == ImputationStrategy.Constant:
         declared = (ctx.config.per_column_constant_fill or {}).get(col)
@@ -348,11 +384,25 @@ def fit_mice_unit(
     ctx: UnitFitContext,
     n_jobs_inner: int = 1,
 ) -> UnitFitOutcome:
-    """Fit the joint MICE block as one ``IterativeImputer`` over all its columns.
+    """Fit the joint MICE block as one ``IterativeImputer`` over the full active-numeric matrix.
 
     The block trains a single estimator, built from the ``model_choice`` the plan
     stamped on the block. A block whose columns are all ``Unpredictable`` carries
     no model choice and cannot train — it reports a reason instead.
+
+    The predictor set is widened past the block's own membership to every
+    column in ``ctx.feature_columns`` — every active ``SemanticType.Numeric``
+    column in the plan (ADR-0079), the same full feature set the former
+    per-column regression fitter already read. The block still writes back only
+    its own columns; :class:`~dataforge_ml.imputation._fitted_imputer.FittedMICE`
+    carries the ``all_cols`` / ``columns`` split that generalizes the former
+    per-column regression unit's single-target write-back restriction block-wide.
+
+    A widened predictor routed to a scalar strategy (Mean / Median / Mode) is
+    filled with its own decided central tendency before this block fits
+    (:func:`_fill_scalar_predictors`), so the frame trained on matches the
+    scalar-filled pre-model snapshot this block will later serve against —
+    uniformly, regardless of ``model_choice`` (#418).
 
     Parameters
     ----------
@@ -362,7 +412,8 @@ def fit_mice_unit(
     train_df : pl.DataFrame
         Training split.
     ctx : UnitFitContext
-        Plan decisions and configuration.
+        Plan decisions and configuration. ``feature_columns`` supplies the
+        widened predictor set.
     n_jobs_inner : int, default 1
         Inner estimator ``n_jobs`` (ADR-0056).
 
@@ -389,6 +440,19 @@ def fit_mice_unit(
     n_nearest_features = hyp["n_nearest_features"]
     tag = hyp["nonlinearity_tag"]
 
+    # Widen the predictor set past the block's own membership: every active
+    # numeric column is a candidate predictor (ADR-0079), mirroring the feat_cols
+    # the former per-column regression fitter read. The block still owns and
+    # writes back only its own columns (cols), not all_cols.
+    extra_cols = [
+        c for c in ctx.feature_columns if c not in cols and c in train_df.columns
+    ]
+    all_cols = list(cols) + extra_cols
+
+    # Close the scalar-half train/serve skew (#418): the widened predictors
+    # must be filled exactly as the serve-time pre-model snapshot fills them.
+    fit_df, scalar_filled_cols = _fill_scalar_predictors(train_df, ctx, extra_cols)
+
     estimator = RegressionEstimatorFactory.build_from_choice(
         model_choice, n_jobs=n_jobs_inner
     )
@@ -400,7 +464,7 @@ def fit_mice_unit(
         initial_strategy=initial_strategy,
         n_nearest_features=n_nearest_features,
     )
-    model.fit(_df_to_numpy(train_df, list(cols)))
+    model.fit(_df_to_numpy(fit_df, all_cols))
 
     if n_nearest_features is None:
         n_nearest_note = (
@@ -427,6 +491,7 @@ def fit_mice_unit(
         fitted=FittedMICE(
             model=model,
             columns=list(cols),
+            all_cols=all_cols,
             domain_snap_bounds=_domain_snap_bounds(ctx, cols),
         ),
         signals=FitSignals(
@@ -440,6 +505,11 @@ def fit_mice_unit(
                 f"nonlinearity_tag: {tag}",
                 initial_strategy_note,
                 n_nearest_note,
+                f"predictors: block owns {len(cols)} columns, fit widened to "
+                f"{len(all_cols)} active numeric columns",
+                f"scalar_predictor_fill: {len(scalar_filled_cols)} widened "
+                f"predictor(s) filled to their own decided central tendency "
+                f"before fit (train/serve parity, #418)",
             ),
         ),
     )
@@ -515,112 +585,6 @@ def fit_knn_unit(
                 f"knn_scaling: applied StandardScaler (nanmean/nanstd) "
                 f"across {len(cols)} feature columns",
             ),
-        ),
-    )
-
-
-def fit_regression_unit(
-    unit: "ImputationUnit",
-    train_df: pl.DataFrame,
-    ctx: UnitFitContext,
-    n_jobs_inner: int = 1,
-) -> UnitFitOutcome:
-    """Fit a single-column ``IterativeImputer`` predicting one target from the rest.
-
-    Cannot train — and reports why — when the column has no predictors, the plan
-    stamped no estimator family on it (the ``Unpredictable`` branch), or the
-    target has fewer than two observed values.
-
-    Parameters
-    ----------
-    unit : ImputationUnit
-        The ``"regression:{column}"`` unit. ``max_iter`` and ``tol`` are read
-        from its hyperparameters.
-    train_df : pl.DataFrame
-        Training split.
-    ctx : UnitFitContext
-        Plan decisions and configuration. ``feature_columns`` minus the target
-        are the predictors.
-    n_jobs_inner : int, default 1
-        Inner estimator ``n_jobs`` (ADR-0056).
-
-    Returns
-    -------
-    UnitFitOutcome
-        A :class:`~dataforge_ml.imputation._fitted_units.FittedRegression` plus
-        the estimator and convergence signals, or no fit with the reason.
-    """
-    col = unit.columns[0]
-    decision = ctx.column_decisions.get(col)
-    model_choice = decision.model_choice if decision is not None else None
-    feat_cols = [
-        c for c in ctx.feature_columns if c != col and c in train_df.columns
-    ]
-
-    # The reason is resolved independently of which check tripped first, so a
-    # column that is both predictor-less and Unpredictable reports the more
-    # fundamental of the two.
-    if not feat_cols:
-        reason = "no feature columns available"
-    elif model_choice is None:
-        reason = "nonlinearity_tag=Unpredictable: regression unsuitable"
-    else:
-        reason = "insufficient target observations for regression"
-
-    if not feat_cols or model_choice is None:
-        return UnitFitOutcome(fallback_reason=reason)
-    if len(train_df[col].drop_nulls()) < 2:
-        return UnitFitOutcome(fallback_reason=reason)
-
-    hyp = _hyperparameters(unit)
-    max_iter = hyp["max_iter"]
-    tol = hyp["tol"]
-    tag = hyp["nonlinearity_tag"]
-
-    estimator = RegressionEstimatorFactory.build_from_choice(
-        model_choice, n_jobs=n_jobs_inner
-    )
-
-    # The target sits at index 0 of the joint array; FittedRegression stores that
-    # index explicitly so inference never relies on the convention holding.
-    all_cols = [col] + feat_cols
-    model = IterativeImputer(
-        estimator=estimator,
-        max_iter=max_iter,
-        tol=tol,
-        random_state=0,
-    )
-    model.fit(_df_to_numpy(train_df, all_cols))
-
-    converged = bool(model.n_iter_ < max_iter)
-    warnings_: list[str] = []
-    if not converged:
-        warnings_.append(
-            f"Regression hit its iteration cap without converging: "
-            f"max_iter={max_iter} reached; consider increasing via "
-            f"NumericImputationConfig"
-        )
-    oversize = _oversize_warning(unit, train_df, ctx)
-    if oversize is not None:
-        warnings_.append(oversize)
-
-    return UnitFitOutcome(
-        fitted=FittedRegression(
-            model=model,
-            target_idx=0,
-            all_cols=all_cols,
-            domain_snap_bounds=(
-                decision.domain_snap_bounds if decision is not None else None
-            ),
-        ),
-        signals=FitSignals(
-            unit_id=unit.unit_id,
-            strategy=unit.strategy,
-            estimator=_estimator_name(estimator),
-            converged=converged,
-            n_iter=int(model.n_iter_),
-            warnings=tuple(warnings_),
-            notes=(f"nonlinearity_tag: {tag}",),
         ),
     )
 

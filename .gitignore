@@ -1,5 +1,7 @@
 *.env
 venv
+.venv
+requirements-audit.txt
 rough.txt
 rough.json
 source.html
@@ -19,3 +21,4 @@ dataforge_ml.egg-info
 ralph
 site
 docs/_build/
+prototypes

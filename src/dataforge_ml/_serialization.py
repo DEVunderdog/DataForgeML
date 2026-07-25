@@ -32,11 +32,18 @@ tier and is deferred to a future service.
 
 from __future__ import annotations
 
+import hashlib
+import io
 import json
 import platform
 import warnings
 from importlib.metadata import PackageNotFoundError, version
 from typing import Any
+
+import joblib
+
+from .imputation import ImputationDecision
+from .profiling import StructuralProfileResult
 
 # Bumped only when the JSON layout of a stamped document changes in a way
 # that breaks reading older documents.
@@ -199,6 +206,66 @@ def _decode_envelope(data: bytes) -> tuple[dict, bytes]:
     return json.loads(data[:newline].decode("utf-8")), data[newline + 1 :]
 
 
+def _dumps(unit: Any) -> bytes:
+    """Serialise a fitted unit's full learned state to opaque joblib bytes."""
+    buf = io.BytesIO()
+    joblib.dump(unit, buf)
+    return buf.getvalue()
+
+
+def _loads(payload: bytes) -> Any:
+    """Reconstruct a fitted unit from its opaque joblib bytes."""
+    return joblib.load(io.BytesIO(payload))
+
+
+def _encode_fitted_unit(unit: Any) -> bytes:
+    """Encode a fitted unit as a JSON header plus an opaque joblib payload.
+
+    The header carries the ``produced_with`` reconstruction stamp and the
+    payload's SHA-256 so :func:`_decode_fitted_unit` can gate the unpickle, and
+    readable metadata (``unit_type``, ``columns``) for :func:`inspect`.
+    """
+    payload = _dumps(unit)
+    header = {
+        "kind": KIND_FITTED_UNIT,
+        "format_schema_version": FORMAT_SCHEMA_VERSION,
+        "library_version": library_version(),
+        "produced_with": produced_with(),
+        "unit_type": type(unit).__name__,
+        "columns": list(unit.target_columns),
+        "payload_sha256": hashlib.sha256(payload).hexdigest(),
+    }
+    return _encode_envelope(header, payload)
+
+
+def _decode_fitted_unit(header: dict, payload: bytes) -> Any:
+    """Reconstruct a fitted unit from an envelope header and its joblib payload.
+
+    Runs the ADR-0063 reconstruction gates before trusting any bytes: the
+    header's ``produced_with`` stamp is checked against the installed
+    environment, and the payload's SHA-256 is verified against the checksum
+    recorded in the header. The reconstructed unit's ``transform`` is
+    bit-identical to the original's on equal input.
+
+    Reconstruction unpickles the payload, which executes **arbitrary code** —
+    only decode bytes you produced or trust. The checksum verified first is an
+    integrity guard (corruption, tampering-in-transit), not an authenticity
+    guard; see the module-level trust-boundary note.
+    """
+    check_reconstructable(header.get("produced_with", {}))
+
+    actual = hashlib.sha256(payload).hexdigest()
+    expected = header.get("payload_sha256")
+    if actual != expected:
+        raise IncompatibleArtifactError(
+            f"Payload checksum mismatch for unit "
+            f"'{header.get('unit_type', 'unknown')}': header recorded {expected} "
+            f"but the payload hashes to {actual}. The artifact is corrupt or was "
+            f"tampered with; it will not be loaded."
+        )
+    return _loads(payload)
+
+
 def serialize(obj: Any) -> bytes:
     """Serialize a fitted unit, an imputation decision, or a profile to bytes.
 
@@ -221,9 +288,6 @@ def serialize(obj: Any) -> bytes:
         The serialized envelope, consumed by :func:`deserialize` and
         :func:`inspect`.
     """
-    from .imputation._config import ImputationDecision
-    from .profiling._config import StructuralProfileResult
-
     if isinstance(obj, ImputationDecision):
         return _encode_envelope(
             {
@@ -243,9 +307,7 @@ def serialize(obj: Any) -> bytes:
             }
         )
 
-    from .imputation._fitted_persistence import encode_fitted_unit
-
-    return encode_fitted_unit(obj)
+    return _encode_fitted_unit(obj)
 
 
 def deserialize(obj: bytes) -> Any:
@@ -274,8 +336,8 @@ def deserialize(obj: bytes) -> Any:
     ------
     IncompatibleArtifactError
         If the envelope's ``kind`` is unrecognised, or a fitted unit's format
-        schema or reconstruction-critical dependency version is incompatible, or
-        its payload checksum does not match.
+        schema or reconstruction-critical dependency version is incompatible,
+        or its payload checksum does not match.
 
     Warnings
     --------
@@ -287,17 +349,11 @@ def deserialize(obj: bytes) -> Any:
     kind = header.get("kind")
 
     if kind == KIND_DECISION:
-        from .imputation._config import ImputationDecision
-
         return ImputationDecision.from_dict(header["data"])
     if kind == KIND_PROFILE:
-        from .profiling._config import StructuralProfileResult
-
         return StructuralProfileResult.from_dict(header["data"])
     if kind == KIND_FITTED_UNIT:
-        from .imputation._fitted_persistence import decode_fitted_unit
-
-        return decode_fitted_unit(header, payload)
+        return _decode_fitted_unit(header, payload)
 
     raise IncompatibleArtifactError(
         f"Unrecognised artifact kind {kind!r}; the bytes were not produced by "

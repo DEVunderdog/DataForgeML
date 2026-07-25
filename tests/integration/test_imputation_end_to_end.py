@@ -222,12 +222,13 @@ def test_drop_candidate_resolve_active_columns_excludes_dropped(drop_candidate_d
 
 
 # ---------------------------------------------------------------------------
-# Scope 143: Regression imputation with partially missing features
+# Scope 143: MICE imputation with partially missing features (formerly Regression,
+# collapsed by ADR-0079 — the MCAR-High/KNN-size-guard-failed branch now emits MICE)
 # ---------------------------------------------------------------------------
 
 
-def test_regression_imputation_with_partially_missing_features(round_trip):
-    """Integration test: exercises regression imputation with partially missing features.
+def test_mice_imputation_with_partially_missing_features(round_trip):
+    """Integration test: exercises MICE imputation with partially missing features.
 
     Verifies the complete pipeline contract from profiling to imputation fitting
     and transformation, ensuring zero nulls, correct signals, and round-trip identity.
@@ -261,7 +262,7 @@ def test_regression_imputation_with_partially_missing_features(round_trip):
         "feat": pl.Series(feat_vals, dtype=pl.Float64),
     })
 
-    # Configure pipeline: force MCAR High columns to route to Regression
+    # Configure pipeline: force MCAR High columns past the KNN size guard into MICE
     config = PipelineConfig(
         profiling=ProfileConfig(
             compute_nonlinearity=True,
@@ -270,7 +271,7 @@ def test_regression_imputation_with_partially_missing_features(round_trip):
         imputation=ImputationConfig(
             numeric=NumericImputationConfig(
                 knn_max_rows=10,
-                regression_min_rows=100,
+                mice_min_rows=100,
             )
         )
     )
@@ -286,15 +287,15 @@ def test_regression_imputation_with_partially_missing_features(round_trip):
     plan = decide(profile, len(df), config)
     fi = fit_imputer(df, profile, config)
 
-    # Verify strategy routed to Regression
+    # Verify strategy routed to MICE
     assert "target" in fi.records
     target_rec = fi.records["target"]
-    assert target_rec.decision.strategy == ImputationStrategy.Regression
+    assert target_rec.decision.strategy == ImputationStrategy.MICE
 
     # 3. The estimator family is resolved at decide-time and carried on the plan
     # (ADR-0060), so it is read off the decision rather than a fit-time signal.
     assert target_rec.decision.model_choice is not None, (
-        "a Regression column must carry the estimator family it will train"
+        "a MICE column must carry the estimator family it will train"
     )
     assert plan.column_decisions["target"].model_choice == target_rec.decision.model_choice
     assert len(target_rec.decision.signals) > 0

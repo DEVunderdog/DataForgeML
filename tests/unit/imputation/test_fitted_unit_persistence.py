@@ -33,7 +33,6 @@ from dataforge_ml.imputation._fitted_imputer import FittedMICE, _FittedKNN
 from dataforge_ml.imputation._fitted_units import (
     FittedClusterConditional,
     FittedGMMSampling,
-    FittedRegression,
     FittedScalar,
 )
 
@@ -81,27 +80,6 @@ def _knn_unit() -> tuple[_FittedKNN, pl.DataFrame]:
             "a": [1.0, None, 3.0, None, 5.0],
             "b": [2.0, 4.0, None, 8.0, 10.0],
             "c": [None, 1.5, 2.5, 3.5, None],
-        }
-    )
-    return unit, df
-
-
-def _regression_unit() -> tuple[FittedRegression, pl.DataFrame]:
-    rng = np.random.default_rng(1)
-    feat = rng.normal(size=(80, 2))
-    target = (2.0 * feat[:, 0] - feat[:, 1] + rng.normal(scale=0.1, size=80)).reshape(
-        -1, 1
-    )
-    arr = np.hstack([target, feat])
-    model = IterativeImputer(estimator=BayesianRidge(), random_state=0).fit(arr)
-    unit = FittedRegression(
-        model=model, target_idx=0, all_cols=["y", "x0", "x1"]
-    )
-    df = pl.DataFrame(
-        {
-            "y": [1.0, None, 3.0, None],
-            "x0": [0.5, 1.0, 1.5, 2.0],
-            "x1": [0.1, 0.2, 0.3, 0.4],
         }
     )
     return unit, df
@@ -158,7 +136,6 @@ def _cluster_unit() -> tuple[FittedClusterConditional, pl.DataFrame]:
 
 _FACTORIES = {
     "knn": _knn_unit,
-    "regression": _regression_unit,
     "gmm": _gmm_unit,
     "scalar": _scalar_unit,
     "mice": _mice_unit,
@@ -225,11 +202,11 @@ def test_persistence_module_documents_trust_boundary() -> None:
     function must state the boundary: only deserialize trusted artifacts, and the
     checksum is an integrity — not authenticity — guard.
     """
-    import dataforge_ml.imputation._fitted_persistence as persistence
+    import dataforge_ml._serialization as persistence
 
     for doc in (
         persistence.__doc__,
-        persistence.decode_fitted_unit.__doc__,
+        persistence._decode_fitted_unit.__doc__,
         deserialize.__doc__,
     ):
         assert doc is not None

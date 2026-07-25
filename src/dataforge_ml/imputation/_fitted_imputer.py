@@ -200,17 +200,44 @@ class FittedMICE:
     A trained MICE block is the happy path by construction — a block that could
     not train raises rather than becoming one of these (single-track failure,
     ADR-0071) — so it carries only its fitted state (ADR-0074).
+
+    The block's inputs and its targets are no longer the same set (ADR-0079):
+    it fits one solver over ``all_cols`` — every active numeric column, not just
+    the block's own — but writes back only ``columns``, the columns it owns.
+    This generalizes the ``[target] + feature_columns`` / ``target_idx`` split
+    the former per-column regression unit carried, block-wide.
+
+    Parameters
+    ----------
+    model : Any
+        Fitted ``IterativeImputer`` trained over ``all_cols``.
+    columns : list[str]
+        The columns this block owns and writes back. A strict subset of
+        ``all_cols`` in the widened shape; equal to it when ``all_cols`` is
+        left unset.
+    all_cols : list[str], optional
+        Full column list, in joint-array order, the block reads at fit and
+        transform time. Defaults to ``columns`` when omitted — the pre-widening
+        shape, where the block's inputs and targets coincided.
+    domain_snap_bounds : dict[str, tuple[float, float]]
+        Per-owned-column domain-snap bounds, keyed by column name.
     """
     model: Any
     columns: list[str]
+    all_cols: Optional[list[str]] = None
     domain_snap_bounds: dict[str, tuple[float, float]] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.all_cols is None:
+            self.all_cols = list(self.columns)
 
     @property
     def target_columns(self) -> list[str]:
-        """The block's columns, which are both its inputs and its targets.
+        """The block's owned columns — the ones its ``transform`` may fill.
 
-        The block trains one solver over exactly these columns and fills all of
-        them, so it reads no column it does not own.
+        A strict subset of :attr:`all_cols`, the full set the block reads as
+        predictors (ADR-0079): the block is the block-wide generalization of
+        the input/target split the former per-column regression unit carried.
 
         Returns
         -------
@@ -222,30 +249,42 @@ class FittedMICE:
     def transform(self, df: pl.DataFrame) -> pl.DataFrame:
         """Fill the block's missing cells, preserving observed cells.
 
-        The joint solver and the per-column domain snaps rewrite whole
-        columns; observed-value preservation is applied as the final step, so
-        every cell that was not an Effective Null in ``df`` comes back
-        bit-for-bit with its original dtype (ADR-0078).
+        Reads every column in :attr:`all_cols` present in ``df`` as a
+        predictor (a column absent from ``df`` contributes an all-missing
+        column to the joint solver, same as a column that was never observed),
+        but writes back only :attr:`columns` — the block never overwrites a
+        column it merely read as a predictor. The joint solver and the
+        per-column domain snaps rewrite whole columns; observed-value
+        preservation is applied as the final step, so every cell that was not
+        an Effective Null in ``df`` comes back bit-for-bit with its original
+        dtype (ADR-0078).
 
         Parameters
         ----------
         df : pl.DataFrame
             Frame to impute. Returned unchanged when none of the block's
-            columns are present.
+            owned columns are present.
 
         Returns
         -------
         pl.DataFrame
-            ``df`` with the block's missing cells filled.
+            ``df`` with the block's owned columns' missing cells filled.
         """
         cols = [c for c in self.columns if c in df.columns]
         if not cols:
             return df
         from ._utils import _df_to_numpy, _numpy_to_df, _preserve_observed
         import polars as pl
-        arr = _df_to_numpy(df, cols)
+
+        n_df_rows = len(df)
+        arr = np.full((n_df_rows, len(self.all_cols)), np.nan, dtype=np.float64)
+        for j, c in enumerate(self.all_cols):
+            if c in df.columns:
+                arr[:, j] = _df_to_numpy(df, [c]).ravel()
+
         arr_filled = self.model.transform(arr)
-        out_df = _numpy_to_df(df, cols, arr_filled)
+        owned_idx = [self.all_cols.index(c) for c in cols]
+        out_df = _numpy_to_df(df, cols, arr_filled[:, owned_idx])
 
         snap_exprs = []
         for col in cols:
@@ -359,7 +398,7 @@ class FittedImputer:
         carries each scalar column's learned ``fill_value``, which ``transform``
         applies directly.
     units : list[FittedUnit]
-        The trained model-based units (KNN, MICE, Regression, and the bimodal
+        The trained model-based units (KNN, MICE, and the bimodal
         strategies) in the plan's application order (ADR-0067), never
         thread-completion order. Scalar fills live on ``records`` instead. The
         order is not load-bearing on the result: ``transform`` applies every unit
@@ -675,7 +714,6 @@ class FittedImputer:
                 ImputationStrategy.Passthrough,
                 ImputationStrategy.KNN,
                 ImputationStrategy.MICE,
-                ImputationStrategy.Regression,
             ):
                 continue
             if col not in result_df.columns:

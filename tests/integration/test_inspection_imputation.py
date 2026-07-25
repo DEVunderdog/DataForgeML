@@ -29,9 +29,10 @@ from tests.conftest import fit_imputer
 
 # ---------------------------------------------------------------------------
 # A wide, correlated numeric frame so several columns route to model-based
-# strategies (KNN). One independent column is forced to Regression to collapse
-# its imputed variance; a scalar (Median) and a no-missing (Passthrough) column
-# are present to prove they never earn a report entry.
+# strategies (KNN). One independent column is forced to MICE (the unified
+# chained-equations block, ADR-0079) to collapse its imputed variance; a scalar
+# (Median) and a no-missing (Passthrough) column are present to prove they never
+# earn a report entry.
 # ---------------------------------------------------------------------------
 
 
@@ -50,7 +51,7 @@ def inspect_setup():
                 vals[i] = None
         cols[name] = pl.Series(vals, dtype=pl.Float64)
 
-    # Independent noise, forced to Regression -> near-constant fills -> collapse.
+    # Independent noise, forced to MICE -> near-constant fills -> collapse.
     noise = rng.normal(0.0, 1.0, n).tolist()
     for i in range(n):
         if rng.random() < 0.30:
@@ -70,7 +71,7 @@ def inspect_setup():
     df = pl.DataFrame(cols)
 
     config = PipelineConfig(profiling=ProfileConfig())
-    config.imputation.numeric.set_per_column_strategy("noise", "regression")
+    config.imputation.numeric.set_per_column_strategy("noise", "mice")
     config.imputation.numeric.set_per_column_strategy("med", "median")
 
     profile = StructuralProfiler(config).profile(df)
@@ -125,7 +126,7 @@ def test_inspect_variance_ratio_catches_collapsed_column(inspect_setup):
     config, df, fitted = inspect_setup
     report = EvaluationOrchestrator(config).inspect(fitted, df)
 
-    # The independent, forced-Regression column collapses to near-constant fills.
+    # The independent, forced-MICE column collapses to near-constant fills.
     assert report["noise"].variance_ratio < 0.1
     # The genuinely correlated columns retain most of their spread.
     for col in ("a", "b", "c", "d"):
@@ -136,7 +137,7 @@ def test_inspect_model_metadata_read_from_fitted_models(inspect_setup):
     config, df, fitted = inspect_setup
     report = EvaluationOrchestrator(config).inspect(fitted, df)
 
-    # Regression column exposes IterativeImputer convergence metadata,
+    # MICE column exposes IterativeImputer convergence metadata,
     # and no KNN neighbour count.
     noise = report["noise"]
     assert isinstance(noise.converged, bool)

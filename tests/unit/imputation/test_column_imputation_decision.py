@@ -67,7 +67,7 @@ def test_model_choice_is_a_value_free_label() -> None:
     decision = ColumnImputationDecision(
         column="age",
         semantic_type=SemanticType.Numeric,
-        strategy=ImputationStrategy.Regression,
+        strategy=ImputationStrategy.MICE,
         model_choice=ModelChoice.GradientBoostingRegressor,
     )
     assert isinstance(decision.model_choice, ModelChoice)
@@ -94,7 +94,7 @@ def test_is_hashable() -> None:
     decision = ColumnImputationDecision(
         column="age",
         semantic_type=SemanticType.Numeric,
-        strategy=ImputationStrategy.Regression,
+        strategy=ImputationStrategy.MICE,
         signals=("nonlinear", "high-corr"),
         model_choice=ModelChoice.RandomForestRegressor,
         domain_snap_bounds=(0.0, 120.0),
@@ -121,7 +121,7 @@ def test_to_dict_round_trip_shape() -> None:
     decision = ColumnImputationDecision(
         column="income",
         semantic_type=SemanticType.Numeric,
-        strategy=ImputationStrategy.Regression,
+        strategy=ImputationStrategy.MICE,
         signals=("linear",),
         model_choice=ModelChoice.BayesianRidge,
         domain_snap_bounds=(0.0, 1_000.0),
@@ -133,7 +133,7 @@ def test_to_dict_round_trip_shape() -> None:
     assert decision.to_dict() == {
         "column": "income",
         "semantic_type": SemanticType.Numeric.name,
-        "strategy": "Regression",
+        "strategy": "MICE",
         "signals": ["linear"],
         "model_choice": "BayesianRidge",
         "domain_snap_bounds": [0.0, 1_000.0],
