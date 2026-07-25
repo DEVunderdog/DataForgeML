@@ -7,6 +7,11 @@ Thank you for your interest in contributing. This document covers everything you
 - All changes go through a pull request — direct pushes to `main` are blocked.
 - Every PR must be approved by the maintainer ([@DEVunderdog](https://github.com/DEVunderdog)) before it can merge.
 - CI must be green (pytest on Python 3.11, 3.12, 3.13) before approval is given.
+- **Version changes and dependency management are maintainer-only.** Anything that touches
+  the DataForgeML version, the dependency declarations in `pyproject.toml`, or `uv.lock` is
+  handled exclusively by the maintainer ([@DEVunderdog](https://github.com/DEVunderdog)).
+  Those changes are made **directly on `main`** — the maintainer is the only person with
+  that access, and nobody else has it. Do not open PRs for them.
 
 ---
 
@@ -61,6 +66,13 @@ A bare `uv sync` gives you both. These groups are **not** published in the wheel
 
 ## Updating a dependency
 
+> **Maintainer-only — reference material.** This section documents how the maintainer
+> ([@DEVunderdog](https://github.com/DEVunderdog)) bumps dependencies and versions. It is
+> written down so the process is auditable, **not** as an invitation to run it. These
+> changes land directly on `main`, which only the maintainer can push to. If you are a
+> contributor, read it for context and stop there — a PR that edits dependency pins,
+> `uv.lock`, or the project version will be closed.
+
 Most dependencies are handled by Dependabot. **Four are not**: `scikit-learn`, `numpy`,
 `scipy`, and `joblib` carry upper caps in `pyproject.toml` (ADR-0065), and Dependabot
 cannot see past a cap — it will never open a PR for them, and it will not warn you that
@@ -99,10 +111,7 @@ local green is not matrix green:
 uv run --python 3.11 pytest && uv run --python 3.12 pytest && uv run --python 3.13 pytest
 ```
 
-**4. Bump the DataForgeML version.** ADR-0065 requires a bump to a pickle-critical
-dependency to ship *as* a new library version — two environments must never wear the same
-version label while carrying different scikit-learn/numpy/joblib. This **invalidates every
-previously-saved `FittedUnit`**; users must retrain. Say so in the release notes.
+**4. Bump the DataForgeML version.** dependency to ship *as* a new library version
 
 **5. One PR, both files.** `pyproject.toml` and `uv.lock` always travel together — a lock
 that disagrees with the caps is exactly the drift this design exists to prevent.
@@ -232,5 +241,8 @@ CI will run automatically. Fix any failing tests before requesting review.
 
 - Do not open a PR without a linked issue.
 - Do not combine multiple unrelated issues in one PR.
-- Do not modify `pyproject.toml` version — releases are managed by the maintainer.
+- Do not modify the `pyproject.toml` version — versioning and releases are maintainer-only
+  and land directly on `main`.
+- Do not modify dependency declarations, version caps, or `uv.lock` — dependency management
+  is maintainer-only and lands directly on `main`.
 - Do not add dependencies without prior discussion in the issue thread.

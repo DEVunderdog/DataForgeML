@@ -10,7 +10,13 @@ Supported input formats: CSV, TSV, Parquet, JSON, NDJSON, JSONL, XLSX, XLS, Arro
 
 ## Installation
 
-Install from PyPI
+Requires Python 3.11+.
+
+```bash
+uv add dataforge-ml
+```
+
+or, from PyPI with pip:
 
 ```bash
 pip install dataforge-ml
@@ -52,15 +58,21 @@ Profile the dataset, carve a stratified train/test split, fit numeric imputation
 **on train only**, then apply the fitted imputer to test — so no test statistics
 ever leak into training.
 
+Imputation is user-orchestrated in three layers: `decide()` produces the pure
+plan, your own loop trains each planned unit with `fit_unit()`, and
+`FittedImputer.compose()` aggregates the trained units into the whole-frame
+imputer. There is no fused entry point — batch scheduling is yours to own.
+
 ```python
 from dataforge_ml import (
     DataSplitter,
-    ImputationExecutor,
+    FittedImputer,
     PipelineConfig,
     ProfileConfig,
     SemanticType,
     StructuralProfiler,
     decide,
+    fit_unit,
 )
 
 pipeline_config = PipelineConfig(profiling=ProfileConfig(), random_seed=42)
@@ -76,22 +88,102 @@ split = DataSplitter(df=df, target="Life expectancy", random_seed=42).profile_st
 )
 train_df, test_df = split.train, split.test
 
-# Fit imputation on train, then transform test with the SAME fitted state.
-# Imputation is layered: decide() plans, the executor trains, build() aggregates.
+# 1. Plan — a pure function of (profile, shape, config). Trains nothing.
 train_profile = profiler.profile(data=train_df)
 plan = decide(train_profile, len(train_df), pipeline_config)
 
-executor = ImputationExecutor(
-    plan,
-    train_df,
-    pipeline_config.imputation.numeric,
-    random_seed=pipeline_config.random_seed,
-)
-executor.execute_all_pending()
-fitted = executor.build()
+# 2. Train — one call per planned unit; the loop is yours.
+results = {
+    unit.unit_id: fit_unit(
+        plan, unit.unit_id, train_df, random_seed=pipeline_config.random_seed
+    )
+    for unit in plan.units
+}
 
+# 3. Compose — the whole-frame imputer, then transform test with the SAME state.
+fitted = FittedImputer.compose(plan, results)
 test_result = fitted.transform(df=test_df)
 ```
+
+Only the cells that were missing receive fill values: every observed cell comes
+back bit-for-bit, with its original dtype.
+
+### Inspecting a fit
+
+`fit_unit()` returns a `UnitFitResult` — the trained unit plus a structured
+record of the fit, so "did this converge? which estimator ran? how long did it
+take?" is answered without parsing strings:
+
+```python
+res = results["mice"]
+res.signals.converged      # bool | None
+res.signals.duration_s     # float
+res.signals.warnings       # tuple[str, ...]
+```
+
+Every recorded warning is also raised through `ImputationFitWarning`, so it is
+visible on stderr and filterable with the standard `warnings` toolkit. A unit
+that cannot train raises `UnitNotTrainableError` rather than silently degrading
+to a weaker strategy.
+
+### Parallelising the loop
+
+Parallelism lives in exactly one layer, and you choose which. A sequential loop
+takes the default `n_jobs_inner=-1` (each fit fans out to every core). If you
+fit units side by side in your own thread pool, pass `n_jobs_inner=1` on every
+call so the two layers do not oversubscribe the machine. The value never
+changes the result — only how the cores are spent.
+
+### Overriding hyperparameters
+
+Estimator hyperparameters are resolved at decide time and carried on the plan,
+so they are edited on the plan — before any training happens:
+
+```python
+plan = plan.with_hyperparameters("mice", {"max_iter": 25})
+```
+
+It is a per-key merge onto the decided base: named keys are overridden, every
+other decided dial is kept, and unknown keys are rejected immediately. Pass
+`None` to reset a unit to its decided values.
+
+## Persistence
+
+Fitted units, plans, and profiles persist through one pair of bare-bytes
+functions — you decide where the bytes live (disk, object store, database):
+
+```python
+from dataforge_ml import deserialize, inspect, serialize
+
+blob = serialize(results["mice"].fitted)
+inspect(blob)          # header only — kind, versions, provenance; no unpickling
+unit = deserialize(blob)
+```
+
+`inspect()` reads only the JSON header, so an artifact's `kind`, format/library
+versions, and `produced_with` provenance stamp can be checked *before*
+`deserialize()` unpickles anything. A whole `FittedImputer` has no aggregate
+format on purpose: persist its plan and its units, then rehydrate through
+`FittedImputer.compose()`.
+
+## Evaluation
+
+Fit-quality diagnostics are opt-in and live in their own stateless orchestrator.
+Nothing is retained between calls — you hand the fitted imputer and the data
+back in:
+
+```python
+from dataforge_ml import EvaluationOrchestrator
+
+evaluator = EvaluationOrchestrator(config=pipeline_config)
+
+report = evaluator.inspect(fitted, train_df)                    # cheap, no retraining
+accuracy = evaluator.score_accuracy(fitted, train_df, train_profile)  # cross-validated
+```
+
+`inspect()` reuses the models the fit already learned and compares filled cells
+against observed values. `score_accuracy()` is the expensive, honest held-out
+measurement per model-based column, and refits.
 
 ## Examples
 
@@ -124,7 +216,7 @@ profiler.profile(data=df)
 # ...
 ```
 
-The same `observer=` argument is available on `ImputationExecutor`, and you
+The same `observer=` argument is available on `EvaluationOrchestrator`, and you
 can pass a different observer (or none) to each call independently.
 
 ### 2. Your own observer
@@ -134,7 +226,7 @@ An observer is just a `Callable[[PipelineEvent], None]`. Each event carries raw
 `event_type` you can filter on:
 
 ```python
-from dataforge_ml import EventType, ImputationExecutor, PipelineEvent
+from dataforge_ml import EventType, EvaluationOrchestrator, PipelineEvent
 
 def my_observer(event: PipelineEvent) -> None:
     # Keep only per-item heartbeats; ignore stage boundaries.
@@ -142,7 +234,7 @@ def my_observer(event: PipelineEvent) -> None:
         pct = 100 * event.index / event.total
         print(f"{event.stage}: {event.column} — {pct:.0f}%")
 
-ImputationExecutor(plan, train_df, pipeline_config.imputation.numeric, observer=my_observer)
+EvaluationOrchestrator(config=pipeline_config, observer=my_observer)
 ```
 
 `EventType` values: `stage_start`, `stage_end`, `item`, `decision`, `warning`.
