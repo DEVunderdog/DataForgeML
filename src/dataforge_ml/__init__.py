@@ -7,79 +7,78 @@ per-modality stats dataclasses) remain accessible only via submodule imports.
 """
 
 # --- Pipeline-level config and shared enums -------------------------------
-from .config import PipelineConfig, PipelinePhase, SemanticType, Modality
-
-# --- Entry points ----------------------------------------------------------
-from .profiling.orchestrator import StructuralProfiler
-from .imputation import (
-    EvaluationOrchestrator,
-    FitSignals,
-    FittedImputer,
-    FittedUnit,
-    ImputationFitWarning,
-    UnitFitResult,
-    UnitNotTrainableError,
-    decide,
-    fit_unit,
-)
-from .splitting import DataSplitter
-from .utils.data_loader import DataLoader
-
-# --- Config objects and Phase Sub-Configs ----------------------------------
-from .profiling import (
-    ProfileConfig,
-    MissingnessProfileConfig,
-    NumericProfileConfig,
-    NonlinearityProfileConfig,
-    TypeDetectionConfig,
-    CategoricalProfileConfig,
-    CorrelationProfileConfig,
-    DatetimeProfileConfig,
-)
-from .imputation import ImputationConfig, NumericImputationConfig
-from .splitting import SplitConfig
-
-# --- Input enums (user-supplied via setter or field) -----------------------
-from .profiling import NumericKind
-from .imputation import ImputationStrategy, ModelChoice
-
-# --- Observability: Pipeline Event stream + observers ----------------------
-from .observability import PipelineEvent, EventType, stderr_observer
-
-# --- Result and nested-record types ----------------------------------------
-from .profiling import StructuralProfileResult, ColumnProfile, DatasetStats
-from .imputation import (
-    ImputationResult,
-    ColumnImputationRecord,
-    ColumnImputationDecision,
-    ImputationDecision,
-)
-from .splitting import SplitResult, FoldResult, HoldoutCVResult
-
-# --- User-facing fit-quality diagnostics -----------------------------------
-from .imputation import (
-    AccuracyDiagnostic,
-    AccuracyReport,
-    InspectionDiagnostic,
-    InspectionReport,
-)
-
-# --- Exceptions the user catches -------------------------------------------
-from .imputation import (
-    UnseenColumnError,
-    FittedColumnAbsentError,
-    UnfittedColumnError,
-    DroppedColumnAbsentWarning,
-)
-from .profiling import OverrideCoercionError
-from .utils.data_loader import UnsupportedFormatError
+# --- Bare-bytes persistence: serialize / deserialize / inspect (ADR-0072) ---
 from ._serialization import (
     ArtifactPythonVersionWarning,
     IncompatibleArtifactError,
+    deserialize,
+    inspect,
+    serialize,
+)
+from .config import Modality, PipelineConfig, PipelinePhase, SemanticType
+
+# --- User-facing fit-quality diagnostics -----------------------------------
+# --- Exceptions the user catches -------------------------------------------
+from .imputation import (
+    AccuracyDiagnostic,
+    AccuracyReport,
+    ColumnImputationDecision,
+    ColumnImputationRecord,
+    DroppedColumnAbsentWarning,
+    EvaluationOrchestrator,
+    FitSignals,
+    FittedColumnAbsentError,
+    FittedImputer,
+    FittedUnit,
+    ImputationConfig,
+    ImputationDecision,
+    ImputationFitWarning,
+    ImputationResult,
+    ImputationStrategy,
+    InspectionDiagnostic,
+    InspectionReport,
+    ModelChoice,
+    NumericImputationConfig,
+    UnfittedColumnError,
+    UnitFitResult,
+    UnitNotTrainableError,
+    UnseenColumnError,
+    decide,
+    fit_unit,
 )
 
-# --- Bare-bytes persistence: serialize / deserialize / inspect (ADR-0072) ---
-from ._serialization import serialize, deserialize, inspect
+# --- Observability: Pipeline Event stream + observers ----------------------
+from .observability import EventType, PipelineEvent, stderr_observer
+
+# --- Config objects and Phase Sub-Configs ----------------------------------
+# --- Input enums (user-supplied via setter or field) -----------------------
+# --- Result and nested-record types ----------------------------------------
+from .profiling import (
+    CategoricalProfileConfig,
+    ColumnProfile,
+    CorrelationProfileConfig,
+    DatasetStats,
+    DatetimeProfileConfig,
+    MissingnessProfileConfig,
+    NonlinearityProfileConfig,
+    NumericKind,
+    NumericProfileConfig,
+    OverrideCoercionError,
+    ProfileConfig,
+    StructuralProfileResult,
+    TypeDetectionConfig,
+)
+
+# --- Entry points ----------------------------------------------------------
+from .profiling.orchestrator import StructuralProfiler
+from .splitting import (
+    DataSplitter,
+    FoldResult,
+    HoldoutCVResult,
+    SplitConfig,
+    SplitResult,
+)
+from .utils.data_loader import DataLoader, UnsupportedFormatError
 
 __all__ = [
     # Pipeline-level config and shared enums

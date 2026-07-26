@@ -21,7 +21,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Mapping, Optional
 
-
 import numpy as np
 import polars as pl
 from sklearn.experimental import enable_iterative_imputer  # noqa: F401

@@ -8,12 +8,11 @@ from datetime import date, timedelta
 import polars as pl
 import pytest
 
-from dataforge_ml.profiling._numeric_profiler import NumericProfiler
+from dataforge_ml.profiling._boolean_profiler import BooleanProfiler
 from dataforge_ml.profiling._categorical import CategoricalProfiler
 from dataforge_ml.profiling._datetime_profiler import DatetimeProfiler
-from dataforge_ml.profiling._boolean_profiler import BooleanProfiler
+from dataforge_ml.profiling._numeric_profiler import NumericProfiler
 from dataforge_ml.profiling._text_profiler import TextProfiler
-
 
 # ---------------------------------------------------------------------------
 # No-argument instantiation

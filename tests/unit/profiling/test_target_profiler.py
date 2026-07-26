@@ -1,9 +1,8 @@
 import polars as pl
 import pytest
 
-from dataforge_ml.profiling._target_profiler import TargetProfiler
 from dataforge_ml.profiling._target_config import TargetProblemType
-
+from dataforge_ml.profiling._target_profiler import TargetProfiler
 
 # ---------------------------------------------------------------------------
 # Regression: continuous float target

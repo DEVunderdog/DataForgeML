@@ -21,10 +21,10 @@ from __future__ import annotations
 
 import polars as pl
 
-from ._base import ColumnBatchProfiler
-from ._config import BooleanStats
-from ._boolean_config import BooleanFlag, BooleanProfileResult
 from ..models._data_types import _INT_DTYPES
+from ._base import ColumnBatchProfiler
+from ._boolean_config import BooleanFlag, BooleanProfileResult
+from ._config import BooleanStats
 
 # ---------------------------------------------------------------------------
 # String values that represent True / False

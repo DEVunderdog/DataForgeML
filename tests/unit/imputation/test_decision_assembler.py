@@ -17,6 +17,8 @@ import pytest
 
 from dataforge_ml import (
     ImputationDecision as RootImputationDecision,
+)
+from dataforge_ml import (
     ModelChoice,
     PipelineConfig,
     PipelinePhase,

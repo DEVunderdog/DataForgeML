@@ -8,12 +8,25 @@ Stats dataclasses hold per-column and dataset-level profiling results.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field, InitVar
+from dataclasses import InitVar, dataclass, field
 from enum import StrEnum
 from types import MappingProxyType
 from typing import Optional, Union
 
-from ..config import SemanticType, Modality
+from ..config import Modality, SemanticType
+from ._boolean_config import BooleanStats
+from ._categorical_config import (
+    CategoricalProfileConfig,
+    CategoricalStats,
+)
+from ._correlation_config import (
+    CorrelationProfileConfig,
+    CorrelationProfileResult,
+)
+from ._datetime_config import (
+    DatetimeProfileConfig,
+    DatetimeStats,
+)
 from ._missingness_config import (
     ColumnMissingnessProfile,
     MissingnessFlag,
@@ -21,28 +34,15 @@ from ._missingness_config import (
     MissingSeverity,
     RowMissingnessDistribution,
 )
-from ._correlation_config import (
-    CorrelationProfileResult,
-    CorrelationProfileConfig,
-)
-from ._categorical_config import (
-    CategoricalStats,
-    CategoricalProfileConfig,
-)
 from ._numeric_config import (
-    NonlinearityTag,
-    NumericStats,
-    NumericProfileConfig,
     NonlinearityProfileConfig,
+    NonlinearityTag,
+    NumericProfileConfig,
+    NumericStats,
 )
-from ._datetime_config import (
-    DatetimeStats,
-    DatetimeProfileConfig,
-)
-from ._type_detection_config import TypeDetectionConfig
-from ._boolean_config import BooleanStats
-from ._text_config import TextStats
 from ._target_config import TargetProfileResult
+from ._text_config import TextStats
+from ._type_detection_config import TypeDetectionConfig
 
 # ---------------------------------------------------------------------------
 # Type-detection enums — kept for TypeDetector compatibility

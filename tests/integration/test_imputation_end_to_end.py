@@ -10,12 +10,10 @@ import pytest
 
 from dataforge_ml.config import PipelineConfig, PipelinePhase
 from dataforge_ml.imputation import FittedImputer, decide
-
-from tests.conftest import fit_imputer
 from dataforge_ml.profiling._config import ProfileConfig
 from dataforge_ml.profiling.orchestrator import StructuralProfiler
 from dataforge_ml.splitting import DataSplitter
-
+from tests.conftest import fit_imputer
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -234,6 +232,7 @@ def test_mice_imputation_with_partially_missing_features(round_trip):
     and transformation, ensuring zero nulls, correct signals, and round-trip identity.
     """
     import numpy as np
+
     from dataforge_ml.config import PipelineConfig
     from dataforge_ml.imputation import (
         ImputationConfig,
@@ -326,14 +325,15 @@ def test_knn_mixed_scale_imputation_integration():
       (demonstrating scale-insensitive imputation).
     """
     import numpy as np
+
     from dataforge_ml.config import PipelineConfig
     from dataforge_ml.imputation import (
         ImputationConfig,
         ImputationStrategy,
         NumericImputationConfig,
     )
-    from dataforge_ml.profiling.orchestrator import StructuralProfiler
     from dataforge_ml.profiling._config import ProfileConfig
+    from dataforge_ml.profiling.orchestrator import StructuralProfiler
 
     rng = np.random.default_rng(999)
     n = 500
@@ -421,6 +421,7 @@ def test_knn_adaptive_end_to_end_mixed_scale():
        not collapsed to small-scale magnitudes (~[0, 1]).
     """
     import numpy as np
+
     from dataforge_ml.config import PipelineConfig
     from dataforge_ml.imputation import (
         ImputationConfig,
@@ -525,6 +526,7 @@ def test_mice_adaptive_end_to_end_nonlinear_dataset():
       ``mice_converged:``).
     """
     import numpy as np
+
     from dataforge_ml.config import PipelineConfig
     from dataforge_ml.imputation import (
         ImputationConfig,

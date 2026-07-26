@@ -11,7 +11,6 @@ import pytest
 
 from dataforge_ml.utils._null_normalization import _resolve_effective_nulls
 
-
 # ---------------------------------------------------------------------------
 # String sentinels — each sentinel converts to null
 # ---------------------------------------------------------------------------

@@ -12,9 +12,8 @@ Verifies:
 import polars as pl
 import pytest
 
-from dataforge_ml.profiling._tabular import TabularProfiler
 from dataforge_ml.profiling._config import DatasetStats
-
+from dataforge_ml.profiling._tabular import TabularProfiler
 
 # ---------------------------------------------------------------------------
 # No-argument instantiation

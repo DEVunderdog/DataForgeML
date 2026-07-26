@@ -21,9 +21,10 @@ Profiling[R]                    — root: thin ABC, provides _resolve_columns
 """
 from __future__ import annotations
 
-import polars as pl
-from abc import abstractmethod, ABC
+from abc import ABC, abstractmethod
 from typing import Generic, TypeVar
+
+import polars as pl
 
 from ._config import DatasetStats
 

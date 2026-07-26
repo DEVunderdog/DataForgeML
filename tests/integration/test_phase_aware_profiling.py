@@ -9,7 +9,7 @@ from the result entirely; soft-excluded columns must be present but unprofiled
 import polars as pl
 import pytest
 
-from dataforge_ml.profiling import StructuralProfiler, PipelineConfig, PipelinePhase
+from dataforge_ml.profiling import PipelineConfig, PipelinePhase, StructuralProfiler
 
 
 @pytest.fixture(scope="module")

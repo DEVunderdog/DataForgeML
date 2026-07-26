@@ -3,12 +3,12 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING, Union, Optional
 from types import MappingProxyType
+from typing import TYPE_CHECKING, Optional, Union
 
 if TYPE_CHECKING:
-    from dataforge_ml.profiling._config import ProfileConfig, NumericKind
     from dataforge_ml.imputation._config import ImputationConfig
+    from dataforge_ml.profiling._config import NumericKind, ProfileConfig
     from dataforge_ml.splitting._config import SplitConfig
 
 
@@ -325,8 +325,8 @@ class PipelineConfig:
             Fully populated configuration instance with all nested sub-configs
             restored.
         """
-        from dataforge_ml.profiling._config import ProfileConfig
         from dataforge_ml.imputation._config import ImputationConfig
+        from dataforge_ml.profiling._config import ProfileConfig
         from dataforge_ml.splitting._config import SplitConfig
         cfg = cls(
             profiling=ProfileConfig.from_dict(data.get("profiling", {})),

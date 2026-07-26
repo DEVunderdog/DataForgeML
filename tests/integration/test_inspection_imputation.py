@@ -23,9 +23,7 @@ from dataforge_ml import (
     StructuralProfiler,
 )
 from dataforge_ml.profiling._config import ProfileConfig
-
 from tests.conftest import fit_imputer
-
 
 # ---------------------------------------------------------------------------
 # A wide, correlated numeric frame so several columns route to model-based
@@ -85,7 +83,8 @@ def inspect_setup():
 
 
 def test_inspection_types_are_public_api():
-    from dataforge_ml import InspectionReport as R, InspectionDiagnostic as D
+    from dataforge_ml import InspectionDiagnostic as D
+    from dataforge_ml import InspectionReport as R
 
     assert R is InspectionReport
     assert D is InspectionDiagnostic

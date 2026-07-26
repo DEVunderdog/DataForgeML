@@ -9,9 +9,8 @@ corrupt a previously-serialized envelope, and the hyperparameter-override delta
 surviving the round-trip.
 """
 
-from enum import StrEnum
-
 import json
+from enum import StrEnum
 
 import pytest
 

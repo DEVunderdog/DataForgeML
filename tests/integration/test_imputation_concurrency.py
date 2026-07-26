@@ -23,10 +23,13 @@ from dataforge_ml import (
     StructuralProfiler,
     fit_unit,
 )
-from dataforge_ml.imputation import ImputationConfig, ModelChoice, NumericImputationConfig
+from dataforge_ml.imputation import (
+    ImputationConfig,
+    ModelChoice,
+    NumericImputationConfig,
+)
 from dataforge_ml.imputation._decision_assembler import decide
 from dataforge_ml.profiling._config import ProfileConfig
-
 
 # ---------------------------------------------------------------------------
 # A wide, mixed-strategy dataset: two mutually-independent joint blocks (MICE

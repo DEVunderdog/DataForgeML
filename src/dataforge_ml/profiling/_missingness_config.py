@@ -11,7 +11,6 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Optional
 
-
 # ---------------------------------------------------------------------------
 # Row-level distribution summary
 # ---------------------------------------------------------------------------

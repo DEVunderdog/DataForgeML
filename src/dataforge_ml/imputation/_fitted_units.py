@@ -19,8 +19,8 @@ them — that edge is what keeps the fitted types free of a cycle.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Optional
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
 import polars as pl
@@ -94,7 +94,7 @@ class FittedScalar:
         # An integer-typed column takes a whole-number fill: a Median of 3.5 on
         # an ``Int64`` column would otherwise fail to cast (or silently upcast
         # the whole column to float). Float columns fill with the value as-is.
-        from ..models._data_types import _INT_DTYPES, _FLOAT_DTYPES
+        from ..models._data_types import _FLOAT_DTYPES, _INT_DTYPES
 
         dtype = df.schema[self.target_col]
         fill_val = self.fill_value

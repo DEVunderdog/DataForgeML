@@ -9,7 +9,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Optional, List
+from typing import List, Optional
+
 
 @dataclass
 class BimodalStats:

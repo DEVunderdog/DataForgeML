@@ -7,13 +7,13 @@ All tests are pure — no DataFrames, no StructuralProfiler.
 import pytest
 
 from dataforge_ml.config import PipelineConfig, PipelinePhase, SemanticType
-from dataforge_ml.profiling._config import ProfileConfig, NumericKind
+from dataforge_ml.profiling._categorical_config import CategoricalProfileConfig
+from dataforge_ml.profiling._config import NumericKind, ProfileConfig
+from dataforge_ml.profiling._correlation_config import CorrelationProfileConfig
+from dataforge_ml.profiling._datetime_config import DatetimeProfileConfig
 from dataforge_ml.profiling._missingness_config import MissingnessProfileConfig
 from dataforge_ml.profiling._numeric_config import NumericProfileConfig
 from dataforge_ml.profiling._type_detection_config import TypeDetectionConfig
-from dataforge_ml.profiling._categorical_config import CategoricalProfileConfig
-from dataforge_ml.profiling._correlation_config import CorrelationProfileConfig
-from dataforge_ml.profiling._datetime_config import DatetimeProfileConfig
 
 _ALL_PHASES = list(PipelinePhase)
 

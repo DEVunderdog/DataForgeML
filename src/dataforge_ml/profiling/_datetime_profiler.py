@@ -30,11 +30,11 @@ import polars as pl
 
 from ._base import ColumnBatchProfiler
 from ._datetime_config import (
+    DatetimeFlag,
     DatetimeProfileConfig,
     DatetimeProfileResult,
     DatetimeStats,
     InferredGranularity,
-    DatetimeFlag,
 )
 
 # Granularity bands — upper bound (exclusive) in seconds for each label.

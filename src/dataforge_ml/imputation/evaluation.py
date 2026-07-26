@@ -21,9 +21,8 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from typing import TYPE_CHECKING, Any, Callable, Optional
 
-import polars as pl
-
 import numpy as np
+import polars as pl
 from sklearn.experimental import enable_iterative_imputer  # noqa: F401
 from sklearn.impute import IterativeImputer, KNNImputer
 
@@ -33,6 +32,7 @@ from ..profiling._numeric_config import (
     NumericStats,
     SkewSeverity,
 )
+from ..utils._null_normalization import _resolve_effective_nulls
 from ._config import (
     _MODEL_BASED_STRATEGIES,
     AccuracyDiagnostic,
@@ -42,11 +42,10 @@ from ._config import (
     InspectionReport,
 )
 from ._utils import _df_to_numpy
-from ..utils._null_normalization import _resolve_effective_nulls
 
 if TYPE_CHECKING:
-    from ._fitted_imputer import FittedImputer
     from ..profiling._config import StructuralProfileResult
+    from ._fitted_imputer import FittedImputer
 
 
 def _resolve_fit_workers(max_workers: Optional[int], n_units: int) -> int:
@@ -186,7 +185,7 @@ def _compute_fold_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> tuple[float
     tuple[float, float, float]
         (r2, rmse, mae). R2 defaults to 0.0 if computation fails.
     """
-    from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
+    from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
     if np.array_equal(y_true, y_pred):
         return 1.0, 0.0, 0.0

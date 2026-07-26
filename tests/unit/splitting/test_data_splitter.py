@@ -1,14 +1,13 @@
 import polars as pl
 import pytest
 
-from dataforge_ml.splitting._splitter import DataSplitter
 from dataforge_ml.splitting._config import (
     FoldResult,
     HoldoutCVResult,
     SplitConfig,
     SplitResult,
 )
-
+from dataforge_ml.splitting._splitter import DataSplitter
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -180,8 +179,9 @@ def test_different_seeds_produce_different_splits(df):
 
 
 def test_no_profiling_import():
-    import dataforge_ml.splitting._splitter as mod
     import sys
+
+    import dataforge_ml.splitting._splitter as mod
     profiling_modules = [k for k in sys.modules if k.startswith("profiling")]
     # DataSplitter module itself must not have caused profiling to be imported
     assert "profiling" not in mod.__dict__
@@ -426,8 +426,8 @@ def test_kfold_stratify_true_without_target_raises(kfold_splitter_no_target):
 # profile_stratified_split and profile_stratified_kfold — fixtures
 # ---------------------------------------------------------------------------
 
-from dataforge_ml.profiling.orchestrator import StructuralProfiler
 from dataforge_ml.config import PipelineConfig
+from dataforge_ml.profiling.orchestrator import StructuralProfiler
 
 _PS_N = 300
 _PS_NULL_EVERY = 10  # ~10 % missingness
@@ -635,8 +635,8 @@ def test_profile_kfold_missingness_in_training(ps_profile, ps_splitter):
 
 def test_signal_cap_at_default_50():
     """The retained-signal count never exceeds the configured maximum."""
-    from dataforge_ml.splitting._profile_signals import build_label_matrix
     from dataforge_ml.splitting._config import SplitConfig
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
 
     # Build a DataFrame with many columns that each have missingness
     n = 200
@@ -655,8 +655,8 @@ def test_signal_cap_at_default_50():
 
 def test_cap_keeps_target_and_drops_missingness_first():
     """Over budget, target survives while low-priority missingness is dropped."""
-    from dataforge_ml.splitting._profile_signals import build_label_matrix
     from dataforge_ml.splitting._config import SplitConfig
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
 
     # 300 rows: a 3-class categorical target (3 class signals, collapsed to 2
     # after the dummy-drop) plus many single-null columns producing low-priority
@@ -688,8 +688,8 @@ def test_cap_keeps_target_and_drops_missingness_first():
 
 def test_rows_per_signal_reduces_wide_but_short_input():
     """A wide-but-short dataset is reduced to the rows-per-signal budget."""
-    from dataforge_ml.splitting._profile_signals import build_label_matrix
     from dataforge_ml.splitting._config import SplitConfig
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
 
     # 100 rows, 40 single-null missingness columns → 40 candidate signals, but
     # the row budget (100 / 20 = 5) caps retention well below both 40 and the
@@ -709,8 +709,8 @@ def test_rows_per_signal_reduces_wide_but_short_input():
 
 def test_too_few_rows_to_support_target_degrades_to_empty():
     """When the budget cannot fit the full target set the matrix is empty."""
-    from dataforge_ml.splitting._profile_signals import build_label_matrix
     from dataforge_ml.splitting._config import SplitConfig
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
 
     # 3-class target → 2 signals after dummy-drop, but a row budget of
     # 12 / 10 = 1 cannot support both, so the whole matrix is emptied.
@@ -1059,6 +1059,7 @@ def test_signal_5_one_column_per_rare_value():
 def test_signal_5_no_value_counts_in_module():
     """Confirm _profile_signals.py has no value_counts call for signal 5."""
     import inspect
+
     from dataforge_ml.splitting import _profile_signals
 
     source = inspect.getsource(_profile_signals)
@@ -1132,9 +1133,9 @@ def test_signal_7_discrete_rating_target_produces_one_signal_per_class():
 
 def test_signal_7_bounded_discrete_target_produces_one_signal_per_class():
     """A numeric target classified BoundedDiscrete emits one label per class."""
-    from dataforge_ml.splitting._profile_signals import build_label_matrix
     from dataforge_ml.config import SemanticType
     from dataforge_ml.profiling._config import NumericKind
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
 
     n = 300
     ratings = [(i % 5) + 1 for i in range(n)]
@@ -1179,8 +1180,9 @@ def test_signal_7_continuous_target_buckets_min_of_five_and_nunique():
 
 def test_signal_7_continuous_target_emits_target_missing_label():
     """A continuous target with nulls emits a dedicated 'target missing' label."""
-    from dataforge_ml.splitting._profile_signals import build_label_matrix
     import numpy as np
+
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
 
     n = 300
     # Every 20th row is null → 15 null-target rows.
@@ -1211,9 +1213,10 @@ def test_signal_7_continuous_target_emits_target_missing_label():
 
 def test_near_constant_column_produces_minority_signal():
     """A NearConstant numeric column emits an off-mode minority signal."""
-    from dataforge_ml.splitting._profile_signals import build_label_matrix
-    from dataforge_ml.profiling._numeric_config import NumericFlag
     import numpy as np
+
+    from dataforge_ml.profiling._numeric_config import NumericFlag
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
 
     n = 300
     # 95% of rows share the mode (5.0); the remaining 15 are off-mode. Fractional
@@ -1238,11 +1241,12 @@ def test_near_constant_column_produces_minority_signal():
 
 def test_bounded_discrete_near_constant_uses_exact_equality():
     """A BoundedDiscrete NearConstant column marks the minority by exact inequality."""
-    from dataforge_ml.splitting._profile_signals import build_label_matrix
+    import numpy as np
+
     from dataforge_ml.config import SemanticType
     from dataforge_ml.profiling._config import NumericKind
     from dataforge_ml.profiling._numeric_config import NumericFlag
-    import numpy as np
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
 
     n = 300
     # 96% at value 3; the rest spread across the bounded 0..5 domain.
@@ -1268,9 +1272,10 @@ def test_bounded_discrete_near_constant_uses_exact_equality():
 
 def test_zero_negative_signal_absent_for_strictly_positive_skewed_column():
     """A strictly-positive right-skewed column produces no zero/negative signal."""
-    from dataforge_ml.splitting._profile_signals import build_label_matrix
-    from dataforge_ml.profiling._numeric_config import SkewSeverity
     import numpy as np
+
+    from dataforge_ml.profiling._numeric_config import SkewSeverity
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
 
     n = 300
     # Right-skewed but strictly positive (min > 0): a heavy right tail on a body
@@ -1325,9 +1330,10 @@ def _bimodal_frame(seed: int = 0):
 
 def test_bimodal_minority_signal_invisible_to_extreme_value_signal():
     """A minority mode inside the body emits a cluster signal the extreme misses."""
-    from dataforge_ml.splitting._profile_signals import build_label_matrix
-    from dataforge_ml.profiling._numeric_config import NumericFlag, SkewSeverity
     import numpy as np
+
+    from dataforge_ml.profiling._numeric_config import NumericFlag, SkewSeverity
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
 
     df, profile, minority, vals = _bimodal_frame()
     stats = profile.columns["x"].stats
@@ -1357,8 +1363,9 @@ def test_bimodal_minority_signal_invisible_to_extreme_value_signal():
 
 def test_bimodal_signal_uses_split_counts_not_minority_weight():
     """The positive class is the cluster with fewer split rows, ignoring weight."""
-    from dataforge_ml.splitting._profile_signals import build_label_matrix
     import numpy as np
+
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
 
     df, profile, minority, _ = _bimodal_frame()
     mat = build_label_matrix(df, profile, target=None, min_positives=1)
@@ -1371,8 +1378,9 @@ def test_bimodal_signal_uses_split_counts_not_minority_weight():
 
 def test_bimodal_signal_evicted_below_viability_floor():
     """A minority cluster smaller than the floor is dropped before capping."""
-    from dataforge_ml.splitting._profile_signals import build_label_matrix
     import numpy as np
+
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
 
     df, profile, minority, _ = _bimodal_frame()
     # 60 minority rows: a floor of 61 cannot place that many positives in both
@@ -1385,8 +1393,9 @@ def test_bimodal_signal_evicted_below_viability_floor():
 
 def test_bimodal_signal_collapses_against_correlated_higher_priority_signal():
     """A perfectly correlated target class collapses the lower-priority cluster signal."""
-    from dataforge_ml.splitting._profile_signals import build_label_matrix
     import numpy as np
+
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
 
     df, profile, minority, _ = _bimodal_frame()
     # Control: with no correlated partner the cluster signal is present.
@@ -1473,8 +1482,8 @@ def test_data_splitter_accepts_custom_config(df):
 
 def test_custom_max_signals_cap_is_respected():
     """Setting max_stratification_signals=5 caps the matrix at 5 columns."""
-    from dataforge_ml.splitting._profile_signals import build_label_matrix
     from dataforge_ml.splitting._config import SplitConfig
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
 
     n = 200
     # 60 columns each with one null → 60 missingness signals before cap
@@ -1495,8 +1504,8 @@ def test_custom_max_signals_cap_is_respected():
 
 def test_boolean_minority_threshold_triggers_signal():
     """A boolean column with 8% true_ratio fires a signal at threshold=0.10."""
-    from dataforge_ml.splitting._profile_signals import build_label_matrix
     from dataforge_ml.splitting._config import SplitConfig
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
 
     n = 100
     # 8 True, 92 False → true_ratio = 0.08
@@ -1518,8 +1527,8 @@ def test_boolean_minority_threshold_triggers_signal():
 
 def test_boolean_minority_threshold_suppresses_signal():
     """Lowering the threshold below the minority ratio suppresses the signal."""
-    from dataforge_ml.splitting._profile_signals import build_label_matrix
     from dataforge_ml.splitting._config import SplitConfig
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
 
     n = 100
     # 3 True, 97 False → true_ratio = 0.03
@@ -1570,8 +1579,8 @@ def test_pipeline_config_round_trip_default_split():
 
 def test_signal_1_declared_sentinels_replace_hardcoded_defaults():
     """Declared sentinels suppress hardcoded defaults for that column (replace semantics)."""
-    from dataforge_ml.splitting._profile_signals import build_label_matrix
     from dataforge_ml.profiling._config import ProfileConfig
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
 
     # "NA" is a hardcoded default; "MISSING" is the declared sentinel.
     # With replace semantics, "NA" must NOT be marked; "MISSING" MUST.
@@ -1614,8 +1623,8 @@ def test_signal_1_no_sentinel_declaration_falls_back_to_hardcoded_defaults():
 
 def test_signal_1_whitespace_always_marked_with_declared_sentinels():
     """Empty/whitespace strings are always effective null even when custom sentinels are declared."""
-    from dataforge_ml.splitting._profile_signals import build_label_matrix
     from dataforge_ml.profiling._config import ProfileConfig
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
 
     data = ["apple", "CUSTOM", "  ", "banana", "NA"]
     df = pl.DataFrame({"txt": pl.Series(data, dtype=pl.Utf8)})
@@ -1637,8 +1646,8 @@ def test_signal_1_whitespace_always_marked_with_declared_sentinels():
 
 def test_signal_1_declared_sentinels_matched_case_insensitively():
     """Declared sentinels match column data case-insensitively."""
-    from dataforge_ml.splitting._profile_signals import build_label_matrix
     from dataforge_ml.profiling._config import ProfileConfig
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
 
     data = ["apple", "missing", "MISSING", "Missing", "banana"]
     df = pl.DataFrame({"txt": pl.Series(data, dtype=pl.Utf8)})
@@ -1660,8 +1669,8 @@ def test_signal_1_declared_sentinels_matched_case_insensitively():
 
 def test_signal_1_declared_sentinels_do_not_affect_other_dtype_columns():
     """string_sentinels declarations for a column do not bleed into non-string columns."""
-    from dataforge_ml.splitting._profile_signals import build_label_matrix
     from dataforge_ml.profiling._config import ProfileConfig
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
 
     df = pl.DataFrame({
         "txt": pl.Series(["apple", "MISSING", "NA", "banana", ""], dtype=pl.Utf8),
@@ -1744,8 +1753,9 @@ def test_signal_8_present_when_p90_is_positive():
 
 def test_signal_8_rows_above_p90_receive_label_one():
     """Rows with effective-null count > p90 receive label 1; others receive 0."""
-    from dataforge_ml.splitting._profile_signals import build_label_matrix
     import numpy as np
+
+    from dataforge_ml.splitting._profile_signals import build_label_matrix
 
     # 12 rows, 5 columns. Per-row null counts: [0]*10 + [2, 2] (rows 10 and 11).
     # p90 = 1, so the compound signal flags rows with count > 1 → rows 10 and 11.

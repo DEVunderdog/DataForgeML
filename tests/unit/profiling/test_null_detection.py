@@ -10,7 +10,6 @@ from dataforge_ml.utils._null_detection import (
     _sentinel_eligible,
 )
 
-
 # ---------------------------------------------------------------------------
 # _sentinel_eligible — String/Utf8 dtypes
 # ---------------------------------------------------------------------------

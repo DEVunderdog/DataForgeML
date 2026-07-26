@@ -2,7 +2,6 @@ import polars as pl
 
 from dataforge_ml.profiling._text_profiler import TextProfiler
 
-
 # ---------------------------------------------------------------------------
 # vocabulary_size > 0 for a column with distinct tokens
 # ---------------------------------------------------------------------------

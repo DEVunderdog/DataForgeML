@@ -15,11 +15,13 @@ the Phase 1 profile (ADR-0060).
 from __future__ import annotations
 
 import dataclasses
-from typing import TYPE_CHECKING, Optional, Any
+from typing import TYPE_CHECKING, Any, Optional
+
+import numpy as np
 
 from ..config import PipelineConfig, PipelinePhase, SemanticType
+from ..profiling._config import NumericKind
 from ..profiling._missingness_config import MissingnessFlag
-import numpy as np
 from ..profiling._numeric_config import NonlinearityTag, NumericStats, SkewSeverity
 from ._config import (
     _EXCLUSION_SIGNAL,
@@ -31,7 +33,6 @@ from ._config import (
 )
 from ._regression_estimator_factory import RegressionEstimatorFactory
 from ._strategy_router import _StrategyRouter
-from ..profiling._config import NumericKind
 
 if TYPE_CHECKING:
     from ..profiling._config import ColumnProfile, StructuralProfileResult

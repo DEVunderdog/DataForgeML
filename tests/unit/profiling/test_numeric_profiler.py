@@ -1,7 +1,6 @@
 import polars as pl
 import pytest
 
-from dataforge_ml.profiling._numeric_profiler import NumericProfiler
 from dataforge_ml.profiling._numeric_config import (
     KurtosisTag,
     NumericFlag,
@@ -12,7 +11,7 @@ from dataforge_ml.profiling._numeric_config import (
     SkewSeverity,
     TailAsymmetryTag,
 )
-
+from dataforge_ml.profiling._numeric_profiler import NumericProfiler
 
 # ---------------------------------------------------------------------------
 # Result type & column eligibility
@@ -267,6 +266,7 @@ def test_batched_50_column_profiling_speed():
     # Regression guard: 50-column profiling should complete well under 10s on
     # any reasonable machine, confirming the single-select path is active.
     import time
+
     import numpy as np
     rng = np.random.default_rng(1)
     n_cols = 50
@@ -655,6 +655,7 @@ def test_mean_median_ratio_all_zero():
 
 def test_override_coercion_error_raised_for_total_failure():
     import pytest
+
     from dataforge_ml.profiling import OverrideCoercionError
 
     df = pl.DataFrame({"num_col": pl.Series(["apple", "banana", "cherry"])})

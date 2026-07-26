@@ -31,23 +31,22 @@ Attach ``num_result`` to ``TabularProfileResult`` as
 
 from __future__ import annotations
 
-
 import polars as pl
 
 from ._base import ColumnBatchProfiler
 from ._correlation_profiler import _INT_DTYPES
 from ._numeric_config import (
+    BimodalStats,
+    HistogramBin,
+    KurtosisTag,
+    NumericFlag,
     NumericProfileConfig,
     NumericProfileResult,
     NumericStats,
-    PercentileSnapshot,
-    KurtosisTag,
-    TailAsymmetryTag,
-    NumericFlag,
-    SkewSeverity,
     NumericTopValueEntry,
-    HistogramBin,
-    BimodalStats,
+    PercentileSnapshot,
+    SkewSeverity,
+    TailAsymmetryTag,
 )
 
 # Percentile quantile levels — not a user-configurable threshold
@@ -285,7 +284,8 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
         profile: NumericStats,
         config: NumericProfileConfig,
     ) -> None:
-        from scipy.stats import skew, kurtosis as scipy_kurtosis
+        from scipy.stats import kurtosis as scipy_kurtosis
+        from scipy.stats import skew
 
         if clean.len() < 3:
             return

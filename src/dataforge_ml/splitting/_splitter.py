@@ -526,9 +526,11 @@ class DataSplitter:
         -------
         SplitResult
         """
-        from ._profile_signals import build_label_matrix, unsplittable_train_mask
-        from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
         import math
+
+        from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
+
+        from ._profile_signals import build_label_matrix, unsplittable_train_mask
 
         min_positives = math.ceil(2 / min(test_size, 1 - test_size))
         label_matrix = build_label_matrix(
@@ -610,8 +612,9 @@ class DataSplitter:
         list[FoldResult]
             Exactly k folds with zero-based fold_index.
         """
-        from ._profile_signals import build_label_matrix, unsplittable_train_mask
         from iterstrat.ml_stratifiers import MultilabelStratifiedKFold
+
+        from ._profile_signals import build_label_matrix, unsplittable_train_mask
 
         label_matrix = build_label_matrix(
             self._df, profile, self._target, config=self._config, min_positives=k

@@ -14,6 +14,7 @@ from ._config import (
     NumericImputationConfig,
 )
 from ._decision_assembler import decide
+from ._fit_signals import FitSignals, ImputationFitWarning
 from ._fitted_imputer import (
     DroppedColumnAbsentWarning,
     FittedColumnAbsentError,
@@ -22,7 +23,6 @@ from ._fitted_imputer import (
     UnfittedColumnError,
     UnseenColumnError,
 )
-from ._fit_signals import FitSignals, ImputationFitWarning
 from ._unit_fit import UnitFitResult, UnitNotTrainableError, fit_unit
 from .evaluation import EvaluationOrchestrator
 

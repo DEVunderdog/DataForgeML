@@ -9,7 +9,6 @@ import pytest
 
 from dataforge_ml.config import PipelineConfig, PipelinePhase, SemanticType
 
-
 # ---------------------------------------------------------------------------
 # set_column_type — single column override
 # ---------------------------------------------------------------------------

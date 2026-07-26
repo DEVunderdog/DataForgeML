@@ -11,10 +11,15 @@ Inf / NaN expansion        →  runs for every Float32/Float64 column unconditio
 
 from __future__ import annotations
 
-
 import numpy as np
 import polars as pl
 
+from ..utils._null_detection import (
+    _SENTINEL_STRINGS,
+    _inf_eligible,
+    _numeric_sentinel_eligible,
+    _sentinel_eligible,
+)
 from ._base import DatasetLevelProfiler
 from ._missingness_config import (
     ColumnMissingnessProfile,
@@ -23,12 +28,6 @@ from ._missingness_config import (
     MissingnessProfileResult,
     MissingSeverity,
     RowMissingnessDistribution,
-)
-from ..utils._null_detection import (
-    _SENTINEL_STRINGS,
-    _inf_eligible,
-    _numeric_sentinel_eligible,
-    _sentinel_eligible,
 )
 
 

@@ -25,7 +25,6 @@ from dataforge_ml import (
     StructuralProfiler,
 )
 from dataforge_ml.profiling._config import ProfileConfig
-
 from tests.conftest import fit_imputer
 
 

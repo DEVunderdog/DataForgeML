@@ -1,11 +1,10 @@
 import polars as pl
 
-from dataforge_ml.profiling._correlation_profiler import CorrelationProfiler
 from dataforge_ml.profiling._correlation_config import (
     CorrelationProfileConfig,
     CorrelationProfileResult,
 )
-
+from dataforge_ml.profiling._correlation_profiler import CorrelationProfiler
 
 # ---------------------------------------------------------------------------
 # Helpers

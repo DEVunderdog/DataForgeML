@@ -1,4 +1,5 @@
 from dataforge_ml.imputation._fitted_imputer import FittedMICE
+
 """
 Unit tests for FittedImputer.transform() and to_dict()/from_dict().
 
@@ -24,7 +25,6 @@ from dataforge_ml.imputation._fitted_imputer import (
     UnfittedColumnError,
     UnseenColumnError,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -983,7 +983,8 @@ def test_new_error_classes_exported_from_package():
 def test_fitted_knn_transform_produces_no_nulls():
     import numpy as np
     from sklearn.impute import KNNImputer
-    from dataforge_ml.imputation._fitted_imputer import _FittedKNN, FittedMICE
+
+    from dataforge_ml.imputation._fitted_imputer import FittedMICE, _FittedKNN
 
     # Training matrix: 4 complete rows, 2 KNN columns.
     train = np.array([
@@ -1025,7 +1026,8 @@ def test_fitted_knn_scale_sensitive_imputed_value_not_dominated_by_large_column(
     """
     import numpy as np
     from sklearn.impute import KNNImputer
-    from dataforge_ml.imputation._fitted_imputer import _FittedKNN, FittedMICE
+
+    from dataforge_ml.imputation._fitted_imputer import FittedMICE, _FittedKNN
 
     # `small` in [0, 1]; `large` in [0, 1000]; perfect positive correlation.
     # Query: small=None, large=1000 → nearest scaled neighbour is row3 →
@@ -1067,8 +1069,9 @@ def test_fitted_knn_scale_sensitive_imputed_value_not_dominated_by_large_column(
 def test_fitted_knn_serialize_deserialize_round_trip():
     import numpy as np
     from sklearn.impute import KNNImputer
+
     from dataforge_ml import deserialize, serialize
-    from dataforge_ml.imputation._fitted_imputer import _FittedKNN, FittedMICE
+    from dataforge_ml.imputation._fitted_imputer import FittedMICE, _FittedKNN
 
     train = np.array([[0.0, 1.0], [1.0, 0.0], [0.5, 0.5]], dtype=np.float64)
     col_means = np.nanmean(train, axis=0)
@@ -1235,9 +1238,9 @@ def test_mice_all_cols_write_back_restricted_to_owned_columns():
     the block's owned column must recover its real signal and the predictor must
     never be touched by the block's transform.
     """
+    import numpy as np
     from sklearn.impute import IterativeImputer
     from sklearn.linear_model import BayesianRidge
-    import numpy as np
 
     # all_cols order is ["y", "outside"]; the block owns only "y".
     arr = np.array([
@@ -1271,9 +1274,9 @@ def test_mice_inference_time_feature_nans():
     inference time without errors and without resorting to a feat_means patching
     loop in the apply path.
     """
+    import numpy as np
     from sklearn.impute import IterativeImputer
     from sklearn.linear_model import BayesianRidge
-    import numpy as np
 
     # Train imputer with some missing values in features to support it
     arr = np.array([

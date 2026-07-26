@@ -36,15 +36,16 @@ from __future__ import annotations
 import math
 
 import polars as pl
+
 from ._base import ColumnBatchProfiler
 from ._categorical_config import (
+    CategoricalFlag,
     CategoricalProfileConfig,
     CategoricalProfileResult,
     CategoricalStats,
-    TopValueEntry,
-    CategoricalFlag,
-    RareCategoryStats,
     ImbalanceMetrics,
+    RareCategoryStats,
+    TopValueEntry,
 )
 
 _MIXED_TYPE_Z_SCORE: float = 1.96

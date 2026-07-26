@@ -19,14 +19,14 @@ import numpy as np
 import polars as pl
 
 from ..config import PipelineConfig, PipelinePhase
+from ..models._data_types import _FLOAT_DTYPES, _INT_DTYPES
+from ..utils._null_normalization import _resolve_effective_nulls
 from ._config import (
     _EXCLUSION_SIGNAL,
     ColumnImputationRecord,
     ImputationResult,
     ImputationStrategy,
 )
-from ..models._data_types import _INT_DTYPES, _FLOAT_DTYPES
-from ..utils._null_normalization import _resolve_effective_nulls
 from ._fitted_units import FittedScalar
 
 
@@ -119,6 +119,7 @@ class FittedColumnAbsentError(Exception):
 
 
 from typing import Protocol, runtime_checkable
+
 
 @runtime_checkable
 class FittedUnit(Protocol):
@@ -273,8 +274,9 @@ class FittedMICE:
         cols = [c for c in self.columns if c in df.columns]
         if not cols:
             return df
-        from ._utils import _df_to_numpy, _numpy_to_df, _preserve_observed
         import polars as pl
+
+        from ._utils import _df_to_numpy, _numpy_to_df, _preserve_observed
 
         n_df_rows = len(df)
         arr = np.full((n_df_rows, len(self.all_cols)), np.nan, dtype=np.float64)
@@ -361,8 +363,9 @@ class _FittedKNN:
         cols = [c for c in self.columns if c in df.columns]
         if not cols:
             return df
-        from ._utils import _df_to_numpy, _numpy_to_df, _preserve_observed
         import polars as pl
+
+        from ._utils import _df_to_numpy, _numpy_to_df, _preserve_observed
         arr = _df_to_numpy(df, cols)
         arr_scaled = (arr - self.col_means) / self.col_stds
         arr_imputed = self.model.transform(arr_scaled)
