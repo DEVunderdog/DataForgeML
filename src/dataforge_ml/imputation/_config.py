@@ -1405,6 +1405,14 @@ class ImputationUnit:
     columns : tuple[str, ...]
         Columns trained by this unit — every column in the block for the joint
         units, a single-element tuple for a per-column unit.
+    is_block : bool, default False
+        Whether the unit's columns train together in one joint model call —
+        ``True`` for the ``MICE`` and ``KNN`` blocks, ``False`` for every
+        per-column unit. Structural only: it says nothing about how expensive
+        the unit is, nor whether it can absorb inner parallelism (that follows
+        from ``model_choice``, which stays on
+        :class:`ColumnImputationDecision`). Derived from ``strategy``, so a
+        caller never supplies it.
 
     Notes
     -----
@@ -1418,6 +1426,7 @@ class ImputationUnit:
     strategy: ImputationStrategy
     columns: tuple[str, ...]
     hyperparameters: Optional[tuple[tuple[str, Any], ...]] = None
+    is_block: bool = False
 
     def to_dict(self) -> dict:
         """Serialise the unit to a plain dictionary.
@@ -1437,6 +1446,7 @@ class ImputationUnit:
                 if self.hyperparameters is not None
                 else None
             ),
+            "is_block": self.is_block,
         }
 
     @classmethod
@@ -1451,17 +1461,21 @@ class ImputationUnit:
         Returns
         -------
         ImputationUnit
-            Reconstructed unit instance.
+            Reconstructed unit instance. ``is_block`` is re-derived from
+            ``strategy``, so whatever the payload carries for it — a stale
+            value, a wrong value, or nothing at all — is ignored.
         """
+        strategy = ImputationStrategy[data["strategy"]]
         return cls(
             unit_id=data["unit_id"],
-            strategy=ImputationStrategy[data["strategy"]],
+            strategy=strategy,
             columns=tuple(data.get("columns", ())),
             hyperparameters=(
                 _hyperparameters_from_dict(data["hyperparameters"])
                 if data.get("hyperparameters") is not None
                 else None
             ),
+            is_block=strategy in _JOINT_BLOCK_STRATEGIES,
         )
 
 
@@ -1518,6 +1532,7 @@ def _derive_units(
                         hyperparameters=_merge_unit_hyperparameters(
                             decided_hyperparameters, override_hyperparameters, "mice"
                         ),
+                        is_block=True,
                     )
                 )
                 mice_emitted = True
@@ -1531,6 +1546,7 @@ def _derive_units(
                         hyperparameters=_merge_unit_hyperparameters(
                             decided_hyperparameters, override_hyperparameters, "knn"
                         ),
+                        is_block=True,
                     )
                 )
                 knn_emitted = True
@@ -1546,6 +1562,7 @@ def _derive_units(
                     hyperparameters=_merge_unit_hyperparameters(
                         decided_hyperparameters, override_hyperparameters, unit_id
                     ),
+                    is_block=False,
                 )
             )
     return tuple(units)

@@ -469,6 +469,131 @@ def test_with_strategy_unknown_column_raises() -> None:
 
 
 # ---------------------------------------------------------------------------
+# is_block — the structural joint-block fact on every derived unit (#431)
+# ---------------------------------------------------------------------------
+
+
+def test_joint_blocks_are_marked_and_per_column_units_are_not() -> None:
+    """``is_block`` is stamped on every unit the projection emits.
+
+    One profile covering all four unit shapes: the two joint blocks, a scalar,
+    and GMM-Sampling (bimodal with no correlated feature). Cluster-Conditional
+    is covered separately since it needs a correlation matrix.
+    """
+    bimodal = BimodalStats(
+        dip_statistic=0.1,
+        dip_p_value=0.001,
+        center1=0.0,
+        center2=10.0,
+        cluster_separation=3.0,
+        minority_weight=0.4,
+    )
+    g = ColumnProfile(
+        name="g",
+        semantic_type=SemanticType.Numeric,
+        numeric_kind=NumericKind.Continuous,
+        missingness=ColumnMissingnessProfile(
+            column="g",
+            total_rows=100,
+            effective_null_count=20,
+            effective_null_ratio=0.2,
+            severity=MissingSeverity.Moderate,
+            flags=[],
+            correlated_with=[],
+        ),
+        stats=NumericStats(flags=[NumericFlag.Bimodal], bimodal_stats=bimodal),
+    )
+    profile = _profile(
+        {
+            "m": _numeric_cp("m"),
+            "a": _numeric_cp("a"),
+            "b": _numeric_cp("b"),
+            "k1": _numeric_cp("k1"),
+            "k2": _numeric_cp("k2"),
+            "g": g,
+        }
+    )
+    config = PipelineConfig()
+    config.imputation.numeric.set_per_column_strategy("m", ImputationStrategy.Median)
+    config.imputation.numeric.set_per_column_strategy(
+        ["a", "b"], ImputationStrategy.MICE
+    )
+    config.imputation.numeric.set_per_column_strategy(
+        ["k1", "k2"], ImputationStrategy.KNN
+    )
+
+    plan = decide(profile, profile.dataset.row_count, config)
+    by_id = {u.unit_id: u for u in plan.units}
+
+    assert by_id["mice"].is_block is True
+    assert by_id["knn"].is_block is True
+    assert by_id["median:m"].is_block is False
+    assert by_id["gmm_sampling:g"].is_block is False
+    # Nothing is left unstamped: every emitted unit carries the fact.
+    assert all(isinstance(u.is_block, bool) for u in plan.units)
+
+
+def test_cluster_conditional_unit_is_not_a_block() -> None:
+    bimodal = BimodalStats(
+        dip_statistic=0.1,
+        dip_p_value=0.001,
+        center1=0.0,
+        center2=10.0,
+        cluster_separation=3.0,
+        minority_weight=0.4,
+    )
+    bm = ColumnProfile(
+        name="bm",
+        semantic_type=SemanticType.Numeric,
+        numeric_kind=NumericKind.Continuous,
+        missingness=ColumnMissingnessProfile(
+            column="bm",
+            total_rows=100,
+            effective_null_count=20,
+            effective_null_ratio=0.2,
+            severity=MissingSeverity.Moderate,
+            flags=[],
+            correlated_with=[],
+        ),
+        stats=NumericStats(flags=[NumericFlag.Bimodal], bimodal_stats=bimodal),
+    )
+    profile = _profile({"bm": bm, "p": _numeric_cp("p", null_count=0, severity=None)})
+    profile.dataset.feature_correlation = CorrelationProfileResult(
+        pearson_matrix={"bm": {"p": 0.5}, "p": {"bm": 0.5}}
+    )
+    plan = decide(profile, profile.dataset.row_count, PipelineConfig())
+    unit = next(u for u in plan.units if u.unit_id == "cluster_conditional:bm")
+    assert unit.strategy == ImputationStrategy.ClusterConditional
+    assert unit.is_block is False
+
+
+def test_units_still_emit_in_column_order_not_blocks_first() -> None:
+    """ADR-0081 rejected reordering the projection to put blocks first."""
+    profile = _profile(
+        {"m": _numeric_cp("m"), "a": _numeric_cp("a"), "b": _numeric_cp("b")}
+    )
+    config = PipelineConfig()
+    config.imputation.numeric.set_per_column_strategy("m", ImputationStrategy.Median)
+    config.imputation.numeric.set_per_column_strategy(
+        ["a", "b"], ImputationStrategy.MICE
+    )
+    plan = decide(profile, profile.dataset.row_count, config)
+    assert [u.unit_id for u in plan.units] == ["median:m", "mice"]
+
+
+def test_unit_carries_no_model_choice_dependent_fact() -> None:
+    """``is_block`` has no ``wants_inner_jobs`` companion — locked by ADR-0081.
+
+    Inner-parallelism absorption follows from ``model_choice``, which stays on
+    the column decision and must not be duplicated onto the unit.
+    """
+    field_names = {f.name for f in dataclasses.fields(ImputationUnit)}
+    assert "is_block" in field_names
+    assert "wants_inner_jobs" not in field_names
+    assert "model_choice" not in field_names
+
+
+# ---------------------------------------------------------------------------
 # Round-trip serialisation re-derives units from the decision map
 # ---------------------------------------------------------------------------
 

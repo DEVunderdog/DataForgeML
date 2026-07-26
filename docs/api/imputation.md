@@ -39,6 +39,10 @@ whole-dataframe imputer.
 ```
 
 ```{eval-rst}
+.. autofunction:: dataforge_ml.imputation._unit_fit.core_budget
+```
+
+```{eval-rst}
 .. autoclass:: dataforge_ml.imputation._unit_fit.UnitFitResult
    :show-inheritance:
 ```

@@ -23,7 +23,7 @@ from ._fitted_imputer import (
     UnfittedColumnError,
     UnseenColumnError,
 )
-from ._unit_fit import UnitFitResult, UnitNotTrainableError, fit_unit
+from ._unit_fit import UnitFitResult, UnitNotTrainableError, core_budget, fit_unit
 from .evaluation import EvaluationOrchestrator
 
 __all__ = [
@@ -41,6 +41,7 @@ __all__ = [
     "ImputationUnit",
     "decide",
     "fit_unit",
+    "core_budget",
     "UnitFitResult",
     "FitSignals",
     "ImputationFitWarning",

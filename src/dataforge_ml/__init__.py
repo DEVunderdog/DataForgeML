@@ -43,6 +43,7 @@ from .imputation import (
     UnitFitResult,
     UnitNotTrainableError,
     UnseenColumnError,
+    core_budget,
     decide,
     fit_unit,
 )
@@ -96,6 +97,7 @@ __all__ = [
     # (ADR-0060, ADR-0071).
     "decide",
     "fit_unit",
+    "core_budget",
     "UnitFitResult",
     "FitSignals",
     "UnitNotTrainableError",

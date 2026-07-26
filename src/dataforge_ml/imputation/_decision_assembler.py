@@ -122,9 +122,9 @@ def _raise_on_excluded_column_overrides(
 
 
 def decide(
-    profile: "StructuralProfileResult",
+    profile: StructuralProfileResult,
     n_rows: int,
-    config: Optional[PipelineConfig] = None,
+    config: PipelineConfig | None = None,
 ) -> ImputationDecision:
     """Build the pure, immutable imputation plan for a profiled dataset.
 

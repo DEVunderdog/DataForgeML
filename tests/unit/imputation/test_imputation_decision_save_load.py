@@ -22,7 +22,7 @@ from dataforge_ml import (
     inspect,
     serialize,
 )
-from dataforge_ml.imputation import ImputationStrategy, decide
+from dataforge_ml.imputation import ImputationStrategy, ImputationUnit, decide
 from dataforge_ml.profiling._config import (
     ColumnProfile,
     NumericKind,
@@ -197,3 +197,43 @@ def test_reordering_enum_members_does_not_corrupt_a_saved_document() -> None:
     # `.name` / `EnumType[name]`.
     assert StrategyV2[saved_name] == StrategyV2.MICE
     assert StrategyV2[saved_name].value == StrategyV1.MICE.value
+
+
+# ---------------------------------------------------------------------------
+# is_block is written but re-derived, never trusted off the wire (#431)
+# ---------------------------------------------------------------------------
+
+
+def test_to_dict_writes_is_block_for_every_unit() -> None:
+    plan = _rich_plan()
+    document = json.loads(serialize(plan).decode("utf-8"))
+    units = {u["unit_id"]: u for u in document["data"]["units"]}
+    assert units["mice"]["is_block"] is True
+    assert units["knn"]["is_block"] is True
+    assert all("is_block" in u for u in units.values())
+    assert not any(
+        u["is_block"] for uid, u in units.items() if uid not in {"mice", "knn"}
+    )
+
+
+def test_is_block_absent_from_payload_round_trips_to_derived_value() -> None:
+    """A plan written before the field existed still loads with it correct."""
+    plan = _rich_plan()
+    mice = next(u for u in plan.units if u.unit_id == "mice")
+    legacy = mice.to_dict()
+    del legacy["is_block"]
+
+    assert ImputationUnit.from_dict(legacy) == mice
+
+
+def test_wrong_is_block_in_payload_is_ignored_on_load() -> None:
+    """A derivable fact cannot be poisoned by a hand-edited artifact."""
+    plan = _rich_plan()
+    mice = next(u for u in plan.units if u.unit_id == "mice")
+    scalar = next(u for u in plan.units if u.unit_id.startswith("mnar:"))
+
+    tampered_block = mice.to_dict() | {"is_block": False}
+    tampered_scalar = scalar.to_dict() | {"is_block": True}
+
+    assert ImputationUnit.from_dict(tampered_block).is_block is True
+    assert ImputationUnit.from_dict(tampered_scalar).is_block is False

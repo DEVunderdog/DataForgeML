@@ -5,24 +5,37 @@ holds: plan with ``decide``, train each unit through the user's own loop
 (batch scheduling is user-owned, ADR-0075), and compose the result. The
 single-track failure contract, the forced-oversize allowance, and exact
 coverage are all asserted here.
+
+``core_budget`` (#432 / ADR-0081) joins the same seam: it is the arithmetic the
+user calls once before that loop, so it belongs beside the loop it prices.
 """
 
 from __future__ import annotations
 
+import inspect
+import warnings
+
+import joblib
 import numpy as np
 import polars as pl
 import pytest
 
 from dataforge_ml import (
     FittedImputer,
+    ModelChoice,
     PipelineConfig,
     StructuralProfiler,
+    core_budget,
     decide,
     fit_unit,
 )
+from dataforge_ml.config import SemanticType
 from dataforge_ml.imputation import (
+    ColumnImputationDecision,
     FitSignals,
+    ImputationDecision,
     ImputationFitWarning,
+    ImputationStrategy,
     UnitFitResult,
     UnitNotTrainableError,
 )
@@ -242,3 +255,154 @@ def test_scalar_units_land_on_records_and_model_units_on_the_list():
     # No FittedScalar leaks into the ordered unit list; scalar fills are on
     # records.
     assert not any(isinstance(u, FittedScalar) for u in imputer.units)
+
+
+# ---------------------------------------------------------------------------
+# core_budget — the whole-plan inner-parallelism arithmetic (#432 / ADR-0081)
+#
+# Plans are built straight from ``ColumnImputationDecision`` entries so the
+# arithmetic is under test rather than the router: the budget reads only
+# ``units`` and ``column_decisions``, and an explicit ``total_cores`` keeps every
+# expected value an exact integer with no monkeypatching of core detection.
+# ---------------------------------------------------------------------------
+
+
+def _synthetic_plan(*decisions: ColumnImputationDecision) -> ImputationDecision:
+    return ImputationDecision(
+        column_decisions={d.column: d for d in decisions},
+        decided_for_shape=(1000, len(decisions), tuple(d.column for d in decisions)),
+        config_snapshot={},
+        profile_provenance={},
+    )
+
+
+def _numeric(column, strategy, **kw) -> ColumnImputationDecision:
+    return ColumnImputationDecision(
+        column=column, semantic_type=SemanticType.Numeric, strategy=strategy, **kw
+    )
+
+
+def _mice_col(column, choice=ModelChoice.RandomForestRegressor):
+    return _numeric(column, ImputationStrategy.MICE, model_choice=choice)
+
+
+def _budget_plan(choice=ModelChoice.RandomForestRegressor, knn=True, scalar=True):
+    """A plan shaped like a real one: a MICE block, optionally KNN, optionally dust."""
+    decisions = [_mice_col("m1", choice), _mice_col("m2", choice)]
+    if knn:
+        decisions.append(_numeric("k1", ImputationStrategy.KNN))
+    if scalar:
+        decisions.append(_numeric("s1", ImputationStrategy.Median))
+    return _synthetic_plan(*decisions)
+
+
+def test_core_budget_is_exported_from_both_public_namespaces():
+    import dataforge_ml
+    import dataforge_ml.imputation
+
+    for namespace in (dataforge_ml, dataforge_ml.imputation):
+        assert "core_budget" in namespace.__all__
+        assert namespace.core_budget is core_budget
+
+
+def test_core_budget_keys_are_exactly_the_plans_unit_ids():
+    df = _holey_frame()
+    plan = _plan(df)
+    budget = core_budget(plan, max_workers=4, total_cores=8)
+    assert set(budget) == {u.unit_id for u in plan.units}
+
+
+def test_parallel_drive_reserves_one_core_for_the_knn_block():
+    plan = _budget_plan()
+    assert core_budget(plan, max_workers=8, total_cores=12) == {
+        "mice": 11,
+        "knn": 1,
+        "median:s1": 1,
+    }
+
+
+def test_parallel_drive_without_a_knn_block_gives_mice_every_core():
+    plan = _budget_plan(knn=False)
+    assert core_budget(plan, max_workers=8, total_cores=12) == {
+        "mice": 12,
+        "median:s1": 1,
+    }
+
+
+def test_max_workers_one_is_a_sequential_drive_and_gives_mice_minus_one():
+    """Outer degree one: the inner layer takes the whole machine (ADR-0069)."""
+    plan = _budget_plan()
+    assert core_budget(plan, max_workers=1, total_cores=12) == {
+        "mice": -1,
+        "knn": 1,
+        "median:s1": 1,
+    }
+
+
+def test_max_workers_none_is_a_pool_of_unknown_degree_not_a_sequential_drive():
+    """``ThreadPoolExecutor(max_workers=None)`` is legal, common, and not sequential."""
+    plan = _budget_plan()
+    parallel = core_budget(plan, max_workers=8, total_cores=12)
+    assert core_budget(plan, max_workers=None, total_cores=12) == parallel
+
+
+def test_one_core_box_with_a_knn_block_still_floors_mice_at_one():
+    plan = _budget_plan()
+    assert core_budget(plan, max_workers=8, total_cores=1)["mice"] == 1
+
+
+@pytest.mark.parametrize(
+    "choice",
+    [ModelChoice.GradientBoostingRegressor, ModelChoice.BayesianRidge],
+)
+def test_a_mice_block_with_no_inner_parallelism_to_spend_is_priced_at_one(choice):
+    """Neither estimator has an ``n_jobs``, so ``1`` is the truthful answer."""
+    plan = _budget_plan(choice=choice)
+    assert core_budget(plan, max_workers=8, total_cores=12) == {
+        "mice": 1,
+        "knn": 1,
+        "median:s1": 1,
+    }
+
+
+def test_no_warning_is_emitted_for_a_block_that_cannot_spend_a_budget():
+    """A warning here would fire on a correct plan; the returned ``1`` is the answer."""
+    plan = _budget_plan(choice=ModelChoice.GradientBoostingRegressor)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert core_budget(plan, max_workers=8, total_cores=12)["mice"] == 1
+
+
+def test_a_plan_with_no_mice_unit_is_all_ones():
+    plan = _synthetic_plan(
+        _numeric("k1", ImputationStrategy.KNN),
+        _numeric("s1", ImputationStrategy.Median),
+    )
+    budget = core_budget(plan, max_workers=8, total_cores=12)
+    assert budget == {"knn": 1, "median:s1": 1}
+
+
+def test_total_cores_overrides_detection():
+    plan = _budget_plan(knn=False)
+    assert core_budget(plan, max_workers=8, total_cores=4)["mice"] == 4
+    assert core_budget(plan, max_workers=8, total_cores=64)["mice"] == 64
+
+
+def test_the_default_path_detects_cores_with_joblib_cpu_count():
+    """Detection is ``joblib.cpu_count()`` — cgroup-aware, and what sklearn uses."""
+    plan = _budget_plan(knn=False)
+    detected = core_budget(plan, max_workers=8)
+    assert detected == core_budget(plan, max_workers=8, total_cores=joblib.cpu_count())
+
+
+def test_fit_unit_signature_is_unchanged_and_n_jobs_inner_still_defaults_to_minus_one():
+    """``core_budget`` is purely additive: the sequential loop reads the same -1."""
+    params = inspect.signature(fit_unit).parameters
+    assert list(params) == [
+        "decision",
+        "unit_id",
+        "df",
+        "random_seed",
+        "n_jobs_inner",
+    ]
+    assert params["n_jobs_inner"].default == -1

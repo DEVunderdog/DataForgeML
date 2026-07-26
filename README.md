@@ -130,9 +130,21 @@ to a weaker strategy.
 
 Parallelism lives in exactly one layer, and you choose which. A sequential loop
 takes the default `n_jobs_inner=-1` (each fit fans out to every core). If you
-fit units side by side in your own thread pool, pass `n_jobs_inner=1` on every
-call so the two layers do not oversubscribe the machine. The value never
-changes the result — only how the cores are spent.
+fit units side by side in your own thread pool, call `core_budget` once before
+the loop and pass each unit's value as that call's `n_jobs_inner`, so the two
+layers do not oversubscribe the machine:
+
+```python
+from dataforge_ml import core_budget
+
+budget = core_budget(plan, max_workers=4)
+# inside your pool, for each unit:
+res = fit_unit(plan, unit.unit_id, df, n_jobs_inner=budget[unit.unit_id])
+```
+
+A parallelised drive that passes nothing leaves every concurrent fit fanning out
+to every core. The value never changes the result — only how the cores are
+spent.
 
 ### Overriding hyperparameters
 
