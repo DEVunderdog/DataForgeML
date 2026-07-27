@@ -1,17 +1,18 @@
 """
-Unit tests for the ImputationDecision plan-edit API (ADR-0060, issue #346).
+Unit tests for the ImputationDecision plan-edit API (ADR-0060, ADR-0082).
 
-Covers ``with_strategy`` / ``with_model_choice``: immutable edits returning a new
-valid plan, unit re-derivation on the returned plan, and edit-time legality
-validation — output-only labels and non-declarable-for-semantic-type strategies
-rejected with the same redirect messages the config surfaces. Plans are built
-directly from ``ColumnImputationDecision`` entries so the edit methods (not the
-assembler) are under test.
+Covers ``with_model_choice`` / ``with_hyperparameters`` — the *dial* edits that
+survive ADR-0082: immutable edits returning a new valid plan, and unit
+re-derivation on the returned plan. Strategy is no longer editable on a built
+plan; declaring one is ``per_column_strategy``'s job and is covered by the
+config and assembler suites. Plans are built directly from
+``ColumnImputationDecision`` entries so the edit methods (not the assembler) are
+under test.
 """
 
 import pytest
 
-from dataforge_ml import ModelChoice, PipelineConfig
+from dataforge_ml import ModelChoice
 from dataforge_ml.config import SemanticType
 from dataforge_ml.imputation import (
     ColumnImputationDecision,
@@ -42,14 +43,6 @@ def _numeric(column: str, strategy: ImputationStrategy, **kw) -> ColumnImputatio
 # ---------------------------------------------------------------------------
 
 
-def test_with_strategy_returns_new_plan_original_unchanged() -> None:
-    plan = _plan(_numeric("a", S.Median))
-    edited = plan.with_strategy("a", S.Mean)
-    assert edited is not plan
-    assert plan.column_decisions["a"].strategy == S.Median
-    assert edited.column_decisions["a"].strategy == S.Mean
-
-
 def test_with_model_choice_returns_new_plan_original_unchanged() -> None:
     plan = _plan(_numeric("a", S.MICE, model_choice=ModelChoice.BayesianRidge))
     edited = plan.with_model_choice("a", ModelChoice.RandomForestRegressor)
@@ -58,39 +51,29 @@ def test_with_model_choice_returns_new_plan_original_unchanged() -> None:
     assert edited.column_decisions["a"].model_choice == ModelChoice.RandomForestRegressor
 
 
-def test_with_strategy_marks_the_column_forced() -> None:
-    """Editing a strategy is forcing it, and the plan says so (ADR-0066).
+def test_strategy_is_not_editable_on_a_built_plan() -> None:
+    """Structural edits belong to ``decide`` alone (ADR-0082).
 
-    Pins the latent bug: this force never touches ``per_column_strategy``, so a
-    config-derived check could not see it and the column degraded silently
-    instead of raising.
+    Guards the collapse: a strategy edit re-derives which units exist, so it can
+    strand a unit with no decided hyperparameter base. The only declaration
+    surface is ``per_column_strategy``, consumed before routing.
     """
     plan = _plan(_numeric("a", S.Median))
-    assert plan.column_decisions["a"].forced is False
-
-    edited = plan.with_strategy("a", S.MICE)
-    assert edited.column_decisions["a"].forced is True
-    assert plan.column_decisions["a"].forced is False
+    assert not hasattr(plan, "with_strategy")
 
 
-def test_with_strategy_forced_survives_round_trip_without_config() -> None:
-    """A store-loaded plan-edited force is still forced, config or no config."""
-    edited = _plan(_numeric("a", S.Median)).with_strategy("a", S.MICE)
-    restored = ColumnImputationDecision.from_dict(edited.column_decisions["a"].to_dict())
+def test_forced_survives_round_trip_without_config() -> None:
+    """A store-loaded force is still forced, config or no config (ADR-0066)."""
+    forced = _numeric("a", S.MICE, forced=True)
+    restored = ColumnImputationDecision.from_dict(forced.to_dict())
     assert restored.forced is True
 
 
-def test_with_strategy_forced_is_not_read_from_the_signal_string() -> None:
+def test_forced_is_not_read_from_the_signal_string() -> None:
     """The bool is the machine predicate; the signal is prose (ADR-0066)."""
     decision = _numeric("a", S.MICE, forced=True, signals=())
     assert decision.forced is True
     assert not any("per_column_strategy_override" in s for s in decision.signals)
-
-
-def test_with_strategy_resets_model_choice() -> None:
-    plan = _plan(_numeric("a", S.MICE, model_choice=ModelChoice.GradientBoostingRegressor))
-    edited = plan.with_strategy("a", S.Median)
-    assert edited.column_decisions["a"].model_choice is None
 
 
 def test_with_model_choice_accepts_none_and_string() -> None:
@@ -107,17 +90,12 @@ def test_with_model_choice_accepts_none_and_string() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_units_reflect_the_edit() -> None:
-    plan = _plan(_numeric("a", S.MICE), _numeric("b", S.MICE))
-    assert {u.unit_id for u in plan.units} == {"mice"}
-
-    edited = plan.with_strategy("a", S.Median)
-    assert {u.unit_id for u in edited.units} == {"mice", "median:a"}
-    # b remains the (now singleton) MICE block
-    mice_unit = next(u for u in edited.units if u.unit_id == "mice")
-    assert mice_unit.columns == ("b",)
-    # original untouched
-    assert {u.unit_id for u in plan.units} == {"mice"}
+def test_units_are_derived_from_the_column_map() -> None:
+    """``units`` is always a projection of ``column_decisions`` (ADR-0060)."""
+    plan = _plan(_numeric("a", S.MICE), _numeric("b", S.MICE), _numeric("c", S.Median))
+    assert {u.unit_id for u in plan.units} == {"mice", "median:c"}
+    mice_unit = next(u for u in plan.units if u.unit_id == "mice")
+    assert mice_unit.columns == ("a", "b")
 
 
 def test_with_model_choice_edit_visible_on_unit_owner() -> None:
@@ -129,78 +107,8 @@ def test_with_model_choice_edit_visible_on_unit_owner() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Legality — output-only labels rejected, message identical to the config
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    "strategy",
-    [S.Dropped, S.MNAR, S.Passthrough, S.Indicator, S.ClusterConditional, S.GMMSampling],
-)
-def test_output_only_labels_rejected_with_config_message(strategy) -> None:
-    plan = _plan(_numeric("a", S.Median))
-
-    with pytest.raises(ValueError) as edit_err:
-        plan.with_strategy("a", strategy)
-
-    config = PipelineConfig()
-    with pytest.raises(ValueError) as config_err:
-        config.imputation.numeric.set_per_column_strategy("a", strategy)
-
-    assert str(edit_err.value) == str(config_err.value)
-
-
-def test_constant_rejected_with_config_redirect() -> None:
-    plan = _plan(_numeric("a", S.Median))
-
-    with pytest.raises(ValueError) as edit_err:
-        plan.with_strategy("a", S.Constant)
-
-    # The config redirects a fill-less Constant to per_column_constant_fill.
-    config = PipelineConfig()
-    with pytest.raises(ValueError) as config_err:
-        config.imputation.numeric.set_per_column_strategy("a", S.Constant)
-
-    assert str(edit_err.value) == str(config_err.value)
-
-
-# ---------------------------------------------------------------------------
-# Legality — strategy must be declarable for the column's semantic type
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    "strategy", [S.MICE, S.KNN, S.Mean, S.Median, S.Mode]
-)
-def test_numeric_input_strategies_are_declarable(strategy) -> None:
-    plan = _plan(_numeric("a", S.Median))
-    edited = plan.with_strategy("a", strategy)
-    assert edited.column_decisions["a"].strategy == strategy
-
-
-@pytest.mark.parametrize(
-    "semantic_type",
-    [SemanticType.Categorical, SemanticType.Boolean, SemanticType.Datetime, SemanticType.Text],
-)
-def test_non_numeric_column_cannot_declare_imputation_strategy(semantic_type) -> None:
-    plan = _plan(
-        ColumnImputationDecision(
-            column="c", semantic_type=semantic_type, strategy=S.Passthrough
-        )
-    )
-    with pytest.raises(ValueError, match="not a declarable strategy"):
-        plan.with_strategy("c", S.Median)
-
-
-# ---------------------------------------------------------------------------
 # Unknown column
 # ---------------------------------------------------------------------------
-
-
-def test_with_strategy_unknown_column_raises_keyerror() -> None:
-    plan = _plan(_numeric("a", S.Median))
-    with pytest.raises(KeyError):
-        plan.with_strategy("nope", S.Mean)
 
 
 def test_with_model_choice_unknown_column_raises_keyerror() -> None:

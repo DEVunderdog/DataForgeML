@@ -395,7 +395,8 @@ def test_mnar_registers_indicator_decision_without_a_unit() -> None:
     assert not any("indicator" in uid for uid in unit_ids)
 
 
-def test_units_re_derive_on_edit_no_stale_list() -> None:
+def test_re_deciding_re_routes_a_column_and_leaves_the_first_plan_alone() -> None:
+    """Re-routing is a fresh ``decide``, not a plan edit (ADR-0082)."""
     profile = _profile({"a": _numeric_cp("a"), "b": _numeric_cp("b")})
     config = PipelineConfig()
     config.imputation.numeric.set_per_column_strategy(
@@ -404,13 +405,38 @@ def test_units_re_derive_on_edit_no_stale_list() -> None:
     plan = decide(profile, profile.dataset.row_count, config)
     assert {u.unit_id for u in plan.units} == {"mice"}
 
-    edited = plan.with_strategy("a", ImputationStrategy.Median)
+    config.imputation.numeric.set_per_column_strategy("a", ImputationStrategy.Median)
+    re_decided = decide(profile, profile.dataset.row_count, config)
     # a leaves the MICE block → its own scalar unit; b remains a (singleton) MICE block
-    edited_ids = {u.unit_id for u in edited.units}
-    assert "median:a" in edited_ids
-    assert "mice" in edited_ids
-    # the original plan is untouched (immutability)
+    assert {u.unit_id for u in re_decided.units} == {"median:a", "mice"}
+    mice_unit = next(u for u in re_decided.units if u.unit_id == "mice")
+    assert mice_unit.columns == ("b",)
+    # the earlier plan is a separate object and is untouched
     assert {u.unit_id for u in plan.units} == {"mice"}
+
+
+def test_re_deciding_into_a_new_strategy_carries_a_complete_hyperparameter_base() -> None:
+    """The bug ADR-0082 closes: a forced strategy always gets its dials.
+
+    Forcing a column into MICE on a plan that had no MICE block used to strand
+    the derived unit with no decided base, so the fitter raised ``KeyError`` on
+    its first dial lookup and no override could repair it. Routing the force
+    through ``decide`` means the base is computed after the strategy is known.
+    """
+    profile = _profile({"a": _numeric_cp("a"), "b": _numeric_cp("b")})
+    config = PipelineConfig()
+    config.imputation.numeric.set_per_column_strategy(
+        ["a", "b"], ImputationStrategy.Median
+    )
+    plan = decide(profile, profile.dataset.row_count, config)
+    assert not any(u.unit_id == "mice" for u in plan.units)
+
+    config.imputation.numeric.set_per_column_strategy("a", ImputationStrategy.MICE)
+    re_decided = decide(profile, profile.dataset.row_count, config)
+
+    mice_unit = next(u for u in re_decided.units if u.unit_id == "mice")
+    dials = dict(mice_unit.hyperparameters or ())
+    assert {"max_iter", "tol", "initial_strategy", "n_nearest_features"} <= set(dials)
 
 
 def test_domain_snap_bounds_surfaced_for_bounded_discrete_model_column() -> None:
@@ -452,20 +478,13 @@ def test_with_model_choice_returns_new_plan() -> None:
     )
 
 
-def test_with_strategy_rejects_output_only_label() -> None:
-    profile = _profile({"a": _numeric_cp("a")})
+def test_output_only_label_rejected_at_the_declaration_surface() -> None:
+    """The one place a strategy is declared is the one place it is validated."""
     config = PipelineConfig()
-    config.imputation.numeric.set_per_column_strategy("a", ImputationStrategy.Median)
-    plan = decide(profile, profile.dataset.row_count, config)
     with pytest.raises(ValueError, match="Dropped"):
-        plan.with_strategy("a", ImputationStrategy.Dropped)
-
-
-def test_with_strategy_unknown_column_raises() -> None:
-    profile = _profile({"a": _numeric_cp("a")})
-    plan = decide(profile, profile.dataset.row_count, PipelineConfig())
-    with pytest.raises(KeyError):
-        plan.with_strategy("missing", ImputationStrategy.Median)
+        config.imputation.numeric.set_per_column_strategy(
+            "a", ImputationStrategy.Dropped
+        )
 
 
 # ---------------------------------------------------------------------------

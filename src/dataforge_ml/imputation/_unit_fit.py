@@ -333,10 +333,11 @@ def core_budget(
     stays able to spend a budget.
 
     **The budget is a snapshot.** It describes the plan as it was when the call
-    returned. A plan edit in between — :meth:`ImputationDecision.with_strategy`,
-    :meth:`ImputationDecision.with_hyperparameters` — silently invalidates it,
-    and nothing detects that. The mitigation is placement: compute the budget
-    immediately before the loop that consumes it, not enforcement.
+    returned. A plan edit in between — :meth:`ImputationDecision.with_model_choice`,
+    :meth:`ImputationDecision.with_hyperparameters` — or a fresh
+    :func:`decide` silently invalidates it, and nothing detects that. The
+    mitigation is placement: compute the budget immediately before the loop that
+    consumes it, not enforcement.
     """
     cores = joblib.cpu_count() if total_cores is None else total_cores
     budget = {unit.unit_id: 1 for unit in decision.units}

@@ -87,10 +87,9 @@ class ModelChoice(StrEnum):
 # Shared strategy-legality rules
 #
 # One source of truth for "which strategies may a user declare, and what does
-# the redirect say when they cannot" — consumed both by
-# ``NumericImputationConfig.set_per_column_strategy`` (declaring a strategy in
-# config) and by ``ImputationDecision.with_strategy`` (editing a built plan), so
-# both paths reject illegal strategies identically (ADR-0060).
+# the redirect say when they cannot" — consumed by
+# ``NumericImputationConfig.set_per_column_strategy``, the single declaration
+# surface for a strategy (ADR-0082).
 # ---------------------------------------------------------------------------
 
 # Output-only labels that a user may never declare directly — the engine assigns
@@ -112,23 +111,6 @@ _OUTPUT_ONLY_STRATEGIES: frozenset[ImputationStrategy] = frozenset(
 # "excluded by declaration" (missing values ride through untouched) apart from
 # "passed through because fit saw no missingness" (missing values raise).
 _EXCLUSION_SIGNAL = "soft-excluded for Imputation phase"
-
-# Input strategies a user may declare, keyed by the column's semantic type. Only
-# semantic types with a registered imputer appear here; a strategy declared for
-# any other type has no engine that can execute it and is rejected. Future phases
-# extend this map as they gain imputers.
-_DECLARABLE_STRATEGIES_BY_TYPE: dict[SemanticType, frozenset[ImputationStrategy]] = {
-    SemanticType.Numeric: frozenset(
-        {
-            ImputationStrategy.Mean,
-            ImputationStrategy.Median,
-            ImputationStrategy.Mode,
-            ImputationStrategy.KNN,
-            ImputationStrategy.MICE,
-        }
-    ),
-}
-
 
 def _output_only_redirect(column: str, strategy: ImputationStrategy) -> str:
     """Build the redirect message for an output-only strategy declaration."""
@@ -1147,8 +1129,8 @@ class ColumnImputationDecision:
         Whether the column will be dropped for exceeding the drop threshold.
     forced : bool
         Whether ``strategy`` was declared by the user rather than routed
-        automatically — set both by the router (from ``per_column_strategy``)
-        and by :meth:`ImputationDecision.with_strategy`. This is the machine
+        automatically — written by the router alone, from
+        ``per_column_strategy`` (ADR-0082). This is the machine
         predicate for forced-ness (ADR-0066): a forced strategy that cannot
         train raises instead of degrading, and because the fact lives on the
         plan, a plan loaded from a store answers "was this forced?" without the
@@ -1341,31 +1323,6 @@ _STRUCTURAL_STRATEGIES: frozenset[ImputationStrategy] = frozenset(
         ImputationStrategy.Indicator,
     }
 )
-
-
-def _validate_declarable_strategy(
-    column: str,
-    semantic_type: SemanticType,
-    strategy: ImputationStrategy,
-) -> None:
-    """Validate that ``strategy`` may be declared on ``column`` when editing a plan.
-
-    Legality only — data-size feasibility (size guards) is deferred to execution
-    (ADR-0060). Output-only labels are rejected with the exact redirect the
-    config surfaces for ``per_column_strategy``; ``Constant`` redirects to
-    ``per_column_constant_fill``; a strategy the column's semantic type has no
-    imputer for is rejected as non-declarable.
-    """
-    if strategy in _OUTPUT_ONLY_STRATEGIES:
-        raise ValueError(_output_only_redirect(column, strategy))
-    if strategy == ImputationStrategy.Constant:
-        raise ValueError(_constant_without_fill_redirect(column))
-    declarable = _DECLARABLE_STRATEGIES_BY_TYPE.get(semantic_type, frozenset())
-    if strategy not in declarable:
-        raise ValueError(
-            f"Column '{column}': '{strategy}' is not a declarable strategy for a "
-            f"'{semantic_type}' column."
-        )
 
 
 def _hyperparameters_from_dict(
@@ -1579,11 +1536,17 @@ class ImputationDecision:
     persistence serialises it, and the user can inspect and edit it before
     anything trains.
 
-    The plan is immutable: :meth:`with_strategy` and :meth:`with_model_choice`
-    return a *new* ``ImputationDecision`` rather than mutating in place, and
-    ``units`` is re-derived from ``column_decisions`` at every construction, so a
-    stale unit list is structurally impossible and every plan that exists is
-    valid by construction.
+    The plan is immutable: :meth:`with_model_choice` and
+    :meth:`with_hyperparameters` return a *new* ``ImputationDecision`` rather
+    than mutating in place, and ``units`` is re-derived from
+    ``column_decisions`` at every construction, so a stale unit list is
+    structurally impossible and every plan that exists is valid by construction.
+
+    Those edits are *dial* edits: they change how a unit trains, never which
+    units exist, so they cannot invalidate the decided hyperparameter base.
+    Changing which strategy a column takes is a *structural* edit and belongs to
+    :func:`~dataforge_ml.imputation.decide` alone, declared through
+    ``per_column_strategy`` (ADR-0082).
 
     Parameters
     ----------
@@ -1673,77 +1636,6 @@ class ImputationDecision:
             self,
             "dropped_columns",
             tuple(c for c, d in decisions.items() if d.drop),
-        )
-
-    def with_strategy(
-        self, column: str, strategy: "str | ImputationStrategy"
-    ) -> "ImputationDecision":
-        """Return a new plan with ``column`` routed to ``strategy``.
-
-        The plan is immutable; this builds a fresh :class:`ImputationDecision`
-        with the one column's strategy replaced and every unit re-derived, so the
-        edit is visible in ``units`` while the original plan is untouched. Only
-        edit-time *legality* is validated: the strategy must be declarable for the
-        column's semantic type, and the output-only labels ``Dropped`` /
-        ``Passthrough`` / ``Indicator`` / ``MNAR`` / ``Constant`` /
-        ``ClusterConditional`` / ``GMMSampling`` are rejected with the same
-        redirect messages ``NumericImputationConfig.set_per_column_strategy``
-        surfaces. Data-size feasibility (size guards) is deferred to execution
-        (ADR-0060). Because the new strategy may imply a different estimator
-        family, ``model_choice`` is reset to ``None``; use
-        :meth:`with_model_choice` to set it.
-
-        Editing a column's strategy *is* forcing it, so the new decision carries
-        ``forced=True`` (ADR-0066) and execution will raise rather than degrade
-        should the strategy fail to train — even when the edit happens to name
-        the strategy the router chose anyway.
-
-        Parameters
-        ----------
-        column : str
-            Column to re-route. Must already be present in the plan.
-        strategy : str or ImputationStrategy
-            The replacement strategy.
-
-        Returns
-        -------
-        ImputationDecision
-            A new plan with the edit applied.
-
-        Raises
-        ------
-        KeyError
-            If ``column`` is not part of the plan.
-        ValueError
-            If ``strategy`` is an output-only label, or is not declarable for the
-            column's semantic type.
-        """
-        if column not in self.column_decisions:
-            raise KeyError(f"Column '{column}' is not part of this plan.")
-        strategy = ImputationStrategy(strategy)
-        _validate_declarable_strategy(
-            column, self.column_decisions[column].semantic_type, strategy
-        )
-        from dataclasses import replace
-
-        new_decisions = dict(self.column_decisions)
-        new_decisions[column] = replace(
-            new_decisions[column],
-            strategy=strategy,
-            model_choice=None,
-            forced=True,
-            signals=new_decisions[column].signals
-            + (f"per_column_strategy_override: user forced strategy={strategy}",),
-        )
-        return ImputationDecision(
-            column_decisions=new_decisions,
-            decided_for_shape=self.decided_for_shape,
-            config_snapshot=self.config_snapshot,
-            profile_provenance=self.profile_provenance,
-            decided_hyperparameters=self.decided_hyperparameters,
-            override_hyperparameters=self.override_hyperparameters,
-            numeric_sentinels=self.numeric_sentinels,
-            string_sentinels=self.string_sentinels,
         )
 
     def with_model_choice(
