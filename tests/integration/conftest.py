@@ -15,8 +15,7 @@ def round_trip():
     """
 
     def _round_trip(imputer, key: str = "imputer"):
-        from dataforge_ml import deserialize, serialize
-        from dataforge_ml import FittedImputer
+        from dataforge_ml import FittedImputer, deserialize, serialize
 
         restored_units = [deserialize(serialize(unit)) for unit in imputer.units]
         return FittedImputer(

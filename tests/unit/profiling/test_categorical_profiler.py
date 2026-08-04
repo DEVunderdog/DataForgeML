@@ -12,7 +12,6 @@ from dataforge_ml.profiling._categorical_config import (
     TopValueEntry,
 )
 
-
 # ---------------------------------------------------------------------------
 # Result type & column eligibility
 # ---------------------------------------------------------------------------

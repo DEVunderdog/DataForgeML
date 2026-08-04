@@ -41,6 +41,7 @@ from typing import Optional
 
 import polars as pl
 
+from ..models._data_types import _INT_DTYPES, _NUMERIC_DTYPES
 from ._base import DatasetLevelProfiler
 from ._correlation_config import (
     CategoricalTargetCorrelation,
@@ -54,7 +55,6 @@ from ._correlation_config import (
     NumericTargetCorrelation,
     TargetType,
 )
-from ..models._data_types import _NUMERIC_DTYPES, _INT_DTYPES
 
 _TOP_N_FEATURE_TARGET: int = 10
 _MI_N_NEIGHBORS: int = 3

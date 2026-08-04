@@ -28,9 +28,7 @@ from dataforge_ml.profiling._missingness_config import (
     MissingSeverity,
 )
 from dataforge_ml.profiling._numeric_config import NumericStats, SkewSeverity
-
 from tests.conftest import fit_imputer
-
 
 # ---------------------------------------------------------------------------
 # Helpers

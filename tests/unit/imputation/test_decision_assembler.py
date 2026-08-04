@@ -17,6 +17,8 @@ import pytest
 
 from dataforge_ml import (
     ImputationDecision as RootImputationDecision,
+)
+from dataforge_ml import (
     ModelChoice,
     PipelineConfig,
     PipelinePhase,
@@ -29,6 +31,7 @@ from dataforge_ml.imputation import (
     ImputationUnit,
     decide,
 )
+from dataforge_ml.imputation._config import _STRATEGY_DIALS
 from dataforge_ml.profiling._config import (
     ColumnProfile,
     NumericKind,
@@ -133,8 +136,7 @@ def test_decide_requires_n_rows() -> None:
 
 def test_decide_accepts_n_rows_by_keyword() -> None:
     profile = _profile({"a": _numeric_cp("a")}, row_count=600)
-    plan = decide(profile, n_rows=480, config=PipelineConfig())
-    assert plan.decided_for_shape[0] == 480
+    assert isinstance(decide(profile, n_rows=480, config=PipelineConfig()), ImputationDecision)
 
 
 def test_decide_rejects_negative_n_rows() -> None:
@@ -143,14 +145,31 @@ def test_decide_rejects_negative_n_rows() -> None:
         decide(profile, -1, PipelineConfig())
 
 
+def _mar_severe_columns() -> dict[str, ColumnProfile]:
+    """Two columns whose routing hangs on ``n_rows`` alone, via the MICE floor."""
+    return {
+        name: _numeric_cp(
+            name,
+            severity=MissingSeverity.Severe,
+            flags=[MissingnessFlag.MARSuspect],
+        )
+        for name in ("a", "b")
+    }
+
+
 def test_n_rows_drives_the_plan_not_the_profile_row_count() -> None:
-    """Two plans from one profile differ when decided for different splits."""
-    columns = {"a": _numeric_cp("a"), "b": _numeric_cp("b")}
+    """Two plans from one profile route differently for different splits.
+
+    The plan no longer records the shape it was decided for (ADR-0083), so the
+    claim is made where it is load-bearing: on the routing itself. Both plans
+    come from a 600-row profile, but only the one decided for 600 rows clears
+    the default ``mice_min_rows`` floor of 500.
+    """
     config = PipelineConfig()
-    full = decide(_profile(columns, row_count=600), 600, config)
-    train = decide(_profile(columns, row_count=600), 480, config)
-    assert full.decided_for_shape[0] == 600
-    assert train.decided_for_shape[0] == 480
+    full = decide(_profile(_mar_severe_columns(), row_count=600), 600, config)
+    train = decide(_profile(_mar_severe_columns(), row_count=600), 480, config)
+    assert full.column_decisions["a"].strategy == ImputationStrategy.MICE
+    assert train.column_decisions["a"].strategy == ImputationStrategy.KNN
 
 
 def test_decide_defaults_config_when_omitted() -> None:
@@ -159,29 +178,13 @@ def test_decide_defaults_config_when_omitted() -> None:
     assert plan.config_snapshot == PipelineConfig().to_dict()
 
 
-def test_decided_for_shape_captures_rows_features_and_column_set() -> None:
-    profile = _profile(
-        {"a": _numeric_cp("a"), "b": _numeric_cp("b")}, row_count=250
-    )
-    plan = decide(profile, profile.dataset.row_count, PipelineConfig())
-    n_rows, n_features, column_set = plan.decided_for_shape
-    assert n_rows == 250
-    assert n_features == 2
-    assert column_set == ("a", "b")
-
-
-def test_profile_provenance_carries_row_count() -> None:
-    profile = _profile({"a": _numeric_cp("a")}, row_count=100)
-    plan = decide(profile, profile.dataset.row_count, PipelineConfig())
-    assert plan.profile_provenance["row_count"] == 100
-
-
-def test_shape_rows_and_provenance_rows_are_different_facts() -> None:
-    """"Decided for 480 rows, from a profile of 600" is the honest record."""
-    profile = _profile({"a": _numeric_cp("a"), "b": _numeric_cp("b")}, row_count=600)
-    plan = decide(profile, 480, PipelineConfig())
-    assert plan.decided_for_shape[0] == 480
-    assert plan.profile_provenance["row_count"] == 600
+def test_plan_carries_no_shape_or_provenance() -> None:
+    """The three unread fields are gone from the plan, not merely unpopulated."""
+    profile = _profile({"a": _numeric_cp("a"), "b": _numeric_cp("b")}, row_count=250)
+    plan = decide(profile, 200, PipelineConfig())
+    assert not hasattr(plan, "decided_for_shape")
+    assert not hasattr(plan, "profile_provenance")
+    assert not hasattr(plan.column_decisions["a"], "forced")
 
 
 # ---------------------------------------------------------------------------
@@ -301,54 +304,78 @@ def test_knn_n_neighbors_bounded_by_the_train_split_not_the_profile() -> None:
     assert dict(knn.hyperparameters)["n_neighbors"] <= n_rows - 1
 
 
-def test_knn_decided_base_populates_complete_frac() -> None:
-    """The KNN base carries ``complete_frac`` the fitter reads with no fallback.
-
-    Pins the ADR-0073 gap: the fitter previously read
-    ``hyp.get("complete_frac", 0.0)`` while the base never populated it, silently
-    defaulting. With fallbacks stripped, the key must be present.
-    """
-    profile = _profile({"k1": _numeric_cp("k1"), "k2": _numeric_cp("k2")})
-    config = PipelineConfig()
-    config.imputation.numeric.set_per_column_strategy(
-        ["k1", "k2"], ImputationStrategy.KNN
-    )
-    plan = decide(profile, profile.dataset.row_count, config)
-    knn_base = dict(plan.decided_hyperparameters["knn"])
-    assert "complete_frac" in knn_base
-
-
-def test_decided_base_is_complete_for_every_strategy() -> None:
-    """Each unit's decided base carries every dial its fitter reads directly.
-
-    With the fitters reading ``hyp["..."]`` (no fallbacks, ADR-0073), a missing
-    key would be a loud ``KeyError`` at fit time; this asserts the base the
-    assembler builds never leaves one out.
-    """
+def _mice_knn_mnar_plan(
+    *,
+    null_count: int = 20,
+    complete_row_fraction: float = 0.0,
+) -> ImputationDecision:
+    """A plan carrying one MICE block, one KNN block and one MNAR column."""
     profile = _profile(
         {
-            "a": _numeric_cp("a", nonlinearity_tag=NonlinearityTag.Linear),
-            "b": _numeric_cp("b", nonlinearity_tag=NonlinearityTag.Linear),
-            "k1": _numeric_cp("k1"),
-            "k2": _numeric_cp("k2"),
-            "n": _numeric_cp("n"),
+            "a": _numeric_cp("a", nonlinearity_tag=NonlinearityTag.Linear, null_count=null_count),
+            "b": _numeric_cp("b", nonlinearity_tag=NonlinearityTag.Linear, null_count=null_count),
+            "k1": _numeric_cp("k1", null_count=null_count),
+            "k2": _numeric_cp("k2", null_count=null_count),
+            "n": _numeric_cp("n", null_count=null_count),
         }
     )
+    profile.dataset.row_distribution.complete_row_fraction = complete_row_fraction
     config = PipelineConfig()
     config.imputation.numeric.set_per_column_strategy(["a", "b"], ImputationStrategy.MICE)
     config.imputation.numeric.set_per_column_strategy(["k1", "k2"], ImputationStrategy.KNN)
     config.imputation.add_mnar_column("n")
+    return decide(profile, profile.dataset.row_count, config)
 
-    plan = decide(profile, profile.dataset.row_count, config)
-    base = plan.decided_hyperparameters
 
-    required = {
-        "mice": {"max_iter", "tol", "initial_strategy", "n_nearest_features", "nonlinearity_tag"},
-        "knn": {"n_neighbors", "weights", "miss_frac", "complete_frac"},
-        "mnar:n": {"central_tendency"},
-    }
-    for unit_id, keys in required.items():
-        assert keys <= set(dict(base[unit_id])), unit_id
+def test_decided_base_is_exactly_the_strategy_dials() -> None:
+    """Each unit's decided base carries its strategy's dials and nothing else.
+
+    The dial table is the key set both authors write (#464), so the base is not
+    merely a superset of what the fitter reads: an extra key is a fact misfiled
+    as a hyperparameter, which is what the five deleted keys were.
+    """
+    base = _mice_knn_mnar_plan().decided_hyperparameters
+
+    assert set(dict(base["mice"])) == set(_STRATEGY_DIALS[ImputationStrategy.MICE])
+    assert set(dict(base["knn"])) == set(_STRATEGY_DIALS[ImputationStrategy.KNN])
+    assert set(dict(base["mnar:n"])) == set(_STRATEGY_DIALS[ImputationStrategy.MNAR])
+
+
+def test_profile_derived_keys_are_absent_from_every_decided_base() -> None:
+    """The five profile-derived keys are deleted, not rehomed (#464).
+
+    They were facts no fit path branched on, stashed on the plan and printed
+    into a ``FitSignals`` note nothing in ``src/`` reads.
+    """
+    base = _mice_knn_mnar_plan().decided_hyperparameters
+    deleted = {"nonlinearity_tag", "miss_frac", "complete_frac"}
+    for unit_id, hyp in base.items():
+        assert deleted.isdisjoint(set(dict(hyp))), unit_id
+
+
+def test_decided_base_at_neutral_inputs_matches_the_dial_table() -> None:
+    """Every formula degenerates to the table's value at neutral inputs (#464).
+
+    The table is the first set of opinions evaluated at neutral inputs, not a
+    second set that could drift from ``decide``'s arithmetic — so a near-pristine
+    profile (barely any missingness, nearly every row complete, linear, unskewed)
+    must reproduce it.
+
+    ``weights`` is the one dial with no neutral branch: it is a two-way
+    reliability verdict, and pristine data is precisely the reliable side, so
+    ``decide`` says ``"distance"`` where the table carries sklearn's default.
+    """
+    base = _mice_knn_mnar_plan(null_count=1, complete_row_fraction=0.99)
+
+    assert dict(base.decided_hyperparameters["mice"]) == _STRATEGY_DIALS[
+        ImputationStrategy.MICE
+    ]
+    assert dict(base.decided_hyperparameters["mnar:n"]) == _STRATEGY_DIALS[
+        ImputationStrategy.MNAR
+    ]
+    knn = dict(base.decided_hyperparameters["knn"])
+    assert knn["n_neighbors"] == _STRATEGY_DIALS[ImputationStrategy.KNN]["n_neighbors"]
+    assert knn["weights"] == "distance"
 
 
 def test_per_column_unit_ids_use_strategy_column_form() -> None:
@@ -393,7 +420,8 @@ def test_mnar_registers_indicator_decision_without_a_unit() -> None:
     assert not any("indicator" in uid for uid in unit_ids)
 
 
-def test_units_re_derive_on_edit_no_stale_list() -> None:
+def test_re_deciding_re_routes_a_column_and_leaves_the_first_plan_alone() -> None:
+    """Re-routing is a fresh ``decide``, not a plan edit (ADR-0082)."""
     profile = _profile({"a": _numeric_cp("a"), "b": _numeric_cp("b")})
     config = PipelineConfig()
     config.imputation.numeric.set_per_column_strategy(
@@ -402,13 +430,38 @@ def test_units_re_derive_on_edit_no_stale_list() -> None:
     plan = decide(profile, profile.dataset.row_count, config)
     assert {u.unit_id for u in plan.units} == {"mice"}
 
-    edited = plan.with_strategy("a", ImputationStrategy.Median)
+    config.imputation.numeric.set_per_column_strategy("a", ImputationStrategy.Median)
+    re_decided = decide(profile, profile.dataset.row_count, config)
     # a leaves the MICE block → its own scalar unit; b remains a (singleton) MICE block
-    edited_ids = {u.unit_id for u in edited.units}
-    assert "median:a" in edited_ids
-    assert "mice" in edited_ids
-    # the original plan is untouched (immutability)
+    assert {u.unit_id for u in re_decided.units} == {"median:a", "mice"}
+    mice_unit = next(u for u in re_decided.units if u.unit_id == "mice")
+    assert mice_unit.columns == ("b",)
+    # the earlier plan is a separate object and is untouched
     assert {u.unit_id for u in plan.units} == {"mice"}
+
+
+def test_re_deciding_into_a_new_strategy_carries_a_complete_hyperparameter_base() -> None:
+    """The bug ADR-0082 closes: a forced strategy always gets its dials.
+
+    Forcing a column into MICE on a plan that had no MICE block used to strand
+    the derived unit with no decided base, so the fitter raised ``KeyError`` on
+    its first dial lookup and no override could repair it. Routing the force
+    through ``decide`` means the base is computed after the strategy is known.
+    """
+    profile = _profile({"a": _numeric_cp("a"), "b": _numeric_cp("b")})
+    config = PipelineConfig()
+    config.imputation.numeric.set_per_column_strategy(
+        ["a", "b"], ImputationStrategy.Median
+    )
+    plan = decide(profile, profile.dataset.row_count, config)
+    assert not any(u.unit_id == "mice" for u in plan.units)
+
+    config.imputation.numeric.set_per_column_strategy("a", ImputationStrategy.MICE)
+    re_decided = decide(profile, profile.dataset.row_count, config)
+
+    mice_unit = next(u for u in re_decided.units if u.unit_id == "mice")
+    dials = dict(mice_unit.hyperparameters or ())
+    assert {"max_iter", "tol", "initial_strategy", "n_nearest_features"} <= set(dials)
 
 
 def test_domain_snap_bounds_surfaced_for_bounded_discrete_model_column() -> None:
@@ -450,20 +503,138 @@ def test_with_model_choice_returns_new_plan() -> None:
     )
 
 
-def test_with_strategy_rejects_output_only_label() -> None:
-    profile = _profile({"a": _numeric_cp("a")})
+def test_output_only_label_rejected_at_the_declaration_surface() -> None:
+    """The one place a strategy is declared is the one place it is validated."""
     config = PipelineConfig()
-    config.imputation.numeric.set_per_column_strategy("a", ImputationStrategy.Median)
-    plan = decide(profile, profile.dataset.row_count, config)
     with pytest.raises(ValueError, match="Dropped"):
-        plan.with_strategy("a", ImputationStrategy.Dropped)
+        config.imputation.numeric.set_per_column_strategy(
+            "a", ImputationStrategy.Dropped
+        )
 
 
-def test_with_strategy_unknown_column_raises() -> None:
-    profile = _profile({"a": _numeric_cp("a")})
+# ---------------------------------------------------------------------------
+# is_block — the structural joint-block fact on every derived unit (#431)
+# ---------------------------------------------------------------------------
+
+
+def test_joint_blocks_are_marked_and_per_column_units_are_not() -> None:
+    """``is_block`` is stamped on every unit the projection emits.
+
+    One profile covering all four unit shapes: the two joint blocks, a scalar,
+    and GMM-Sampling (bimodal with no correlated feature). Cluster-Conditional
+    is covered separately since it needs a correlation matrix.
+    """
+    bimodal = BimodalStats(
+        dip_statistic=0.1,
+        dip_p_value=0.001,
+        center1=0.0,
+        center2=10.0,
+        cluster_separation=3.0,
+        minority_weight=0.4,
+    )
+    g = ColumnProfile(
+        name="g",
+        semantic_type=SemanticType.Numeric,
+        numeric_kind=NumericKind.Continuous,
+        missingness=ColumnMissingnessProfile(
+            column="g",
+            total_rows=100,
+            effective_null_count=20,
+            effective_null_ratio=0.2,
+            severity=MissingSeverity.Moderate,
+            flags=[],
+            correlated_with=[],
+        ),
+        stats=NumericStats(flags=[NumericFlag.Bimodal], bimodal_stats=bimodal),
+    )
+    profile = _profile(
+        {
+            "m": _numeric_cp("m"),
+            "a": _numeric_cp("a"),
+            "b": _numeric_cp("b"),
+            "k1": _numeric_cp("k1"),
+            "k2": _numeric_cp("k2"),
+            "g": g,
+        }
+    )
+    config = PipelineConfig()
+    config.imputation.numeric.set_per_column_strategy("m", ImputationStrategy.Median)
+    config.imputation.numeric.set_per_column_strategy(
+        ["a", "b"], ImputationStrategy.MICE
+    )
+    config.imputation.numeric.set_per_column_strategy(
+        ["k1", "k2"], ImputationStrategy.KNN
+    )
+
+    plan = decide(profile, profile.dataset.row_count, config)
+    by_id = {u.unit_id: u for u in plan.units}
+
+    assert by_id["mice"].is_block is True
+    assert by_id["knn"].is_block is True
+    assert by_id["median:m"].is_block is False
+    assert by_id["gmm_sampling:g"].is_block is False
+    # Nothing is left unstamped: every emitted unit carries the fact.
+    assert all(isinstance(u.is_block, bool) for u in plan.units)
+
+
+def test_cluster_conditional_unit_is_not_a_block() -> None:
+    bimodal = BimodalStats(
+        dip_statistic=0.1,
+        dip_p_value=0.001,
+        center1=0.0,
+        center2=10.0,
+        cluster_separation=3.0,
+        minority_weight=0.4,
+    )
+    bm = ColumnProfile(
+        name="bm",
+        semantic_type=SemanticType.Numeric,
+        numeric_kind=NumericKind.Continuous,
+        missingness=ColumnMissingnessProfile(
+            column="bm",
+            total_rows=100,
+            effective_null_count=20,
+            effective_null_ratio=0.2,
+            severity=MissingSeverity.Moderate,
+            flags=[],
+            correlated_with=[],
+        ),
+        stats=NumericStats(flags=[NumericFlag.Bimodal], bimodal_stats=bimodal),
+    )
+    profile = _profile({"bm": bm, "p": _numeric_cp("p", null_count=0, severity=None)})
+    profile.dataset.feature_correlation = CorrelationProfileResult(
+        pearson_matrix={"bm": {"p": 0.5}, "p": {"bm": 0.5}}
+    )
     plan = decide(profile, profile.dataset.row_count, PipelineConfig())
-    with pytest.raises(KeyError):
-        plan.with_strategy("missing", ImputationStrategy.Median)
+    unit = next(u for u in plan.units if u.unit_id == "cluster_conditional:bm")
+    assert unit.strategy == ImputationStrategy.ClusterConditional
+    assert unit.is_block is False
+
+
+def test_units_still_emit_in_column_order_not_blocks_first() -> None:
+    """ADR-0081 rejected reordering the projection to put blocks first."""
+    profile = _profile(
+        {"m": _numeric_cp("m"), "a": _numeric_cp("a"), "b": _numeric_cp("b")}
+    )
+    config = PipelineConfig()
+    config.imputation.numeric.set_per_column_strategy("m", ImputationStrategy.Median)
+    config.imputation.numeric.set_per_column_strategy(
+        ["a", "b"], ImputationStrategy.MICE
+    )
+    plan = decide(profile, profile.dataset.row_count, config)
+    assert [u.unit_id for u in plan.units] == ["median:m", "mice"]
+
+
+def test_unit_carries_no_model_choice_dependent_fact() -> None:
+    """``is_block`` has no ``wants_inner_jobs`` companion — locked by ADR-0081.
+
+    Inner-parallelism absorption follows from ``model_choice``, which stays on
+    the column decision and must not be duplicated onto the unit.
+    """
+    field_names = {f.name for f in dataclasses.fields(ImputationUnit)}
+    assert "is_block" in field_names
+    assert "wants_inner_jobs" not in field_names
+    assert "model_choice" not in field_names
 
 
 # ---------------------------------------------------------------------------
@@ -535,7 +706,12 @@ def test_hard_exclusion_wins_over_soft_exclusion() -> None:
     assert "x" not in plan.column_decisions
 
 
-def test_excluded_column_leaves_shape_and_block_membership() -> None:
+def test_excluded_column_leaves_block_membership() -> None:
+    """An excluded column is absent from the plan and from the joint block.
+
+    The plan no longer records a decided-for shape (ADR-0083), so the active-set
+    claim of ADR-0077 is asserted where it still exists: the block's columns.
+    """
     profile = _profile(
         {"a": _numeric_cp("a"), "b": _numeric_cp("b"), "x": _numeric_cp("x")},
         row_count=100,
@@ -546,7 +722,7 @@ def test_excluded_column_leaves_shape_and_block_membership() -> None:
     )
     config.add_phase_exclusion(PipelinePhase.Imputation, "x")
     plan = decide(profile, profile.dataset.row_count, config)
-    assert plan.decided_for_shape == (100, 2, ("a", "b"))
+    assert plan.column_decisions["x"].strategy == ImputationStrategy.Passthrough
     mice = next(u for u in plan.units if u.unit_id == "mice")
     assert mice.columns == ("a", "b")
 
@@ -620,10 +796,7 @@ def test_cluster_conditional_feature_list_excludes_excluded_columns() -> None:
     assert (
         plan.column_decisions["bm"].strategy == ImputationStrategy.ClusterConditional
     )
-    feature_cols = dict(plan.decided_hyperparameters["cluster_conditional:bm"])[
-        "feature_cols"
-    ]
-    assert feature_cols == ("p",)
+    assert plan.column_decisions["bm"].feature_cols == ("p",)
 
 
 def test_profiling_soft_excluded_placeholder_behaves_as_before() -> None:
@@ -646,7 +819,6 @@ def test_exclusions_naming_absent_columns_change_nothing() -> None:
     plan = decide(profile, 100, config)
     assert plan.column_decisions == plain.column_decisions
     assert plan.units == plain.units
-    assert plan.decided_for_shape == plain.decided_for_shape
     assert plan.decided_hyperparameters == plain.decided_hyperparameters
 
 
@@ -732,3 +904,115 @@ def test_other_phase_exclusion_does_not_trigger_the_raise() -> None:
     config.add_phase_exclusion(PipelinePhase.Profiling, "x")
     plan = decide(_two_col_profile(), 100, config)
     assert plan.column_decisions["x"].strategy == ImputationStrategy.MNAR
+
+
+# ---------------------------------------------------------------------------
+# Facts about the data lowered onto the column decision (ADR-0083, #466)
+# ---------------------------------------------------------------------------
+
+
+def _bimodal_cp(name: str) -> ColumnProfile:
+    return ColumnProfile(
+        name=name,
+        semantic_type=SemanticType.Numeric,
+        numeric_kind=NumericKind.Continuous,
+        missingness=ColumnMissingnessProfile(
+            column=name,
+            total_rows=100,
+            effective_null_count=20,
+            effective_null_ratio=0.2,
+            severity=MissingSeverity.Moderate,
+            flags=[],
+            correlated_with=[],
+        ),
+        stats=NumericStats(
+            flags=[NumericFlag.Bimodal],
+            bimodal_stats=BimodalStats(
+                dip_statistic=0.1,
+                dip_p_value=0.001,
+                center1=0.0,
+                center2=10.0,
+                cluster_separation=3.0,
+                minority_weight=0.4,
+            ),
+        ),
+    )
+
+
+def test_bimodal_centres_land_on_the_column_not_the_hyperparameters() -> None:
+    """The centres are a measurement, so they are a column fact (ADR-0083)."""
+    profile = _profile({"g": _bimodal_cp("g")})
+    plan = decide(profile, profile.dataset.row_count, PipelineConfig())
+
+    decision = plan.column_decisions["g"]
+    assert decision.strategy == ImputationStrategy.GMMSampling
+    assert (decision.center1, decision.center2) == (0.0, 10.0)
+    for base in plan.decided_hyperparameters.values():
+        keys = dict(base)
+        assert "center1" not in keys
+        assert "center2" not in keys
+        assert "feature_cols" not in keys
+
+
+def test_cluster_conditional_feature_cols_land_on_the_column() -> None:
+    profile = _profile(
+        {"bm": _bimodal_cp("bm"), "p": _numeric_cp("p", null_count=0, severity=None)}
+    )
+    profile.dataset.feature_correlation = CorrelationProfileResult(
+        pearson_matrix={"bm": {"p": 0.5}, "p": {"bm": 0.5}}
+    )
+    plan = decide(profile, profile.dataset.row_count, PipelineConfig())
+
+    decision = plan.column_decisions["bm"]
+    assert decision.strategy == ImputationStrategy.ClusterConditional
+    assert decision.feature_cols == ("p",)
+    assert "feature_cols" not in dict(
+        plan.decided_hyperparameters["cluster_conditional:bm"]
+    )
+
+
+def test_grouping_variable_is_lowered_from_config() -> None:
+    """``bimodal_grouping_variables`` is declared once, at decide-time."""
+    profile = _profile(
+        {"bm": _bimodal_cp("bm"), "region": _numeric_cp("region", null_count=0, severity=None)}
+    )
+    config = PipelineConfig()
+    config.imputation.numeric.set_bimodal_grouping_variable("bm", "region")
+    plan = decide(profile, profile.dataset.row_count, config)
+
+    assert plan.column_decisions["bm"].grouping_variable == "region"
+    assert plan.column_decisions["region"].grouping_variable is None
+
+
+def test_constant_fill_is_lowered_from_config() -> None:
+    profile = _profile({"a": _numeric_cp("a"), "b": _numeric_cp("b")})
+    config = PipelineConfig()
+    config.imputation.numeric.set_per_column_constant_fill("a", -1.0)
+    plan = decide(profile, profile.dataset.row_count, config)
+
+    assert plan.column_decisions["a"].strategy == ImputationStrategy.Constant
+    assert plan.column_decisions["a"].constant_fill == -1.0
+    assert plan.column_decisions["b"].constant_fill is None
+
+
+def test_lowered_facts_survive_a_plan_round_trip() -> None:
+    """A reloaded plan carries every fact, so it fits without the config."""
+    profile = _profile(
+        {
+            "bm": _bimodal_cp("bm"),
+            "p": _numeric_cp("p", null_count=0, severity=None),
+            "c": _numeric_cp("c"),
+        }
+    )
+    profile.dataset.feature_correlation = CorrelationProfileResult(
+        pearson_matrix={"bm": {"p": 0.5}, "p": {"bm": 0.5}}
+    )
+    config = PipelineConfig()
+    config.imputation.numeric.set_per_column_constant_fill("c", 7.0)
+    plan = decide(profile, profile.dataset.row_count, config)
+
+    restored = ImputationDecision.from_dict(plan.to_dict())
+    assert restored.column_decisions == plan.column_decisions
+    assert restored.column_decisions["bm"].center1 == 0.0
+    assert restored.column_decisions["bm"].feature_cols == ("p",)
+    assert restored.column_decisions["c"].constant_fill == 7.0

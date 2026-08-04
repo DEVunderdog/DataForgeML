@@ -28,27 +28,27 @@ from typing import Any
 import numpy as np
 import polars as pl
 
-from ._base import ModalityProfiler, ColumnBatchProfiler, OverrideCoercionError
-from ._tabular import TabularProfiler
-from ._categorical import CategoricalProfiler
-from ._datetime_profiler import DatetimeProfiler
-from ._numeric_profiler import NumericProfiler
-from ._boolean_profiler import BooleanProfiler
-from ._text_profiler import TextProfiler
-from ._missingness_profiler import MissingnessProfiler
-from ._target_profiler import TargetProfiler
-from ._correlation_profiler import CorrelationProfiler
-from ._nonlinearity_profiler import NonlinearityProfiler
-from ._type_detector import TypeDetector
-from ..config import PipelineConfig, PipelinePhase, SemanticType, Modality
+from ..config import Modality, PipelineConfig, PipelinePhase, SemanticType
 from ..observability import Observer, _ObservabilityMixin
+from ..utils._null_normalization import _resolve_effective_nulls
+from ._base import ColumnBatchProfiler, ModalityProfiler, OverrideCoercionError
+from ._boolean_profiler import BooleanProfiler
+from ._categorical import CategoricalProfiler
 from ._config import (
     ColumnProfile,
-    StructuralProfileResult,
     RowMissingnessDistribution,
+    StructuralProfileResult,
     TypeFlag,
 )
-from ..utils._null_normalization import _resolve_effective_nulls
+from ._correlation_profiler import CorrelationProfiler
+from ._datetime_profiler import DatetimeProfiler
+from ._missingness_profiler import MissingnessProfiler
+from ._nonlinearity_profiler import NonlinearityProfiler
+from ._numeric_profiler import NumericProfiler
+from ._tabular import TabularProfiler
+from ._target_profiler import TargetProfiler
+from ._text_profiler import TextProfiler
+from ._type_detector import TypeDetector
 
 # ---------------------------------------------------------------------------
 # Registry: SemanticType → ColumnTypeProfiler class

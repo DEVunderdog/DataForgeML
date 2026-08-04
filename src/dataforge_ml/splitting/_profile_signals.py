@@ -13,12 +13,12 @@ import numpy as np
 import polars as pl
 
 from ..config import SemanticType
-from ..profiling._config import NumericKind, StructuralProfileResult
 from ..profiling._boolean_config import BooleanStats
 from ..profiling._categorical_config import CategoricalStats
+from ..profiling._config import NumericKind, StructuralProfileResult
 from ..profiling._numeric_config import NumericFlag, NumericStats, SkewSeverity
-from ._config import SplitConfig
 from ..utils._null_normalization import _resolve_effective_nulls
+from ._config import SplitConfig
 
 _BUCKET_LABELS = ["q1", "q2", "q3", "q4", "q5"]
 

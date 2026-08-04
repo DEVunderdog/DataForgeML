@@ -1,8 +1,7 @@
 import polars as pl
 
-from dataforge_ml.profiling._boolean_profiler import BooleanProfiler
 from dataforge_ml.profiling._boolean_config import BooleanProfileResult, BooleanStats
-
+from dataforge_ml.profiling._boolean_profiler import BooleanProfiler
 
 # ---------------------------------------------------------------------------
 # Result type & analysed_columns
@@ -103,6 +102,7 @@ def test_all_null_boolean_returns_default_stats_without_crashing():
 
 def test_override_coercion_error_raised_for_total_failure():
     import pytest
+
     from dataforge_ml.profiling import OverrideCoercionError
 
     df = pl.DataFrame({"bool_col": pl.Series(["apple", "banana", "cherry"])})

@@ -13,17 +13,17 @@ from ._config import (
     ModelChoice,
     NumericImputationConfig,
 )
+from ._authoring import AuthoredColumn, author
 from ._decision_assembler import decide
+from ._fit_signals import FitSignals, ImputationFitWarning
 from ._fitted_imputer import (
     DroppedColumnAbsentWarning,
     FittedColumnAbsentError,
     FittedImputer,
     FittedUnit,
-    UnfittedColumnError,
     UnseenColumnError,
 )
-from ._fit_signals import FitSignals, ImputationFitWarning
-from ._unit_fit import UnitFitResult, UnitNotTrainableError, fit_unit
+from ._unit_fit import UnitFitResult, UnitNotTrainableError, core_budget, fit_unit
 from .evaluation import EvaluationOrchestrator
 
 __all__ = [
@@ -40,7 +40,10 @@ __all__ = [
     "ImputationDecision",
     "ImputationUnit",
     "decide",
+    "author",
+    "AuthoredColumn",
     "fit_unit",
+    "core_budget",
     "UnitFitResult",
     "FitSignals",
     "ImputationFitWarning",
@@ -48,7 +51,6 @@ __all__ = [
     "ImputationResult",
     "FittedImputer",
     "FittedUnit",
-    "UnfittedColumnError",
     "UnseenColumnError",
     "FittedColumnAbsentError",
     "DroppedColumnAbsentWarning",

@@ -37,8 +37,10 @@ exclusion logic.
 declaration is honored everywhere the plan reaches; execution primitives stay
 plan-trusting, so informed-consent plan edits remain possible. *Give up:* an
 advanced user can no longer get a decision for an excluded column without first
-removing the exclusion — the plan-edit path (`with_strategy`) cannot resurrect a
-column the plan omitted.
+removing the exclusion — no plan edit can resurrect a column the plan omitted.
+(This originally named `with_strategy` as the path that could not do it;
+ADR-0082 deleted that method, which strengthens the point rather than changing
+it — re-routing is now a fresh `decide`, where the exclusion is enforced.)
 
 ### 2. Plan representation: Passthrough-with-signal / omission
 

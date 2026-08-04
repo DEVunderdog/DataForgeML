@@ -1,9 +1,12 @@
 import polars as pl
 import pytest
 
+from dataforge_ml.profiling._missingness_config import (
+    MissingnessFlag,
+    MissingnessProfileConfig,
+    MissingSeverity,
+)
 from dataforge_ml.profiling._missingness_profiler import MissingnessProfiler
-from dataforge_ml.profiling._missingness_config import MissingnessFlag, MissingnessProfileConfig, MissingSeverity
-
 
 # ---------------------------------------------------------------------------
 # Instantiation — no config required

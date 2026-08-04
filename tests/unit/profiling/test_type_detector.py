@@ -1,12 +1,16 @@
-import pytest
 import polars as pl
+import pytest
 
-from dataforge_ml.profiling._type_detector import TypeDetector
-from dataforge_ml.profiling._config import ColumnTypeInfo, NumericKind, SemanticType, TypeFlag
-from dataforge_ml.profiling._type_detection_config import TypeDetectionConfig
-from dataforge_ml.profiling.orchestrator import StructuralProfiler
 from dataforge_ml.config import PipelineConfig
-
+from dataforge_ml.profiling._config import (
+    ColumnTypeInfo,
+    NumericKind,
+    SemanticType,
+    TypeFlag,
+)
+from dataforge_ml.profiling._type_detection_config import TypeDetectionConfig
+from dataforge_ml.profiling._type_detector import TypeDetector
+from dataforge_ml.profiling.orchestrator import StructuralProfiler
 
 # ---------------------------------------------------------------------------
 # Native pl.Boolean resolves to SemanticType.Boolean

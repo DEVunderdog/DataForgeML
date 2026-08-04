@@ -9,13 +9,17 @@ import polars as pl
 import pytest
 
 from dataforge_ml.config import PipelineConfig, PipelinePhase
-from dataforge_ml.imputation import FittedImputer, decide
-
-from tests.conftest import fit_imputer
+from dataforge_ml.imputation import (
+    FittedImputer,
+    ImputationStrategy,
+    author,
+    decide,
+    fit_unit,
+)
 from dataforge_ml.profiling._config import ProfileConfig
 from dataforge_ml.profiling.orchestrator import StructuralProfiler
 from dataforge_ml.splitting import DataSplitter
-
+from tests.conftest import fit_imputer
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -234,6 +238,7 @@ def test_mice_imputation_with_partially_missing_features(round_trip):
     and transformation, ensuring zero nulls, correct signals, and round-trip identity.
     """
     import numpy as np
+
     from dataforge_ml.config import PipelineConfig
     from dataforge_ml.imputation import (
         ImputationConfig,
@@ -326,14 +331,15 @@ def test_knn_mixed_scale_imputation_integration():
       (demonstrating scale-insensitive imputation).
     """
     import numpy as np
+
     from dataforge_ml.config import PipelineConfig
     from dataforge_ml.imputation import (
         ImputationConfig,
         ImputationStrategy,
         NumericImputationConfig,
     )
-    from dataforge_ml.profiling.orchestrator import StructuralProfiler
     from dataforge_ml.profiling._config import ProfileConfig
+    from dataforge_ml.profiling.orchestrator import StructuralProfiler
 
     rng = np.random.default_rng(999)
     n = 500
@@ -421,6 +427,7 @@ def test_knn_adaptive_end_to_end_mixed_scale():
        not collapsed to small-scale magnitudes (~[0, 1]).
     """
     import numpy as np
+
     from dataforge_ml.config import PipelineConfig
     from dataforge_ml.imputation import (
         ImputationConfig,
@@ -525,6 +532,7 @@ def test_mice_adaptive_end_to_end_nonlinear_dataset():
       ``mice_converged:``).
     """
     import numpy as np
+
     from dataforge_ml.config import PipelineConfig
     from dataforge_ml.imputation import (
         ImputationConfig,
@@ -784,3 +792,127 @@ def test_numeric_sentinel_end_to_end_fit_transform(round_trip):
     r_restored = restored.transform(df)
     assert result.dataframe.equals(r_restored.dataframe)
 
+
+
+# ---------------------------------------------------------------------------
+# The manual authoring door end to end (#468, ADR-0083)
+# ---------------------------------------------------------------------------
+
+
+def test_hand_authored_plan_drives_column_names_to_an_imputed_frame():
+    """author → fit_unit → compose → transform, with no profile anywhere.
+
+    The door's whole claim is that a hand-authored plan is indistinguishable
+    downstream from a decided one, so this drives the same three steps the
+    automatic path drives and puts every fitted unit through the real
+    ``serialize`` / ``deserialize`` boundary (ADR-0072).
+    """
+    import numpy as np
+
+    from dataforge_ml import (
+        AuthoredColumn,
+        ImputationStrategy,
+        author,
+        deserialize,
+        fit_unit,
+        serialize,
+    )
+
+    rng = np.random.default_rng(468)
+    n = 300
+    score = rng.normal(50.0, 10.0, n)
+    revenue = score * 4.0 + rng.normal(0.0, 5.0, n)
+    rating = np.clip(np.round(rng.normal(3.0, 1.0, n)), 1.0, 5.0)
+
+    idx = pl.arange(0, n, eager=True)
+    df = pl.DataFrame(
+        {
+            "score": pl.Series(score, dtype=pl.Float64),
+            "revenue": pl.Series(revenue, dtype=pl.Float64),
+            "rating": pl.Series(rating, dtype=pl.Float64),
+            "tenure": pl.Series(rng.integers(0, 40, n), dtype=pl.Int64),
+            "label": pl.Series(["A" if i % 2 else "B" for i in range(n)]),
+        }
+    ).with_columns(
+        pl.when(idx % 9 == 0).then(None).otherwise(pl.col("score")).alias("score"),
+        pl.when(idx % 7 == 0).then(None).otherwise(pl.col("revenue")).alias("revenue"),
+        pl.when(idx % 11 == 0).then(None).otherwise(pl.col("rating")).alias("rating"),
+        pl.when(idx % 13 == 0).then(None).otherwise(pl.col("tenure")).alias("tenure"),
+    )
+
+    # Column names alone — the frame is not consulted until fit_unit.
+    plan = author(
+        {
+            "score": ImputationStrategy.MICE,
+            "revenue": ImputationStrategy.MICE,
+            "rating": AuthoredColumn(
+                ImputationStrategy.Constant, constant_fill=3.0
+            ),
+            "tenure": ImputationStrategy.MNAR,
+        },
+        columns=["score", "revenue", "rating", "tenure", "label"],
+    )
+    assert {u.unit_id for u in plan.units} == {
+        "mice",
+        "constant:rating",
+        "mnar:tenure",
+    }
+
+    results = {
+        unit.unit_id: fit_unit(plan, unit.unit_id, df, random_seed=42)
+        for unit in plan.units
+    }
+    imputer = FittedImputer.compose(plan, results)
+    result = imputer.transform(df)
+
+    for col in ("score", "revenue", "rating", "tenure"):
+        assert result.dataframe[col].null_count() == 0, f"'{col}' still has nulls"
+    assert result.dataframe["tenure_missing"].sum() == df["tenure"].null_count()
+    # The Passthrough string column rode through untouched.
+    assert result.dataframe["label"].equals(df["label"])
+
+    # Every fitted unit round-trips through the bare-bytes boundary, and the
+    # restored units compose into an imputer producing the identical frame.
+    restored_units = {
+        unit_id: deserialize(serialize(res.fitted))
+        for unit_id, res in results.items()
+    }
+    restored = FittedImputer.compose(plan, restored_units)
+    assert restored.transform(df).dataframe.equals(result.dataframe)
+
+
+# ---------------------------------------------------------------------------
+# Re-authoring a decided plan end to end (#470)
+# ---------------------------------------------------------------------------
+
+
+def test_re_authored_decided_plan_drives_to_an_imputed_frame(
+    imputation_split, imputation_profile
+):
+    """decide → author(base=) → fit_unit → compose → transform.
+
+    The re-authoring user disagrees with one column and keeps the rest. The
+    result must be a plan in every sense the fit path cares about: the edited
+    column takes the new strategy, the untouched ones keep the router's own
+    decisions and dials, and the whole thing still fills every numeric null.
+    """
+    train = imputation_split.train
+    decided = decide(imputation_profile, len(train), PipelineConfig())
+
+    edited = author({"rating": ImputationStrategy.Median}, base=decided)
+
+    assert edited.column_decisions["rating"].strategy == ImputationStrategy.Median
+    assert "median:rating" in {u.unit_id for u in edited.units}
+    for col in ("score", "revenue", "label"):
+        assert edited.column_decisions[col] == decided.column_decisions[col]
+    assert edited.config_snapshot == decided.config_snapshot
+
+    results = {
+        unit.unit_id: fit_unit(edited, unit.unit_id, train, random_seed=42)
+        for unit in edited.units
+    }
+    result = FittedImputer.compose(edited, results).transform(imputation_split.test)
+
+    for col in ("score", "revenue", "rating"):
+        assert result.dataframe[col].null_count() == 0, f"'{col}' still has nulls"
+    assert result.records["rating"].decision.strategy == ImputationStrategy.Median

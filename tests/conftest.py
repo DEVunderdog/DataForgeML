@@ -29,7 +29,7 @@ def fit_imputer(train_df, profile, config=None, observer=None):
     Tests asserting on the layers themselves (plan contents, per-unit training)
     should drive the steps directly rather than call this.
     """
-    from dataforge_ml import PipelineConfig, FittedImputer, decide, fit_unit
+    from dataforge_ml import FittedImputer, PipelineConfig, decide, fit_unit
 
     config = config or PipelineConfig()
     plan = decide(profile, len(train_df), config)

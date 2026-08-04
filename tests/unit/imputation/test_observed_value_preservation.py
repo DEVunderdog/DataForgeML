@@ -219,6 +219,49 @@ def _case(strategy_name):
     return _fit_all(plan, units, df), _bimodal_probe_frame(grouped=grouped)
 
 
+def _authored_case():
+    """The same contract on a plan no profile produced (#468, ADR-0083).
+
+    The guarantee lives inside each unit's own ``transform``, below the plan, so
+    it must hold identically for a hand-authored plan. MICE and the snap-bearing
+    ``rating`` column are declared by hand — the domain-snap bounds included,
+    since a hand-author supplies the facts the profile would have measured.
+    """
+    from dataforge_ml import AuthoredColumn, ImputationStrategy, author
+
+    df = _train_frame()
+    plan = author(
+        {
+            "rating": AuthoredColumn(
+                ImputationStrategy.MICE, domain_snap_bounds=(1.0, 5.0)
+            ),
+            "stock": ImputationStrategy.MICE,
+            "noisy": ImputationStrategy.MICE,
+        },
+        columns=list(df.columns),
+    )
+    units = _select_units(plan, "mice", _TARGET_COLS)
+    assert plan.column_decisions["rating"].domain_snap_bounds is not None
+    return _fit_all(plan, units, df), _probe_frame()
+
+
+def test_authored_plan_preserves_observed_cells_and_dtypes():
+    pairs, probe = _authored_case()
+    for unit, fitted in pairs:
+        out = fitted.transform(probe)
+        assert out.schema == probe.schema, f"{unit.unit_id}: schema changed"
+        for col in unit.columns:
+            mask = _observed_mask(probe[col])
+            assert out[col].filter(mask).equals(probe[col].filter(mask)), (
+                f"{unit.unit_id}: observed cells of '{col}' changed"
+            )
+            filled = out[col].filter(~mask)
+            assert len(filled) > 0, f"fixture rot: '{col}' has no missing cells"
+            assert _observed_mask(filled).all(), (
+                f"{unit.unit_id}: missing cells of '{col}' were not filled"
+            )
+
+
 @pytest.mark.parametrize("strategy_name", STRATEGY_CASES)
 def test_observed_cells_come_back_bit_for_bit(strategy_name):
     pairs, probe = _case(strategy_name)

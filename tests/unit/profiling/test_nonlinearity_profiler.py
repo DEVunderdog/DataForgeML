@@ -21,7 +21,6 @@ from dataforge_ml.profiling._numeric_config import (
     NumericStats,
 )
 
-
 # ---------------------------------------------------------------------------
 # Synthetic dataset fixtures
 # ---------------------------------------------------------------------------

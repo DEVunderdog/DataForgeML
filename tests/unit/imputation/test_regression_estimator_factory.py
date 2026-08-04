@@ -21,7 +21,6 @@ from dataforge_ml.imputation._regression_estimator_factory import (
 )
 from dataforge_ml.profiling._numeric_config import NonlinearityTag
 
-
 # ---------------------------------------------------------------------------
 # Shared toy dataset helpers
 # ---------------------------------------------------------------------------

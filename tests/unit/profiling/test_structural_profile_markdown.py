@@ -24,6 +24,7 @@ import polars as pl
 import pytest
 
 from dataforge_ml.config import PipelineConfig, SemanticType
+from dataforge_ml.profiling._categorical_config import CategoricalStats, TopValueEntry
 from dataforge_ml.profiling._config import (
     ColumnProfile,
     DatasetStats,
@@ -46,7 +47,6 @@ from dataforge_ml.profiling._numeric_config import (
     NumericTopValueEntry,
     PercentileSnapshot,
 )
-from dataforge_ml.profiling._categorical_config import CategoricalStats, TopValueEntry
 from dataforge_ml.profiling.orchestrator import StructuralProfiler
 
 

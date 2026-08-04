@@ -38,6 +38,7 @@ from typing import Optional
 import numpy as np
 import polars as pl
 
+from ..models._data_types import _NUMERIC_DTYPES
 from ._base import DatasetLevelProfiler
 from ._numeric_config import (
     NonlinearityProfileConfig,
@@ -45,7 +46,6 @@ from ._numeric_config import (
     NonlinearitySignals,
     NonlinearityTag,
 )
-from ..models._data_types import _NUMERIC_DTYPES
 
 _CV_FOLDS = 3
 _RF_N_ESTIMATORS = 50
@@ -277,8 +277,8 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
             Cross-validated R² for LinearRegression and RandomForestRegressor.
         """
         try:
-            from sklearn.linear_model import LinearRegression
             from sklearn.ensemble import RandomForestRegressor
+            from sklearn.linear_model import LinearRegression
             from sklearn.model_selection import cross_val_score
         except ImportError:
             warnings.warn(

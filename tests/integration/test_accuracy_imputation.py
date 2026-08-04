@@ -26,7 +26,6 @@ from dataforge_ml import (
     StructuralProfiler,
 )
 from dataforge_ml.profiling._config import ProfileConfig
-
 from tests.conftest import fit_imputer
 
 
@@ -94,7 +93,8 @@ def accuracy_setup():
 
 
 def test_accuracy_types_are_public_api():
-    from dataforge_ml import AccuracyReport as R, AccuracyDiagnostic as D
+    from dataforge_ml import AccuracyDiagnostic as D
+    from dataforge_ml import AccuracyReport as R
 
     assert R is AccuracyReport
     assert D is AccuracyDiagnostic

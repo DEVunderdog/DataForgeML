@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import csv
 import io
 from pathlib import Path
 from typing import Union
-import csv
+
 import chardet
 import polars as pl
 

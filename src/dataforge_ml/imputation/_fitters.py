@@ -8,7 +8,9 @@ these functions through :func:`_dispatch_unit_fit`.
 
 Everything a fitter needs beyond the frame is either on the unit (the
 decision-carried hyperparameters, ADR-0062), on the owning plan's
-``ColumnImputationDecision`` (``model_choice``, ``domain_snap_bounds``), or on
+``ColumnImputationDecision`` (``model_choice`` and the facts about the data —
+``domain_snap_bounds``, the bimodal centres, ``feature_cols``,
+``grouping_variable``, ``constant_fill``), or on
 :class:`UnitFitContext`. Nothing here reads the Phase 1 profile: a fitter is
 handed a plan and a frame, never the profile the plan was derived from.
 
@@ -18,9 +20,9 @@ dependency edge runs surface → fitters, never back.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Mapping, Optional
-
+from dataclasses import dataclass, field
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
 import polars as pl
@@ -87,8 +89,10 @@ class UnitFitContext:
     ----------
     column_decisions : Mapping[str, ColumnImputationDecision]
         The owning plan's per-column decisions. Read for ``model_choice`` and
-        ``domain_snap_bounds`` — the decide-time facts a fitter honours rather
-        than re-derives.
+        the facts about the data (``domain_snap_bounds``, the bimodal centres,
+        ``feature_cols``, ``grouping_variable``, ``constant_fill``) — the
+        decide-time facts a fitter honours rather than re-derives. No fitter
+        reads ``config`` for any of them (ADR-0083).
     config : NumericImputationConfig
         Numeric imputation configuration.
     feature_columns : tuple[str, ...], optional
@@ -97,12 +101,18 @@ class UnitFitContext:
         columns (ADR-0079).
     random_seed : int, optional
         Seed for the stochastic strategies (GMM sampling).
+    custom_estimators : Mapping[str, Any], optional
+        The owning plan's unit-keyed user-supplied estimators (ADR-0083). Only
+        the MICE fitter reads it, and only for a unit whose ``model_choice`` is
+        :attr:`~dataforge_ml.ModelChoice.Custom`. The instance is the caller's
+        own object, passed through by identity and never cloned here.
     """
 
-    column_decisions: "Mapping[str, ColumnImputationDecision]"
+    column_decisions: Mapping[str, ColumnImputationDecision]
     config: NumericImputationConfig
     feature_columns: tuple[str, ...] = ()
     random_seed: Optional[int] = None
+    custom_estimators: Mapping[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -138,8 +148,8 @@ def _oversize_warning(
 ) -> Optional[str]:
     """Detect a strategy forced past its routing threshold (ADR-0074).
 
-    Reconstructed purely from the unit's shape against the config thresholds — no
-    stored ``forced`` flag: KNN over ``knn_max_rows`` / ``knn_max_features``.
+    Reconstructed purely from the unit's shape against the config thresholds — the
+    plan stores no flag for it: KNN over ``knn_max_rows`` / ``knn_max_features``.
     Returns the warning text, or ``None`` when the shape sits within its
     routing envelope. It warns; it never blocks (ADR-0071).
     """
@@ -347,12 +357,13 @@ def fit_scalar_unit(
         return FitSignals(unit_id=unit.unit_id, strategy=unit.strategy, notes=notes)
 
     if unit.strategy == ImputationStrategy.Constant:
-        declared = (ctx.config.per_column_constant_fill or {}).get(col)
+        decision = ctx.column_decisions.get(col)
+        declared = decision.constant_fill if decision is not None else None
         if declared is None:
             return UnitFitOutcome(
                 fallback_reason=(
-                    f"constant: column '{col}' is routed to Constant but declares "
-                    f"no per_column_constant_fill value"
+                    f"constant: column '{col}' is routed to Constant but carries "
+                    f"no constant_fill on the plan"
                 )
             )
         return UnitFitOutcome(
@@ -389,6 +400,14 @@ def fit_mice_unit(
     The block trains a single estimator, built from the ``model_choice`` the plan
     stamped on the block. A block whose columns are all ``Unpredictable`` carries
     no model choice and cannot train — it reports a reason instead.
+
+    :attr:`~dataforge_ml.ModelChoice.Custom` is the one choice nothing is built
+    for: the user's own estimator is taken off ``ctx.custom_estimators`` and used
+    as-is (ADR-0083). It is not cloned, its ``n_jobs`` is not set, and a
+    pre-fitted one is accepted without a raise or a warning — ``IterativeImputer``
+    clones it per column and refits from scratch, so its prior state is inert. A
+    ``Custom`` block whose slot is empty — every plan reloaded from bytes —
+    reports a reason rather than falling back to a library estimator.
 
     The predictor set is widened past the block's own membership to every
     column in ``ctx.feature_columns`` — every active ``SemanticType.Numeric``
@@ -438,14 +457,21 @@ def fit_mice_unit(
     tol = hyp["tol"]
     initial_strategy = hyp["initial_strategy"]
     n_nearest_features = hyp["n_nearest_features"]
-    tag = hyp["nonlinearity_tag"]
 
     # Widen the predictor set past the block's own membership: every active
     # numeric column is a candidate predictor (ADR-0079), mirroring the feat_cols
     # the former per-column regression fitter read. The block still owns and
     # writes back only its own columns (cols), not all_cols.
+    # A predictor whose frame dtype is not numeric cannot enter the joint matrix.
+    # Only the frame can answer that: the plan's semantic types are decide-time
+    # claims, and the manual door stamps ``Numeric`` on every column it plans
+    # (ADR-0083), so a Passthrough string column would otherwise be widened into.
     extra_cols = [
-        c for c in ctx.feature_columns if c not in cols and c in train_df.columns
+        c
+        for c in ctx.feature_columns
+        if c not in cols
+        and c in train_df.columns
+        and train_df.schema[c].is_numeric()
     ]
     all_cols = list(cols) + extra_cols
 
@@ -453,9 +479,27 @@ def fit_mice_unit(
     # must be filled exactly as the serve-time pre-model snapshot fills them.
     fit_df, scalar_filled_cols = _fill_scalar_predictors(train_df, ctx, extra_cols)
 
-    estimator = RegressionEstimatorFactory.build_from_choice(
-        model_choice, n_jobs=n_jobs_inner
-    )
+    if model_choice == ModelChoice.Custom:
+        # The label says "look elsewhere": the instance rides on the plan's
+        # unit-keyed map and is used as-is, never cloned and never reconfigured
+        # (ADR-0083). An empty slot means this plan was reloaded from bytes,
+        # which never carry the estimator — that cannot train, and saying so is
+        # the whole point of the label being a value rather than None.
+        estimator = ctx.custom_estimators.get(unit.unit_id)
+        if estimator is None:
+            return UnitFitOutcome(
+                fallback_reason=(
+                    f"mice: the block is planned with ModelChoice.Custom but no "
+                    f"estimator is carried for unit '{unit.unit_id}'. A "
+                    f"user-supplied estimator is never serialized, so a reloaded "
+                    f"plan must be re-authored with "
+                    f"estimators={{'{unit.unit_id}': estimator}}."
+                )
+            )
+    else:
+        estimator = RegressionEstimatorFactory.build_from_choice(
+            model_choice, n_jobs=n_jobs_inner
+        )
     model = IterativeImputer(
         estimator=estimator,
         random_state=0,
@@ -502,7 +546,6 @@ def fit_mice_unit(
             n_iter=int(model.n_iter_),
             warnings=warnings_,
             notes=(
-                f"nonlinearity_tag: {tag}",
                 initial_strategy_note,
                 n_nearest_note,
                 f"predictors: block owns {len(cols)} columns, fit widened to "
@@ -546,8 +589,6 @@ def fit_knn_unit(
     hyp = _hyperparameters(unit)
     n_neighbors = hyp["n_neighbors"]
     weights = hyp["weights"]
-    miss_frac = hyp["miss_frac"]
-    complete_frac = hyp["complete_frac"]
 
     arr = _df_to_numpy(train_df, list(cols))
 
@@ -580,8 +621,7 @@ def fit_knn_unit(
             warnings=warnings_,
             notes=(
                 f"knn_params: n_neighbors={n_neighbors}, weights={weights} | "
-                f"n_features={len(cols)}, miss_frac={miss_frac:.2f}, "
-                f"complete_frac={complete_frac:.2f}",
+                f"n_features={len(cols)}",
                 f"knn_scaling: applied StandardScaler (nanmean/nanstd) "
                 f"across {len(cols)} feature columns",
             ),
@@ -602,8 +642,8 @@ def fit_gmm_unit(
     Parameters
     ----------
     unit : ImputationUnit
-        The ``"gmm_sampling:{column}"`` unit. ``center1`` and ``center2`` are
-        read from its hyperparameters.
+        The ``"gmm_sampling:{column}"`` unit. Its ``center1`` and ``center2``
+        are read off the column's decision.
     train_df : pl.DataFrame
         Training split.
     ctx : UnitFitContext
@@ -617,9 +657,9 @@ def fit_gmm_unit(
         than two observed values.
     """
     col = unit.columns[0]
-    hyp = _hyperparameters(unit)
-    center1 = hyp.get("center1")
-    center2 = hyp.get("center2")
+    decision = ctx.column_decisions.get(col)
+    center1 = decision.center1 if decision is not None else None
+    center2 = decision.center2 if decision is not None else None
     if center1 is None or center2 is None:
         return UnitFitOutcome(
             fallback_reason=(
@@ -642,7 +682,6 @@ def fit_gmm_unit(
     )
     gmm.fit(series.to_numpy().reshape(-1, 1))
 
-    decision = ctx.column_decisions.get(col)
     return UnitFitOutcome(
         fitted=FittedGMMSampling(
             center1=gmm.means_[0][0],
@@ -681,9 +720,9 @@ def fit_cluster_unit(
     Parameters
     ----------
     unit : ImputationUnit
-        The ``"cluster_conditional:{column}"`` unit. ``center1`` / ``center2`` /
-        ``feature_cols`` / ``central_tendency`` are read from its
-        hyperparameters.
+        The ``"cluster_conditional:{column}"`` unit. ``central_tendency`` is
+        read from its hyperparameters; ``center1`` / ``center2`` /
+        ``feature_cols`` / ``grouping_variable`` off the column's decision.
     train_df : pl.DataFrame
         Training split.
     ctx : UnitFitContext
@@ -697,9 +736,9 @@ def fit_cluster_unit(
         observed values.
     """
     col = unit.columns[0]
-    hyp = _hyperparameters(unit)
-    center1 = hyp.get("center1")
-    center2 = hyp.get("center2")
+    decision = ctx.column_decisions.get(col)
+    center1 = decision.center1 if decision is not None else None
+    center2 = decision.center2 if decision is not None else None
     if center1 is None or center2 is None:
         return UnitFitOutcome(
             fallback_reason=(
@@ -708,10 +747,9 @@ def fit_cluster_unit(
             )
         )
 
-    use_mean = hyp["central_tendency"] == "mean"
-    decision = ctx.column_decisions.get(col)
-    snap = decision.domain_snap_bounds if decision is not None else None
-    grouping_var = ctx.config.bimodal_grouping_variables.get(col)
+    use_mean = _hyperparameters(unit)["central_tendency"] == "mean"
+    snap = decision.domain_snap_bounds
+    grouping_var = decision.grouping_variable
 
     if grouping_var and grouping_var in train_df.columns:
         df_valid = train_df.select([col, grouping_var]).drop_nulls()
@@ -750,7 +788,7 @@ def fit_cluster_unit(
             ),
         )
 
-    feat_cols = [c for c in hyp["feature_cols"] if c in train_df.columns]
+    feat_cols = [c for c in (decision.feature_cols or ()) if c in train_df.columns]
     df_valid = train_df.select([col] + feat_cols).drop_nulls(subset=[col])
     if len(df_valid) == 0:
         return UnitFitOutcome(

@@ -25,8 +25,8 @@ import polars as pl
 
 from ._base import ModalityProfiler
 from ._config import (
-    MemoryBreakdown,
     DatasetStats,
+    MemoryBreakdown,
 )
 
 # ---------------------------------------------------------------------------

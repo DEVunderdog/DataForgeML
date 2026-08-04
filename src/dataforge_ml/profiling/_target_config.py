@@ -13,6 +13,7 @@ from typing import Optional
 from ._categorical_config import CategoricalColumnProfile, CategoricalStats
 from ._numeric_config import ColumnNumericProfile, NumericStats
 
+
 class TargetProblemType(StrEnum):
     Regression = "regression"
     BinaryClassification = "binary_classification"

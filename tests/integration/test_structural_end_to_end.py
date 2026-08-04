@@ -1,16 +1,23 @@
 import polars as pl
 import pytest
-from dataforge_ml.profiling.orchestrator import StructuralProfiler
+
 from dataforge_ml.config import PipelineConfig, PipelinePhase, SemanticType
-from dataforge_ml.profiling._config import ProfileConfig, StructuralProfileResult
-from dataforge_ml.profiling._numeric_config import NumericStats, SkewSeverity
-from dataforge_ml.profiling._categorical_config import CategoricalStats
-from dataforge_ml.profiling._datetime_config import DatetimeStats
 from dataforge_ml.profiling._boolean_config import BooleanStats
-from dataforge_ml.profiling._text_config import TextStats
+from dataforge_ml.profiling._categorical_config import CategoricalStats
+from dataforge_ml.profiling._config import ProfileConfig, StructuralProfileResult
+from dataforge_ml.profiling._datetime_config import DatetimeStats
+from dataforge_ml.profiling._missingness_config import (
+    MissingnessProfileConfig,
+    MissingSeverity,
+)
+from dataforge_ml.profiling._numeric_config import (
+    NumericProfileConfig,
+    NumericStats,
+    SkewSeverity,
+)
 from dataforge_ml.profiling._target_config import TargetProfileResult
-from dataforge_ml.profiling._missingness_config import MissingSeverity, MissingnessProfileConfig
-from dataforge_ml.profiling._numeric_config import NumericProfileConfig
+from dataforge_ml.profiling._text_config import TextStats
+from dataforge_ml.profiling.orchestrator import StructuralProfiler
 
 
 def test_happy_path(mixed_df):

@@ -20,9 +20,9 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 
-from ._config import ColumnTypeInfo, NumericKind, TypeFlag, SemanticType
-from ._type_detection_config import TypeDetectionConfig
 from ..models._data_types import _INT_DTYPES, _NUMERIC_DTYPES
+from ._config import ColumnTypeInfo, NumericKind, SemanticType, TypeFlag
+from ._type_detection_config import TypeDetectionConfig
 
 if TYPE_CHECKING:
     pass
