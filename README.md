@@ -60,6 +60,10 @@ walkthroughs — in the dedicated examples repository:
 
 **https://github.com/DEVunderdog/dataforgeml-examples**
 
+## Video
+
+[![Watch the video](https://img.youtube.com/vi/8WrMEOKIEUE/maxresdefault.jpg)](https://www.youtube.com/watch?v=8WrMEOKIEUE)
+
 ## Documentation
 
 Full documentation — including the complete API reference, configuration guide, and the domain concepts behind profiling, imputation, and splitting — is available at:
