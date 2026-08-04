@@ -420,9 +420,8 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Optional</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
-
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.experimental</span><span class="w"> </span><span class="kn">import</span> <span class="n">enable_iterative_imputer</span>  <span class="c1"># noqa: F401</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.impute</span><span class="w"> </span><span class="kn">import</span> <span class="n">IterativeImputer</span><span class="p">,</span> <span class="n">KNNImputer</span>
 
@@ -432,6 +431,7 @@
     <span class="n">NumericStats</span><span class="p">,</span>
     <span class="n">SkewSeverity</span><span class="p">,</span>
 <span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..utils._null_normalization</span><span class="w"> </span><span class="kn">import</span> <span class="n">_resolve_effective_nulls</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">_MODEL_BASED_STRATEGIES</span><span class="p">,</span>
     <span class="n">AccuracyDiagnostic</span><span class="p">,</span>
@@ -441,11 +441,10 @@
     <span class="n">InspectionReport</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">_df_to_numpy</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">..utils._null_normalization</span><span class="w"> </span><span class="kn">import</span> <span class="n">_resolve_effective_nulls</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">._fitted_imputer</span><span class="w"> </span><span class="kn">import</span> <span class="n">FittedImputer</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">..profiling._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">StructuralProfileResult</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">._fitted_imputer</span><span class="w"> </span><span class="kn">import</span> <span class="n">FittedImputer</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_fit_workers</span><span class="p">(</span><span class="n">max_workers</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="n">n_units</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
@@ -513,7 +512,6 @@
     <span class="n">strategy</span><span class="p">:</span> <span class="n">ImputationStrategy</span><span class="p">,</span>
     <span class="n">models</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span>
     <span class="n">n_rows</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
-    <span class="n">knn_n_neighbors_override</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Read convergence/neighbour metadata straight off the fitted models.</span>
 
@@ -523,8 +521,9 @@
 <span class="sd">    Regression or was always MICE, reports through this one block (ADR-0079);</span>
 <span class="sd">    KNN contributes ``n_neighbors_used`` (the model&#39;s own ``n_neighbors``) and</span>
 <span class="sd">    ``k_capped`` (the count was forced to ``n_rows − 1``); the bimodal</span>
-<span class="sd">    strategies contribute none.  ``k_capped`` is ``None`` whenever a</span>
-<span class="sd">    ``knn_n_neighbors`` override bypassed the adaptive formula.</span>
+<span class="sd">    strategies contribute none.  ``k_capped`` is always computable for a</span>
+<span class="sd">    fitted KNN unit — no config override can bypass the adaptive formula</span>
+<span class="sd">    (ADR-0083).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">converged</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">n_iter</span> <span class="o">=</span> <span class="kc">None</span>
@@ -542,8 +541,7 @@
         <span class="n">fitted_knn</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;knn&quot;</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">fitted_knn</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">n_neighbors_used</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">fitted_knn</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">n_neighbors</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">knn_n_neighbors_override</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="n">k_capped</span> <span class="o">=</span> <span class="n">n_neighbors_used</span> <span class="o">==</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n_rows</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">k_capped</span> <span class="o">=</span> <span class="n">n_neighbors_used</span> <span class="o">==</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n_rows</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">converged</span><span class="p">,</span> <span class="n">n_iter</span><span class="p">,</span> <span class="n">n_neighbors_used</span><span class="p">,</span> <span class="n">k_capped</span>
 
@@ -585,7 +583,7 @@
 <span class="sd">    tuple[float, float, float]</span>
 <span class="sd">        (r2, rmse, mae). R2 defaults to 0.0 if computation fails.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.metrics</span><span class="w"> </span><span class="kn">import</span> <span class="n">r2_score</span><span class="p">,</span> <span class="n">mean_squared_error</span><span class="p">,</span> <span class="n">mean_absolute_error</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.metrics</span><span class="w"> </span><span class="kn">import</span> <span class="n">mean_absolute_error</span><span class="p">,</span> <span class="n">mean_squared_error</span><span class="p">,</span> <span class="n">r2_score</span>
 
     <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">array_equal</span><span class="p">(</span><span class="n">y_true</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">):</span>
         <span class="k">return</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span>
@@ -962,7 +960,6 @@
             <span class="n">string_sentinels</span><span class="o">=</span><span class="n">fitted_imputer</span><span class="o">.</span><span class="n">string_sentinels</span><span class="p">,</span>
         <span class="p">)</span>
         <span class="n">n_rows</span> <span class="o">=</span> <span class="n">resolved</span><span class="o">.</span><span class="n">height</span>
-        <span class="n">numeric_cfg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="o">.</span><span class="n">imputation</span><span class="o">.</span><span class="n">numeric</span>
 
         <span class="n">columns</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">InspectionDiagnostic</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">rec</span> <span class="ow">in</span> <span class="n">fitted_imputer</span><span class="o">.</span><span class="n">records</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
@@ -991,7 +988,6 @@
                 <span class="n">strategy</span><span class="o">=</span><span class="n">rec</span><span class="o">.</span><span class="n">decision</span><span class="o">.</span><span class="n">strategy</span><span class="p">,</span>
                 <span class="n">models</span><span class="o">=</span><span class="n">models_by_id</span><span class="p">,</span>
                 <span class="n">n_rows</span><span class="o">=</span><span class="n">n_rows</span><span class="p">,</span>
-                <span class="n">knn_n_neighbors_override</span><span class="o">=</span><span class="n">numeric_cfg</span><span class="o">.</span><span class="n">knn_n_neighbors</span><span class="p">,</span>
             <span class="p">)</span>
 
             <span class="n">columns</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">InspectionDiagnostic</span><span class="p">(</span>

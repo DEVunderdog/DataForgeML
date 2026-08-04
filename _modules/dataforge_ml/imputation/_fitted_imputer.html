@@ -418,14 +418,13 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">..config</span><span class="w"> </span><span class="kn">import</span> <span class="n">PipelineConfig</span><span class="p">,</span> <span class="n">PipelinePhase</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..models._data_types</span><span class="w"> </span><span class="kn">import</span> <span class="n">_FLOAT_DTYPES</span><span class="p">,</span> <span class="n">_INT_DTYPES</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..utils._null_normalization</span><span class="w"> </span><span class="kn">import</span> <span class="n">_resolve_effective_nulls</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-    <span class="n">_EXCLUSION_SIGNAL</span><span class="p">,</span>
     <span class="n">ColumnImputationRecord</span><span class="p">,</span>
     <span class="n">ImputationResult</span><span class="p">,</span>
     <span class="n">ImputationStrategy</span><span class="p">,</span>
 <span class="p">)</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">..models._data_types</span><span class="w"> </span><span class="kn">import</span> <span class="n">_INT_DTYPES</span><span class="p">,</span> <span class="n">_FLOAT_DTYPES</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">..utils._null_normalization</span><span class="w"> </span><span class="kn">import</span> <span class="n">_resolve_effective_nulls</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._fitted_units</span><span class="w"> </span><span class="kn">import</span> <span class="n">FittedScalar</span>
 
 
@@ -465,19 +464,6 @@
             <span class="n">unit_id</span><span class="p">,</span> <span class="n">fitted</span> <span class="o">=</span> <span class="n">_resolve</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">item</span><span class="p">)</span>
             <span class="n">normalized</span><span class="p">[</span><span class="n">unit_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">fitted</span>
     <span class="k">return</span> <span class="n">normalized</span>
-
-
-<div class="viewcode-block" id="UnfittedColumnError">
-<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._fitted_imputer.UnfittedColumnError">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">UnfittedColumnError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Raised by FittedImputer.transform() when the input DataFrame contains</span>
-<span class="sd">    missing values in a column for which no fill strategy was learned during</span>
-<span class="sd">    fit() — i.e. the column had zero missing values in the training split.</span>
-
-<span class="sd">    Typically indicates that a non-profile-stratified split was used.</span>
-<span class="sd">    &quot;&quot;&quot;</span></div>
-
 
 
 <div class="viewcode-block" id="DroppedColumnAbsentWarning">
@@ -530,6 +516,7 @@
 
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Protocol</span><span class="p">,</span> <span class="n">runtime_checkable</span>
+
 
 <div class="viewcode-block" id="FittedUnit">
 <a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._fitted_imputer.FittedUnit">[docs]</a>
@@ -690,8 +677,9 @@
         <span class="n">cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">]</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">cols</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">df</span>
-        <span class="kn">from</span><span class="w"> </span><span class="nn">._utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">_df_to_numpy</span><span class="p">,</span> <span class="n">_numpy_to_df</span><span class="p">,</span> <span class="n">_preserve_observed</span>
         <span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
+
+        <span class="kn">from</span><span class="w"> </span><span class="nn">._utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">_df_to_numpy</span><span class="p">,</span> <span class="n">_numpy_to_df</span><span class="p">,</span> <span class="n">_preserve_observed</span>
 
         <span class="n">n_df_rows</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
         <span class="n">arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="n">n_df_rows</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">all_cols</span><span class="p">)),</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
@@ -778,8 +766,9 @@
         <span class="n">cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">]</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">cols</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">df</span>
-        <span class="kn">from</span><span class="w"> </span><span class="nn">._utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">_df_to_numpy</span><span class="p">,</span> <span class="n">_numpy_to_df</span><span class="p">,</span> <span class="n">_preserve_observed</span>
         <span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
+
+        <span class="kn">from</span><span class="w"> </span><span class="nn">._utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">_df_to_numpy</span><span class="p">,</span> <span class="n">_numpy_to_df</span><span class="p">,</span> <span class="n">_preserve_observed</span>
         <span class="n">arr</span> <span class="o">=</span> <span class="n">_df_to_numpy</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">cols</span><span class="p">)</span>
         <span class="n">arr_scaled</span> <span class="o">=</span> <span class="p">(</span><span class="n">arr</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">col_means</span><span class="p">)</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">col_stds</span>
         <span class="n">arr_imputed</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">arr_scaled</span><span class="p">)</span>
@@ -1006,7 +995,8 @@
 <span class="sd">        Sentinel-encoded Effective Nulls are normalised off the plan&#39;s</span>
 <span class="sd">        declared maps before any fill (ADR-0068), and each model-based unit&#39;s</span>
 <span class="sd">        Observed-Value Preservation (ADR-0078) guarantees that only cells</span>
-<span class="sd">        missing in the normalised frame receive fill values.</span>
+<span class="sd">        missing in the normalised frame receive fill values. A ``Passthrough``</span>
+<span class="sd">        column is left completely alone, nulls included (ADR-0083).</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
@@ -1030,11 +1020,6 @@
 <span class="sd">            If a column with an active imputation strategy (any strategy other</span>
 <span class="sd">            than ``Dropped`` or ``Indicator``) is absent from df. All absent</span>
 <span class="sd">            column names are reported in one raise.</span>
-<span class="sd">        UnfittedColumnError</span>
-<span class="sd">            If df has missing values in a column that had no missingness during</span>
-<span class="sd">            fit() (strategy == Passthrough). Columns soft-excluded for the</span>
-<span class="sd">            Imputation phase are exempt: they are Passthrough by declaration and</span>
-<span class="sd">            their missing values ride through untouched.</span>
 
 <span class="sd">        Warns</span>
 <span class="sd">        -----</span>
@@ -1072,30 +1057,6 @@
             <span class="n">numeric_sentinels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">numeric_sentinels</span><span class="p">,</span>
             <span class="n">string_sentinels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">string_sentinels</span><span class="p">,</span>
         <span class="p">)</span>
-
-        <span class="c1"># --- Passthrough violation check ---</span>
-        <span class="c1"># A column soft-excluded for the Imputation phase is Passthrough by</span>
-        <span class="c1"># declaration, not because fit saw no missingness: its missing values</span>
-        <span class="c1"># ride through untouched rather than raising.</span>
-        <span class="n">violating_cols</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">rec</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="k">if</span> <span class="n">rec</span><span class="o">.</span><span class="n">decision</span><span class="o">.</span><span class="n">strategy</span> <span class="o">!=</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Passthrough</span><span class="p">:</span>
-                <span class="k">continue</span>
-            <span class="k">if</span> <span class="n">_EXCLUSION_SIGNAL</span> <span class="ow">in</span> <span class="n">rec</span><span class="o">.</span><span class="n">decision</span><span class="o">.</span><span class="n">signals</span><span class="p">:</span>
-                <span class="k">continue</span>
-            <span class="k">if</span> <span class="n">col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
-                <span class="k">continue</span>
-            <span class="k">if</span> <span class="n">df</span><span class="p">[</span><span class="n">col</span><span class="p">]</span><span class="o">.</span><span class="n">null_count</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-                <span class="n">violating_cols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
-
-        <span class="k">if</span> <span class="n">violating_cols</span><span class="p">:</span>
-            <span class="n">cols_str</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">c</span><span class="si">}</span><span class="s2">&#39;&quot;</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">violating_cols</span><span class="p">)</span>
-            <span class="k">raise</span> <span class="n">UnfittedColumnError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;Column(s) </span><span class="si">{</span><span class="n">cols_str</span><span class="si">}</span><span class="s2"> have missing values but no fill strategy was &quot;</span>
-                <span class="sa">f</span><span class="s2">&quot;learned during fit() because the training split had no missing &quot;</span>
-                <span class="sa">f</span><span class="s2">&quot;values. Consider using DataSplitter.profile_stratified_split() &quot;</span>
-                <span class="sa">f</span><span class="s2">&quot;to ensure missingness is represented in training data.&quot;</span>
-            <span class="p">)</span>
 
         <span class="c1"># --- Warn about already-absent dropped columns ---</span>
         <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">rec</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>

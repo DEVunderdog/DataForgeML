@@ -420,11 +420,12 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">time</span><span class="w"> </span><span class="kn">import</span> <span class="n">perf_counter</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Optional</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">joblib</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">..config</span><span class="w"> </span><span class="kn">import</span> <span class="n">PipelineConfig</span><span class="p">,</span> <span class="n">SemanticType</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">..utils._null_normalization</span><span class="w"> </span><span class="kn">import</span> <span class="n">_resolve_effective_nulls</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">ImputationStrategy</span><span class="p">,</span> <span class="n">ImputationUnit</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">ImputationStrategy</span><span class="p">,</span> <span class="n">ImputationUnit</span><span class="p">,</span> <span class="n">ModelChoice</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._fit_signals</span><span class="w"> </span><span class="kn">import</span> <span class="n">FitSignals</span><span class="p">,</span> <span class="n">ImputationFitWarning</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._fitters</span><span class="w"> </span><span class="kn">import</span> <span class="n">UnitFitContext</span><span class="p">,</span> <span class="n">_dispatch_unit_fit</span>
 
@@ -437,6 +438,7 @@
     <span class="s2">&quot;ImputationFitWarning&quot;</span><span class="p">,</span>
     <span class="s2">&quot;UnitFitResult&quot;</span><span class="p">,</span>
     <span class="s2">&quot;UnitNotTrainableError&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;core_budget&quot;</span><span class="p">,</span>
     <span class="s2">&quot;fit_unit&quot;</span><span class="p">,</span>
 <span class="p">]</span>
 
@@ -542,6 +544,7 @@
             <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">semantic_type</span> <span class="o">==</span> <span class="n">SemanticType</span><span class="o">.</span><span class="n">Numeric</span>
         <span class="p">),</span>
         <span class="n">random_seed</span><span class="o">=</span><span class="n">random_seed</span><span class="p">,</span>
+        <span class="n">custom_estimators</span><span class="o">=</span><span class="n">decision</span><span class="o">.</span><span class="n">custom_estimators</span><span class="p">,</span>
     <span class="p">)</span>
 
 
@@ -584,15 +587,17 @@
 <span class="sd">    sentinel maps (ADR-0068) before the fit, so a raw frame may be handed</span>
 <span class="sd">    straight in.</span>
 
-<span class="sd">    **Concurrency — pin the inner layer when you parallelise the loop.** The</span>
+<span class="sd">    **Concurrency — budget the inner layer when you parallelise the loop.** The</span>
 <span class="sd">    caller owns the outer/inner split (ADR-0069): parallelism lives in exactly</span>
 <span class="sd">    one layer, and ``n_jobs_inner`` is how you say which. A sequential loop —</span>
 <span class="sd">    one ``fit_unit`` at a time — takes the default ``n_jobs_inner=-1``, which</span>
 <span class="sd">    opens each fit&#39;s inner sklearn parallelism to every core. A self-parallelised</span>
-<span class="sd">    drive — units fitted side by side in your own thread pool — must pass</span>
-<span class="sd">    ``n_jobs_inner=1`` on every call, otherwise each concurrent fit also fans out</span>
-<span class="sd">    to every core and the two layers oversubscribe the machine. The value never</span>
-<span class="sd">    moves the result (ADR-0069); it only changes how the cores are spent.</span>
+<span class="sd">    drive — units fitted side by side in your own thread pool — calls</span>
+<span class="sd">    :func:`core_budget` once before the loop and passes each unit&#39;s value here;</span>
+<span class="sd">    a drive that parallelises and passes nothing leaves every concurrent fit</span>
+<span class="sd">    fanning out to every core, so the two layers oversubscribe the machine. The</span>
+<span class="sd">    value never moves the result (ADR-0069); it only changes how the cores are</span>
+<span class="sd">    spent.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -608,8 +613,8 @@
 <span class="sd">        Seed for the stochastic strategies (GMM sampling).</span>
 <span class="sd">    n_jobs_inner : int, default -1</span>
 <span class="sd">        Inner estimator ``n_jobs`` (ADR-0056). Leave at ``-1`` for a sequential</span>
-<span class="sd">        drive; pin to ``1`` per call when your own loop already fits units</span>
-<span class="sd">        concurrently. Never affects results.</span>
+<span class="sd">        drive; when your own loop already fits units concurrently, pass this</span>
+<span class="sd">        unit&#39;s value from :func:`core_budget` (ADR-0081). Never affects results.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -650,6 +655,149 @@
         <span class="n">fitted</span><span class="o">=</span><span class="n">outcome</span><span class="o">.</span><span class="n">fitted</span><span class="p">,</span>
         <span class="n">signals</span><span class="o">=</span><span class="n">signals</span><span class="p">,</span>
     <span class="p">)</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_block_model_choice</span><span class="p">(</span>
+    <span class="n">decision</span><span class="p">:</span> <span class="s2">&quot;ImputationDecision&quot;</span><span class="p">,</span> <span class="n">columns</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ModelChoice</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the estimator family the plan stamped on a block of columns.</span>
+
+<span class="sd">    A joint block trains one estimator, so every column carries the same choice</span>
+<span class="sd">    and the first one that has it answers for all — the same rule the MICE</span>
+<span class="sd">    fitter reads the block through. ``None`` means the block routed to no</span>
+<span class="sd">    estimator family and cannot train at all.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">:</span>
+        <span class="n">col_decision</span> <span class="o">=</span> <span class="n">decision</span><span class="o">.</span><span class="n">column_decisions</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">col_decision</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">col_decision</span><span class="o">.</span><span class="n">model_choice</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">col_decision</span><span class="o">.</span><span class="n">model_choice</span>
+    <span class="k">return</span> <span class="kc">None</span>
+
+
+<div class="viewcode-block" id="core_budget">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._unit_fit.core_budget">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">core_budget</span><span class="p">(</span>
+    <span class="n">decision</span><span class="p">:</span> <span class="s2">&quot;ImputationDecision&quot;</span><span class="p">,</span>
+    <span class="n">max_workers</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>
+    <span class="n">total_cores</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Compute the whole-plan inner-parallelism budget: ``unit_id -&gt; n_jobs_inner``.</span>
+
+<span class="sd">    The library owns this **arithmetic** and nothing else (ADR-0081): the pool,</span>
+<span class="sd">    the loop, the submission order and the failure policy stay user-owned</span>
+<span class="sd">    (ADR-0075 is unamended). Call it once immediately before your own</span>
+<span class="sd">    :func:`fit_unit` loop and pass each unit&#39;s value as that call&#39;s</span>
+<span class="sd">    ``n_jobs_inner``.</span>
+
+<span class="sd">    The arithmetic is heavy-aware rather than degree-proportional. A plan holds</span>
+<span class="sd">    at most two joint blocks, and at most one unit — the ``&quot;mice&quot;`` block, and</span>
+<span class="sd">    only when its ``model_choice`` is</span>
+<span class="sd">    :attr:`~dataforge_ml.ModelChoice.RandomForestRegressor` — can absorb inner</span>
+<span class="sd">    parallelism at all, so the MICE block receives</span>
+<span class="sd">    ``max(1, total_cores - 1_if_knn_present)`` and every other unit receives</span>
+<span class="sd">    ``1``. Dividing the cores evenly across the outer degree instead would hand</span>
+<span class="sd">    the MICE block a ``1`` and leave the machine idle.</span>
+
+<span class="sd">    A free function and not a property on</span>
+<span class="sd">    :class:`~dataforge_ml.ImputationDecision`: the plan is derived purely from</span>
+<span class="sd">    ``(profile, shape, config)``, and hanging a machine fact on it would make the</span>
+<span class="sd">    same serialized plan answer differently on a different box (ADR-0072&#39;s</span>
+<span class="sd">    precedent). It answers for the whole plan at once because the</span>
+<span class="sd">    reserved-for-KNN term is a fact about the plan, not about any one unit.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    decision : ImputationDecision</span>
+<span class="sd">        The plan to price. Read-only — ``units``, and ``column_decisions`` for</span>
+<span class="sd">        the MICE block&#39;s ``model_choice``.</span>
+<span class="sd">    max_workers : int or None</span>
+<span class="sd">        The outer degree of the drive the budget is for. ``1`` is a sequential</span>
+<span class="sd">        one-unit-at-a-time drive, which is outer-degree-one and gets the wide</span>
+<span class="sd">        ``-1`` for MICE (ADR-0069). Anything greater is a parallel pool, and</span>
+<span class="sd">        ``None`` — a :class:`~concurrent.futures.ThreadPoolExecutor` of unknown</span>
+<span class="sd">        degree — takes that same parallel branch rather than being read as</span>
+<span class="sd">        sequential or rejected.</span>
+<span class="sd">    total_cores : int, optional</span>
+<span class="sd">        Overrides core detection, for a caller subdividing a box across</span>
+<span class="sd">        processes. Detection is ``joblib.cpu_count()``, which respects cgroup</span>
+<span class="sd">        quotas and is the same detector sklearn uses for its own ``n_jobs=-1``,</span>
+<span class="sd">        so the budget and sklearn&#39;s actual fan-out agree on how big the box is.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dict[str, int]</span>
+<span class="sd">        A mapping whose keys are exactly the plan&#39;s unit ids and whose values are</span>
+<span class="sd">        the ``n_jobs_inner`` each unit should be fitted with.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    **All ones is a legitimate answer.** ``BayesianRidge`` and</span>
+<span class="sd">    ``GradientBoostingRegressor`` have no ``n_jobs`` to spend (ADR-0069), so a</span>
+<span class="sd">    MICE block routed to either is priced at ``1``, with no error and no warning</span>
+<span class="sd">    — ``1`` is the truthful number, and a warning would fire on a correct plan.</span>
+<span class="sd">    On default config this covers every ``ComplexNonlinear`` frame at or above</span>
+<span class="sd">    ``gradient_boost_min_rows``, which routes to</span>
+<span class="sd">    ``GradientBoostingRegressor``: there is no speedup to be had there. The</span>
+<span class="sd">    condition is branch-specific, not a frame-size ceiling —</span>
+<span class="sd">    ``MonotonicNonlinear`` takes ``RandomForestRegressor`` at any row count and</span>
+<span class="sd">    stays able to spend a budget.</span>
+
+<span class="sd">    **A user-supplied estimator is priced at ``1`` in every branch**, the</span>
+<span class="sd">    sequential ``max_workers=1`` one included (ADR-0083). The library never sets</span>
+<span class="sd">    a foreign estimator&#39;s parameters, so ``1`` is the truthful count of cores</span>
+<span class="sd">    *the library* spends; ``total_cores`` remains the hatch for reserving the</span>
+<span class="sd">    rest. There is no ``n_jobs`` probe: it would fire on correct plans while</span>
+<span class="sd">    missing ``nthread``, ``num_threads``, and every internal pool that is not</span>
+<span class="sd">    exposed as a parameter.</span>
+
+<span class="sd">    The budget is therefore structurally blind to parallelism configured inside</span>
+<span class="sd">    a foreign object, and the documented pattern for one is to **fit that unit</span>
+<span class="sd">    outside your pool**, where it has the machine to itself, driving the</span>
+<span class="sd">    remaining units through the pool on this budget. ``total_cores`` is the</span>
+<span class="sd">    reservation hatch: pass it reduced by whatever the self-parallelising fit</span>
+<span class="sd">    will take, so the two never contend for the same cores.</span>
+
+<span class="sd">    **The budget is a snapshot.** It describes the plan as it was when the call</span>
+<span class="sd">    returned. A plan edit in between — :meth:`ImputationDecision.with_model_choice`,</span>
+<span class="sd">    :meth:`ImputationDecision.with_hyperparameters` — or a fresh</span>
+<span class="sd">    :func:`decide` silently invalidates it, and nothing detects that. The</span>
+<span class="sd">    mitigation is placement: compute the budget immediately before the loop that</span>
+<span class="sd">    consumes it, not enforcement.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">cores</span> <span class="o">=</span> <span class="n">joblib</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">()</span> <span class="k">if</span> <span class="n">total_cores</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">total_cores</span>
+    <span class="n">budget</span> <span class="o">=</span> <span class="p">{</span><span class="n">unit</span><span class="o">.</span><span class="n">unit_id</span><span class="p">:</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">unit</span> <span class="ow">in</span> <span class="n">decision</span><span class="o">.</span><span class="n">units</span><span class="p">}</span>
+
+    <span class="n">mice_unit</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">u</span> <span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="n">decision</span><span class="o">.</span><span class="n">units</span> <span class="k">if</span> <span class="n">u</span><span class="o">.</span><span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MICE</span><span class="p">),</span> <span class="kc">None</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="n">mice_unit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">budget</span>
+
+    <span class="n">model_choice</span> <span class="o">=</span> <span class="n">_block_model_choice</span><span class="p">(</span><span class="n">decision</span><span class="p">,</span> <span class="n">mice_unit</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">model_choice</span> <span class="o">==</span> <span class="n">ModelChoice</span><span class="o">.</span><span class="n">Custom</span><span class="p">:</span>
+        <span class="c1"># A user-supplied estimator is never configured by the library, so 1 is</span>
+        <span class="c1"># the truthful count of cores *the library* spends on it — in every</span>
+        <span class="c1"># branch, the sequential one included (ADR-0083). No introspection and</span>
+        <span class="c1"># no new knob: total_cores is already the reservation hatch.</span>
+        <span class="k">return</span> <span class="n">budget</span>
+
+    <span class="k">if</span> <span class="n">max_workers</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="c1"># Outer degree one: the inner layer gets the whole machine (ADR-0069).</span>
+        <span class="c1"># Unconditional, so a sequential driver reads the same -1 here that</span>
+        <span class="c1"># fit_unit defaults to — the function stays purely additive.</span>
+        <span class="n">budget</span><span class="p">[</span><span class="n">mice_unit</span><span class="o">.</span><span class="n">unit_id</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+        <span class="k">return</span> <span class="n">budget</span>
+
+    <span class="k">if</span> <span class="n">model_choice</span> <span class="o">!=</span> <span class="n">ModelChoice</span><span class="o">.</span><span class="n">RandomForestRegressor</span><span class="p">:</span>
+        <span class="c1"># BayesianRidge and GradientBoostingRegressor have no n_jobs to spend</span>
+        <span class="c1"># (ADR-0069), and a block that resolved no choice cannot train at all;</span>
+        <span class="c1"># 1 is the truthful number and no warning is owed on a correct plan.</span>
+        <span class="k">return</span> <span class="n">budget</span>
+
+    <span class="n">knn_present</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">KNN</span> <span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="n">decision</span><span class="o">.</span><span class="n">units</span><span class="p">)</span>
+    <span class="n">budget</span><span class="p">[</span><span class="n">mice_unit</span><span class="o">.</span><span class="n">unit_id</span><span class="p">]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">cores</span> <span class="o">-</span> <span class="p">(</span><span class="mi">1</span> <span class="k">if</span> <span class="n">knn_present</span> <span class="k">else</span> <span class="mi">0</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">budget</span></div>
 
 </pre></div>
 

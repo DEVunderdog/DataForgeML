@@ -421,6 +421,128 @@
 builds the pure plan, a caller-written <code class="docutils literal notranslate"><span class="pre">fit_unit</span></code> loop trains it one unit at a
 time, and <code class="docutils literal notranslate"><span class="pre">FittedImputer.compose</span></code> rolls the trained units into the
 whole-dataframe imputer.</p>
+<p>The plan has two authors (ADR-0083): <code class="docutils literal notranslate"><span class="pre">decide()</span></code> derives it from a profile, and
+<code class="docutils literal notranslate"><span class="pre">author()</span></code> takes it from a person who knows their own data. The plan either
+produces is the same object, and everything downstream treats them alike.</p>
+<p><code class="docutils literal notranslate"><span class="pre">author()</span></code> is also how your own estimator gets onto a plan:
+<code class="docutils literal notranslate"><span class="pre">author(...,</span> <span class="pre">estimators={&quot;mice&quot;:</span> <span class="pre">my_model})</span></code> stamps the MICE block
+<code class="docutils literal notranslate"><span class="pre">ModelChoice.Custom</span></code> and trains it with <code class="docutils literal notranslate"><span class="pre">my_model</span></code> itself — the object you
+passed, not a clone. Two consequences: mutating it after authoring moves every
+plan holding it, and it is <strong>never serialized</strong>, so a saved plan reloads as
+<code class="docutils literal notranslate"><span class="pre">Custom</span></code> with the slot empty and raises at fit time until you supply the
+estimator again.</p>
+<p>The two authors also compose: <code class="docutils literal notranslate"><span class="pre">author(map,</span> <span class="pre">base=plan)</span></code> re-authors a plan you
+already have, so a user who ran <code class="docutils literal notranslate"><span class="pre">decide()</span></code> and disagrees with two of forty
+columns changes those two and keeps the thirty-eight the router got right.
+A column the map does not name keeps its decision verbatim; sentinels,
+<code class="docutils literal notranslate"><span class="pre">config_snapshot</span></code> and custom estimators carry over; the decided hyperparameter
+base is gap-filled for new units and never overwritten for carried ones; and
+tuning deltas ride along for units that survive the edit but are removed
+outright for those it dissolved. Re-authoring a <em>deserialized</em> plan works, but
+the units saved beside it were fitted under the old strategies — the result is
+a plan to fit fresh, never one to pair with those units.</p>
+<section id="the-guarantee-boundary">
+<h2>The guarantee boundary<a class="headerlink" href="#the-guarantee-boundary" title="Link to this heading">#</a></h2>
+<p>A hand-authored plan is the same object as a decided one, so almost everything
+the library promises holds for it unchanged. What narrows is narrow and
+specific: the promises that depend on the library having <em>chosen the
+estimator</em>, and the promises that depend on the door having <em>seen a profile</em>.</p>
+<p>These hold for every plan, whichever author wrote it:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Guarantee</p></th>
+<th class="head"><p>Why it still holds</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Frame coverage — every column of <code class="docutils literal notranslate"><span class="pre">columns</span></code> gets a decision</p></td>
+<td><p>By construction: <code class="docutils literal notranslate"><span class="pre">default</span></code> stamps every column the map does not name</p></td>
+</tr>
+<tr class="row-odd"><td><p>Observed-Value Preservation (ADR-0078)</p></td>
+<td><p>Enforced inside each unit’s own <code class="docutils literal notranslate"><span class="pre">transform</span></code>, below the plan</p></td>
+</tr>
+<tr class="row-even"><td><p>Composition — <code class="docutils literal notranslate"><span class="pre">FittedImputer.compose</span></code>’s exact-coverage gate (ADR-0071)</p></td>
+<td><p>Units are a pure projection of <code class="docutils literal notranslate"><span class="pre">column_decisions</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Execution — <code class="docutils literal notranslate"><span class="pre">fit_unit</span></code>, single-track raise, unit independence</p></td>
+<td><p>Nothing on the fit path asks who wrote the plan</p></td>
+</tr>
+<tr class="row-even"><td><p>Persistence of the plan and of each fitted unit (ADR-0072)</p></td>
+<td><p>Unchanged, <em>except</em> a <code class="docutils literal notranslate"><span class="pre">Custom</span></code> estimator, which is dropped and re-supplied</p></td>
+</tr>
+<tr class="row-odd"><td><p>Sentinel normalisation at fit and at transform</p></td>
+<td><p>Via <code class="docutils literal notranslate"><span class="pre">author</span></code>’s plan-level <code class="docutils literal notranslate"><span class="pre">numeric_sentinels</span></code> / <code class="docutils literal notranslate"><span class="pre">string_sentinels</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Dial validation — <code class="docutils literal notranslate"><span class="pre">with_hyperparameters</span></code> against a complete base</p></td>
+<td><p>The door writes the same decided base <code class="docutils literal notranslate"><span class="pre">decide()</span></code> does, from the same table</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">core_budget</span></code> arithmetic</p></td>
+<td><p>For library estimators; see the row below for <code class="docutils literal notranslate"><span class="pre">Custom</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>These hold only where the library chose the estimator, or only where a profile
+was read:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Guarantee</p></th>
+<th class="head"><p>How it narrows for a hand-authored plan</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">core_budget</span></code> arithmetic for a <code class="docutils literal notranslate"><span class="pre">Custom</span></code> unit</p></td>
+<td><p>Priced at <code class="docutils literal notranslate"><span class="pre">1</span></code> — the truthful count of cores <em>the library</em> spends. The budget cannot see parallelism you configured inside your own estimator</p></td>
+</tr>
+<tr class="row-odd"><td><p>Determinism across <code class="docutils literal notranslate"><span class="pre">n_jobs</span></code> (ADR-0069’s RandomForest pinning)</p></td>
+<td><p>Holds <strong>only</strong> where the library built the estimator. A foreign estimator’s determinism is its own</p></td>
+</tr>
+<tr class="row-even"><td><p>Routing rationale (<code class="docutils literal notranslate"><span class="pre">signals</span></code>)</p></td>
+<td><p><strong>Empty</strong>, legally: a hand-authored decision explains no routing, because there was none</p></td>
+</tr>
+<tr class="row-odd"><td><p>Size-guard warnings before fit</p></td>
+<td><p><strong>None</strong> — the door has no frame to measure. A plan that cannot train raises at fit</p></td>
+</tr>
+<tr class="row-even"><td><p>Reload-and-fit without further input</p></td>
+<td><p><strong>Not</strong> for a <code class="docutils literal notranslate"><span class="pre">Custom</span></code> plan: <code class="docutils literal notranslate"><span class="pre">build_from_choice</span></code> raises until you supply the estimator again</p></td>
+</tr>
+<tr class="row-odd"><td><p>Tuning of the estimator’s own dials</p></td>
+<td><p><strong>Not</strong> for a foreign estimator — the library cannot enumerate dials it does not define</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>One asymmetry follows from the door having no frame. A manual author gets a
+hard <code class="docutils literal notranslate"><span class="pre">UnitNotTrainableError</span></code> at fit where a <em>forced</em> automatic one gets a
+<code class="docutils literal notranslate"><span class="pre">FitSignals</span></code> warning: parity would mean handing a decide-time door a frame, and
+decide-time doors do not touch data.</p>
+<section id="a-self-parallelising-estimator">
+<h3>A self-parallelising estimator<a class="headerlink" href="#a-self-parallelising-estimator" title="Link to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">core_budget</span></code> prices a <code class="docutils literal notranslate"><span class="pre">Custom</span></code> unit at <code class="docutils literal notranslate"><span class="pre">1</span></code> in every branch, because the
+library never sets a foreign estimator’s parameters. If the estimator you
+supplied parallelises itself — <code class="docutils literal notranslate"><span class="pre">n_jobs</span></code>, <code class="docutils literal notranslate"><span class="pre">nthread</span></code>, <code class="docutils literal notranslate"><span class="pre">num_threads</span></code>, or an
+internal pool exposed as no parameter at all — the budget is structurally blind
+to it, and there is deliberately no probe: one would fire on correct plans while
+missing the spellings it does not know.</p>
+<p>The documented pattern is to fit that unit <strong>outside your pool</strong>, where it has
+the machine to itself, and to use <code class="docutils literal notranslate"><span class="pre">total_cores</span></code> as the reservation hatch for
+the rest:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">budget</span> <span class="o">=</span> <span class="n">core_budget</span><span class="p">(</span><span class="n">plan</span><span class="p">,</span> <span class="n">max_workers</span><span class="o">=</span><span class="n">n_workers</span><span class="p">,</span> <span class="n">total_cores</span><span class="o">=</span><span class="n">n_cores</span> <span class="o">-</span> <span class="n">reserved</span><span class="p">)</span>
+
+<span class="c1"># The self-parallelising unit runs alone, with the whole machine.</span>
+<span class="n">custom</span> <span class="o">=</span> <span class="n">fit_unit</span><span class="p">(</span><span class="n">plan</span><span class="p">,</span> <span class="s2">&quot;mice&quot;</span><span class="p">,</span> <span class="n">df</span><span class="p">)</span>
+
+<span class="k">with</span> <span class="n">ThreadPoolExecutor</span><span class="p">(</span><span class="n">max_workers</span><span class="o">=</span><span class="n">n_workers</span><span class="p">)</span> <span class="k">as</span> <span class="n">pool</span><span class="p">:</span>
+    <span class="n">rest</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">pool</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">fit_unit</span><span class="p">,</span> <span class="n">plan</span><span class="p">,</span> <span class="n">uid</span><span class="p">,</span> <span class="n">df</span><span class="p">,</span> <span class="n">n_jobs_inner</span><span class="o">=</span><span class="n">budget</span><span class="p">[</span><span class="n">uid</span><span class="p">])</span>
+        <span class="k">for</span> <span class="n">uid</span> <span class="ow">in</span> <span class="n">budget</span>
+        <span class="k">if</span> <span class="n">uid</span> <span class="o">!=</span> <span class="s2">&quot;mice&quot;</span>
+    <span class="p">]</span>
+    <span class="o">...</span>
+</pre></div>
+</div>
+</section>
+</section>
 <section id="decision-layer">
 <h2>Decision layer<a class="headerlink" href="#decision-layer" title="Link to this heading">#</a></h2>
 <dl class="py function">
@@ -433,6 +555,12 @@ the concrete estimator family for model-based columns, surfaces domain-snap
 bounds and the indicator/mnar/drop flags, and materialises the execution
 units — all as a pure function of <code class="docutils literal notranslate"><span class="pre">(profile,</span> <span class="pre">shape,</span> <span class="pre">config)</span></code> that trains
 nothing and never touches a DataFrame.</p>
+<p>Every fact about the data is declared here and only here: the bimodal
+centres and <code class="docutils literal notranslate"><span class="pre">feature_cols</span></code> are measurements lowered from the profile, and
+the grouping variable and the constant fill are lowered from <code class="docutils literal notranslate"><span class="pre">config</span></code>, all
+onto <code class="docutils literal notranslate"><span class="pre">ColumnImputationDecision</span></code> (ADR-0083). No fitter reads <code class="docutils literal notranslate"><span class="pre">config</span></code> for
+them, so a saved plan fits without the config that produced it — and editing
+<code class="docutils literal notranslate"><span class="pre">config</span></code> between <code class="docutils literal notranslate"><span class="pre">decide()</span></code> and <code class="docutils literal notranslate"><span class="pre">fit_unit()</span></code> no longer has any effect.</p>
 <p><code class="docutils literal notranslate"><span class="pre">decide</span></code> resolves its own active column set for the Imputation phase from
 <code class="docutils literal notranslate"><span class="pre">config</span></code> (Hard Exclusions plus Imputation-phase Soft Exclusions) — no
 upstream filtering is relied on. A hard-excluded column is omitted from the
@@ -482,9 +610,228 @@ routing, with every offending column reported in one raise.</p>
 </dl>
 </dd></dl>
 
+<dl class="py function">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._authoring.author">
+<span class="sig-prename descclassname"><span class="pre">dataforge_ml.imputation._authoring.</span></span><span class="sig-name descname"><span class="pre">author</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">columns_map</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">columns</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">estimators</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">numeric_sentinels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">string_sentinels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">base</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_authoring.html#author"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._authoring.author" title="Link to this definition">#</a></dt>
+<dd><p>Build an imputation plan by hand, from column names and declared strategies.</p>
+<p>The manual end of the automated↔manual spectrum (ADR-0083), sibling to
+<code class="xref py py-func docutils literal notranslate"><span class="pre">decide()</span></code>: both take a description and return
+an <code class="xref py py-class docutils literal notranslate"><span class="pre">ImputationDecision</span></code>, one from a profile and one from
+a person. The returned plan carries a complete decided hyperparameter base
+written from the same dial table <code class="docutils literal notranslate"><span class="pre">decide</span></code> reads, so
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">with_hyperparameters()</span></code>,
+<code class="xref py py-func docutils literal notranslate"><span class="pre">fit_unit()</span></code>,
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">compose()</span></code>, <code class="docutils literal notranslate"><span class="pre">transform</span></code>,
+<code class="xref py py-func docutils literal notranslate"><span class="pre">core_budget()</span></code> and persistence all behave exactly as they
+do for a decided plan.</p>
+<p>No data is touched: <code class="docutils literal notranslate"><span class="pre">columns</span></code> is a sequence of <em>names</em>, so a plan can be
+authored in CI against a schema before any frame exists. What the door
+derives rather than accepts: <code class="docutils literal notranslate"><span class="pre">semantic_type</span></code> (<code class="docutils literal notranslate"><span class="pre">Numeric</span></code>, or the base’s
+own value when re-authoring),
+<code class="docutils literal notranslate"><span class="pre">indicator_flag</span></code> and <code class="docutils literal notranslate"><span class="pre">mnar</span></code> (from <code class="docutils literal notranslate"><span class="pre">strategy</span> <span class="pre">==</span> <span class="pre">MNAR</span></code>), <code class="docutils literal notranslate"><span class="pre">drop</span></code> (from
+<code class="docutils literal notranslate"><span class="pre">strategy</span> <span class="pre">==</span> <span class="pre">Dropped</span></code>), and an <code class="docutils literal notranslate"><span class="pre">{col}_missing</span></code> <code class="docutils literal notranslate"><span class="pre">Indicator</span></code> entry per
+MNAR column. <code class="docutils literal notranslate"><span class="pre">signals</span></code> is empty on an authored column — there was no
+routing to explain — and <code class="docutils literal notranslate"><span class="pre">config_snapshot</span></code> is empty, which truthfully
+reads back as library defaults. Both come from the base instead when one is
+given.</p>
+<p>A MICE column is stamped with <code class="xref py py-attr docutils literal notranslate"><span class="pre">BayesianRidge</span></code>
+— <code class="docutils literal notranslate"><span class="pre">decide</span></code>’s own neutral branch — so the plainest plan an author can write
+actually trains; override it with
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">with_model_choice()</span></code>, or hand the block
+your own tuned estimator through <code class="docutils literal notranslate"><span class="pre">estimators</span></code>.</p>
+<p><strong>Estimators enter here; dials do not.</strong> An estimator has no other way onto a
+plan — <code class="docutils literal notranslate"><span class="pre">with_model_choice</span></code> takes a <em>label</em>, and there is no
+<code class="docutils literal notranslate"><span class="pre">with_estimator</span></code> — whereas dials keep their one grammar,
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">with_hyperparameters()</span></code>, identical
+whichever author made the plan (ADR-0083).</p>
+<p><strong>Re-authoring.</strong> <code class="docutils literal notranslate"><span class="pre">base=</span></code> hands the door a plan instead of a column
+universe, so a user who ran <code class="docutils literal notranslate"><span class="pre">decide</span></code> and disagrees with two of forty
+columns changes those two and keeps the thirty-eight the router got right.
+This amends ADR-0082 rather than reopening it: a structural edit still
+invalidates what is derived downstream of the unit list, but the door
+<em>re-derives</em> that state — <code class="docutils literal notranslate"><span class="pre">with_strategy</span></code> stays deleted because it did
+not. See <code class="docutils literal notranslate"><span class="pre">base</span></code> for the field-by-field carry-over rules.</p>
+<p><strong>What the door cannot check.</strong> It sees names, never data, so a
+strategy/dtype mismatch and every size guard stay fit-time failures. That
+leaves one accepted asymmetry: a hand-authored unit too small or too typed
+to train raises a hard
+<code class="xref py py-class docutils literal notranslate"><span class="pre">UnitNotTrainableError</span></code>, where the same unit
+<em>forced</em> onto the automatic path is merely reported through
+<code class="xref py py-class docutils literal notranslate"><span class="pre">FitSignals</span></code> as a warning. Parity would mean
+handing a decide-time door a frame for the sake of one diagnostic. Which
+library guarantees narrow for a hand-authored plan and which do not is
+tabulated under “The guarantee boundary” in the imputation API guide;
+briefly, everything below the plan is unchanged, while routing rationale,
+pre-fit size warnings, and — for a user-supplied estimator — the <code class="docutils literal notranslate"><span class="pre">n_jobs</span></code>
+determinism pinning, the <code class="docutils literal notranslate"><span class="pre">core_budget</span></code> count and dial tuning do not apply.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>columns_map</strong> (<em>Mapping</em><em>[</em><em>str</em><em>, </em><a class="reference internal" href="#dataforge_ml.imputation._config.ImputationStrategy" title="dataforge_ml.imputation._config.ImputationStrategy"><em>ImputationStrategy</em></a><em> or </em><a class="reference internal" href="#dataforge_ml.imputation._authoring.AuthoredColumn" title="dataforge_ml.imputation._authoring.AuthoredColumn"><em>AuthoredColumn</em></a><em>]</em>) – The columns the author has an opinion about, keyed by column name. A
+bare strategy declares what happens; an <a class="reference internal" href="#dataforge_ml.imputation._authoring.AuthoredColumn" title="dataforge_ml.imputation._authoring.AuthoredColumn"><code class="xref py py-class docutils literal notranslate"><span class="pre">AuthoredColumn</span></code></a> declares
+that plus the facts its fitter reads. Every key must appear in
+<code class="docutils literal notranslate"><span class="pre">columns</span></code>.</p></li>
+<li><p><strong>columns</strong> (<em>Sequence</em><em>[</em><em>str</em><em>]</em><em>, </em><em>optional</em>) – Every column of the frames this plan will be fitted and applied to, in
+order. Required unless <code class="docutils literal notranslate"><span class="pre">base</span></code> is given, and keyword-only:
+<code class="docutils literal notranslate"><span class="pre">transform</span></code> rejects a frame column the plan never described, so a
+partial map without the full universe would build an imputer that
+refuses its own author’s frame.</p></li>
+<li><p><strong>default</strong> (ImputationStrategy, optional, default <code class="docutils literal notranslate"><span class="pre">ImputationStrategy.Passthrough</span></code>) – Strategy stamped on every column not named in <code class="docutils literal notranslate"><span class="pre">columns_map</span></code>. Note that
+it flips which case is silent: under <code class="docutils literal notranslate"><span class="pre">default=Median</span></code> a forgotten
+column is quietly imputed rather than left alone. Not accepted with
+<code class="docutils literal notranslate"><span class="pre">base</span></code>, where an unnamed column keeps the base’s decision instead.</p></li>
+<li><p><strong>estimators</strong> (<em>Mapping</em><em>[</em><em>str</em><em>, </em><em>Any</em><em>]</em><em>, </em><em>optional</em>) – Sklearn-compatible estimator instances keyed by <strong>unit id</strong> — in
+practice <code class="docutils literal notranslate"><span class="pre">{&quot;mice&quot;:</span> <span class="pre">my_model}</span></code>, MICE being the only strategy with an
+estimator slot. Every column of the named unit is stamped
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">Custom</span></code> and the instance is carried on
+the plan’s <code class="docutils literal notranslate"><span class="pre">custom_estimators</span></code> map, unchanged and uncloned. Keyed by
+unit rather than by column because a per-column spelling would let two
+estimators be named for one joint block. A pre-fitted estimator is
+accepted; its state is inert, since <code class="docutils literal notranslate"><span class="pre">IterativeImputer</span></code> clones and
+refits from scratch. Two consequences worth knowing: the object is
+<strong>shared, not copied</strong>, so mutating it after authoring silently moves
+every plan holding it; and it is <strong>never serialized</strong>, so a plan saved
+and reloaded keeps the <code class="docutils literal notranslate"><span class="pre">Custom</span></code> label with an empty slot and raises at
+fit time until the estimator is supplied again. With <code class="docutils literal notranslate"><span class="pre">base</span></code>, the
+base’s estimators are carried and this argument overwrites the entry it
+names.</p></li>
+<li><p><strong>numeric_sentinels</strong> (<em>Mapping</em><em>[</em><em>str</em><em>, </em><em>Sequence</em><em>[</em><em>float</em><em>]</em><em>]</em><em>, </em><em>optional</em>) – Declared numeric sentinel values per column (e.g. <code class="docutils literal notranslate"><span class="pre">-999</span></code>), normalised
+to nulls before any fit or transform (ADR-0068). Plan-level rather than
+per-column, so a sentinel-bearing column the author has no opinion about
+is still normalised. With <code class="docutils literal notranslate"><span class="pre">base</span></code>, the base’s map is carried and an
+entry given here overwrites that column’s.</p></li>
+<li><p><strong>string_sentinels</strong> (<em>Mapping</em><em>[</em><em>str</em><em>, </em><em>Sequence</em><em>[</em><em>str</em><em>]</em><em>]</em><em>, </em><em>optional</em>) – Declared string sentinel values per column. See <code class="docutils literal notranslate"><span class="pre">numeric_sentinels</span></code>.</p></li>
+<li><p><strong>base</strong> (<a class="reference internal" href="#dataforge_ml.imputation._config.ImputationDecision" title="dataforge_ml.imputation._config.ImputationDecision"><em>ImputationDecision</em></a><em>, </em><em>optional</em>) – A plan to re-author. Its columns are the universe, so <code class="docutils literal notranslate"><span class="pre">columns</span></code> and
+<code class="docutils literal notranslate"><span class="pre">default</span></code> are refused alongside it — two sources for one fact, and
+nothing left to default. Carry-over runs field by field: a column absent
+from <code class="docutils literal notranslate"><span class="pre">columns_map</span></code> keeps its decision <strong>verbatim</strong> (semantic type,
+model choice, routing signals and all), while a named one is rebuilt
+from the map and takes only its semantic type from the base;
+<code class="docutils literal notranslate"><span class="pre">config_snapshot</span></code> and both sentinel maps are carried verbatim, since a
+re-authoring user may no longer hold the profile or the config;
+<code class="docutils literal notranslate"><span class="pre">custom_estimators</span></code> is carried; the decided hyperparameter base is
+<strong>gap-filled, never overwritten</strong>, because <code class="docutils literal notranslate"><span class="pre">decide</span></code>’s dials are
+profile-<em>computed</em> and blanket recalculation would be a silent quality
+regression rather than a loud crash; and tuning deltas are carried for
+surviving units. Everything belonging to a unit the edit dissolved — a
+delta, an estimator, a decided base — is <strong>removed</strong>, not left inert: a
+dead entry survives <code class="docutils literal notranslate"><span class="pre">to_dict</span></code> and a save/load and would spring back to
+life when a column re-enters that unit later. Knowingly kept: two
+provenances of settings in one plan, and a stale <code class="docutils literal notranslate"><span class="pre">n_neighbors</span></code> when a
+block’s membership changes, since a structural edit hands dial
+responsibility to the author. Nothing records the mix — mixed provenance
+gets no field. Re-authoring a <em>deserialized</em> plan is allowed and
+unguarded, but the units saved beside it were fitted under the old
+strategies: the result is a plan to <strong>fit fresh</strong>, never one to pair
+with those units.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The immutable plan: one decision per column of the universe (<code class="docutils literal notranslate"><span class="pre">columns</span></code>
+or, when re-authoring, the base’s own), the derived MNAR indicator
+entries, the materialised units, the complete decided hyperparameter
+base, any supplied estimators, and the sentinel maps.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#dataforge_ml.imputation._config.ImputationDecision" title="dataforge_ml.imputation._config.ImputationDecision">ImputationDecision</a></p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>ValueError</strong> – If neither <code class="docutils literal notranslate"><span class="pre">columns</span></code> nor <code class="docutils literal notranslate"><span class="pre">base</span></code> is given, or if <code class="docutils literal notranslate"><span class="pre">base</span></code> is combined
+with <code class="docutils literal notranslate"><span class="pre">columns</span></code> or <code class="docutils literal notranslate"><span class="pre">default</span></code>; if a <code class="docutils literal notranslate"><span class="pre">columns_map</span></code> key is absent from
+the column universe; if an entry declares
+a semantic type other than <code class="docutils literal notranslate"><span class="pre">Numeric</span></code>; if <code class="docutils literal notranslate"><span class="pre">Indicator</span></code> is declared; if
+<code class="docutils literal notranslate"><span class="pre">Constant</span></code> carries no fill; if a bimodal strategy carries fewer than
+two centres; if <code class="docutils literal notranslate"><span class="pre">ClusterConditional</span></code> carries neither a grouping
+variable nor a non-empty <code class="docutils literal notranslate"><span class="pre">feature_cols</span></code>; if <code class="docutils literal notranslate"><span class="pre">MICE</span></code> is declared for
+exactly one column, which leaves the block a target and no predictor; or
+if an <code class="docutils literal notranslate"><span class="pre">estimators</span></code> key names no unit of the plan, names a unit whose
+strategy has no estimator slot, or carries <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p></li>
+<li><p><strong>TypeError</strong> – If a <code class="docutils literal notranslate"><span class="pre">columns_map</span></code> value is neither an <code class="docutils literal notranslate"><span class="pre">ImputationStrategy</span></code> nor an
+<code class="docutils literal notranslate"><span class="pre">AuthoredColumn</span></code>.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._authoring.AuthoredColumn">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.imputation._authoring.</span></span><span class="sig-name descname"><span class="pre">AuthoredColumn</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">center1</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">center2</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">feature_cols</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grouping_variable</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">constant_fill</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">domain_snap_bounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_authoring.html#AuthoredColumn"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._authoring.AuthoredColumn" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>One column’s hand-written imputation declaration.</p>
+<p>The richer half of <a class="reference internal" href="#dataforge_ml.imputation._authoring.author" title="dataforge_ml.imputation._authoring.author"><code class="xref py py-func docutils literal notranslate"><span class="pre">author()</span></code></a>’s input: a bare
+<code class="xref py py-class docutils literal notranslate"><span class="pre">ImputationStrategy</span></code> says <em>what happens</em> to a
+column, and this says it alongside the facts about the data that the
+strategy’s fitter reads — the bimodal centres, the centroid features, the
+grouping variable, the constant fill, the domain-snap bounds (ADR-0083).</p>
+<p>Deliberately not a <code class="xref py py-class docutils literal notranslate"><span class="pre">ColumnImputationDecision</span></code>: there is
+no <code class="docutils literal notranslate"><span class="pre">column</span></code> to restate (the map key is the column), no <code class="docutils literal notranslate"><span class="pre">semantic_type</span></code>
+(the door stamps <code class="docutils literal notranslate"><span class="pre">Numeric</span></code>), no <code class="docutils literal notranslate"><span class="pre">drop</span></code>, <code class="docutils literal notranslate"><span class="pre">mnar</span></code> or <code class="docutils literal notranslate"><span class="pre">indicator_flag</span></code>
+(all derived from <code class="docutils literal notranslate"><span class="pre">strategy</span></code>) and no <code class="docutils literal notranslate"><span class="pre">signals</span></code> (a hand-authored decision
+explains no routing). Dials are not here either — they keep their one
+grammar, <code class="xref py py-meth docutils literal notranslate"><span class="pre">with_hyperparameters()</span></code>,
+whichever author made the plan.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>strategy</strong> (<a class="reference internal" href="#dataforge_ml.imputation._config.ImputationStrategy" title="dataforge_ml.imputation._config.ImputationStrategy"><em>ImputationStrategy</em></a>) – The strategy this column takes. Every strategy that answers “what
+happens to this column?” is allowed; <code class="docutils literal notranslate"><span class="pre">Indicator</span></code> is refused, being the
+label of a column that arrives as a consequence of <code class="docutils literal notranslate"><span class="pre">MNAR</span></code> rather than
+as a choice.</p></li>
+<li><p><strong>center1</strong> (<em>float</em><em>, </em><em>optional</em>) – First of the two mode centres the <code class="docutils literal notranslate"><span class="pre">GMMSampling</span></code> and
+<code class="docutils literal notranslate"><span class="pre">ClusterConditional</span></code> strategies split on. Required by both.</p></li>
+<li><p><strong>center2</strong> (<em>float</em><em>, </em><em>optional</em>) – Second mode centre. See <code class="docutils literal notranslate"><span class="pre">center1</span></code>.</p></li>
+<li><p><strong>feature_cols</strong> (<em>tuple</em><em>[</em><em>str</em><em>, </em><em>...</em><em>]</em><em>, </em><em>optional</em>) – Columns the <code class="docutils literal notranslate"><span class="pre">ClusterConditional</span></code> centroid branch measures its
+per-cluster centroids over. Either this or <code class="docutils literal notranslate"><span class="pre">grouping_variable</span></code> must be
+supplied for that strategy.</p></li>
+<li><p><strong>grouping_variable</strong> (<em>str</em><em>, </em><em>optional</em>) – Column whose groups the <code class="docutils literal notranslate"><span class="pre">ClusterConditional</span></code> group-wise branch
+aggregates within. Selects that branch over the centroid one.</p></li>
+<li><p><strong>constant_fill</strong> (<em>float</em><em>, </em><em>optional</em>) – The fill value a <code class="docutils literal notranslate"><span class="pre">Constant</span></code> column takes. Required by that strategy.</p></li>
+<li><p><strong>domain_snap_bounds</strong> (<em>tuple</em><em>[</em><em>float</em><em>, </em><em>float</em><em>]</em><em>, </em><em>optional</em>) – <code class="docutils literal notranslate"><span class="pre">(min,</span> <span class="pre">max)</span></code> a model-based strategy’s predictions are rounded and
+clipped into, for a column with a bounded discrete domain.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._authoring.AuthoredColumn.center1">
+<span class="sig-name descname"><span class="pre">center1</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.imputation._authoring.AuthoredColumn.center1" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._authoring.AuthoredColumn.center2">
+<span class="sig-name descname"><span class="pre">center2</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.imputation._authoring.AuthoredColumn.center2" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._authoring.AuthoredColumn.constant_fill">
+<span class="sig-name descname"><span class="pre">constant_fill</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.imputation._authoring.AuthoredColumn.constant_fill" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._authoring.AuthoredColumn.domain_snap_bounds">
+<span class="sig-name descname"><span class="pre">domain_snap_bounds</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.imputation._authoring.AuthoredColumn.domain_snap_bounds" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._authoring.AuthoredColumn.feature_cols">
+<span class="sig-name descname"><span class="pre">feature_cols</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.imputation._authoring.AuthoredColumn.feature_cols" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._authoring.AuthoredColumn.grouping_variable">
+<span class="sig-name descname"><span class="pre">grouping_variable</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.imputation._authoring.AuthoredColumn.grouping_variable" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._authoring.AuthoredColumn.strategy">
+<span class="sig-name descname"><span class="pre">strategy</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#dataforge_ml.imputation._config.ImputationStrategy" title="dataforge_ml.imputation._config.ImputationStrategy"><span class="pre">ImputationStrategy</span></a></span><a class="headerlink" href="#dataforge_ml.imputation._authoring.AuthoredColumn.strategy" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
 <dl class="py class">
 <dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationDecision">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.imputation._config.</span></span><span class="sig-name descname"><span class="pre">ImputationDecision</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column_decisions</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decided_for_shape</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">config_snapshot</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">profile_provenance</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decided_hyperparameters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">override_hyperparameters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">numeric_sentinels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">string_sentinels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_config.html#ImputationDecision"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationDecision" title="Link to this definition">#</a></dt>
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.imputation._config.</span></span><span class="sig-name descname"><span class="pre">ImputationDecision</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column_decisions</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">config_snapshot</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decided_hyperparameters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">override_hyperparameters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">custom_estimators</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">numeric_sentinels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">string_sentinels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_config.html#ImputationDecision"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationDecision" title="Link to this definition">#</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>The pure, immutable imputation plan produced by <code class="xref py py-func docutils literal notranslate"><span class="pre">decide()</span></code>.</p>
 <p>The keystone of the Decision/Execution split (ADR-0060): a complete,
@@ -493,35 +840,50 @@ derived purely from <code class="docutils literal notranslate"><span class="pre"
 execution layer learns from training data. The execution layer consumes it,
 persistence serialises it, and the user can inspect and edit it before
 anything trains.</p>
-<p>The plan is immutable: <a class="reference internal" href="#dataforge_ml.imputation._config.ImputationDecision.with_strategy" title="dataforge_ml.imputation._config.ImputationDecision.with_strategy"><code class="xref py py-meth docutils literal notranslate"><span class="pre">with_strategy()</span></code></a> and <a class="reference internal" href="#dataforge_ml.imputation._config.ImputationDecision.with_model_choice" title="dataforge_ml.imputation._config.ImputationDecision.with_model_choice"><code class="xref py py-meth docutils literal notranslate"><span class="pre">with_model_choice()</span></code></a>
-return a <em>new</em> <code class="docutils literal notranslate"><span class="pre">ImputationDecision</span></code> rather than mutating in place, and
-<code class="docutils literal notranslate"><span class="pre">units</span></code> is re-derived from <code class="docutils literal notranslate"><span class="pre">column_decisions</span></code> at every construction, so a
-stale unit list is structurally impossible and every plan that exists is
-valid by construction.</p>
+<p>The plan is immutable: <a class="reference internal" href="#dataforge_ml.imputation._config.ImputationDecision.with_model_choice" title="dataforge_ml.imputation._config.ImputationDecision.with_model_choice"><code class="xref py py-meth docutils literal notranslate"><span class="pre">with_model_choice()</span></code></a> and
+<a class="reference internal" href="#dataforge_ml.imputation._config.ImputationDecision.with_hyperparameters" title="dataforge_ml.imputation._config.ImputationDecision.with_hyperparameters"><code class="xref py py-meth docutils literal notranslate"><span class="pre">with_hyperparameters()</span></code></a> return a <em>new</em> <code class="docutils literal notranslate"><span class="pre">ImputationDecision</span></code> rather
+than mutating in place, and <code class="docutils literal notranslate"><span class="pre">units</span></code> is re-derived from
+<code class="docutils literal notranslate"><span class="pre">column_decisions</span></code> at every construction, so a stale unit list is
+structurally impossible and every plan that exists is valid by construction.</p>
+<p>Those edits are <em>dial</em> edits: they change how a unit trains, never which
+units exist, so they cannot invalidate the decided hyperparameter base.
+Changing which strategy a column takes is a <em>structural</em> edit and belongs to
+<code class="xref py py-func docutils literal notranslate"><span class="pre">decide()</span></code> alone, declared through
+<code class="docutils literal notranslate"><span class="pre">per_column_strategy</span></code> (ADR-0082).</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>column_decisions</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><a class="reference internal" href="#dataforge_ml.imputation._config.ColumnImputationDecision" title="dataforge_ml.imputation._config.ColumnImputationDecision"><em>ColumnImputationDecision</em></a><em>]</em>) – Per-column plan entries keyed by column name, in decision order. Held as
 an internal copy so the constructed plan is independent of the caller’s
 mapping.</p></li>
-<li><p><strong>decided_for_shape</strong> (<em>tuple</em><em>[</em><em>int</em><em>, </em><em>int</em><em>, </em><em>tuple</em><em>[</em><em>str</em><em>, </em><em>...</em><em>]</em><em>]</em>) – The <code class="docutils literal notranslate"><span class="pre">(n_rows,</span> <span class="pre">n_features,</span> <span class="pre">column</span> <span class="pre">set)</span></code> shape the plan was decided for;
-the imputable-column population and size the routing depended on.
-<code class="docutils literal notranslate"><span class="pre">n_rows</span></code> is the row count passed to <code class="xref py py-func docutils literal notranslate"><span class="pre">decide()</span></code> — the train split’s
-— so the plan is valid only for a split of that size (ADR-0066). It may
-legitimately differ from <code class="docutils literal notranslate"><span class="pre">profile_provenance[&quot;row_count&quot;]</span></code>.</p></li>
 <li><p><strong>config_snapshot</strong> (<em>dict</em>) – Serialised <code class="xref py py-class docutils literal notranslate"><span class="pre">PipelineConfig</span></code> (<code class="docutils literal notranslate"><span class="pre">config.to_dict()</span></code>)
 the plan was decided under.</p></li>
-<li><p><strong>profile_provenance</strong> (<em>dict</em>) – Descriptive, non-load-bearing provenance of the source profile — its
-<code class="docutils literal notranslate"><span class="pre">row_count</span></code> — carried for diagnosis only. <code class="docutils literal notranslate"><span class="pre">row_count</span></code> is the
-<em>full-dataset</em> count, since provenance describes the profile rather than
-the shape the plan was decided for (ADR-0066). Content-addressed identity
-was retired with cross-process resume (ADR-0072).</p></li>
-<li><p><strong>decided_hyperparameters</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><em>tuple</em><em>[</em><em>tuple</em><em>[</em><em>str</em><em>, </em><em>Any</em><em>]</em><em>, </em><em>...</em><em>]</em><em>]</em>) – The decide-time hyperparameter base per unit id, complete for each unit’s
-strategy and written only by <code class="xref py py-func docutils literal notranslate"><span class="pre">decide()</span></code> (ADR-0073).</p></li>
+<li><p><strong>decided_hyperparameters</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><em>tuple</em><em>[</em><em>tuple</em><em>[</em><em>str</em><em>, </em><em>Any</em><em>]</em><em>, </em><em>...</em><em>]</em><em>]</em>) – The decide-time hyperparameter base per unit id, written by the authoring
+function and never by an edit (ADR-0073). Complete for each unit’s
+strategy: it carries every dial the strategy has in <code class="docutils literal notranslate"><span class="pre">_STRATEGY_DIALS</span></code>,
+an invariant <a class="reference internal" href="#dataforge_ml.imputation._config.ImputationDecision.from_dict" title="dataforge_ml.imputation._config.ImputationDecision.from_dict"><code class="xref py py-meth docutils literal notranslate"><span class="pre">from_dict()</span></code></a> re-establishes on load, plus any profile
+facts the unit’s fitter reads.</p></li>
 <li><p><strong>override_hyperparameters</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><em>tuple</em><em>[</em><em>tuple</em><em>[</em><em>str</em><em>, </em><em>Any</em><em>]</em><em>, </em><em>...</em><em>]</em><em>]</em>) – The sparse per-unit override delta, written only by
 <a class="reference internal" href="#dataforge_ml.imputation._config.ImputationDecision.with_hyperparameters" title="dataforge_ml.imputation._config.ImputationDecision.with_hyperparameters"><code class="xref py py-meth docutils literal notranslate"><span class="pre">with_hyperparameters()</span></code></a>. <code class="docutils literal notranslate"><span class="pre">_derive_units</span></code> stamps the per-key merge
 <code class="docutils literal notranslate"><span class="pre">decided</span> <span class="pre">⊕</span> <span class="pre">delta</span></code> onto each unit, so the two-map split is invisible
 below the plan surface (ADR-0073).</p></li>
+<li><p><strong>custom_estimators</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><em>Any</em><em>]</em>) – User-supplied estimator instances keyed by unit id, filled by
+<code class="xref py py-func docutils literal notranslate"><span class="pre">author()</span></code>’s <code class="docutils literal notranslate"><span class="pre">estimators=</span></code> channel and
+paired with <a class="reference internal" href="#dataforge_ml.imputation._config.ModelChoice.Custom" title="dataforge_ml.imputation._config.ModelChoice.Custom"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ModelChoice.Custom</span></code></a> on the unit’s columns (ADR-0083).
+The <strong>caller’s own object</strong>, never a clone, here and on every derived
+copy: cloning would break identity, make <code class="docutils literal notranslate"><span class="pre">get_params</span></code> a
+construction-time requirement stricter than sklearn’s own, and silently
+strip fitted state. Executing a plan cannot mutate it —
+<code class="docutils literal notranslate"><span class="pre">IterativeImputer</span></code> clones per column — so the only live hazard is
+deliberate post-authoring mutation, which is closed by this paragraph
+rather than by a guard. Unit-keyed and not per-column: MICE is the only
+strategy with an estimator slot, so a per-column spelling would let two
+estimators be named for one block. <strong>Not serialised</strong> —
+<a class="reference internal" href="#dataforge_ml.imputation._config.ImputationDecision.to_dict" title="dataforge_ml.imputation._config.ImputationDecision.to_dict"><code class="xref py py-meth docutils literal notranslate"><span class="pre">to_dict()</span></code></a> drops it and the plan reloads as <code class="docutils literal notranslate"><span class="pre">Custom</span></code> with the
+slot empty. It stays in <code class="docutils literal notranslate"><span class="pre">==</span></code>, so a <code class="docutils literal notranslate"><span class="pre">Custom</span></code> plan compares unequal to
+its own round trip; that is the truth, since the restored plan cannot
+fit. Nothing learned is lost: the estimator is a line of the user’s own
+code.</p></li>
 <li><p><strong>numeric_sentinels</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><em>list</em><em>[</em><em>float</em><em>]</em><em>]</em>) – Declared numeric sentinel values per column, carried from the source
 profile so the execution layer can normalise effective nulls without it
 (ADR-0068).</p></li>
@@ -537,6 +899,13 @@ argument.</p></li>
 <p class="rubric">Notes</p>
 <p><code class="docutils literal notranslate"><span class="pre">column_decisions</span></code> is the single source of truth; <code class="docutils literal notranslate"><span class="pre">units</span></code> and
 <code class="docutils literal notranslate"><span class="pre">dropped_columns</span></code> are always projections of it and are never set directly.</p>
+<p>A plan carrying <code class="docutils literal notranslate"><span class="pre">custom_estimators</span></code> may hold a <em>pre-fitted</em> estimator: the
+library tolerates it and never reads its state (sklearn refits from
+scratch), and no guard refuses it, because any check would recognise only
+sklearn’s trailing-underscore spelling and would read as a guarantee it is
+not. ADR-0060’s value-free claim therefore narrows from a structural
+guarantee to a statement about the library: <strong>the library never writes
+learned state onto a plan.</strong></p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationDecision.column_decisions">
 <span class="sig-name descname"><span class="pre">column_decisions</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#dataforge_ml.imputation._config.ColumnImputationDecision" title="dataforge_ml.imputation._config.ColumnImputationDecision"><span class="pre">ColumnImputationDecision</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationDecision.column_decisions" title="Link to this definition">#</a></dt>
@@ -548,8 +917,8 @@ argument.</p></li>
 <dd></dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationDecision.decided_for_shape">
-<span class="sig-name descname"><span class="pre">decided_for_shape</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">tuple</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationDecision.decided_for_shape" title="Link to this definition">#</a></dt>
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationDecision.custom_estimators">
+<span class="sig-name descname"><span class="pre">custom_estimators</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationDecision.custom_estimators" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
@@ -570,6 +939,13 @@ argument.</p></li>
 source of truth: <code class="docutils literal notranslate"><span class="pre">units</span></code> and <code class="docutils literal notranslate"><span class="pre">dropped_columns</span></code> are re-derived, never
 read from <code class="docutils literal notranslate"><span class="pre">data</span></code>, so <code class="docutils literal notranslate"><span class="pre">from_dict(plan.to_dict())</span></code> is structurally
 equal to <code class="docutils literal notranslate"><span class="pre">plan</span></code> even if the serialised unit list was tampered with.</p>
+<p>The decided base is gap-filled against <code class="docutils literal notranslate"><span class="pre">_STRATEGY_DIALS</span></code> on the way
+in — a dial the payload is missing takes the table’s neutral value, and
+a dial the payload carries is never overwritten. “Complete for the
+unit’s strategy” is thereby true of the type rather than of the two
+authoring functions, which is what lets a fitter subscript a dial
+outright. Cost taken knowingly: an artifact saved before a dial existed
+silently gains it rather than dying on a bare <code class="docutils literal notranslate"><span class="pre">KeyError</span></code>.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>data</strong> (<em>dict</em>) – Mapping produced by <a class="reference internal" href="#dataforge_ml.imputation._config.ImputationDecision.to_dict" title="dataforge_ml.imputation._config.ImputationDecision.to_dict"><code class="xref py py-meth docutils literal notranslate"><span class="pre">to_dict()</span></code></a>.</p>
@@ -594,11 +970,6 @@ equal to <code class="docutils literal notranslate"><span class="pre">plan</span
 <dd></dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationDecision.profile_provenance">
-<span class="sig-name descname"><span class="pre">profile_provenance</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationDecision.profile_provenance" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
 <dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationDecision.string_sentinels">
 <span class="sig-name descname"><span class="pre">string_sentinels</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationDecision.string_sentinels" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
@@ -610,6 +981,12 @@ equal to <code class="docutils literal notranslate"><span class="pre">plan</span
 <p><code class="docutils literal notranslate"><span class="pre">units</span></code> and <code class="docutils literal notranslate"><span class="pre">dropped_columns</span></code> are emitted for readability but are
 re-derived — not consumed — on <a class="reference internal" href="#dataforge_ml.imputation._config.ImputationDecision.from_dict" title="dataforge_ml.imputation._config.ImputationDecision.from_dict"><code class="xref py py-meth docutils literal notranslate"><span class="pre">from_dict()</span></code></a>, so a hand-edited unit
 list can never desynchronise a reloaded plan.</p>
+<p><code class="docutils literal notranslate"><span class="pre">custom_estimators</span></code> is <strong>omitted</strong>: a user-supplied estimator is a
+live object, not data, and the payload stays JSON-native (ADR-0083). The
+reloaded plan keeps <a class="reference internal" href="#dataforge_ml.imputation._config.ModelChoice.Custom" title="dataforge_ml.imputation._config.ModelChoice.Custom"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ModelChoice.Custom</span></code></a> with an empty slot, and
+fitting it raises rather than falling back to a library estimator.
+Rejected alternatives: refusing to serialize such a plan at all, and
+pickling the estimator into the envelope.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
 <dd class="field-odd"><p>The plan’s fields with nested objects serialised to dicts.</p>
@@ -637,10 +1014,13 @@ Successive edits to the same unit accumulate per key. Passing <code class="docut
 resets the unit to its decided values by clearing its delta. Per-unit
 only: a joint unit shares one estimator, so per-column overrides on it
 would be meaningless.</p>
-<p>Every key must already exist in the unit’s decided base — the base <em>is</em>
-the override schema (there is no separate allowlist), so a key the
-strategy did not resolve is an unknown key and is rejected here. Values
-are not type-checked: sklearn rejects an ill-typed value at fit time.</p>
+<p>Every key must be one of the unit’s strategy’s dials (<code class="docutils literal notranslate"><span class="pre">_STRATEGY_DIALS</span></code>)
+— the same table both authors build the decided base from, so what is
+dialable is one fact rather than a per-author allowlist. A strategy with
+no row has no dials, and every key is rejected for it. The decided base
+may carry more than the dials (profile facts a fitter reads, such as a
+bimodal unit’s centres); those are not dialable. Values are not
+type-checked: sklearn rejects an ill-typed value at fit time.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -659,8 +1039,8 @@ reset the unit to its decided base.</p></li>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
 <dd class="field-even"><ul class="simple">
 <li><p><strong>KeyError</strong> – If <code class="docutils literal notranslate"><span class="pre">unit_id</span></code> is not part of the plan’s derived units.</p></li>
-<li><p><strong>ValueError</strong> – If <code class="docutils literal notranslate"><span class="pre">hyperparameters</span></code> names a key the unit’s decided base does not
-carry, identifying the unit and the offending key.</p></li>
+<li><p><strong>ValueError</strong> – If <code class="docutils literal notranslate"><span class="pre">hyperparameters</span></code> names a key that is not one of the unit’s
+strategy’s dials, identifying the unit and the offending key.</p></li>
 </ul>
 </dd>
 </dl>
@@ -693,54 +1073,11 @@ in the plan.</p></li>
 </dl>
 </dd></dl>
 
-<dl class="py method">
-<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationDecision.with_strategy">
-<span class="sig-name descname"><span class="pre">with_strategy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strategy</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_config.html#ImputationDecision.with_strategy"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationDecision.with_strategy" title="Link to this definition">#</a></dt>
-<dd><p>Return a new plan with <code class="docutils literal notranslate"><span class="pre">column</span></code> routed to <code class="docutils literal notranslate"><span class="pre">strategy</span></code>.</p>
-<p>The plan is immutable; this builds a fresh <a class="reference internal" href="#dataforge_ml.imputation._config.ImputationDecision" title="dataforge_ml.imputation._config.ImputationDecision"><code class="xref py py-class docutils literal notranslate"><span class="pre">ImputationDecision</span></code></a>
-with the one column’s strategy replaced and every unit re-derived, so the
-edit is visible in <code class="docutils literal notranslate"><span class="pre">units</span></code> while the original plan is untouched. Only
-edit-time <em>legality</em> is validated: the strategy must be declarable for the
-column’s semantic type, and the output-only labels <code class="docutils literal notranslate"><span class="pre">Dropped</span></code> /
-<code class="docutils literal notranslate"><span class="pre">Passthrough</span></code> / <code class="docutils literal notranslate"><span class="pre">Indicator</span></code> / <code class="docutils literal notranslate"><span class="pre">MNAR</span></code> / <code class="docutils literal notranslate"><span class="pre">Constant</span></code> /
-<code class="docutils literal notranslate"><span class="pre">ClusterConditional</span></code> / <code class="docutils literal notranslate"><span class="pre">GMMSampling</span></code> are rejected with the same
-redirect messages <code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.set_per_column_strategy</span></code>
-surfaces. Data-size feasibility (size guards) is deferred to execution
-(ADR-0060). Because the new strategy may imply a different estimator
-family, <code class="docutils literal notranslate"><span class="pre">model_choice</span></code> is reset to <code class="docutils literal notranslate"><span class="pre">None</span></code>; use
-<a class="reference internal" href="#dataforge_ml.imputation._config.ImputationDecision.with_model_choice" title="dataforge_ml.imputation._config.ImputationDecision.with_model_choice"><code class="xref py py-meth docutils literal notranslate"><span class="pre">with_model_choice()</span></code></a> to set it.</p>
-<p>Editing a column’s strategy <em>is</em> forcing it, so the new decision carries
-<code class="docutils literal notranslate"><span class="pre">forced=True</span></code> (ADR-0066) and execution will raise rather than degrade
-should the strategy fail to train — even when the edit happens to name
-the strategy the router chose anyway.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>column</strong> (<em>str</em>) – Column to re-route. Must already be present in the plan.</p></li>
-<li><p><strong>strategy</strong> (<em>str</em><em> or </em><a class="reference internal" href="#dataforge_ml.imputation._config.ImputationStrategy" title="dataforge_ml.imputation._config.ImputationStrategy"><em>ImputationStrategy</em></a>) – The replacement strategy.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>A new plan with the edit applied.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference internal" href="#dataforge_ml.imputation._config.ImputationDecision" title="dataforge_ml.imputation._config.ImputationDecision">ImputationDecision</a></p>
-</dd>
-<dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><ul class="simple">
-<li><p><strong>KeyError</strong> – If <code class="docutils literal notranslate"><span class="pre">column</span></code> is not part of the plan.</p></li>
-<li><p><strong>ValueError</strong> – If <code class="docutils literal notranslate"><span class="pre">strategy</span></code> is an output-only label, or is not declarable for the
-column’s semantic type.</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
 </dd></dl>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="dataforge_ml.imputation._config.ColumnImputationDecision">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.imputation._config.</span></span><span class="sig-name descname"><span class="pre">ColumnImputationDecision</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">semantic_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strategy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">signals</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">()</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_choice</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">domain_snap_bounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">indicator_flag</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mnar</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">drop</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">forced</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_config.html#ColumnImputationDecision"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._config.ColumnImputationDecision" title="Link to this definition">#</a></dt>
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.imputation._config.</span></span><span class="sig-name descname"><span class="pre">ColumnImputationDecision</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">semantic_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strategy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">signals</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">()</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_choice</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">domain_snap_bounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">center1</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">center2</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">feature_cols</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grouping_variable</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">constant_fill</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">indicator_flag</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mnar</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">drop</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_config.html#ColumnImputationDecision"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._config.ColumnImputationDecision" title="Link to this definition">#</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Pure, value-free per-column imputation plan entry.</p>
 <p>The decided half of the Decision/Execution split (ADR-0060): a complete,
@@ -768,17 +1105,20 @@ fitted estimator.</p></li>
 <li><p><strong>domain_snap_bounds</strong> (<em>tuple</em><em>[</em><em>float</em><em>, </em><em>float</em><em>]</em><em>, </em><em>optional</em>) – <code class="docutils literal notranslate"><span class="pre">(min,</span> <span class="pre">max)</span></code> bounds used to snap model-based predictions for
 BoundedDiscrete columns. <code class="docutils literal notranslate"><span class="pre">None</span></code> for all other columns. Sourced from
 the profile, not learned from training data.</p></li>
+<li><p><strong>center1</strong> (<em>float</em><em>, </em><em>optional</em>) – First of the two bimodal cluster centres the GMM-Sampling and
+Cluster-Conditional strategies split on. Measured by Phase 1, not
+learned from training data. <code class="docutils literal notranslate"><span class="pre">None</span></code> for non-bimodal columns.</p></li>
+<li><p><strong>center2</strong> (<em>float</em><em>, </em><em>optional</em>) – Second bimodal cluster centre. See <code class="docutils literal notranslate"><span class="pre">center1</span></code>.</p></li>
+<li><p><strong>feature_cols</strong> (<em>tuple</em><em>[</em><em>str</em><em>, </em><em>...</em><em>]</em><em>, </em><em>optional</em>) – Columns the Cluster-Conditional centroid branch measures its per-cluster
+centroids over — the features correlated with this column at decide-time.
+<code class="docutils literal notranslate"><span class="pre">None</span></code> for every other strategy.</p></li>
+<li><p><strong>grouping_variable</strong> (<em>str</em><em>, </em><em>optional</em>) – Column whose groups the Cluster-Conditional group-wise branch aggregates
+within, when one was declared. <code class="docutils literal notranslate"><span class="pre">None</span></code> selects the centroid branch.</p></li>
+<li><p><strong>constant_fill</strong> (<em>float</em><em>, </em><em>optional</em>) – The declared fill value for a <code class="docutils literal notranslate"><span class="pre">Constant</span></code> column. <code class="docutils literal notranslate"><span class="pre">None</span></code> for every
+other strategy. A declared value, never a learned one.</p></li>
 <li><p><strong>indicator_flag</strong> (<em>bool</em>) – Whether a binary missingness indicator column will be appended.</p></li>
 <li><p><strong>mnar</strong> (<em>bool</em>) – Whether the column is routed as Missing-Not-At-Random.</p></li>
 <li><p><strong>drop</strong> (<em>bool</em>) – Whether the column will be dropped for exceeding the drop threshold.</p></li>
-<li><p><strong>forced</strong> (<em>bool</em>) – Whether <code class="docutils literal notranslate"><span class="pre">strategy</span></code> was declared by the user rather than routed
-automatically — set both by the router (from <code class="docutils literal notranslate"><span class="pre">per_column_strategy</span></code>)
-and by <a class="reference internal" href="#dataforge_ml.imputation._config.ImputationDecision.with_strategy" title="dataforge_ml.imputation._config.ImputationDecision.with_strategy"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ImputationDecision.with_strategy()</span></code></a>. This is the machine
-predicate for forced-ness (ADR-0066): a forced strategy that cannot
-train raises instead of degrading, and because the fact lives on the
-plan, a plan loaded from a store answers “was this forced?” without the
-originating config. The <code class="docutils literal notranslate"><span class="pre">per_column_strategy_override</span></code> signal remains
-for human readers only and is never parsed.</p></li>
 </ul>
 </dd>
 </dl>
@@ -787,8 +1127,23 @@ for human readers only and is never parsed.</p></li>
 training-derived state deliberately have no home on this type; they live on
 the execution layer’s fitted units (ADR-0060).</p>
 <dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ColumnImputationDecision.center1">
+<span class="sig-name descname"><span class="pre">center1</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ColumnImputationDecision.center1" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ColumnImputationDecision.center2">
+<span class="sig-name descname"><span class="pre">center2</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ColumnImputationDecision.center2" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
 <dt class="sig sig-object py" id="dataforge_ml.imputation._config.ColumnImputationDecision.column">
 <span class="sig-name descname"><span class="pre">column</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ColumnImputationDecision.column" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ColumnImputationDecision.constant_fill">
+<span class="sig-name descname"><span class="pre">constant_fill</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ColumnImputationDecision.constant_fill" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
@@ -802,8 +1157,8 @@ the execution layer’s fitted units (ADR-0060).</p>
 <dd></dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ColumnImputationDecision.forced">
-<span class="sig-name descname"><span class="pre">forced</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ColumnImputationDecision.forced" title="Link to this definition">#</a></dt>
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ColumnImputationDecision.feature_cols">
+<span class="sig-name descname"><span class="pre">feature_cols</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ColumnImputationDecision.feature_cols" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
@@ -825,6 +1180,11 @@ reconstructed decision is structurally equal to the original.</p>
 </dd>
 </dl>
 </dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ColumnImputationDecision.grouping_variable">
+<span class="sig-name descname"><span class="pre">grouping_variable</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ColumnImputationDecision.grouping_variable" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="dataforge_ml.imputation._config.ColumnImputationDecision.indicator_flag">
@@ -877,7 +1237,7 @@ so the result is JSON-friendly and structurally round-trippable.</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationUnit">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.imputation._config.</span></span><span class="sig-name descname"><span class="pre">ImputationUnit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">unit_id</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strategy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">columns</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hyperparameters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_config.html#ImputationUnit"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationUnit" title="Link to this definition">#</a></dt>
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.imputation._config.</span></span><span class="sig-name descname"><span class="pre">ImputationUnit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">unit_id</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strategy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">columns</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hyperparameters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_block</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_config.html#ImputationUnit"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationUnit" title="Link to this definition">#</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>One executable unit of an imputation plan.</p>
 <p>The plan’s materialised, re-derived projection of <em>what execution trains
@@ -896,6 +1256,13 @@ unit.</p></li>
 <li><p><strong>strategy</strong> (<a class="reference internal" href="#dataforge_ml.imputation._config.ImputationStrategy" title="dataforge_ml.imputation._config.ImputationStrategy"><em>ImputationStrategy</em></a>) – Strategy the unit executes.</p></li>
 <li><p><strong>columns</strong> (<em>tuple</em><em>[</em><em>str</em><em>, </em><em>...</em><em>]</em>) – Columns trained by this unit — every column in the block for the joint
 units, a single-element tuple for a per-column unit.</p></li>
+<li><p><strong>is_block</strong> (<em>bool</em><em>, </em><em>default False</em>) – Whether the unit’s columns train together in one joint model call —
+<code class="docutils literal notranslate"><span class="pre">True</span></code> for the <code class="docutils literal notranslate"><span class="pre">MICE</span></code> and <code class="docutils literal notranslate"><span class="pre">KNN</span></code> blocks, <code class="docutils literal notranslate"><span class="pre">False</span></code> for every
+per-column unit. Structural only: it says nothing about how expensive
+the unit is, nor whether it can absorb inner parallelism (that follows
+from <code class="docutils literal notranslate"><span class="pre">model_choice</span></code>, which stays on
+<a class="reference internal" href="#dataforge_ml.imputation._config.ColumnImputationDecision" title="dataforge_ml.imputation._config.ColumnImputationDecision"><code class="xref py py-class docutils literal notranslate"><span class="pre">ColumnImputationDecision</span></code></a>). Derived from <code class="docutils literal notranslate"><span class="pre">strategy</span></code>, so a
+caller never supplies it.</p></li>
 <li><p><strong>hyperparameters</strong> (<em>tuple</em><em>[</em><em>tuple</em><em>[</em><em>str</em><em>, </em><em>Any</em><em>]</em><em>, </em><em>...</em><em>] </em><em>| </em><em>None</em>)</p></li>
 </ul>
 </dd>
@@ -919,7 +1286,9 @@ owning plan’s <code class="docutils literal notranslate"><span class="pre">col
 <dd class="field-odd"><p><strong>data</strong> (<em>dict</em>) – Mapping produced by <a class="reference internal" href="#dataforge_ml.imputation._config.ImputationUnit.to_dict" title="dataforge_ml.imputation._config.ImputationUnit.to_dict"><code class="xref py py-meth docutils literal notranslate"><span class="pre">to_dict()</span></code></a>.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Reconstructed unit instance.</p>
+<dd class="field-even"><p>Reconstructed unit instance. <code class="docutils literal notranslate"><span class="pre">is_block</span></code> is re-derived from
+<code class="docutils literal notranslate"><span class="pre">strategy</span></code>, so whatever the payload carries for it — a stale
+value, a wrong value, or nothing at all — is ignored.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><a class="reference internal" href="#dataforge_ml.imputation._config.ImputationUnit" title="dataforge_ml.imputation._config.ImputationUnit">ImputationUnit</a></p>
@@ -930,6 +1299,11 @@ owning plan’s <code class="docutils literal notranslate"><span class="pre">col
 <dl class="py attribute">
 <dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationUnit.hyperparameters">
 <span class="sig-name descname"><span class="pre">hyperparameters</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationUnit.hyperparameters" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationUnit.is_block">
+<span class="sig-name descname"><span class="pre">is_block</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationUnit.is_block" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
@@ -971,15 +1345,17 @@ is user-owned (ADR-0075), so training a whole plan is a caller-written loop
 of <code class="docutils literal notranslate"><span class="pre">fit_unit</span></code> calls. The frame is normalised off the plan’s declared
 sentinel maps (ADR-0068) before the fit, so a raw frame may be handed
 straight in.</p>
-<p><strong>Concurrency — pin the inner layer when you parallelise the loop.</strong> The
+<p><strong>Concurrency — budget the inner layer when you parallelise the loop.</strong> The
 caller owns the outer/inner split (ADR-0069): parallelism lives in exactly
 one layer, and <code class="docutils literal notranslate"><span class="pre">n_jobs_inner</span></code> is how you say which. A sequential loop —
 one <code class="docutils literal notranslate"><span class="pre">fit_unit</span></code> at a time — takes the default <code class="docutils literal notranslate"><span class="pre">n_jobs_inner=-1</span></code>, which
 opens each fit’s inner sklearn parallelism to every core. A self-parallelised
-drive — units fitted side by side in your own thread pool — must pass
-<code class="docutils literal notranslate"><span class="pre">n_jobs_inner=1</span></code> on every call, otherwise each concurrent fit also fans out
-to every core and the two layers oversubscribe the machine. The value never
-moves the result (ADR-0069); it only changes how the cores are spent.</p>
+drive — units fitted side by side in your own thread pool — calls
+<a class="reference internal" href="#dataforge_ml.imputation._unit_fit.core_budget" title="dataforge_ml.imputation._unit_fit.core_budget"><code class="xref py py-func docutils literal notranslate"><span class="pre">core_budget()</span></code></a> once before the loop and passes each unit’s value here;
+a drive that parallelises and passes nothing leaves every concurrent fit
+fanning out to every core, so the two layers oversubscribe the machine. The
+value never moves the result (ADR-0069); it only changes how the cores are
+spent.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -990,8 +1366,8 @@ normalise <code class="docutils literal notranslate"><span class="pre">df</span>
 <li><p><strong>df</strong> (<em>pl.DataFrame</em>) – Training data, raw or already normalised.</p></li>
 <li><p><strong>random_seed</strong> (<em>int</em><em>, </em><em>optional</em>) – Seed for the stochastic strategies (GMM sampling).</p></li>
 <li><p><strong>n_jobs_inner</strong> (<em>int</em><em>, </em><em>default -1</em>) – Inner estimator <code class="docutils literal notranslate"><span class="pre">n_jobs</span></code> (ADR-0056). Leave at <code class="docutils literal notranslate"><span class="pre">-1</span></code> for a sequential
-drive; pin to <code class="docutils literal notranslate"><span class="pre">1</span></code> per call when your own loop already fits units
-concurrently. Never affects results.</p></li>
+drive; when your own loop already fits units concurrently, pass this
+unit’s value from <a class="reference internal" href="#dataforge_ml.imputation._unit_fit.core_budget" title="dataforge_ml.imputation._unit_fit.core_budget"><code class="xref py py-func docutils literal notranslate"><span class="pre">core_budget()</span></code></a> (ADR-0081). Never affects results.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -1009,6 +1385,86 @@ failure track (ADR-0071).</p></li>
 </ul>
 </dd>
 </dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._unit_fit.core_budget">
+<span class="sig-prename descclassname"><span class="pre">dataforge_ml.imputation._unit_fit.</span></span><span class="sig-name descname"><span class="pre">core_budget</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">decision</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_workers</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">total_cores</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_unit_fit.html#core_budget"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._unit_fit.core_budget" title="Link to this definition">#</a></dt>
+<dd><p>Compute the whole-plan inner-parallelism budget: <code class="docutils literal notranslate"><span class="pre">unit_id</span> <span class="pre">-&gt;</span> <span class="pre">n_jobs_inner</span></code>.</p>
+<p>The library owns this <strong>arithmetic</strong> and nothing else (ADR-0081): the pool,
+the loop, the submission order and the failure policy stay user-owned
+(ADR-0075 is unamended). Call it once immediately before your own
+<a class="reference internal" href="#dataforge_ml.imputation._unit_fit.fit_unit" title="dataforge_ml.imputation._unit_fit.fit_unit"><code class="xref py py-func docutils literal notranslate"><span class="pre">fit_unit()</span></code></a> loop and pass each unit’s value as that call’s
+<code class="docutils literal notranslate"><span class="pre">n_jobs_inner</span></code>.</p>
+<p>The arithmetic is heavy-aware rather than degree-proportional. A plan holds
+at most two joint blocks, and at most one unit — the <code class="docutils literal notranslate"><span class="pre">&quot;mice&quot;</span></code> block, and
+only when its <code class="docutils literal notranslate"><span class="pre">model_choice</span></code> is
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">RandomForestRegressor</span></code> — can absorb inner
+parallelism at all, so the MICE block receives
+<code class="docutils literal notranslate"><span class="pre">max(1,</span> <span class="pre">total_cores</span> <span class="pre">-</span> <span class="pre">1_if_knn_present)</span></code> and every other unit receives
+<code class="docutils literal notranslate"><span class="pre">1</span></code>. Dividing the cores evenly across the outer degree instead would hand
+the MICE block a <code class="docutils literal notranslate"><span class="pre">1</span></code> and leave the machine idle.</p>
+<p>A free function and not a property on
+<code class="xref py py-class docutils literal notranslate"><span class="pre">ImputationDecision</span></code>: the plan is derived purely from
+<code class="docutils literal notranslate"><span class="pre">(profile,</span> <span class="pre">shape,</span> <span class="pre">config)</span></code>, and hanging a machine fact on it would make the
+same serialized plan answer differently on a different box (ADR-0072’s
+precedent). It answers for the whole plan at once because the
+reserved-for-KNN term is a fact about the plan, not about any one unit.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>decision</strong> (<a class="reference internal" href="#dataforge_ml.imputation._config.ImputationDecision" title="dataforge_ml.imputation._config.ImputationDecision"><em>ImputationDecision</em></a>) – The plan to price. Read-only — <code class="docutils literal notranslate"><span class="pre">units</span></code>, and <code class="docutils literal notranslate"><span class="pre">column_decisions</span></code> for
+the MICE block’s <code class="docutils literal notranslate"><span class="pre">model_choice</span></code>.</p></li>
+<li><p><strong>max_workers</strong> (<em>int</em><em> or </em><em>None</em>) – The outer degree of the drive the budget is for. <code class="docutils literal notranslate"><span class="pre">1</span></code> is a sequential
+one-unit-at-a-time drive, which is outer-degree-one and gets the wide
+<code class="docutils literal notranslate"><span class="pre">-1</span></code> for MICE (ADR-0069). Anything greater is a parallel pool, and
+<code class="docutils literal notranslate"><span class="pre">None</span></code> — a <code class="xref py py-class docutils literal notranslate"><span class="pre">ThreadPoolExecutor</span></code> of unknown
+degree — takes that same parallel branch rather than being read as
+sequential or rejected.</p></li>
+<li><p><strong>total_cores</strong> (<em>int</em><em>, </em><em>optional</em>) – Overrides core detection, for a caller subdividing a box across
+processes. Detection is <code class="docutils literal notranslate"><span class="pre">joblib.cpu_count()</span></code>, which respects cgroup
+quotas and is the same detector sklearn uses for its own <code class="docutils literal notranslate"><span class="pre">n_jobs=-1</span></code>,
+so the budget and sklearn’s actual fan-out agree on how big the box is.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A mapping whose keys are exactly the plan’s unit ids and whose values are
+the <code class="docutils literal notranslate"><span class="pre">n_jobs_inner</span></code> each unit should be fitted with.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict[str, int]</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p><strong>All ones is a legitimate answer.</strong> <code class="docutils literal notranslate"><span class="pre">BayesianRidge</span></code> and
+<code class="docutils literal notranslate"><span class="pre">GradientBoostingRegressor</span></code> have no <code class="docutils literal notranslate"><span class="pre">n_jobs</span></code> to spend (ADR-0069), so a
+MICE block routed to either is priced at <code class="docutils literal notranslate"><span class="pre">1</span></code>, with no error and no warning
+— <code class="docutils literal notranslate"><span class="pre">1</span></code> is the truthful number, and a warning would fire on a correct plan.
+On default config this covers every <code class="docutils literal notranslate"><span class="pre">ComplexNonlinear</span></code> frame at or above
+<code class="docutils literal notranslate"><span class="pre">gradient_boost_min_rows</span></code>, which routes to
+<code class="docutils literal notranslate"><span class="pre">GradientBoostingRegressor</span></code>: there is no speedup to be had there. The
+condition is branch-specific, not a frame-size ceiling —
+<code class="docutils literal notranslate"><span class="pre">MonotonicNonlinear</span></code> takes <code class="docutils literal notranslate"><span class="pre">RandomForestRegressor</span></code> at any row count and
+stays able to spend a budget.</p>
+<p><strong>A user-supplied estimator is priced at ``1`` in every branch</strong>, the
+sequential <code class="docutils literal notranslate"><span class="pre">max_workers=1</span></code> one included (ADR-0083). The library never sets
+a foreign estimator’s parameters, so <code class="docutils literal notranslate"><span class="pre">1</span></code> is the truthful count of cores
+<em>the library</em> spends; <code class="docutils literal notranslate"><span class="pre">total_cores</span></code> remains the hatch for reserving the
+rest. There is no <code class="docutils literal notranslate"><span class="pre">n_jobs</span></code> probe: it would fire on correct plans while
+missing <code class="docutils literal notranslate"><span class="pre">nthread</span></code>, <code class="docutils literal notranslate"><span class="pre">num_threads</span></code>, and every internal pool that is not
+exposed as a parameter.</p>
+<p>The budget is therefore structurally blind to parallelism configured inside
+a foreign object, and the documented pattern for one is to <strong>fit that unit
+outside your pool</strong>, where it has the machine to itself, driving the
+remaining units through the pool on this budget. <code class="docutils literal notranslate"><span class="pre">total_cores</span></code> is the
+reservation hatch: pass it reduced by whatever the self-parallelising fit
+will take, so the two never contend for the same cores.</p>
+<p><strong>The budget is a snapshot.</strong> It describes the plan as it was when the call
+returned. A plan edit in between — <code class="xref py py-meth docutils literal notranslate"><span class="pre">ImputationDecision.with_model_choice()</span></code>,
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">ImputationDecision.with_hyperparameters()</span></code> — or a fresh
+<code class="xref py py-func docutils literal notranslate"><span class="pre">decide()</span></code> silently invalidates it, and nothing detects that. The
+mitigation is placement: compute the budget immediately before the loop that
+consumes it, not enforcement.</p>
 </dd></dl>
 
 <dl class="py class">
@@ -1431,7 +1887,8 @@ raw fitted unit matches no plan unit.</p>
 <p>Sentinel-encoded Effective Nulls are normalised off the plan’s
 declared maps before any fill (ADR-0068), and each model-based unit’s
 Observed-Value Preservation (ADR-0078) guarantees that only cells
-missing in the normalised frame receive fill values.</p>
+missing in the normalised frame receive fill values. A <code class="docutils literal notranslate"><span class="pre">Passthrough</span></code>
+column is left completely alone, nulls included (ADR-0083).</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>df</strong> (<em>pl.DataFrame</em>) – The DataFrame to impute. Its columns must be a subset of the
@@ -1452,10 +1909,6 @@ missing values. All unknown column names are reported in one raise.</p></li>
 <li><p><a class="reference internal" href="#dataforge_ml.imputation._fitted_imputer.FittedColumnAbsentError" title="dataforge_ml.imputation._fitted_imputer.FittedColumnAbsentError"><strong>FittedColumnAbsentError</strong></a> – If a column with an active imputation strategy (any strategy other
 than <code class="docutils literal notranslate"><span class="pre">Dropped</span></code> or <code class="docutils literal notranslate"><span class="pre">Indicator</span></code>) is absent from df. All absent
 column names are reported in one raise.</p></li>
-<li><p><a class="reference internal" href="#dataforge_ml.imputation._fitted_imputer.UnfittedColumnError" title="dataforge_ml.imputation._fitted_imputer.UnfittedColumnError"><strong>UnfittedColumnError</strong></a> – If df has missing values in a column that had no missingness during
-fit() (strategy == Passthrough). Columns soft-excluded for the
-Imputation phase are exempt: they are Passthrough by declaration and
-their missing values ride through untouched.</p></li>
 </ul>
 </dd>
 <dt class="field-odd">Warns<span class="colon">:</span></dt>
@@ -1613,8 +2066,8 @@ KNN and the bimodal strategies.</p></li>
 <li><p><strong>n_neighbors_used</strong> (<em>int</em><em>, </em><em>optional</em>) – Actual <code class="docutils literal notranslate"><span class="pre">n_neighbors</span></code> used by the fitted KNN block.  <code class="docutils literal notranslate"><span class="pre">None</span></code> for
 MICE and the bimodal strategies.</p></li>
 <li><p><strong>k_capped</strong> (<em>bool</em><em>, </em><em>optional</em>) – <code class="docutils literal notranslate"><span class="pre">True</span></code> when the KNN neighbour count was forced down to <code class="docutils literal notranslate"><span class="pre">n_rows</span> <span class="pre">−</span> <span class="pre">1</span></code>
-(the model is averaging nearly every row).  <code class="docutils literal notranslate"><span class="pre">None</span></code> when a
-<code class="docutils literal notranslate"><span class="pre">knn_n_neighbors</span></code> override is active or the strategy is not KNN.</p></li>
+(the model is averaging nearly every row).  Always computable for a
+fitted KNN unit; <code class="docutils literal notranslate"><span class="pre">None</span></code> only when the strategy is not KNN.</p></li>
 </ul>
 </dd>
 </dl>
@@ -2028,7 +2481,7 @@ defaults.</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.imputation._config.</span></span><span class="sig-name descname"><span class="pre">NumericImputationConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">knn_max_rows</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">knn_max_features</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mice_min_rows</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">500</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gradient_boost_min_rows</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">base_max_iter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">knn_min_neighbors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">knn_max_neighbors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">25</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">knn_distance_weight_max_null_ratio</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.15</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">knn_distance_weight_max_features</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mice_n_nearest_features_min_cols</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mice_max_nearest_features</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">20</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mice_correlation_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mcar_feature_predictability_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_per_column_strategy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_per_column_constant_fill</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">knn_n_neighbors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mice_max_iter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">refit_r2_min_complete_rows</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">refit_r2_cv_folds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_bimodal_grouping_variables</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bimodal_min_correlated_features</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bimodal_correlation_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_config.html#NumericImputationConfig"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig" title="Link to this definition">#</a></dt>
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.imputation._config.</span></span><span class="sig-name descname"><span class="pre">NumericImputationConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">knn_max_rows</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">knn_max_features</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mice_min_rows</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">500</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gradient_boost_min_rows</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">base_max_iter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">knn_min_neighbors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">knn_max_neighbors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">25</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">knn_distance_weight_max_null_ratio</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.15</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">knn_distance_weight_max_features</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mice_n_nearest_features_min_cols</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mice_max_nearest_features</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">20</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mice_correlation_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mcar_feature_predictability_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_per_column_strategy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_per_column_constant_fill</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">refit_r2_min_complete_rows</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">refit_r2_cv_folds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_bimodal_grouping_variables</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bimodal_min_correlated_features</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bimodal_correlation_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_config.html#NumericImputationConfig"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig" title="Link to this definition">#</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Operational thresholds for the numeric imputation sub-processor.</p>
 <dl class="field-list simple">
@@ -2085,10 +2538,6 @@ is routed to <code class="docutils literal notranslate"><span class="pre">Imputa
 bypassing all routing priorities 2–7.  No companion entry in
 <code class="docutils literal notranslate"><span class="pre">per_column_strategy</span></code> is required or allowed.  Keyed by column name.
 Defaults to empty dict.</p></li>
-<li><p><strong>knn_n_neighbors</strong> (<em>int</em><em>, </em><em>optional</em>) – Overrides the dynamically-computed <code class="docutils literal notranslate"><span class="pre">n_neighbors</span></code> for the entire KNN
-block. A single value governs all KNN columns.</p></li>
-<li><p><strong>mice_max_iter</strong> (<em>int</em><em>, </em><em>optional</em>) – Overrides the dynamically-computed <code class="docutils literal notranslate"><span class="pre">max_iter</span></code> for the entire MICE
-block. A single value governs all MICE columns.</p></li>
 <li><p><strong>refit_r2_min_complete_rows</strong> (<em>int</em>) – Minimum number of complete rows required to attempt the held-out
 accuracy computation.  When fewer complete rows are available, the
 <code class="docutils literal notranslate"><span class="pre">r2_cv</span></code>, <code class="docutils literal notranslate"><span class="pre">rmse</span></code>, and <code class="docutils literal notranslate"><span class="pre">mae</span></code> fields on <code class="docutils literal notranslate"><span class="pre">AccuracyDiagnostic</span></code> are set
@@ -2173,6 +2622,10 @@ defaults.</p>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><a class="reference internal" href="#dataforge_ml.imputation._config.NumericImputationConfig" title="dataforge_ml.imputation._config.NumericImputationConfig">NumericImputationConfig</a></p>
 </dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If <code class="docutils literal notranslate"><span class="pre">data</span></code> carries the retired <code class="docutils literal notranslate"><span class="pre">mice_max_iter</span></code> or
+<code class="docutils literal notranslate"><span class="pre">knn_n_neighbors</span></code> key (ADR-0083).</p>
+</dd>
 </dl>
 </dd></dl>
 
@@ -2212,11 +2665,6 @@ defaults.</p>
 <dd></dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig.knn_n_neighbors">
-<span class="sig-name descname"><span class="pre">knn_n_neighbors</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig.knn_n_neighbors" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
 <dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig.max_workers">
 <span class="sig-name descname"><span class="pre">max_workers</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig.max_workers" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
@@ -2229,11 +2677,6 @@ defaults.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig.mice_correlation_threshold">
 <span class="sig-name descname"><span class="pre">mice_correlation_threshold</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.1</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig.mice_correlation_threshold" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="dataforge_ml.imputation._config.NumericImputationConfig.mice_max_iter">
-<span class="sig-name descname"><span class="pre">mice_max_iter</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.NumericImputationConfig.mice_max_iter" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
@@ -2464,9 +2907,25 @@ small-sample <code class="docutils literal notranslate"><span class="pre">Comple
 for the large-sample <code class="docutils literal notranslate"><span class="pre">ComplexNonlinear</span></code> branch. An <code class="docutils literal notranslate"><span class="pre">Unpredictable</span></code>
 column resolves to no model choice (<code class="docutils literal notranslate"><span class="pre">None</span></code>) and routes to a scalar
 fallback instead.</p>
+<p><code class="docutils literal notranslate"><span class="pre">Custom</span></code> is the one member no branch of that factory builds: it marks a
+unit whose estimator the <em>user</em> supplied, through
+<code class="xref py py-func docutils literal notranslate"><span class="pre">author()</span></code>’s <code class="docutils literal notranslate"><span class="pre">estimators=</span></code> channel (ADR-0083).
+The instance itself lives in
+<a class="reference internal" href="#dataforge_ml.imputation._config.ImputationDecision.custom_estimators" title="dataforge_ml.imputation._config.ImputationDecision.custom_estimators"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ImputationDecision.custom_estimators</span></code></a>, keyed by unit id, so this
+enum stays a label. It is a value rather than <code class="docutils literal notranslate"><span class="pre">None</span></code> because <code class="docutils literal notranslate"><span class="pre">None</span></code>
+already carries the load-bearing “no estimator family, cannot train”
+meaning on the fit path; as a value, every existing reader of a
+<code class="docutils literal notranslate"><span class="pre">ModelChoice</span></code> stays correct without learning anything. Given up: the enum
+stops being a closed list of families the library can build — one member
+means “look elsewhere”.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="dataforge_ml.imputation._config.ModelChoice.BayesianRidge">
 <span class="sig-name descname"><span class="pre">BayesianRidge</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'bayesian_ridge'</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ModelChoice.BayesianRidge" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ModelChoice.Custom">
+<span class="sig-name descname"><span class="pre">Custom</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'custom'</span></span><a class="headerlink" href="#dataforge_ml.imputation._config.ModelChoice.Custom" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
@@ -2682,16 +3141,6 @@ above the row/feature caps) — the latter is warned, never blocked
 </dd></dl>
 
 <dl class="py class">
-<dt class="sig sig-object py" id="dataforge_ml.imputation._fitted_imputer.UnfittedColumnError">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.imputation._fitted_imputer.</span></span><span class="sig-name descname"><span class="pre">UnfittedColumnError</span></span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_fitted_imputer.html#UnfittedColumnError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._fitted_imputer.UnfittedColumnError" title="Link to this definition">#</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code></p>
-<p>Raised by FittedImputer.transform() when the input DataFrame contains
-missing values in a column for which no fill strategy was learned during
-fit() — i.e. the column had zero missing values in the training split.</p>
-<p>Typically indicates that a non-profile-stratified split was used.</p>
-</dd></dl>
-
-<dl class="py class">
 <dt class="sig sig-object py" id="dataforge_ml.imputation._fitted_imputer.UnseenColumnError">
 <span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">dataforge_ml.imputation._fitted_imputer.</span></span><span class="sig-name descname"><span class="pre">UnseenColumnError</span></span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_fitted_imputer.html#UnseenColumnError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._fitted_imputer.UnseenColumnError" title="Link to this definition">#</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code></p>
@@ -2779,32 +3228,49 @@ Suppress with
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-guarantee-boundary">The guarantee boundary</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#a-self-parallelising-estimator">A self-parallelising estimator</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#decision-layer">Decision layer</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._decision_assembler.decide"><code class="docutils literal notranslate"><span class="pre">decide()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._authoring.author"><code class="docutils literal notranslate"><span class="pre">author()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._authoring.AuthoredColumn"><code class="docutils literal notranslate"><span class="pre">AuthoredColumn</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._authoring.AuthoredColumn.center1"><code class="docutils literal notranslate"><span class="pre">AuthoredColumn.center1</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._authoring.AuthoredColumn.center2"><code class="docutils literal notranslate"><span class="pre">AuthoredColumn.center2</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._authoring.AuthoredColumn.constant_fill"><code class="docutils literal notranslate"><span class="pre">AuthoredColumn.constant_fill</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._authoring.AuthoredColumn.domain_snap_bounds"><code class="docutils literal notranslate"><span class="pre">AuthoredColumn.domain_snap_bounds</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._authoring.AuthoredColumn.feature_cols"><code class="docutils literal notranslate"><span class="pre">AuthoredColumn.feature_cols</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._authoring.AuthoredColumn.grouping_variable"><code class="docutils literal notranslate"><span class="pre">AuthoredColumn.grouping_variable</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._authoring.AuthoredColumn.strategy"><code class="docutils literal notranslate"><span class="pre">AuthoredColumn.strategy</span></code></a></li>
+</ul>
+</li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationDecision"><code class="docutils literal notranslate"><span class="pre">ImputationDecision</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationDecision.column_decisions"><code class="docutils literal notranslate"><span class="pre">ImputationDecision.column_decisions</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationDecision.config_snapshot"><code class="docutils literal notranslate"><span class="pre">ImputationDecision.config_snapshot</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationDecision.decided_for_shape"><code class="docutils literal notranslate"><span class="pre">ImputationDecision.decided_for_shape</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationDecision.custom_estimators"><code class="docutils literal notranslate"><span class="pre">ImputationDecision.custom_estimators</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationDecision.decided_hyperparameters"><code class="docutils literal notranslate"><span class="pre">ImputationDecision.decided_hyperparameters</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationDecision.dropped_columns"><code class="docutils literal notranslate"><span class="pre">ImputationDecision.dropped_columns</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationDecision.from_dict"><code class="docutils literal notranslate"><span class="pre">ImputationDecision.from_dict()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationDecision.numeric_sentinels"><code class="docutils literal notranslate"><span class="pre">ImputationDecision.numeric_sentinels</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationDecision.override_hyperparameters"><code class="docutils literal notranslate"><span class="pre">ImputationDecision.override_hyperparameters</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationDecision.profile_provenance"><code class="docutils literal notranslate"><span class="pre">ImputationDecision.profile_provenance</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationDecision.string_sentinels"><code class="docutils literal notranslate"><span class="pre">ImputationDecision.string_sentinels</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationDecision.to_dict"><code class="docutils literal notranslate"><span class="pre">ImputationDecision.to_dict()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationDecision.units"><code class="docutils literal notranslate"><span class="pre">ImputationDecision.units</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationDecision.with_hyperparameters"><code class="docutils literal notranslate"><span class="pre">ImputationDecision.with_hyperparameters()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationDecision.with_model_choice"><code class="docutils literal notranslate"><span class="pre">ImputationDecision.with_model_choice()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationDecision.with_strategy"><code class="docutils literal notranslate"><span class="pre">ImputationDecision.with_strategy()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ColumnImputationDecision"><code class="docutils literal notranslate"><span class="pre">ColumnImputationDecision</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ColumnImputationDecision.center1"><code class="docutils literal notranslate"><span class="pre">ColumnImputationDecision.center1</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ColumnImputationDecision.center2"><code class="docutils literal notranslate"><span class="pre">ColumnImputationDecision.center2</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ColumnImputationDecision.column"><code class="docutils literal notranslate"><span class="pre">ColumnImputationDecision.column</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ColumnImputationDecision.constant_fill"><code class="docutils literal notranslate"><span class="pre">ColumnImputationDecision.constant_fill</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ColumnImputationDecision.domain_snap_bounds"><code class="docutils literal notranslate"><span class="pre">ColumnImputationDecision.domain_snap_bounds</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ColumnImputationDecision.drop"><code class="docutils literal notranslate"><span class="pre">ColumnImputationDecision.drop</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ColumnImputationDecision.forced"><code class="docutils literal notranslate"><span class="pre">ColumnImputationDecision.forced</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ColumnImputationDecision.feature_cols"><code class="docutils literal notranslate"><span class="pre">ColumnImputationDecision.feature_cols</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ColumnImputationDecision.from_dict"><code class="docutils literal notranslate"><span class="pre">ColumnImputationDecision.from_dict()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ColumnImputationDecision.grouping_variable"><code class="docutils literal notranslate"><span class="pre">ColumnImputationDecision.grouping_variable</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ColumnImputationDecision.indicator_flag"><code class="docutils literal notranslate"><span class="pre">ColumnImputationDecision.indicator_flag</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ColumnImputationDecision.mnar"><code class="docutils literal notranslate"><span class="pre">ColumnImputationDecision.mnar</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ColumnImputationDecision.model_choice"><code class="docutils literal notranslate"><span class="pre">ColumnImputationDecision.model_choice</span></code></a></li>
@@ -2818,6 +3284,7 @@ Suppress with
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationUnit.columns"><code class="docutils literal notranslate"><span class="pre">ImputationUnit.columns</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationUnit.from_dict"><code class="docutils literal notranslate"><span class="pre">ImputationUnit.from_dict()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationUnit.hyperparameters"><code class="docutils literal notranslate"><span class="pre">ImputationUnit.hyperparameters</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationUnit.is_block"><code class="docutils literal notranslate"><span class="pre">ImputationUnit.is_block</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationUnit.strategy"><code class="docutils literal notranslate"><span class="pre">ImputationUnit.strategy</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationUnit.to_dict"><code class="docutils literal notranslate"><span class="pre">ImputationUnit.to_dict()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationUnit.unit_id"><code class="docutils literal notranslate"><span class="pre">ImputationUnit.unit_id</span></code></a></li>
@@ -2827,6 +3294,7 @@ Suppress with
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#execution-layer">Execution layer</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._unit_fit.fit_unit"><code class="docutils literal notranslate"><span class="pre">fit_unit()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._unit_fit.core_budget"><code class="docutils literal notranslate"><span class="pre">core_budget()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._unit_fit.UnitFitResult"><code class="docutils literal notranslate"><span class="pre">UnitFitResult</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._unit_fit.UnitFitResult.unit_id"><code class="docutils literal notranslate"><span class="pre">UnitFitResult.unit_id</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._unit_fit.UnitFitResult.strategy"><code class="docutils literal notranslate"><span class="pre">UnitFitResult.strategy</span></code></a></li>
@@ -2931,11 +3399,9 @@ Suppress with
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.knn_max_neighbors"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.knn_max_neighbors</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.knn_max_rows"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.knn_max_rows</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.knn_min_neighbors"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.knn_min_neighbors</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.knn_n_neighbors"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.knn_n_neighbors</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.max_workers"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.max_workers</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.mcar_feature_predictability_threshold"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.mcar_feature_predictability_threshold</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.mice_correlation_threshold"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.mice_correlation_threshold</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.mice_max_iter"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.mice_max_iter</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.mice_max_nearest_features"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.mice_max_nearest_features</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.mice_min_rows"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.mice_min_rows</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.NumericImputationConfig.mice_n_nearest_features_min_cols"><code class="docutils literal notranslate"><span class="pre">NumericImputationConfig.mice_n_nearest_features_min_cols</span></code></a></li>
@@ -2966,6 +3432,7 @@ Suppress with
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ModelChoice"><code class="docutils literal notranslate"><span class="pre">ModelChoice</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ModelChoice.BayesianRidge"><code class="docutils literal notranslate"><span class="pre">ModelChoice.BayesianRidge</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ModelChoice.Custom"><code class="docutils literal notranslate"><span class="pre">ModelChoice.Custom</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ModelChoice.GradientBoostingRegressor"><code class="docutils literal notranslate"><span class="pre">ModelChoice.GradientBoostingRegressor</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ModelChoice.RandomForestRegressor"><code class="docutils literal notranslate"><span class="pre">ModelChoice.RandomForestRegressor</span></code></a></li>
 </ul>
@@ -2998,7 +3465,6 @@ Suppress with
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._fit_signals.ImputationFitWarning"><code class="docutils literal notranslate"><span class="pre">ImputationFitWarning</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._fitted_imputer.UnfittedColumnError"><code class="docutils literal notranslate"><span class="pre">UnfittedColumnError</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._fitted_imputer.UnseenColumnError"><code class="docutils literal notranslate"><span class="pre">UnseenColumnError</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._fitted_imputer.FittedColumnAbsentError"><code class="docutils literal notranslate"><span class="pre">FittedColumnAbsentError</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._fitted_imputer.DroppedColumnAbsentWarning"><code class="docutils literal notranslate"><span class="pre">DroppedColumnAbsentWarning</span></code></a></li>

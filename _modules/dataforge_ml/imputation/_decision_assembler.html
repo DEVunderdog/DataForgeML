@@ -405,20 +405,24 @@
 <span class="sd">``(profile, shape, config)``, where ``n_rows`` *is* the shape input. The</span>
 <span class="sd">assembler reuses the routing kernel ``_StrategyRouter.route()`` (which keeps its</span>
 <span class="sd">one job — return ``(strategy, signals)``), resolves each column&#39;s concrete</span>
-<span class="sd">``ModelChoice`` at decide-time via ``RegressionEstimatorFactory``, surfaces</span>
-<span class="sd">``domain_snap_bounds``, folds in the indicator/mnar/drop flags, and materialises</span>
-<span class="sd">the execution units. No training data is touched — routing is a pure function of</span>
-<span class="sd">the Phase 1 profile (ADR-0060).</span>
+<span class="sd">``ModelChoice`` at decide-time via ``RegressionEstimatorFactory``, lowers every</span>
+<span class="sd">fact about the data onto the column — ``domain_snap_bounds``, the bimodal</span>
+<span class="sd">centres, ``feature_cols``, the grouping variable and the constant fill (ADR-0083)</span>
+<span class="sd">— folds in the indicator/mnar/drop flags, and materialises the execution units.</span>
+<span class="sd">No training data is touched — routing is a pure function of the Phase 1 profile</span>
+<span class="sd">(ADR-0060).</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">dataclasses</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Any</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Optional</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">..config</span><span class="w"> </span><span class="kn">import</span> <span class="n">PipelineConfig</span><span class="p">,</span> <span class="n">PipelinePhase</span><span class="p">,</span> <span class="n">SemanticType</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..profiling._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">NumericKind</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">..profiling._missingness_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">MissingnessFlag</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">..profiling._numeric_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">NonlinearityTag</span><span class="p">,</span> <span class="n">NumericStats</span><span class="p">,</span> <span class="n">SkewSeverity</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">_EXCLUSION_SIGNAL</span><span class="p">,</span>
@@ -427,10 +431,10 @@
     <span class="n">ImputationStrategy</span><span class="p">,</span>
     <span class="n">ModelChoice</span><span class="p">,</span>
     <span class="n">NumericImputationConfig</span><span class="p">,</span>
+    <span class="n">_dial_defaults</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._regression_estimator_factory</span><span class="w"> </span><span class="kn">import</span> <span class="n">RegressionEstimatorFactory</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._strategy_router</span><span class="w"> </span><span class="kn">import</span> <span class="n">_StrategyRouter</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">..profiling._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">NumericKind</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">..profiling._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">ColumnProfile</span><span class="p">,</span> <span class="n">StructuralProfileResult</span>
@@ -469,6 +473,35 @@
     <span class="p">):</span>
         <span class="n">tag</span> <span class="o">=</span> <span class="n">NonlinearityTag</span><span class="o">.</span><span class="n">MonotonicNonlinear</span>
     <span class="k">return</span> <span class="n">tag</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_decided_base</span><span class="p">(</span>
+    <span class="n">strategy</span><span class="p">:</span> <span class="n">ImputationStrategy</span><span class="p">,</span>
+    <span class="n">dials</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">facts</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Build one unit&#39;s decided base from the strategy&#39;s dial row.</span>
+
+<span class="sd">    The row is the starting point and the key set: ``dials`` may only *overwrite*</span>
+<span class="sd">    values ``_STRATEGY_DIALS`` already declares, so a dial :func:`decide` computes but</span>
+<span class="sd">    the table never declared is a loud error here rather than a base only one of</span>
+<span class="sd">    the two authors writes. ``facts`` are the profile-derived values a fitter</span>
+<span class="sd">    reads that are not dials at all (a bimodal unit&#39;s centres, its predictor</span>
+<span class="sd">    columns); they are carried alongside and may not shadow a dial.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">base</span> <span class="o">=</span> <span class="n">_dial_defaults</span><span class="p">(</span><span class="n">strategy</span><span class="p">)</span>
+    <span class="n">undeclared</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">dials</span><span class="p">)</span> <span class="o">-</span> <span class="nb">set</span><span class="p">(</span><span class="n">base</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">undeclared</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">strategy</span><span class="si">}</span><span class="s2"> has no dial(s) </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">undeclared</span><span class="p">)</span><span class="si">}</span><span class="s2"> in _STRATEGY_DIALS; &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;declare them in the table before deciding them.&quot;</span>
+        <span class="p">)</span>
+    <span class="n">base</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dials</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="p">(</span><span class="n">facts</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">_dial_defaults</span><span class="p">(</span><span class="n">strategy</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">strategy</span><span class="si">}</span><span class="s2"> fact &#39;</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">&#39; collides with a declared dial.&quot;</span><span class="p">)</span>
+        <span class="n">base</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">base</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_column_stats</span><span class="p">(</span><span class="n">cp</span><span class="p">:</span> <span class="s2">&quot;ColumnProfile&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Optional[NumericStats]&quot;</span><span class="p">:</span>
@@ -522,9 +555,9 @@
 <div class="viewcode-block" id="decide">
 <a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._decision_assembler.decide">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">decide</span><span class="p">(</span>
-    <span class="n">profile</span><span class="p">:</span> <span class="s2">&quot;StructuralProfileResult&quot;</span><span class="p">,</span>
+    <span class="n">profile</span><span class="p">:</span> <span class="n">StructuralProfileResult</span><span class="p">,</span>
     <span class="n">n_rows</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
-    <span class="n">config</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">PipelineConfig</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">PipelineConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ImputationDecision</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Build the pure, immutable imputation plan for a profiled dataset.</span>
 
@@ -534,6 +567,13 @@
 <span class="sd">    bounds and the indicator/mnar/drop flags, and materialises the execution</span>
 <span class="sd">    units — all as a pure function of ``(profile, shape, config)`` that trains</span>
 <span class="sd">    nothing and never touches a DataFrame.</span>
+
+<span class="sd">    Every fact about the data is declared here and only here: the bimodal</span>
+<span class="sd">    centres and ``feature_cols`` are measurements lowered from the profile, and</span>
+<span class="sd">    the grouping variable and the constant fill are lowered from ``config``, all</span>
+<span class="sd">    onto ``ColumnImputationDecision`` (ADR-0083). No fitter reads ``config`` for</span>
+<span class="sd">    them, so a saved plan fits without the config that produced it — and editing</span>
+<span class="sd">    ``config`` between ``decide()`` and ``fit_unit()`` no longer has any effect.</span>
 
 <span class="sd">    ``decide`` resolves its own active column set for the Imputation phase from</span>
 <span class="sd">    ``config`` (Hard Exclusions plus Imputation-phase Soft Exclusions) — no</span>
@@ -647,10 +687,9 @@
     <span class="c1"># First pass: route every numeric column, recording strategy, signals, and</span>
     <span class="c1"># profile-derived descriptors. Non-numeric semantic columns pass through.</span>
     <span class="n">routed</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">ImputationStrategy</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]]]</span> <span class="o">=</span> <span class="p">{}</span>
-    <span class="n">forced_columns</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">numeric_cols</span><span class="p">:</span>
         <span class="n">cp</span> <span class="o">=</span> <span class="n">profile</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">col</span><span class="p">]</span>
-        <span class="n">strategy</span><span class="p">,</span> <span class="n">signals</span><span class="p">,</span> <span class="n">forced</span> <span class="o">=</span> <span class="n">router</span><span class="o">.</span><span class="n">route</span><span class="p">(</span>
+        <span class="n">strategy</span><span class="p">,</span> <span class="n">signals</span> <span class="o">=</span> <span class="n">router</span><span class="o">.</span><span class="n">route</span><span class="p">(</span>
             <span class="n">col</span><span class="o">=</span><span class="n">col</span><span class="p">,</span>
             <span class="n">cp</span><span class="o">=</span><span class="n">cp</span><span class="p">,</span>
             <span class="n">config</span><span class="o">=</span><span class="n">numeric_cfg</span><span class="p">,</span>
@@ -663,7 +702,6 @@
             <span class="n">per_column_constant_fill</span><span class="o">=</span><span class="n">per_column_constant_fill</span><span class="p">,</span>
         <span class="p">)</span>
         <span class="n">routed</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">strategy</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">signals</span><span class="p">))</span>
-        <span class="n">forced_columns</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">forced</span>
 
     <span class="c1"># The MICE block trains one estimator chosen from the whole block&#39;s winning</span>
     <span class="c1"># tag, so every MICE column carries that same block-level model choice.</span>
@@ -688,23 +726,19 @@
             <span class="n">_complete_row_fraction</span><span class="p">(</span><span class="n">profile</span><span class="p">),</span>
             <span class="n">numeric_cfg</span><span class="p">,</span>
         <span class="p">)</span>
-        <span class="k">if</span> <span class="n">numeric_cfg</span><span class="o">.</span><span class="n">mice_max_iter</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">mice_max_iter</span> <span class="o">=</span> <span class="n">numeric_cfg</span><span class="o">.</span><span class="n">mice_max_iter</span>
         <span class="n">mice_tol</span> <span class="o">=</span> <span class="n">_compute_mice_tol</span><span class="p">(</span><span class="n">winning_tag</span><span class="p">,</span> <span class="n">mice_stats</span><span class="p">)</span>
         <span class="n">mice_initial_strategy</span> <span class="o">=</span> <span class="n">_mice_initial_strategy</span><span class="p">(</span><span class="n">mice_stats</span><span class="p">)</span>
         <span class="n">mice_n_nearest</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">_compute_mice_n_nearest_features</span><span class="p">(</span>
             <span class="n">feature_correlation</span><span class="p">,</span> <span class="n">mice_cols</span><span class="p">,</span> <span class="n">numeric_cols</span><span class="p">,</span> <span class="n">numeric_cfg</span>
         <span class="p">)</span>
-        <span class="n">mice_hyperparameters</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
+        <span class="n">mice_hyperparameters</span> <span class="o">=</span> <span class="n">_decided_base</span><span class="p">(</span>
+            <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MICE</span><span class="p">,</span>
             <span class="p">{</span>
                 <span class="s2">&quot;max_iter&quot;</span><span class="p">:</span> <span class="n">mice_max_iter</span><span class="p">,</span>
                 <span class="s2">&quot;tol&quot;</span><span class="p">:</span> <span class="n">mice_tol</span><span class="p">,</span>
                 <span class="s2">&quot;initial_strategy&quot;</span><span class="p">:</span> <span class="n">mice_initial_strategy</span><span class="p">,</span>
                 <span class="s2">&quot;n_nearest_features&quot;</span><span class="p">:</span> <span class="n">mice_n_nearest</span><span class="p">,</span>
-                <span class="s2">&quot;miss_frac&quot;</span><span class="p">:</span> <span class="n">_block_miss_fraction</span><span class="p">(</span><span class="n">profile</span><span class="p">,</span> <span class="n">mice_cols</span><span class="p">),</span>
-                <span class="s2">&quot;complete_frac&quot;</span><span class="p">:</span> <span class="n">_complete_row_fraction</span><span class="p">(</span><span class="n">profile</span><span class="p">),</span>
-                <span class="s2">&quot;nonlinearity_tag&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">winning_tag</span><span class="p">),</span>
-            <span class="p">}</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">},</span>
         <span class="p">)</span>
 
     <span class="n">knn_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">_</span><span class="p">)</span> <span class="ow">in</span> <span class="n">routed</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">s</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">KNN</span><span class="p">]</span>
@@ -717,15 +751,9 @@
             <span class="n">_complete_row_fraction</span><span class="p">(</span><span class="n">profile</span><span class="p">),</span>
             <span class="n">numeric_cfg</span><span class="p">,</span>
         <span class="p">)</span>
-        <span class="k">if</span> <span class="n">numeric_cfg</span><span class="o">.</span><span class="n">knn_n_neighbors</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">knn_n_neighbors</span> <span class="o">=</span> <span class="n">numeric_cfg</span><span class="o">.</span><span class="n">knn_n_neighbors</span>
-        <span class="n">knn_hyperparameters</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
-            <span class="p">{</span>
-                <span class="s2">&quot;n_neighbors&quot;</span><span class="p">:</span> <span class="n">knn_n_neighbors</span><span class="p">,</span>
-                <span class="s2">&quot;weights&quot;</span><span class="p">:</span> <span class="n">knn_weights</span><span class="p">,</span>
-                <span class="s2">&quot;miss_frac&quot;</span><span class="p">:</span> <span class="n">_block_miss_fraction</span><span class="p">(</span><span class="n">profile</span><span class="p">,</span> <span class="n">knn_cols</span><span class="p">),</span>
-                <span class="s2">&quot;complete_frac&quot;</span><span class="p">:</span> <span class="n">_complete_row_fraction</span><span class="p">(</span><span class="n">profile</span><span class="p">),</span>
-            <span class="p">}</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="n">knn_hyperparameters</span> <span class="o">=</span> <span class="n">_decided_base</span><span class="p">(</span>
+            <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">KNN</span><span class="p">,</span>
+            <span class="p">{</span><span class="s2">&quot;n_neighbors&quot;</span><span class="p">:</span> <span class="n">knn_n_neighbors</span><span class="p">,</span> <span class="s2">&quot;weights&quot;</span><span class="p">:</span> <span class="n">knn_weights</span><span class="p">},</span>
         <span class="p">)</span>
 
     <span class="n">decided_hyperparameters</span> <span class="o">=</span> <span class="p">{}</span>
@@ -766,17 +794,18 @@
         <span class="k">if</span> <span class="n">strategy</span> <span class="ow">in</span> <span class="p">(</span><span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MICE</span><span class="p">,</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">KNN</span><span class="p">):</span>
             <span class="k">pass</span>  <span class="c1"># Resolved block-wide above.</span>
         <span class="k">elif</span> <span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MNAR</span><span class="p">:</span>
-            <span class="n">decided_hyperparameters</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">strategy</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
-                <span class="p">{</span><span class="s2">&quot;central_tendency&quot;</span><span class="p">:</span> <span class="n">_mnar_central_tendency</span><span class="p">(</span><span class="n">cp</span><span class="p">)}</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="n">decided_hyperparameters</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">strategy</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">_decided_base</span><span class="p">(</span>
+                <span class="n">strategy</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;central_tendency&quot;</span><span class="p">:</span> <span class="n">_mnar_central_tendency</span><span class="p">(</span><span class="n">cp</span><span class="p">)}</span>
             <span class="p">)</span>
         <span class="k">elif</span> <span class="n">strategy</span> <span class="ow">in</span> <span class="p">(</span>
             <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">GMMSampling</span><span class="p">,</span>
             <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">ClusterConditional</span><span class="p">,</span>
         <span class="p">):</span>
             <span class="n">decided_hyperparameters</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">strategy</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">_bimodal_hyperparameters</span><span class="p">(</span>
-                <span class="n">col</span><span class="p">,</span> <span class="n">cp</span><span class="p">,</span> <span class="n">strategy</span><span class="p">,</span> <span class="n">feature_correlation</span><span class="p">,</span> <span class="n">numeric_cfg</span>
+                <span class="n">cp</span><span class="p">,</span> <span class="n">strategy</span>
             <span class="p">)</span>
 
+        <span class="n">center1</span><span class="p">,</span> <span class="n">center2</span> <span class="o">=</span> <span class="n">_bimodal_centers</span><span class="p">(</span><span class="n">cp</span><span class="p">,</span> <span class="n">strategy</span><span class="p">)</span>
         <span class="n">decisions</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">ColumnImputationDecision</span><span class="p">(</span>
             <span class="n">column</span><span class="o">=</span><span class="n">col</span><span class="p">,</span>
             <span class="n">semantic_type</span><span class="o">=</span><span class="n">SemanticType</span><span class="o">.</span><span class="n">Numeric</span><span class="p">,</span>
@@ -784,10 +813,18 @@
             <span class="n">signals</span><span class="o">=</span><span class="n">signals</span><span class="p">,</span>
             <span class="n">model_choice</span><span class="o">=</span><span class="n">model_choice</span><span class="p">,</span>
             <span class="n">domain_snap_bounds</span><span class="o">=</span><span class="n">_resolve_domain_snap_bounds</span><span class="p">(</span><span class="n">cp</span><span class="p">,</span> <span class="n">strategy</span><span class="p">),</span>
+            <span class="n">center1</span><span class="o">=</span><span class="n">center1</span><span class="p">,</span>
+            <span class="n">center2</span><span class="o">=</span><span class="n">center2</span><span class="p">,</span>
+            <span class="n">feature_cols</span><span class="o">=</span><span class="p">(</span>
+                <span class="n">_correlated_feature_cols</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">feature_correlation</span><span class="p">,</span> <span class="n">numeric_cfg</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">ClusterConditional</span>
+                <span class="k">else</span> <span class="kc">None</span>
+            <span class="p">),</span>
+            <span class="n">grouping_variable</span><span class="o">=</span><span class="n">numeric_cfg</span><span class="o">.</span><span class="n">bimodal_grouping_variables</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">col</span><span class="p">),</span>
+            <span class="n">constant_fill</span><span class="o">=</span><span class="n">per_column_constant_fill</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">col</span><span class="p">),</span>
             <span class="n">indicator_flag</span><span class="o">=</span><span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MNAR</span><span class="p">,</span>
             <span class="n">mnar</span><span class="o">=</span><span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MNAR</span><span class="p">,</span>
             <span class="n">drop</span><span class="o">=</span><span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Dropped</span><span class="p">,</span>
-            <span class="n">forced</span><span class="o">=</span><span class="n">forced_columns</span><span class="p">[</span><span class="n">col</span><span class="p">],</span>
         <span class="p">)</span>
 
     <span class="c1"># Indicator pass: pre-register the {col}_missing columns the MNAR mechanism</span>
@@ -804,11 +841,7 @@
 
     <span class="k">return</span> <span class="n">ImputationDecision</span><span class="p">(</span>
         <span class="n">column_decisions</span><span class="o">=</span><span class="n">decisions</span><span class="p">,</span>
-        <span class="n">decided_for_shape</span><span class="o">=</span><span class="p">(</span><span class="n">n_rows</span><span class="p">,</span> <span class="n">n_features</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">numeric_cols</span><span class="p">)),</span>
         <span class="n">config_snapshot</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">to_dict</span><span class="p">(),</span>
-        <span class="n">profile_provenance</span><span class="o">=</span><span class="p">{</span>
-            <span class="s2">&quot;row_count&quot;</span><span class="p">:</span> <span class="n">profile</span><span class="o">.</span><span class="n">dataset</span><span class="o">.</span><span class="n">row_count</span><span class="p">,</span>
-        <span class="p">},</span>
         <span class="n">decided_hyperparameters</span><span class="o">=</span><span class="n">decided_hyperparameters</span><span class="p">,</span>
         <span class="n">numeric_sentinels</span><span class="o">=</span><span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">profile</span><span class="o">.</span><span class="n">numeric_sentinels</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span>
         <span class="n">string_sentinels</span><span class="o">=</span><span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">profile</span><span class="o">.</span><span class="n">string_sentinels</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span>
@@ -832,42 +865,49 @@
     <span class="k">return</span> <span class="s2">&quot;median&quot;</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_bimodal_hyperparameters</span><span class="p">(</span>
-    <span class="n">col</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">cp</span><span class="p">:</span> <span class="s2">&quot;ColumnProfile&quot;</span><span class="p">,</span>
-    <span class="n">strategy</span><span class="p">:</span> <span class="n">ImputationStrategy</span><span class="p">,</span>
-    <span class="n">feature_correlation</span><span class="p">,</span>
-    <span class="n">config</span><span class="p">:</span> <span class="n">NumericImputationConfig</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">...</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resolve the decide-time dials for a GMM-Sampling or Cluster-Conditional unit.</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_bimodal_centers</span><span class="p">(</span>
+    <span class="n">cp</span><span class="p">:</span> <span class="n">ColumnProfile</span><span class="p">,</span> <span class="n">strategy</span><span class="p">:</span> <span class="n">ImputationStrategy</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The two mode centres a bimodal column&#39;s fitter splits on, else ``(None, None)``.</span>
 
-<span class="sd">    Both bimodal strategies are driven by profile facts the execution layer has</span>
-<span class="sd">    no way to see — the two mode centres, the column&#39;s skewness, and (for</span>
-<span class="sd">    Cluster-Conditional&#39;s centroid branch) which features correlate with the</span>
-<span class="sd">    target. Carrying them on the unit is what lets a fitter be handed a plan and</span>
-<span class="sd">    a frame and nothing else (ADR-0062).</span>
+<span class="sd">    A measurement Phase 1 made, not a dial, so it is lowered onto the column</span>
+<span class="sd">    decision rather than carried as a hyperparameter (ADR-0083).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">strategy</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span>
+        <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">GMMSampling</span><span class="p">,</span>
+        <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">ClusterConditional</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
     <span class="n">stats</span> <span class="o">=</span> <span class="n">_column_stats</span><span class="p">(</span><span class="n">cp</span><span class="p">)</span>
     <span class="n">bimodal</span> <span class="o">=</span> <span class="n">stats</span><span class="o">.</span><span class="n">bimodal_stats</span> <span class="k">if</span> <span class="n">stats</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
     <span class="k">if</span> <span class="n">bimodal</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="k">return</span> <span class="p">()</span>
+        <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+    <span class="k">return</span> <span class="n">bimodal</span><span class="o">.</span><span class="n">center1</span><span class="p">,</span> <span class="n">bimodal</span><span class="o">.</span><span class="n">center2</span>
 
-    <span class="n">hyperparameters</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
-        <span class="s2">&quot;center1&quot;</span><span class="p">:</span> <span class="n">bimodal</span><span class="o">.</span><span class="n">center1</span><span class="p">,</span>
-        <span class="s2">&quot;center2&quot;</span><span class="p">:</span> <span class="n">bimodal</span><span class="o">.</span><span class="n">center2</span><span class="p">,</span>
-        <span class="s2">&quot;central_tendency&quot;</span><span class="p">:</span> <span class="p">(</span>
-            <span class="s2">&quot;mean&quot;</span>
-            <span class="k">if</span> <span class="n">stats</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">stats</span><span class="o">.</span><span class="n">skewness_severity</span> <span class="o">==</span> <span class="n">SkewSeverity</span><span class="o">.</span><span class="n">Normal</span>
-            <span class="k">else</span> <span class="s2">&quot;median&quot;</span>
-        <span class="p">),</span>
-    <span class="p">}</span>
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_bimodal_hyperparameters</span><span class="p">(</span>
+    <span class="n">cp</span><span class="p">:</span> <span class="n">ColumnProfile</span><span class="p">,</span>
+    <span class="n">strategy</span><span class="p">:</span> <span class="n">ImputationStrategy</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resolve the decide-time dials for a GMM-Sampling or Cluster-Conditional unit.</span>
+
+<span class="sd">    Only ``central_tendency`` is left here: it is computed from the column&#39;s</span>
+<span class="sd">    skewness the way ``max_iter`` is computed, so it is a dial. The centres and</span>
+<span class="sd">    the centroid features are measurements and live on the column decision</span>
+<span class="sd">    (ADR-0083).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">stats</span> <span class="o">=</span> <span class="n">_column_stats</span><span class="p">(</span><span class="n">cp</span><span class="p">)</span>
+    <span class="n">central_tendency</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s2">&quot;mean&quot;</span>
+        <span class="k">if</span> <span class="n">stats</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">stats</span><span class="o">.</span><span class="n">skewness_severity</span> <span class="o">==</span> <span class="n">SkewSeverity</span><span class="o">.</span><span class="n">Normal</span>
+        <span class="k">else</span> <span class="s2">&quot;median&quot;</span>
+    <span class="p">)</span>
     <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">ClusterConditional</span><span class="p">:</span>
-        <span class="n">hyperparameters</span><span class="p">[</span><span class="s2">&quot;feature_cols&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">_correlated_feature_cols</span><span class="p">(</span>
-            <span class="n">col</span><span class="p">,</span> <span class="n">feature_correlation</span><span class="p">,</span> <span class="n">config</span>
-        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">_decided_base</span><span class="p">(</span><span class="n">strategy</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;central_tendency&quot;</span><span class="p">:</span> <span class="n">central_tendency</span><span class="p">})</span>
 
-    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">hyperparameters</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+    <span class="c1"># GMM-Sampling has no dial row: its fit is driven entirely by the centres on</span>
+    <span class="c1"># the column decision, so nothing on its base is overridable.</span>
+    <span class="k">return</span> <span class="n">_decided_base</span><span class="p">(</span><span class="n">strategy</span><span class="p">,</span> <span class="p">{},</span> <span class="n">facts</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;central_tendency&quot;</span><span class="p">:</span> <span class="n">central_tendency</span><span class="p">})</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_correlated_feature_cols</span><span class="p">(</span>

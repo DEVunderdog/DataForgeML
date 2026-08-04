@@ -1,0 +1,1028 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>dataforge_ml.imputation._authoring &#8212; DataForgeML  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../../../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/dataforge_ml/imputation/_authoring';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../../../_static/searchtools.js"></script>
+    <script src="../../../_static/language_data.js"></script>
+    <script src="../../../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">DataForgeML  documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/pipeline.html">
+    Pipeline
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/profiling.html">
+    Profiling
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/imputation.html">
+    Imputation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/splitting.html">
+    Splitting
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/persistence.html">
+    Persistence
+  </a>
+</li>
+
+            <li class="nav-item dropdown">
+                <button class="btn dropdown-toggle nav-item" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false"
+                aria-controls="pst-nav-more-links">
+                    More
+                </button>
+                <ul id="pst-nav-more-links" class="dropdown-menu">
+                    
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../api/observability.html">
+    Observability
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../api/utilities.html">
+    Utilities
+  </a>
+</li>
+
+                </ul>
+            </li>
+            
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/pipeline.html">
+    Pipeline
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/profiling.html">
+    Profiling
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/imputation.html">
+    Imputation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/splitting.html">
+    Splitting
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/persistence.html">
+    Persistence
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/observability.html">
+    Observability
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/utilities.html">
+    Utilities
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">dataforge_ml.imputation._authoring</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for dataforge_ml.imputation._authoring</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;The manual authoring door — a person writes the plan ``decide()`` would derive.</span>
+
+<span class="sd">:func:`author` builds a real :class:`~dataforge_ml.imputation.ImputationDecision`</span>
+<span class="sd">from a column→strategy map, and the plan it returns is indistinguishable to</span>
+<span class="sd">everything downstream from one :func:`~dataforge_ml.imputation.decide` produced</span>
+<span class="sd">(ADR-0083): one execution layer, one artifact, one evaluation surface, two</span>
+<span class="sd">authors.</span>
+
+<span class="sd">The door is decide-time, so it never touches data — ``columns`` is an ordered</span>
+<span class="sd">sequence of *names*, which lets a plan be built in CI from a schema before any</span>
+<span class="sd">frame exists. It checks exactly what it can see from those names (an unknown map</span>
+<span class="sd">key, MICE declared for one column, a bimodal strategy with no centres); a</span>
+<span class="sd">strategy/dtype mismatch or a size guard needs data and stays a fit-time</span>
+<span class="sd">``UnitNotTrainableError``.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Mapping</span><span class="p">,</span> <span class="n">Sequence</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">replace</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">..config</span><span class="w"> </span><span class="kn">import</span> <span class="n">SemanticType</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">ColumnImputationDecision</span><span class="p">,</span>
+    <span class="n">ImputationDecision</span><span class="p">,</span>
+    <span class="n">ImputationStrategy</span><span class="p">,</span>
+    <span class="n">ImputationUnit</span><span class="p">,</span>
+    <span class="n">ModelChoice</span><span class="p">,</span>
+    <span class="n">_derive_units</span><span class="p">,</span>
+    <span class="n">_dial_defaults</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;AuthoredColumn&quot;</span><span class="p">,</span> <span class="s2">&quot;author&quot;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="AuthoredColumn">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._authoring.AuthoredColumn">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">AuthoredColumn</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;One column&#39;s hand-written imputation declaration.</span>
+
+<span class="sd">    The richer half of :func:`author`&#39;s input: a bare</span>
+<span class="sd">    :class:`~dataforge_ml.imputation.ImputationStrategy` says *what happens* to a</span>
+<span class="sd">    column, and this says it alongside the facts about the data that the</span>
+<span class="sd">    strategy&#39;s fitter reads — the bimodal centres, the centroid features, the</span>
+<span class="sd">    grouping variable, the constant fill, the domain-snap bounds (ADR-0083).</span>
+
+<span class="sd">    Deliberately not a :class:`~dataforge_ml.ColumnImputationDecision`: there is</span>
+<span class="sd">    no ``column`` to restate (the map key is the column), no ``semantic_type``</span>
+<span class="sd">    (the door stamps ``Numeric``), no ``drop``, ``mnar`` or ``indicator_flag``</span>
+<span class="sd">    (all derived from ``strategy``) and no ``signals`` (a hand-authored decision</span>
+<span class="sd">    explains no routing). Dials are not here either — they keep their one</span>
+<span class="sd">    grammar, :meth:`~dataforge_ml.ImputationDecision.with_hyperparameters`,</span>
+<span class="sd">    whichever author made the plan.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    strategy : ImputationStrategy</span>
+<span class="sd">        The strategy this column takes. Every strategy that answers &quot;what</span>
+<span class="sd">        happens to this column?&quot; is allowed; ``Indicator`` is refused, being the</span>
+<span class="sd">        label of a column that arrives as a consequence of ``MNAR`` rather than</span>
+<span class="sd">        as a choice.</span>
+<span class="sd">    center1 : float, optional</span>
+<span class="sd">        First of the two mode centres the ``GMMSampling`` and</span>
+<span class="sd">        ``ClusterConditional`` strategies split on. Required by both.</span>
+<span class="sd">    center2 : float, optional</span>
+<span class="sd">        Second mode centre. See ``center1``.</span>
+<span class="sd">    feature_cols : tuple[str, ...], optional</span>
+<span class="sd">        Columns the ``ClusterConditional`` centroid branch measures its</span>
+<span class="sd">        per-cluster centroids over. Either this or ``grouping_variable`` must be</span>
+<span class="sd">        supplied for that strategy.</span>
+<span class="sd">    grouping_variable : str, optional</span>
+<span class="sd">        Column whose groups the ``ClusterConditional`` group-wise branch</span>
+<span class="sd">        aggregates within. Selects that branch over the centroid one.</span>
+<span class="sd">    constant_fill : float, optional</span>
+<span class="sd">        The fill value a ``Constant`` column takes. Required by that strategy.</span>
+<span class="sd">    domain_snap_bounds : tuple[float, float], optional</span>
+<span class="sd">        ``(min, max)`` a model-based strategy&#39;s predictions are rounded and</span>
+<span class="sd">        clipped into, for a column with a bounded discrete domain.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">strategy</span><span class="p">:</span> <span class="n">ImputationStrategy</span>
+    <span class="n">center1</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">center2</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">feature_cols</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">grouping_variable</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">constant_fill</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">domain_snap_bounds</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+
+
+<span class="n">_BIMODAL_STRATEGIES</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="n">ImputationStrategy</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
+    <span class="p">{</span><span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">GMMSampling</span><span class="p">,</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">ClusterConditional</span><span class="p">}</span>
+<span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_coerce</span><span class="p">(</span><span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AuthoredColumn</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Normalise one map entry to an ``AuthoredColumn``.</span>
+
+<span class="sd">    Accepts an ``AuthoredColumn``, an ``ImputationStrategy``, or the strategy&#39;s</span>
+<span class="sd">    string value (``ImputationStrategy`` is a ``StrEnum``, so ``&quot;median&quot;`` is a</span>
+<span class="sd">    spelling of one). Anything carrying a ``semantic_type`` other than</span>
+<span class="sd">    ``Numeric`` is refused here rather than silently restamped: the field</span>
+<span class="sd">    chooses the MICE block&#39;s predictor set (ADR-0079), so it is not decoration.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">semantic_type</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="s2">&quot;semantic_type&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">semantic_type</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">semantic_type</span> <span class="o">!=</span> <span class="n">SemanticType</span><span class="o">.</span><span class="n">Numeric</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s2">&#39;: the authoring door plans numeric columns only, &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;but this entry declares semantic type &#39;</span><span class="si">{</span><span class="n">semantic_type</span><span class="si">}</span><span class="s2">&#39;.&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">AuthoredColumn</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">value</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="n">ImputationStrategy</span><span class="p">,</span> <span class="nb">str</span><span class="p">)):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">AuthoredColumn</span><span class="p">(</span><span class="n">strategy</span><span class="o">=</span><span class="n">ImputationStrategy</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s2">&#39;: &#39;</span><span class="si">{</span><span class="n">value</span><span class="si">}</span><span class="s2">&#39; is not an ImputationStrategy.&quot;</span>
+            <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+    <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s2">&#39;: expected an ImputationStrategy or an AuthoredColumn, &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">.&quot;</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_validate</span><span class="p">(</span><span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">authored</span><span class="p">:</span> <span class="n">AuthoredColumn</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Refuse everything the door can see is wrong from the names alone.</span>
+
+<span class="sd">    Data-dependent failures — a strategy the column&#39;s dtype cannot take, a block</span>
+<span class="sd">    too small to train — are not visible here and stay fit-time raises</span>
+<span class="sd">    (``UnitNotTrainableError``, ADR-0083).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">strategy</span> <span class="o">=</span> <span class="n">authored</span><span class="o">.</span><span class="n">strategy</span>
+    <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Indicator</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s2">&#39;: &#39;Indicator&#39; cannot be authored. It labels the &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s2">_missing&#39; column an MNAR declaration appends, which the &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;door registers on its own.&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Constant</span> <span class="ow">and</span> <span class="n">authored</span><span class="o">.</span><span class="n">constant_fill</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s2">&#39;: strategy is &#39;Constant&#39; but no fill value was &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;provided. Set AuthoredColumn.constant_fill.&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">strategy</span> <span class="ow">in</span> <span class="n">_BIMODAL_STRATEGIES</span> <span class="ow">and</span> <span class="p">(</span>
+        <span class="n">authored</span><span class="o">.</span><span class="n">center1</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">authored</span><span class="o">.</span><span class="n">center2</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s2">&#39;: strategy is &#39;</span><span class="si">{</span><span class="n">strategy</span><span class="si">}</span><span class="s2">&#39; but the two mode &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;centres are not both declared. Set AuthoredColumn.center1 and &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;center2 — the fitter splits the column on them.&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">ClusterConditional</span> <span class="ow">and</span> <span class="ow">not</span> <span class="p">(</span>
+        <span class="n">authored</span><span class="o">.</span><span class="n">grouping_variable</span> <span class="ow">or</span> <span class="n">authored</span><span class="o">.</span><span class="n">feature_cols</span>
+    <span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s2">&#39;: strategy is &#39;ClusterConditional&#39; but neither a &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;grouping_variable nor a non-empty feature_cols was declared; the &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;unit would fit cleanly and fill nothing. Declare one of them.&quot;</span>
+        <span class="p">)</span>
+
+
+<span class="n">_ESTIMATOR_STRATEGIES</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="n">ImputationStrategy</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
+    <span class="p">{</span><span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MICE</span><span class="p">}</span>
+<span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_resolve_estimators</span><span class="p">(</span>
+    <span class="n">estimators</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">units</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">ImputationUnit</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Check the ``estimators`` map against the plan&#39;s units and copy it out.</span>
+
+<span class="sd">    Unit-keyed, so the checks are unit-shaped: the id must name a unit of this</span>
+<span class="sd">    plan, and that unit&#39;s strategy must have an estimator slot — MICE is the</span>
+<span class="sd">    only one, ``build_from_choice`` being called once in the whole fitter file</span>
+<span class="sd">    (ADR-0083). The mapping is copied; the instances inside it are not.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">known</span> <span class="o">=</span> <span class="p">{</span><span class="n">u</span><span class="o">.</span><span class="n">unit_id</span><span class="p">:</span> <span class="n">u</span> <span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="n">units</span><span class="p">}</span>
+    <span class="n">resolved</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">unit_id</span><span class="p">,</span> <span class="n">estimator</span> <span class="ow">in</span> <span class="n">estimators</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">unit</span> <span class="o">=</span> <span class="n">known</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">unit_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">unit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">names</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">u</span><span class="si">}</span><span class="s2">&#39;&quot;</span> <span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="n">known</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">&quot;(none)&quot;</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Unit &#39;</span><span class="si">{</span><span class="n">unit_id</span><span class="si">}</span><span class="s2">&#39; is named in &#39;estimators&#39; but this plan has no &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;such unit. Known units: </span><span class="si">{</span><span class="n">names</span><span class="si">}</span><span class="s2">.&quot;</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="n">unit</span><span class="o">.</span><span class="n">strategy</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_ESTIMATOR_STRATEGIES</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Unit &#39;</span><span class="si">{</span><span class="n">unit_id</span><span class="si">}</span><span class="s2">&#39; has strategy &#39;</span><span class="si">{</span><span class="n">unit</span><span class="o">.</span><span class="n">strategy</span><span class="si">}</span><span class="s2">&#39;, which trains &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;no estimator. Only MICE takes one.&quot;</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="n">estimator</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Unit &#39;</span><span class="si">{</span><span class="n">unit_id</span><span class="si">}</span><span class="s2">&#39; is named in &#39;estimators&#39; with no estimator. &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;Drop the key to let the library choose the family.&quot;</span>
+            <span class="p">)</span>
+        <span class="n">resolved</span><span class="p">[</span><span class="n">unit_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">estimator</span>
+    <span class="k">return</span> <span class="n">resolved</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_to_decision</span><span class="p">(</span>
+    <span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">authored</span><span class="p">:</span> <span class="n">AuthoredColumn</span><span class="p">,</span>
+    <span class="n">semantic_type</span><span class="p">:</span> <span class="n">SemanticType</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ColumnImputationDecision</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Project one validated ``AuthoredColumn`` onto its plan entry.</span>
+
+<span class="sd">    ``indicator_flag``, ``mnar`` and ``drop`` are derived from the strategy</span>
+<span class="sd">    rather than accepted, and ``model_choice`` takes ``decide``&#39;s own neutral</span>
+<span class="sd">    branch for MICE so the plainest authorable plan trains (ADR-0083).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">strategy</span> <span class="o">=</span> <span class="n">authored</span><span class="o">.</span><span class="n">strategy</span>
+    <span class="k">return</span> <span class="n">ColumnImputationDecision</span><span class="p">(</span>
+        <span class="n">column</span><span class="o">=</span><span class="n">column</span><span class="p">,</span>
+        <span class="n">semantic_type</span><span class="o">=</span><span class="n">semantic_type</span><span class="p">,</span>
+        <span class="n">strategy</span><span class="o">=</span><span class="n">strategy</span><span class="p">,</span>
+        <span class="n">model_choice</span><span class="o">=</span><span class="p">(</span>
+            <span class="n">ModelChoice</span><span class="o">.</span><span class="n">BayesianRidge</span> <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MICE</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="p">),</span>
+        <span class="n">domain_snap_bounds</span><span class="o">=</span><span class="n">authored</span><span class="o">.</span><span class="n">domain_snap_bounds</span><span class="p">,</span>
+        <span class="n">center1</span><span class="o">=</span><span class="n">authored</span><span class="o">.</span><span class="n">center1</span><span class="p">,</span>
+        <span class="n">center2</span><span class="o">=</span><span class="n">authored</span><span class="o">.</span><span class="n">center2</span><span class="p">,</span>
+        <span class="n">feature_cols</span><span class="o">=</span><span class="p">(</span>
+            <span class="nb">tuple</span><span class="p">(</span><span class="n">authored</span><span class="o">.</span><span class="n">feature_cols</span><span class="p">)</span> <span class="k">if</span> <span class="n">authored</span><span class="o">.</span><span class="n">feature_cols</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="p">),</span>
+        <span class="n">grouping_variable</span><span class="o">=</span><span class="n">authored</span><span class="o">.</span><span class="n">grouping_variable</span><span class="p">,</span>
+        <span class="n">constant_fill</span><span class="o">=</span><span class="n">authored</span><span class="o">.</span><span class="n">constant_fill</span><span class="p">,</span>
+        <span class="n">indicator_flag</span><span class="o">=</span><span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MNAR</span><span class="p">,</span>
+        <span class="n">mnar</span><span class="o">=</span><span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MNAR</span><span class="p">,</span>
+        <span class="n">drop</span><span class="o">=</span><span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Dropped</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<div class="viewcode-block" id="author">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._authoring.author">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">author</span><span class="p">(</span>
+    <span class="n">columns_map</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ImputationStrategy</span> <span class="o">|</span> <span class="n">AuthoredColumn</span><span class="p">],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">columns</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">default</span><span class="p">:</span> <span class="n">ImputationStrategy</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">estimators</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">numeric_sentinels</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">string_sentinels</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">base</span><span class="p">:</span> <span class="n">ImputationDecision</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ImputationDecision</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Build an imputation plan by hand, from column names and declared strategies.</span>
+
+<span class="sd">    The manual end of the automated↔manual spectrum (ADR-0083), sibling to</span>
+<span class="sd">    :func:`~dataforge_ml.imputation.decide`: both take a description and return</span>
+<span class="sd">    an :class:`~dataforge_ml.ImputationDecision`, one from a profile and one from</span>
+<span class="sd">    a person. The returned plan carries a complete decided hyperparameter base</span>
+<span class="sd">    written from the same dial table ``decide`` reads, so</span>
+<span class="sd">    :meth:`~dataforge_ml.ImputationDecision.with_hyperparameters`,</span>
+<span class="sd">    :func:`~dataforge_ml.fit_unit`,</span>
+<span class="sd">    :meth:`~dataforge_ml.FittedImputer.compose`, ``transform``,</span>
+<span class="sd">    :func:`~dataforge_ml.core_budget` and persistence all behave exactly as they</span>
+<span class="sd">    do for a decided plan.</span>
+
+<span class="sd">    No data is touched: ``columns`` is a sequence of *names*, so a plan can be</span>
+<span class="sd">    authored in CI against a schema before any frame exists. What the door</span>
+<span class="sd">    derives rather than accepts: ``semantic_type`` (``Numeric``, or the base&#39;s</span>
+<span class="sd">    own value when re-authoring),</span>
+<span class="sd">    ``indicator_flag`` and ``mnar`` (from ``strategy == MNAR``), ``drop`` (from</span>
+<span class="sd">    ``strategy == Dropped``), and an ``{col}_missing`` ``Indicator`` entry per</span>
+<span class="sd">    MNAR column. ``signals`` is empty on an authored column — there was no</span>
+<span class="sd">    routing to explain — and ``config_snapshot`` is empty, which truthfully</span>
+<span class="sd">    reads back as library defaults. Both come from the base instead when one is</span>
+<span class="sd">    given.</span>
+
+<span class="sd">    A MICE column is stamped with :attr:`~dataforge_ml.ModelChoice.BayesianRidge`</span>
+<span class="sd">    — ``decide``&#39;s own neutral branch — so the plainest plan an author can write</span>
+<span class="sd">    actually trains; override it with</span>
+<span class="sd">    :meth:`~dataforge_ml.ImputationDecision.with_model_choice`, or hand the block</span>
+<span class="sd">    your own tuned estimator through ``estimators``.</span>
+
+<span class="sd">    **Estimators enter here; dials do not.** An estimator has no other way onto a</span>
+<span class="sd">    plan — ``with_model_choice`` takes a *label*, and there is no</span>
+<span class="sd">    ``with_estimator`` — whereas dials keep their one grammar,</span>
+<span class="sd">    :meth:`~dataforge_ml.ImputationDecision.with_hyperparameters`, identical</span>
+<span class="sd">    whichever author made the plan (ADR-0083).</span>
+
+<span class="sd">    **Re-authoring.** ``base=`` hands the door a plan instead of a column</span>
+<span class="sd">    universe, so a user who ran ``decide`` and disagrees with two of forty</span>
+<span class="sd">    columns changes those two and keeps the thirty-eight the router got right.</span>
+<span class="sd">    This amends ADR-0082 rather than reopening it: a structural edit still</span>
+<span class="sd">    invalidates what is derived downstream of the unit list, but the door</span>
+<span class="sd">    *re-derives* that state — ``with_strategy`` stays deleted because it did</span>
+<span class="sd">    not. See ``base`` for the field-by-field carry-over rules.</span>
+
+<span class="sd">    **What the door cannot check.** It sees names, never data, so a</span>
+<span class="sd">    strategy/dtype mismatch and every size guard stay fit-time failures. That</span>
+<span class="sd">    leaves one accepted asymmetry: a hand-authored unit too small or too typed</span>
+<span class="sd">    to train raises a hard</span>
+<span class="sd">    :class:`~dataforge_ml.imputation.UnitNotTrainableError`, where the same unit</span>
+<span class="sd">    *forced* onto the automatic path is merely reported through</span>
+<span class="sd">    :class:`~dataforge_ml.imputation.FitSignals` as a warning. Parity would mean</span>
+<span class="sd">    handing a decide-time door a frame for the sake of one diagnostic. Which</span>
+<span class="sd">    library guarantees narrow for a hand-authored plan and which do not is</span>
+<span class="sd">    tabulated under &quot;The guarantee boundary&quot; in the imputation API guide;</span>
+<span class="sd">    briefly, everything below the plan is unchanged, while routing rationale,</span>
+<span class="sd">    pre-fit size warnings, and — for a user-supplied estimator — the ``n_jobs``</span>
+<span class="sd">    determinism pinning, the ``core_budget`` count and dial tuning do not apply.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    columns_map : Mapping[str, ImputationStrategy or AuthoredColumn]</span>
+<span class="sd">        The columns the author has an opinion about, keyed by column name. A</span>
+<span class="sd">        bare strategy declares what happens; an :class:`AuthoredColumn` declares</span>
+<span class="sd">        that plus the facts its fitter reads. Every key must appear in</span>
+<span class="sd">        ``columns``.</span>
+<span class="sd">    columns : Sequence[str], optional</span>
+<span class="sd">        Every column of the frames this plan will be fitted and applied to, in</span>
+<span class="sd">        order. Required unless ``base`` is given, and keyword-only:</span>
+<span class="sd">        ``transform`` rejects a frame column the plan never described, so a</span>
+<span class="sd">        partial map without the full universe would build an imputer that</span>
+<span class="sd">        refuses its own author&#39;s frame.</span>
+<span class="sd">    default : ImputationStrategy, optional, default ``ImputationStrategy.Passthrough``</span>
+<span class="sd">        Strategy stamped on every column not named in ``columns_map``. Note that</span>
+<span class="sd">        it flips which case is silent: under ``default=Median`` a forgotten</span>
+<span class="sd">        column is quietly imputed rather than left alone. Not accepted with</span>
+<span class="sd">        ``base``, where an unnamed column keeps the base&#39;s decision instead.</span>
+<span class="sd">    estimators : Mapping[str, Any], optional</span>
+<span class="sd">        Sklearn-compatible estimator instances keyed by **unit id** — in</span>
+<span class="sd">        practice ``{&quot;mice&quot;: my_model}``, MICE being the only strategy with an</span>
+<span class="sd">        estimator slot. Every column of the named unit is stamped</span>
+<span class="sd">        :attr:`~dataforge_ml.ModelChoice.Custom` and the instance is carried on</span>
+<span class="sd">        the plan&#39;s ``custom_estimators`` map, unchanged and uncloned. Keyed by</span>
+<span class="sd">        unit rather than by column because a per-column spelling would let two</span>
+<span class="sd">        estimators be named for one joint block. A pre-fitted estimator is</span>
+<span class="sd">        accepted; its state is inert, since ``IterativeImputer`` clones and</span>
+<span class="sd">        refits from scratch. Two consequences worth knowing: the object is</span>
+<span class="sd">        **shared, not copied**, so mutating it after authoring silently moves</span>
+<span class="sd">        every plan holding it; and it is **never serialized**, so a plan saved</span>
+<span class="sd">        and reloaded keeps the ``Custom`` label with an empty slot and raises at</span>
+<span class="sd">        fit time until the estimator is supplied again. With ``base``, the</span>
+<span class="sd">        base&#39;s estimators are carried and this argument overwrites the entry it</span>
+<span class="sd">        names.</span>
+<span class="sd">    numeric_sentinels : Mapping[str, Sequence[float]], optional</span>
+<span class="sd">        Declared numeric sentinel values per column (e.g. ``-999``), normalised</span>
+<span class="sd">        to nulls before any fit or transform (ADR-0068). Plan-level rather than</span>
+<span class="sd">        per-column, so a sentinel-bearing column the author has no opinion about</span>
+<span class="sd">        is still normalised. With ``base``, the base&#39;s map is carried and an</span>
+<span class="sd">        entry given here overwrites that column&#39;s.</span>
+<span class="sd">    string_sentinels : Mapping[str, Sequence[str]], optional</span>
+<span class="sd">        Declared string sentinel values per column. See ``numeric_sentinels``.</span>
+<span class="sd">    base : ImputationDecision, optional</span>
+<span class="sd">        A plan to re-author. Its columns are the universe, so ``columns`` and</span>
+<span class="sd">        ``default`` are refused alongside it — two sources for one fact, and</span>
+<span class="sd">        nothing left to default. Carry-over runs field by field: a column absent</span>
+<span class="sd">        from ``columns_map`` keeps its decision **verbatim** (semantic type,</span>
+<span class="sd">        model choice, routing signals and all), while a named one is rebuilt</span>
+<span class="sd">        from the map and takes only its semantic type from the base;</span>
+<span class="sd">        ``config_snapshot`` and both sentinel maps are carried verbatim, since a</span>
+<span class="sd">        re-authoring user may no longer hold the profile or the config;</span>
+<span class="sd">        ``custom_estimators`` is carried; the decided hyperparameter base is</span>
+<span class="sd">        **gap-filled, never overwritten**, because ``decide``&#39;s dials are</span>
+<span class="sd">        profile-*computed* and blanket recalculation would be a silent quality</span>
+<span class="sd">        regression rather than a loud crash; and tuning deltas are carried for</span>
+<span class="sd">        surviving units. Everything belonging to a unit the edit dissolved — a</span>
+<span class="sd">        delta, an estimator, a decided base — is **removed**, not left inert: a</span>
+<span class="sd">        dead entry survives ``to_dict`` and a save/load and would spring back to</span>
+<span class="sd">        life when a column re-enters that unit later. Knowingly kept: two</span>
+<span class="sd">        provenances of settings in one plan, and a stale ``n_neighbors`` when a</span>
+<span class="sd">        block&#39;s membership changes, since a structural edit hands dial</span>
+<span class="sd">        responsibility to the author. Nothing records the mix — mixed provenance</span>
+<span class="sd">        gets no field. Re-authoring a *deserialized* plan is allowed and</span>
+<span class="sd">        unguarded, but the units saved beside it were fitted under the old</span>
+<span class="sd">        strategies: the result is a plan to **fit fresh**, never one to pair</span>
+<span class="sd">        with those units.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    ImputationDecision</span>
+<span class="sd">        The immutable plan: one decision per column of the universe (``columns``</span>
+<span class="sd">        or, when re-authoring, the base&#39;s own), the derived MNAR indicator</span>
+<span class="sd">        entries, the materialised units, the complete decided hyperparameter</span>
+<span class="sd">        base, any supplied estimators, and the sentinel maps.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    ValueError</span>
+<span class="sd">        If neither ``columns`` nor ``base`` is given, or if ``base`` is combined</span>
+<span class="sd">        with ``columns`` or ``default``; if a ``columns_map`` key is absent from</span>
+<span class="sd">        the column universe; if an entry declares</span>
+<span class="sd">        a semantic type other than ``Numeric``; if ``Indicator`` is declared; if</span>
+<span class="sd">        ``Constant`` carries no fill; if a bimodal strategy carries fewer than</span>
+<span class="sd">        two centres; if ``ClusterConditional`` carries neither a grouping</span>
+<span class="sd">        variable nor a non-empty ``feature_cols``; if ``MICE`` is declared for</span>
+<span class="sd">        exactly one column, which leaves the block a target and no predictor; or</span>
+<span class="sd">        if an ``estimators`` key names no unit of the plan, names a unit whose</span>
+<span class="sd">        strategy has no estimator slot, or carries ``None``.</span>
+<span class="sd">    TypeError</span>
+<span class="sd">        If a ``columns_map`` value is neither an ``ImputationStrategy`` nor an</span>
+<span class="sd">        ``AuthoredColumn``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">base</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">supplied</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">name</span>
+            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">given</span> <span class="ow">in</span> <span class="p">((</span><span class="s2">&quot;columns&quot;</span><span class="p">,</span> <span class="n">columns</span><span class="p">),</span> <span class="p">(</span><span class="s2">&quot;default&quot;</span><span class="p">,</span> <span class="n">default</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">given</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="p">]</span>
+        <span class="k">if</span> <span class="n">supplied</span><span class="p">:</span>
+            <span class="n">names</span> <span class="o">=</span> <span class="s2">&quot; and &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s2">&#39;&quot;</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">supplied</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;&#39;base&#39; cannot be combined with </span><span class="si">{</span><span class="n">names</span><span class="si">}</span><span class="s2">. A base plan already &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;names every column and already decides the ones the strategy &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;map leaves out.&quot;</span>
+            <span class="p">)</span>
+    <span class="k">elif</span> <span class="n">columns</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;author() needs a column universe: pass &#39;columns&#39; with every column &quot;</span>
+            <span class="s2">&quot;of the frames this plan will see, or &#39;base&#39; with a plan to re-author.&quot;</span>
+        <span class="p">)</span>
+
+    <span class="c1"># The carried universe deliberately excludes the base&#39;s derived</span>
+    <span class="c1"># &#39;{col}_missing&#39; entries: they are a consequence of an MNAR declaration, so</span>
+    <span class="c1"># the indicator pass below re-derives them from whatever survives the edit.</span>
+    <span class="n">carried</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ColumnImputationDecision</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="p">{</span>
+            <span class="n">col</span><span class="p">:</span> <span class="n">decision</span>
+            <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">decision</span> <span class="ow">in</span> <span class="n">base</span><span class="o">.</span><span class="n">column_decisions</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">decision</span><span class="o">.</span><span class="n">strategy</span> <span class="o">!=</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Indicator</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="n">base</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">else</span> <span class="p">{}</span>
+    <span class="p">)</span>
+    <span class="n">ordered</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">carried</span><span class="p">)</span> <span class="k">if</span> <span class="n">base</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">columns</span> <span class="ow">or</span> <span class="p">())</span>
+    <span class="n">known</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">ordered</span><span class="p">)</span>
+    <span class="n">unknown</span> <span class="o">=</span> <span class="p">[</span><span class="n">col</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">columns_map</span> <span class="k">if</span> <span class="n">col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">known</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">unknown</span><span class="p">:</span>
+        <span class="n">names</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">c</span><span class="si">}</span><span class="s2">&#39;&quot;</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">unknown</span><span class="p">))</span>
+        <span class="n">source</span> <span class="o">=</span> <span class="s2">&quot;the base plan&quot;</span> <span class="k">if</span> <span class="n">base</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="s2">&quot;&#39;columns&#39;&quot;</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Column(s) </span><span class="si">{</span><span class="n">names</span><span class="si">}</span><span class="s2"> are named in the strategy map but absent from &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">source</span><span class="si">}</span><span class="s2">. Every planned column must be part of the frame&#39;s &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;column universe.&quot;</span>
+        <span class="p">)</span>
+
+    <span class="n">stamp</span> <span class="o">=</span> <span class="n">default</span> <span class="k">if</span> <span class="n">default</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Passthrough</span>
+
+    <span class="n">decisions</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ColumnImputationDecision</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">ordered</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">columns_map</span> <span class="ow">and</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">carried</span><span class="p">:</span>
+            <span class="n">decisions</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">carried</span><span class="p">[</span><span class="n">col</span><span class="p">]</span>
+            <span class="k">continue</span>
+        <span class="n">entry</span> <span class="o">=</span> <span class="n">_coerce</span><span class="p">(</span>
+            <span class="n">col</span><span class="p">,</span>
+            <span class="n">columns_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">stamp</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="n">_validate</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">entry</span><span class="p">)</span>
+        <span class="c1"># A re-authored column keeps the base&#39;s semantic type rather than the</span>
+        <span class="c1"># door&#39;s Numeric stamp: the field chooses MICE&#39;s predictor set</span>
+        <span class="c1"># (ADR-0079), and where a base exists it is the one that measured it.</span>
+        <span class="n">prior</span> <span class="o">=</span> <span class="n">carried</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
+        <span class="n">decisions</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">_to_decision</span><span class="p">(</span>
+            <span class="n">col</span><span class="p">,</span>
+            <span class="n">entry</span><span class="p">,</span>
+            <span class="n">prior</span><span class="o">.</span><span class="n">semantic_type</span> <span class="k">if</span> <span class="n">prior</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">SemanticType</span><span class="o">.</span><span class="n">Numeric</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="n">mice_cols</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">c</span> <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">decisions</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MICE</span>
+    <span class="p">]</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">mice_cols</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">mice_cols</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">&#39;: MICE is a joint block over several &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;columns and was declared for this one alone, leaving it a target &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;with no predictor. Declare MICE for at least two columns.&quot;</span>
+        <span class="p">)</span>
+
+    <span class="c1"># Indicator pass: pre-register the {col}_missing columns the MNAR mechanism</span>
+    <span class="c1"># appends at transform time, exactly as decide() does.</span>
+    <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">decision</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">decisions</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">decision</span><span class="o">.</span><span class="n">indicator_flag</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">indicator_col</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">_missing&quot;</span>
+        <span class="n">decisions</span><span class="p">[</span><span class="n">indicator_col</span><span class="p">]</span> <span class="o">=</span> <span class="n">ColumnImputationDecision</span><span class="p">(</span>
+            <span class="n">column</span><span class="o">=</span><span class="n">indicator_col</span><span class="p">,</span>
+            <span class="n">semantic_type</span><span class="o">=</span><span class="n">SemanticType</span><span class="o">.</span><span class="n">Boolean</span><span class="p">,</span>
+            <span class="n">strategy</span><span class="o">=</span><span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Indicator</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="n">units</span> <span class="o">=</span> <span class="n">_derive_units</span><span class="p">(</span><span class="n">decisions</span><span class="p">)</span>
+
+    <span class="n">live</span> <span class="o">=</span> <span class="p">{</span><span class="n">unit</span><span class="o">.</span><span class="n">unit_id</span> <span class="k">for</span> <span class="n">unit</span> <span class="ow">in</span> <span class="n">units</span><span class="p">}</span>
+
+    <span class="c1"># The estimators channel: the author&#39;s own instance, stamped as Custom on</span>
+    <span class="c1"># every column of the unit it was named for (ADR-0083). Held by identity —</span>
+    <span class="c1"># never cloned, here or on any derived copy. A base&#39;s estimator survives</span>
+    <span class="c1"># only as long as its unit does.</span>
+    <span class="n">custom_estimators</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="p">{</span>
+            <span class="n">unit_id</span><span class="p">:</span> <span class="n">estimator</span>
+            <span class="k">for</span> <span class="n">unit_id</span><span class="p">,</span> <span class="n">estimator</span> <span class="ow">in</span> <span class="n">base</span><span class="o">.</span><span class="n">custom_estimators</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">unit_id</span> <span class="ow">in</span> <span class="n">live</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="n">base</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">else</span> <span class="p">{}</span>
+    <span class="p">)</span>
+    <span class="n">custom_estimators</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">_resolve_estimators</span><span class="p">(</span><span class="n">estimators</span> <span class="ow">or</span> <span class="p">{},</span> <span class="n">units</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">unit_id</span> <span class="ow">in</span> <span class="n">custom_estimators</span><span class="p">:</span>
+        <span class="n">unit</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">u</span> <span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="n">units</span> <span class="k">if</span> <span class="n">u</span><span class="o">.</span><span class="n">unit_id</span> <span class="o">==</span> <span class="n">unit_id</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">unit</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="n">decisions</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">decisions</span><span class="p">[</span><span class="n">col</span><span class="p">],</span> <span class="n">model_choice</span><span class="o">=</span><span class="n">ModelChoice</span><span class="o">.</span><span class="n">Custom</span><span class="p">)</span>
+
+    <span class="c1"># The decided base is written eagerly from the one dial table decide() reads,</span>
+    <span class="c1"># so with_hyperparameters works on a hand-authored plan exactly as on a</span>
+    <span class="c1"># decided one (ADR-0083). A strategy with no dial row gets no entry. Under</span>
+    <span class="c1"># a base the table only *gap-fills*: a router-computed value outranks the</span>
+    <span class="c1"># neutral one, and a unit the edit dissolved leaves nothing behind.</span>
+    <span class="n">decided_hyperparameters</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">...</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">unit</span> <span class="ow">in</span> <span class="n">units</span><span class="p">:</span>
+        <span class="n">dials</span> <span class="o">=</span> <span class="n">_dial_defaults</span><span class="p">(</span><span class="n">unit</span><span class="o">.</span><span class="n">strategy</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">base</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">dials</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">base</span><span class="o">.</span><span class="n">decided_hyperparameters</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">unit</span><span class="o">.</span><span class="n">unit_id</span><span class="p">,</span> <span class="p">())))</span>
+        <span class="k">if</span> <span class="n">dials</span><span class="p">:</span>
+            <span class="n">decided_hyperparameters</span><span class="p">[</span><span class="n">unit</span><span class="o">.</span><span class="n">unit_id</span><span class="p">]</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">dials</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+
+    <span class="c1"># Tuning deltas ride along for surviving units; an orphan is removed rather</span>
+    <span class="c1"># than left inert, since a dead delta survives a save/load and springs back</span>
+    <span class="c1"># to life when a column re-enters that unit later.</span>
+    <span class="n">override_hyperparameters</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">...</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="p">{</span>
+            <span class="n">unit_id</span><span class="p">:</span> <span class="n">delta</span>
+            <span class="k">for</span> <span class="n">unit_id</span><span class="p">,</span> <span class="n">delta</span> <span class="ow">in</span> <span class="n">base</span><span class="o">.</span><span class="n">override_hyperparameters</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">unit_id</span> <span class="ow">in</span> <span class="n">live</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="n">base</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">else</span> <span class="p">{}</span>
+    <span class="p">)</span>
+
+    <span class="n">numeric</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="p">{</span><span class="n">col</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">vals</span><span class="p">)</span> <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">vals</span> <span class="ow">in</span> <span class="n">base</span><span class="o">.</span><span class="n">numeric_sentinels</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+        <span class="k">if</span> <span class="n">base</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">else</span> <span class="p">{}</span>
+    <span class="p">)</span>
+    <span class="n">numeric</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+        <span class="p">{</span>
+            <span class="n">col</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">vals</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">vals</span> <span class="ow">in</span> <span class="p">(</span><span class="n">numeric_sentinels</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="p">}</span>
+    <span class="p">)</span>
+    <span class="n">strings</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="p">{</span><span class="n">col</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">vals</span><span class="p">)</span> <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">vals</span> <span class="ow">in</span> <span class="n">base</span><span class="o">.</span><span class="n">string_sentinels</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+        <span class="k">if</span> <span class="n">base</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">else</span> <span class="p">{}</span>
+    <span class="p">)</span>
+    <span class="n">strings</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+        <span class="p">{</span><span class="n">col</span><span class="p">:</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">vals</span><span class="p">]</span> <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">vals</span> <span class="ow">in</span> <span class="p">(</span><span class="n">string_sentinels</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+    <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">ImputationDecision</span><span class="p">(</span>
+        <span class="n">column_decisions</span><span class="o">=</span><span class="n">decisions</span><span class="p">,</span>
+        <span class="n">config_snapshot</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">base</span><span class="o">.</span><span class="n">config_snapshot</span><span class="p">)</span> <span class="k">if</span> <span class="n">base</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">{},</span>
+        <span class="n">decided_hyperparameters</span><span class="o">=</span><span class="n">decided_hyperparameters</span><span class="p">,</span>
+        <span class="n">override_hyperparameters</span><span class="o">=</span><span class="n">override_hyperparameters</span><span class="p">,</span>
+        <span class="n">custom_estimators</span><span class="o">=</span><span class="n">custom_estimators</span><span class="p">,</span>
+        <span class="n">numeric_sentinels</span><span class="o">=</span><span class="n">numeric</span><span class="p">,</span>
+        <span class="n">string_sentinels</span><span class="o">=</span><span class="n">strings</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

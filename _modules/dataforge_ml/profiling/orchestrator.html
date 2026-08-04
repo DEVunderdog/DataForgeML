@@ -427,27 +427,27 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">._base</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModalityProfiler</span><span class="p">,</span> <span class="n">ColumnBatchProfiler</span><span class="p">,</span> <span class="n">OverrideCoercionError</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">._tabular</span><span class="w"> </span><span class="kn">import</span> <span class="n">TabularProfiler</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">._categorical</span><span class="w"> </span><span class="kn">import</span> <span class="n">CategoricalProfiler</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">._datetime_profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">DatetimeProfiler</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">._numeric_profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">NumericProfiler</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">._boolean_profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">BooleanProfiler</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">._text_profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">TextProfiler</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">._missingness_profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">MissingnessProfiler</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">._target_profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetProfiler</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">._correlation_profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">CorrelationProfiler</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">._nonlinearity_profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">NonlinearityProfiler</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">._type_detector</span><span class="w"> </span><span class="kn">import</span> <span class="n">TypeDetector</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">..config</span><span class="w"> </span><span class="kn">import</span> <span class="n">PipelineConfig</span><span class="p">,</span> <span class="n">PipelinePhase</span><span class="p">,</span> <span class="n">SemanticType</span><span class="p">,</span> <span class="n">Modality</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..config</span><span class="w"> </span><span class="kn">import</span> <span class="n">Modality</span><span class="p">,</span> <span class="n">PipelineConfig</span><span class="p">,</span> <span class="n">PipelinePhase</span><span class="p">,</span> <span class="n">SemanticType</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">..observability</span><span class="w"> </span><span class="kn">import</span> <span class="n">Observer</span><span class="p">,</span> <span class="n">_ObservabilityMixin</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..utils._null_normalization</span><span class="w"> </span><span class="kn">import</span> <span class="n">_resolve_effective_nulls</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._base</span><span class="w"> </span><span class="kn">import</span> <span class="n">ColumnBatchProfiler</span><span class="p">,</span> <span class="n">ModalityProfiler</span><span class="p">,</span> <span class="n">OverrideCoercionError</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._boolean_profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">BooleanProfiler</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._categorical</span><span class="w"> </span><span class="kn">import</span> <span class="n">CategoricalProfiler</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">ColumnProfile</span><span class="p">,</span>
-    <span class="n">StructuralProfileResult</span><span class="p">,</span>
     <span class="n">RowMissingnessDistribution</span><span class="p">,</span>
+    <span class="n">StructuralProfileResult</span><span class="p">,</span>
     <span class="n">TypeFlag</span><span class="p">,</span>
 <span class="p">)</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">..utils._null_normalization</span><span class="w"> </span><span class="kn">import</span> <span class="n">_resolve_effective_nulls</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._correlation_profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">CorrelationProfiler</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._datetime_profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">DatetimeProfiler</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._missingness_profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">MissingnessProfiler</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._nonlinearity_profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">NonlinearityProfiler</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._numeric_profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">NumericProfiler</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._tabular</span><span class="w"> </span><span class="kn">import</span> <span class="n">TabularProfiler</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._target_profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetProfiler</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._text_profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">TextProfiler</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._type_detector</span><span class="w"> </span><span class="kn">import</span> <span class="n">TypeDetector</span>
 
 <span class="c1"># ---------------------------------------------------------------------------</span>
 <span class="c1"># Registry: SemanticType → ColumnTypeProfiler class</span>

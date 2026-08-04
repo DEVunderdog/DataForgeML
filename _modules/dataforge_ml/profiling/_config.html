@@ -407,12 +407,25 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">InitVar</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">InitVar</span><span class="p">,</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">StrEnum</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">types</span><span class="w"> </span><span class="kn">import</span> <span class="n">MappingProxyType</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Union</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">..config</span><span class="w"> </span><span class="kn">import</span> <span class="n">SemanticType</span><span class="p">,</span> <span class="n">Modality</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..config</span><span class="w"> </span><span class="kn">import</span> <span class="n">Modality</span><span class="p">,</span> <span class="n">SemanticType</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._boolean_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">BooleanStats</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._categorical_config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">CategoricalProfileConfig</span><span class="p">,</span>
+    <span class="n">CategoricalStats</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._correlation_config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">CorrelationProfileConfig</span><span class="p">,</span>
+    <span class="n">CorrelationProfileResult</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._datetime_config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">DatetimeProfileConfig</span><span class="p">,</span>
+    <span class="n">DatetimeStats</span><span class="p">,</span>
+<span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._missingness_config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">ColumnMissingnessProfile</span><span class="p">,</span>
     <span class="n">MissingnessFlag</span><span class="p">,</span>
@@ -420,28 +433,15 @@
     <span class="n">MissingSeverity</span><span class="p">,</span>
     <span class="n">RowMissingnessDistribution</span><span class="p">,</span>
 <span class="p">)</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">._correlation_config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-    <span class="n">CorrelationProfileResult</span><span class="p">,</span>
-    <span class="n">CorrelationProfileConfig</span><span class="p">,</span>
-<span class="p">)</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">._categorical_config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-    <span class="n">CategoricalStats</span><span class="p">,</span>
-    <span class="n">CategoricalProfileConfig</span><span class="p">,</span>
-<span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._numeric_config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-    <span class="n">NonlinearityTag</span><span class="p">,</span>
-    <span class="n">NumericStats</span><span class="p">,</span>
-    <span class="n">NumericProfileConfig</span><span class="p">,</span>
     <span class="n">NonlinearityProfileConfig</span><span class="p">,</span>
+    <span class="n">NonlinearityTag</span><span class="p">,</span>
+    <span class="n">NumericProfileConfig</span><span class="p">,</span>
+    <span class="n">NumericStats</span><span class="p">,</span>
 <span class="p">)</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">._datetime_config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-    <span class="n">DatetimeStats</span><span class="p">,</span>
-    <span class="n">DatetimeProfileConfig</span><span class="p">,</span>
-<span class="p">)</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">._type_detection_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">TypeDetectionConfig</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">._boolean_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">BooleanStats</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">._text_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">TextStats</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._target_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetProfileResult</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._text_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">TextStats</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._type_detection_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">TypeDetectionConfig</span>
 
 <span class="c1"># ---------------------------------------------------------------------------</span>
 <span class="c1"># Type-detection enums — kept for TypeDetector compatibility</span>

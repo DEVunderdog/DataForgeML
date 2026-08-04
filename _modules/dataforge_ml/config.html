@@ -402,12 +402,12 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">StrEnum</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Union</span><span class="p">,</span> <span class="n">Optional</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">types</span><span class="w"> </span><span class="kn">import</span> <span class="n">MappingProxyType</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Union</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">dataforge_ml.profiling._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProfileConfig</span><span class="p">,</span> <span class="n">NumericKind</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">dataforge_ml.imputation._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">ImputationConfig</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">dataforge_ml.profiling._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">NumericKind</span><span class="p">,</span> <span class="n">ProfileConfig</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">dataforge_ml.splitting._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">SplitConfig</span>
 
 
@@ -755,8 +755,8 @@
 <span class="sd">            Fully populated configuration instance with all nested sub-configs</span>
 <span class="sd">            restored.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="kn">from</span><span class="w"> </span><span class="nn">dataforge_ml.profiling._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProfileConfig</span>
         <span class="kn">from</span><span class="w"> </span><span class="nn">dataforge_ml.imputation._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">ImputationConfig</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">dataforge_ml.profiling._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProfileConfig</span>
         <span class="kn">from</span><span class="w"> </span><span class="nn">dataforge_ml.splitting._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">SplitConfig</span>
         <span class="n">cfg</span> <span class="o">=</span> <span class="bp">cls</span><span class="p">(</span>
             <span class="n">profiling</span><span class="o">=</span><span class="n">ProfileConfig</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;profiling&quot;</span><span class="p">,</span> <span class="p">{})),</span>
