@@ -191,7 +191,26 @@ class RegressionEstimatorFactory:
             A freshly constructed, unfitted sklearn-compatible estimator, or
             ``None`` when ``choice`` is ``None`` (signals the caller to route the
             column to a scalar fallback instead).
+
+        Raises
+        ------
+        ValueError
+            If ``choice`` is :attr:`~dataforge_ml.ModelChoice.Custom`.  That
+            member names an estimator the library did not build, so there is
+            nothing here to construct; the instance travels on the plan's
+            ``custom_estimators`` map and the caller reads it from there
+            (ADR-0083).  A plan reloaded from bytes has the slot empty — the
+            estimator is never serialized — and this raise is what stops such a
+            plan silently imputing with a library default instead.
         """
+        if choice == ModelChoice.Custom:
+            raise ValueError(
+                "ModelChoice.Custom names a user-supplied estimator, which this "
+                "factory did not build and cannot reconstruct. The instance is "
+                "not serialized, so a plan reloaded from bytes carries the label "
+                "with an empty slot; re-supply it with "
+                "author(..., estimators={unit_id: estimator})."
+            )
         if choice == ModelChoice.BayesianRidge:
             return Pipeline([
                 ("scaler", StandardScaler()),

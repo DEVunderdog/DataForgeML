@@ -139,6 +139,7 @@ def _fit_context(
             if d.semantic_type == SemanticType.Numeric
         ),
         random_seed=random_seed,
+        custom_estimators=decision.custom_estimators,
     )
 
 
@@ -332,6 +333,21 @@ def core_budget(
     ``MonotonicNonlinear`` takes ``RandomForestRegressor`` at any row count and
     stays able to spend a budget.
 
+    **A user-supplied estimator is priced at ``1`` in every branch**, the
+    sequential ``max_workers=1`` one included (ADR-0083). The library never sets
+    a foreign estimator's parameters, so ``1`` is the truthful count of cores
+    *the library* spends; ``total_cores`` remains the hatch for reserving the
+    rest. There is no ``n_jobs`` probe: it would fire on correct plans while
+    missing ``nthread``, ``num_threads``, and every internal pool that is not
+    exposed as a parameter.
+
+    The budget is therefore structurally blind to parallelism configured inside
+    a foreign object, and the documented pattern for one is to **fit that unit
+    outside your pool**, where it has the machine to itself, driving the
+    remaining units through the pool on this budget. ``total_cores`` is the
+    reservation hatch: pass it reduced by whatever the self-parallelising fit
+    will take, so the two never contend for the same cores.
+
     **The budget is a snapshot.** It describes the plan as it was when the call
     returned. A plan edit in between — :meth:`ImputationDecision.with_model_choice`,
     :meth:`ImputationDecision.with_hyperparameters` — or a fresh
@@ -348,6 +364,14 @@ def core_budget(
     if mice_unit is None:
         return budget
 
+    model_choice = _block_model_choice(decision, mice_unit.columns)
+    if model_choice == ModelChoice.Custom:
+        # A user-supplied estimator is never configured by the library, so 1 is
+        # the truthful count of cores *the library* spends on it — in every
+        # branch, the sequential one included (ADR-0083). No introspection and
+        # no new knob: total_cores is already the reservation hatch.
+        return budget
+
     if max_workers == 1:
         # Outer degree one: the inner layer gets the whole machine (ADR-0069).
         # Unconditional, so a sequential driver reads the same -1 here that
@@ -355,7 +379,6 @@ def core_budget(
         budget[mice_unit.unit_id] = -1
         return budget
 
-    model_choice = _block_model_choice(decision, mice_unit.columns)
     if model_choice != ModelChoice.RandomForestRegressor:
         # BayesianRidge and GradientBoostingRegressor have no n_jobs to spend
         # (ADR-0069), and a block that resolved no choice cannot train at all;

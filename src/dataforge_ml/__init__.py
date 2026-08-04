@@ -22,6 +22,7 @@ from .config import Modality, PipelineConfig, PipelinePhase, SemanticType
 from .imputation import (
     AccuracyDiagnostic,
     AccuracyReport,
+    AuthoredColumn,
     ColumnImputationDecision,
     ColumnImputationRecord,
     DroppedColumnAbsentWarning,
@@ -39,10 +40,10 @@ from .imputation import (
     InspectionReport,
     ModelChoice,
     NumericImputationConfig,
-    UnfittedColumnError,
     UnitFitResult,
     UnitNotTrainableError,
     UnseenColumnError,
+    author,
     core_budget,
     decide,
     fit_unit,
@@ -96,6 +97,11 @@ __all__ = [
     # FittedImputer.compose() aggregates. There is no fused entry point
     # (ADR-0060, ADR-0071).
     "decide",
+    # The manual authoring door: a user who knows their own data writes the
+    # plan decide() would have derived, and it is indistinguishable downstream
+    # (ADR-0083).
+    "author",
+    "AuthoredColumn",
     "fit_unit",
     "core_budget",
     "UnitFitResult",
@@ -143,7 +149,6 @@ __all__ = [
     # Exceptions the user catches
     "UnseenColumnError",
     "FittedColumnAbsentError",
-    "UnfittedColumnError",
     "OverrideCoercionError",
     "UnsupportedFormatError",
     "IncompatibleArtifactError",

@@ -6,10 +6,12 @@ complete, value-free imputation plan derived purely from
 ``(profile, shape, config)``, where ``n_rows`` *is* the shape input. The
 assembler reuses the routing kernel ``_StrategyRouter.route()`` (which keeps its
 one job — return ``(strategy, signals)``), resolves each column's concrete
-``ModelChoice`` at decide-time via ``RegressionEstimatorFactory``, surfaces
-``domain_snap_bounds``, folds in the indicator/mnar/drop flags, and materialises
-the execution units. No training data is touched — routing is a pure function of
-the Phase 1 profile (ADR-0060).
+``ModelChoice`` at decide-time via ``RegressionEstimatorFactory``, lowers every
+fact about the data onto the column — ``domain_snap_bounds``, the bimodal
+centres, ``feature_cols``, the grouping variable and the constant fill (ADR-0083)
+— folds in the indicator/mnar/drop flags, and materialises the execution units.
+No training data is touched — routing is a pure function of the Phase 1 profile
+(ADR-0060).
 """
 
 from __future__ import annotations
@@ -30,6 +32,7 @@ from ._config import (
     ImputationStrategy,
     ModelChoice,
     NumericImputationConfig,
+    _dial_defaults,
 )
 from ._regression_estimator_factory import RegressionEstimatorFactory
 from ._strategy_router import _StrategyRouter
@@ -71,6 +74,35 @@ def _resolve_nonlinearity_tag(
     ):
         tag = NonlinearityTag.MonotonicNonlinear
     return tag
+
+
+def _decided_base(
+    strategy: ImputationStrategy,
+    dials: dict[str, Any],
+    facts: dict[str, Any] | None = None,
+) -> tuple[tuple[str, Any], ...]:
+    """Build one unit's decided base from the strategy's dial row.
+
+    The row is the starting point and the key set: ``dials`` may only *overwrite*
+    values ``_STRATEGY_DIALS`` already declares, so a dial :func:`decide` computes but
+    the table never declared is a loud error here rather than a base only one of
+    the two authors writes. ``facts`` are the profile-derived values a fitter
+    reads that are not dials at all (a bimodal unit's centres, its predictor
+    columns); they are carried alongside and may not shadow a dial.
+    """
+    base = _dial_defaults(strategy)
+    undeclared = set(dials) - set(base)
+    if undeclared:
+        raise ValueError(
+            f"{strategy} has no dial(s) {sorted(undeclared)} in _STRATEGY_DIALS; "
+            f"declare them in the table before deciding them."
+        )
+    base.update(dials)
+    for key, value in (facts or {}).items():
+        if key in _dial_defaults(strategy):
+            raise ValueError(f"{strategy} fact '{key}' collides with a declared dial.")
+        base[key] = value
+    return tuple(base.items())
 
 
 def _column_stats(cp: "ColumnProfile") -> "Optional[NumericStats]":
@@ -134,6 +166,13 @@ def decide(
     bounds and the indicator/mnar/drop flags, and materialises the execution
     units — all as a pure function of ``(profile, shape, config)`` that trains
     nothing and never touches a DataFrame.
+
+    Every fact about the data is declared here and only here: the bimodal
+    centres and ``feature_cols`` are measurements lowered from the profile, and
+    the grouping variable and the constant fill are lowered from ``config``, all
+    onto ``ColumnImputationDecision`` (ADR-0083). No fitter reads ``config`` for
+    them, so a saved plan fits without the config that produced it — and editing
+    ``config`` between ``decide()`` and ``fit_unit()`` no longer has any effect.
 
     ``decide`` resolves its own active column set for the Imputation phase from
     ``config`` (Hard Exclusions plus Imputation-phase Soft Exclusions) — no
@@ -247,10 +286,9 @@ def decide(
     # First pass: route every numeric column, recording strategy, signals, and
     # profile-derived descriptors. Non-numeric semantic columns pass through.
     routed: dict[str, tuple[ImputationStrategy, tuple[str, ...]]] = {}
-    forced_columns: dict[str, bool] = {}
     for col in numeric_cols:
         cp = profile.columns[col]
-        strategy, signals, forced = router.route(
+        strategy, signals = router.route(
             col=col,
             cp=cp,
             config=numeric_cfg,
@@ -263,7 +301,6 @@ def decide(
             per_column_constant_fill=per_column_constant_fill,
         )
         routed[col] = (strategy, tuple(signals))
-        forced_columns[col] = forced
 
     # The MICE block trains one estimator chosen from the whole block's winning
     # tag, so every MICE column carries that same block-level model choice.
@@ -288,23 +325,19 @@ def decide(
             _complete_row_fraction(profile),
             numeric_cfg,
         )
-        if numeric_cfg.mice_max_iter is not None:
-            mice_max_iter = numeric_cfg.mice_max_iter
         mice_tol = _compute_mice_tol(winning_tag, mice_stats)
         mice_initial_strategy = _mice_initial_strategy(mice_stats)
         mice_n_nearest, _ = _compute_mice_n_nearest_features(
             feature_correlation, mice_cols, numeric_cols, numeric_cfg
         )
-        mice_hyperparameters = tuple(
+        mice_hyperparameters = _decided_base(
+            ImputationStrategy.MICE,
             {
                 "max_iter": mice_max_iter,
                 "tol": mice_tol,
                 "initial_strategy": mice_initial_strategy,
                 "n_nearest_features": mice_n_nearest,
-                "miss_frac": _block_miss_fraction(profile, mice_cols),
-                "complete_frac": _complete_row_fraction(profile),
-                "nonlinearity_tag": str(winning_tag),
-            }.items()
+            },
         )
 
     knn_cols = [c for c, (s, _) in routed.items() if s == ImputationStrategy.KNN]
@@ -317,15 +350,9 @@ def decide(
             _complete_row_fraction(profile),
             numeric_cfg,
         )
-        if numeric_cfg.knn_n_neighbors is not None:
-            knn_n_neighbors = numeric_cfg.knn_n_neighbors
-        knn_hyperparameters = tuple(
-            {
-                "n_neighbors": knn_n_neighbors,
-                "weights": knn_weights,
-                "miss_frac": _block_miss_fraction(profile, knn_cols),
-                "complete_frac": _complete_row_fraction(profile),
-            }.items()
+        knn_hyperparameters = _decided_base(
+            ImputationStrategy.KNN,
+            {"n_neighbors": knn_n_neighbors, "weights": knn_weights},
         )
 
     decided_hyperparameters = {}
@@ -366,17 +393,18 @@ def decide(
         if strategy in (ImputationStrategy.MICE, ImputationStrategy.KNN):
             pass  # Resolved block-wide above.
         elif strategy == ImputationStrategy.MNAR:
-            decided_hyperparameters[f"{strategy}:{col}"] = tuple(
-                {"central_tendency": _mnar_central_tendency(cp)}.items()
+            decided_hyperparameters[f"{strategy}:{col}"] = _decided_base(
+                strategy, {"central_tendency": _mnar_central_tendency(cp)}
             )
         elif strategy in (
             ImputationStrategy.GMMSampling,
             ImputationStrategy.ClusterConditional,
         ):
             decided_hyperparameters[f"{strategy}:{col}"] = _bimodal_hyperparameters(
-                col, cp, strategy, feature_correlation, numeric_cfg
+                cp, strategy
             )
 
+        center1, center2 = _bimodal_centers(cp, strategy)
         decisions[col] = ColumnImputationDecision(
             column=col,
             semantic_type=SemanticType.Numeric,
@@ -384,10 +412,18 @@ def decide(
             signals=signals,
             model_choice=model_choice,
             domain_snap_bounds=_resolve_domain_snap_bounds(cp, strategy),
+            center1=center1,
+            center2=center2,
+            feature_cols=(
+                _correlated_feature_cols(col, feature_correlation, numeric_cfg)
+                if strategy == ImputationStrategy.ClusterConditional
+                else None
+            ),
+            grouping_variable=numeric_cfg.bimodal_grouping_variables.get(col),
+            constant_fill=per_column_constant_fill.get(col),
             indicator_flag=strategy == ImputationStrategy.MNAR,
             mnar=strategy == ImputationStrategy.MNAR,
             drop=strategy == ImputationStrategy.Dropped,
-            forced=forced_columns[col],
         )
 
     # Indicator pass: pre-register the {col}_missing columns the MNAR mechanism
@@ -404,11 +440,7 @@ def decide(
 
     return ImputationDecision(
         column_decisions=decisions,
-        decided_for_shape=(n_rows, n_features, tuple(numeric_cols)),
         config_snapshot=config.to_dict(),
-        profile_provenance={
-            "row_count": profile.dataset.row_count,
-        },
         decided_hyperparameters=decided_hyperparameters,
         numeric_sentinels={k: list(v) for k, v in profile.numeric_sentinels.items()},
         string_sentinels={k: list(v) for k, v in profile.string_sentinels.items()},
@@ -431,42 +463,49 @@ def _mnar_central_tendency(cp: "ColumnProfile") -> str:
     return "median"
 
 
-def _bimodal_hyperparameters(
-    col: str,
-    cp: "ColumnProfile",
-    strategy: ImputationStrategy,
-    feature_correlation,
-    config: NumericImputationConfig,
-) -> tuple[tuple[str, Any], ...]:
-    """Resolve the decide-time dials for a GMM-Sampling or Cluster-Conditional unit.
+def _bimodal_centers(
+    cp: ColumnProfile, strategy: ImputationStrategy
+) -> tuple[Optional[float], Optional[float]]:
+    """The two mode centres a bimodal column's fitter splits on, else ``(None, None)``.
 
-    Both bimodal strategies are driven by profile facts the execution layer has
-    no way to see — the two mode centres, the column's skewness, and (for
-    Cluster-Conditional's centroid branch) which features correlate with the
-    target. Carrying them on the unit is what lets a fitter be handed a plan and
-    a frame and nothing else (ADR-0062).
+    A measurement Phase 1 made, not a dial, so it is lowered onto the column
+    decision rather than carried as a hyperparameter (ADR-0083).
     """
+    if strategy not in (
+        ImputationStrategy.GMMSampling,
+        ImputationStrategy.ClusterConditional,
+    ):
+        return None, None
     stats = _column_stats(cp)
     bimodal = stats.bimodal_stats if stats is not None else None
     if bimodal is None:
-        return ()
+        return None, None
+    return bimodal.center1, bimodal.center2
 
-    hyperparameters: dict[str, Any] = {
-        "center1": bimodal.center1,
-        "center2": bimodal.center2,
-        "central_tendency": (
-            "mean"
-            if stats is not None and stats.skewness_severity == SkewSeverity.Normal
-            else "median"
-        ),
-    }
 
+def _bimodal_hyperparameters(
+    cp: ColumnProfile,
+    strategy: ImputationStrategy,
+) -> tuple[tuple[str, Any], ...]:
+    """Resolve the decide-time dials for a GMM-Sampling or Cluster-Conditional unit.
+
+    Only ``central_tendency`` is left here: it is computed from the column's
+    skewness the way ``max_iter`` is computed, so it is a dial. The centres and
+    the centroid features are measurements and live on the column decision
+    (ADR-0083).
+    """
+    stats = _column_stats(cp)
+    central_tendency = (
+        "mean"
+        if stats is not None and stats.skewness_severity == SkewSeverity.Normal
+        else "median"
+    )
     if strategy == ImputationStrategy.ClusterConditional:
-        hyperparameters["feature_cols"] = _correlated_feature_cols(
-            col, feature_correlation, config
-        )
+        return _decided_base(strategy, {"central_tendency": central_tendency})
 
-    return tuple(hyperparameters.items())
+    # GMM-Sampling has no dial row: its fit is driven entirely by the centres on
+    # the column decision, so nothing on its base is overridable.
+    return _decided_base(strategy, {}, facts={"central_tendency": central_tendency})
 
 
 def _correlated_feature_cols(

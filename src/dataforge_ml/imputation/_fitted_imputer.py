@@ -22,7 +22,6 @@ from ..config import PipelineConfig, PipelinePhase
 from ..models._data_types import _FLOAT_DTYPES, _INT_DTYPES
 from ..utils._null_normalization import _resolve_effective_nulls
 from ._config import (
-    _EXCLUSION_SIGNAL,
     ColumnImputationRecord,
     ImputationResult,
     ImputationStrategy,
@@ -66,16 +65,6 @@ def _normalize_results(decision: Any, results: Any) -> dict[str, Any]:
             unit_id, fitted = _resolve(None, item)
             normalized[unit_id] = fitted
     return normalized
-
-
-class UnfittedColumnError(Exception):
-    """
-    Raised by FittedImputer.transform() when the input DataFrame contains
-    missing values in a column for which no fill strategy was learned during
-    fit() — i.e. the column had zero missing values in the training split.
-
-    Typically indicates that a non-profile-stratified split was used.
-    """
 
 
 class DroppedColumnAbsentWarning(UserWarning):
@@ -582,7 +571,8 @@ class FittedImputer:
         Sentinel-encoded Effective Nulls are normalised off the plan's
         declared maps before any fill (ADR-0068), and each model-based unit's
         Observed-Value Preservation (ADR-0078) guarantees that only cells
-        missing in the normalised frame receive fill values.
+        missing in the normalised frame receive fill values. A ``Passthrough``
+        column is left completely alone, nulls included (ADR-0083).
 
         Parameters
         ----------
@@ -606,11 +596,6 @@ class FittedImputer:
             If a column with an active imputation strategy (any strategy other
             than ``Dropped`` or ``Indicator``) is absent from df. All absent
             column names are reported in one raise.
-        UnfittedColumnError
-            If df has missing values in a column that had no missingness during
-            fit() (strategy == Passthrough). Columns soft-excluded for the
-            Imputation phase are exempt: they are Passthrough by declaration and
-            their missing values ride through untouched.
 
         Warns
         -----
@@ -648,30 +633,6 @@ class FittedImputer:
             numeric_sentinels=self.numeric_sentinels,
             string_sentinels=self.string_sentinels,
         )
-
-        # --- Passthrough violation check ---
-        # A column soft-excluded for the Imputation phase is Passthrough by
-        # declaration, not because fit saw no missingness: its missing values
-        # ride through untouched rather than raising.
-        violating_cols: list[str] = []
-        for col, rec in self.records.items():
-            if rec.decision.strategy != ImputationStrategy.Passthrough:
-                continue
-            if _EXCLUSION_SIGNAL in rec.decision.signals:
-                continue
-            if col not in df.columns:
-                continue
-            if df[col].null_count() > 0:
-                violating_cols.append(col)
-
-        if violating_cols:
-            cols_str = ", ".join(f"'{c}'" for c in violating_cols)
-            raise UnfittedColumnError(
-                f"Column(s) {cols_str} have missing values but no fill strategy was "
-                f"learned during fit() because the training split had no missing "
-                f"values. Consider using DataSplitter.profile_stratified_split() "
-                f"to ensure missingness is represented in training data."
-            )
 
         # --- Warn about already-absent dropped columns ---
         for col, rec in self.records.items():

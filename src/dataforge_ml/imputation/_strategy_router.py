@@ -51,7 +51,7 @@ class _StrategyRouter:
         feature_correlation: "Optional[CorrelationProfileResult]" = None,
         per_column_strategy: "Optional[dict[str, ImputationStrategy]]" = None,
         per_column_constant_fill: "Optional[dict[str, float]]" = None,
-    ) -> tuple[ImputationStrategy, list[str], bool]:
+    ) -> tuple[ImputationStrategy, list[str]]:
         """Route a single column to its imputation strategy.
 
         Parameters
@@ -87,12 +87,11 @@ class _StrategyRouter:
 
         Returns
         -------
-        tuple[ImputationStrategy, list[str], bool]
-            ``(strategy, signals, forced)`` where ``signals`` records every
-            routing decision in order and ``forced`` is ``True`` only when the
-            Priority 1.5 ``per_column_strategy`` override actually fired — a
-            column pre-empted by ``DropCandidate`` or ``per_column_constant_fill``
-            is not forced, however the user declared it (ADR-0066).
+        tuple[ImputationStrategy, list[str]]
+            ``(strategy, signals)`` where ``signals`` records every routing
+            decision in order. A user-declared strategy is recorded only as the
+            ``per_column_strategy_override`` signal, for human readers; no
+            machine predicate for it survives on the plan (ADR-0083).
         """
         missingness = cp.missingness
         signals: list[str] = []
@@ -102,18 +101,18 @@ class _StrategyRouter:
             signals.append(
                 f"drop_candidate: {missingness.effective_null_ratio:.1%} effective missing"
             )
-            return ImputationStrategy.Dropped, signals, False
+            return ImputationStrategy.Dropped, signals
 
         # Priority 1.5: per_column_constant_fill override — fires before per_column_strategy
         if per_column_constant_fill and col in per_column_constant_fill:
             signals.append("per_column_constant_fill_override: user declared constant fill")
-            return ImputationStrategy.Constant, signals, False
+            return ImputationStrategy.Constant, signals
 
         # Priority 1.5: per_column_strategy override — fires after DropCandidate, before MNAR
         if per_column_strategy and col in per_column_strategy:
             declared = per_column_strategy[col]
             signals.append(f"per_column_strategy_override: user forced strategy={declared}")
-            return declared, signals, True
+            return declared, signals
 
         # Priority 2: MNAR declared by user
         if col in mnar_columns:
@@ -125,39 +124,33 @@ class _StrategyRouter:
                 skew_sev = mnar_stats.skewness_severity if mnar_stats is not None else None
                 fill_stat = "mean" if skew_sev == SkewSeverity.Normal else "median"
                 signals.append(f"mnar_fill: {fill_stat} (skew={skew_sev or 'unknown'})")
-            return ImputationStrategy.MNAR, signals, False
+            return ImputationStrategy.MNAR, signals
 
         # No effective missingness → Passthrough
         if missingness is None or missingness.effective_null_count == 0:
             signals.append("no missing values in full-dataset profile")
-            return ImputationStrategy.Passthrough, signals, False
+            return ImputationStrategy.Passthrough, signals
 
         # Priority 3: BoundedDiscrete gate — model-aware sub-chain with domain-snap
         if cp.numeric_kind == NumericKind.BoundedDiscrete:
-            return (
-                *self._route_bounded_discrete(
-                    col=col,
-                    cp=cp,
-                    config=config,
-                    missingness=missingness,
-                    n_rows=n_rows,
-                    n_features=n_features,
-                    multi_mar=multi_mar,
-                    signals=signals,
-                    feature_correlation=feature_correlation,
-                ),
-                False,
+            return self._route_bounded_discrete(
+                col=col,
+                cp=cp,
+                config=config,
+                missingness=missingness,
+                n_rows=n_rows,
+                n_features=n_features,
+                multi_mar=multi_mar,
+                signals=signals,
+                feature_correlation=feature_correlation,
             )
 
         stats = cp.stats if isinstance(cp.stats, NumericStats) else None
 
         # Priority 3.5: Bimodal Imputation Framework (non-BoundedDiscrete only)
         if stats is not None and stats.has_flag(NumericFlag.Bimodal):
-            return (
-                *self._route_bimodal(
-                    col, cp, config, n_rows, n_features, multi_mar, signals, feature_correlation
-                ),
-                False,
+            return self._route_bimodal(
+                col, cp, config, n_rows, n_features, multi_mar, signals, feature_correlation
             )
 
         # Priority 4: Unpredictable guard — non-BoundedDiscrete columns with no predictive signal
@@ -168,7 +161,7 @@ class _StrategyRouter:
             signals.append(
                 f"unpredictable_guard: nonlinearity_tag=Unpredictable, mar_suspect={mar_suspect}"
             )
-            return ImputationStrategy.Median, signals, False
+            return ImputationStrategy.Median, signals
 
         # Priority 5: MARSuspect — full fallback chain
         if missingness.has_flag(MissingnessFlag.MARSuspect):
@@ -185,7 +178,7 @@ class _StrategyRouter:
                 skewness_severity=stats.skewness_severity if stats is not None else None,
             )
             signals.append(signal)
-            return strategy, signals, False
+            return strategy, signals
 
         # Priority 6: MCAR routing by severity and distribution shape
         severity = missingness.severity
@@ -195,7 +188,7 @@ class _StrategyRouter:
         # NearConstant cap — model-based escalation is wasteful when 90%+ share the mode
         if stats is not None and stats.has_flag(NumericFlag.NearConstant):
             signals.append("near_constant: model-based escalation suppressed")
-            return ImputationStrategy.Median, signals, False
+            return ImputationStrategy.Median, signals
 
         if severity in (MissingSeverity.High, MissingSeverity.Severe):
             strategy, signal = self._mcar_model_strategy(
@@ -207,7 +200,7 @@ class _StrategyRouter:
                 feature_correlation=feature_correlation,
             )
             signals.append(signal)
-            return strategy, signals, False
+            return strategy, signals
 
         # MCAR Minor: Leptokurtic escalates to model-based regardless of skew
         if severity == MissingSeverity.Minor and kurtosis_tag == KurtosisTag.Leptokurtic:
@@ -223,7 +216,7 @@ class _StrategyRouter:
                 feature_correlation=feature_correlation,
             )
             signals.append(signal)
-            return strategy, signals, False
+            return strategy, signals
 
         # Minor + Normal skew → Mean (Platykurtic noted but does not escalate)
         if severity == MissingSeverity.Minor and skew_sev in (None, SkewSeverity.Normal):
@@ -232,7 +225,7 @@ class _StrategyRouter:
                     "mcar minor + platykurtic: thin-tailed distribution, scalar fill representative"
                 )
             signals.append(f"mcar minor + skew={skew_sev or 'normal'}: mean imputation")
-            return ImputationStrategy.Mean, signals, False
+            return ImputationStrategy.Mean, signals
 
         # MCAR Moderate: Leptokurtic or Severe skew escalates to model-based
         if severity == MissingSeverity.Moderate and (
@@ -255,11 +248,11 @@ class _StrategyRouter:
                 feature_correlation=feature_correlation,
             )
             signals.append(signal)
-            return strategy, signals, False
+            return strategy, signals
 
         # Minor/Moderate + skew >= Moderate → Median
         signals.append(f"mcar {severity} + skew={skew_sev or 'unknown'}: median imputation")
-        return ImputationStrategy.Median, signals, False
+        return ImputationStrategy.Median, signals
 
     def _route_bimodal(
         self,

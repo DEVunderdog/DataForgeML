@@ -104,8 +104,6 @@ def test_numeric_config_to_dict_contains_all_keys():
         "mcar_feature_predictability_threshold",
         "per_column_strategy",
         "per_column_constant_fill",
-        "knn_n_neighbors",
-        "mice_max_iter",
         "refit_r2_min_complete_rows",
         "refit_r2_cv_folds",
         "bimodal_grouping_variables",
@@ -779,18 +777,55 @@ def test_column_imputation_record_to_dict_excludes_diagnostic_key():
 
 
 # ---------------------------------------------------------------------------
-# NumericImputationConfig — knn_n_neighbors / mice_max_iter defaults
+# NumericImputationConfig — knn_n_neighbors / mice_max_iter are retired
+# (ADR-0083): the dials live on the plan, not on the config.
 # ---------------------------------------------------------------------------
 
 
-def test_numeric_config_default_knn_n_neighbors():
-    cfg = NumericImputationConfig()
-    assert cfg.knn_n_neighbors is None
+def test_numeric_config_has_no_knn_n_neighbors_field():
+    assert not hasattr(NumericImputationConfig(), "knn_n_neighbors")
 
 
-def test_numeric_config_default_mice_max_iter():
-    cfg = NumericImputationConfig()
-    assert cfg.mice_max_iter is None
+def test_numeric_config_has_no_mice_max_iter_field():
+    assert not hasattr(NumericImputationConfig(), "mice_max_iter")
+
+
+def test_numeric_config_knn_n_neighbors_rejected_by_constructor():
+    with pytest.raises(TypeError):
+        NumericImputationConfig(knn_n_neighbors=15)
+
+
+def test_numeric_config_mice_max_iter_rejected_by_constructor():
+    with pytest.raises(TypeError):
+        NumericImputationConfig(mice_max_iter=100)
+
+
+def test_numeric_config_knn_n_neighbors_absent_from_to_dict():
+    assert "knn_n_neighbors" not in NumericImputationConfig().to_dict()
+
+
+def test_numeric_config_mice_max_iter_absent_from_to_dict():
+    assert "mice_max_iter" not in NumericImputationConfig().to_dict()
+
+
+def test_numeric_config_from_dict_raises_on_knn_n_neighbors():
+    with pytest.raises(ValueError, match="knn_n_neighbors"):
+        NumericImputationConfig.from_dict({"knn_n_neighbors": 15})
+
+
+def test_numeric_config_from_dict_raises_on_mice_max_iter():
+    with pytest.raises(ValueError, match="mice_max_iter"):
+        NumericImputationConfig.from_dict({"mice_max_iter": 100})
+
+
+def test_numeric_config_from_dict_raise_points_at_with_hyperparameters():
+    with pytest.raises(ValueError, match="with_hyperparameters"):
+        NumericImputationConfig.from_dict({"mice_max_iter": 100})
+
+
+def test_numeric_config_from_dict_raises_on_retired_key_set_to_none():
+    with pytest.raises(ValueError, match="knn_n_neighbors"):
+        NumericImputationConfig.from_dict({"knn_n_neighbors": None})
 
 
 def test_numeric_config_default_refit_r2_min_complete_rows():
@@ -801,18 +836,6 @@ def test_numeric_config_default_refit_r2_min_complete_rows():
 # ---------------------------------------------------------------------------
 # NumericImputationConfig — six new fields in to_dict
 # ---------------------------------------------------------------------------
-
-
-def test_numeric_config_knn_n_neighbors_in_to_dict():
-    cfg = NumericImputationConfig(knn_n_neighbors=15)
-    d = cfg.to_dict()
-    assert d["knn_n_neighbors"] == 15
-
-
-def test_numeric_config_mice_max_iter_in_to_dict():
-    cfg = NumericImputationConfig(mice_max_iter=100)
-    d = cfg.to_dict()
-    assert d["mice_max_iter"] == 100
 
 
 def test_numeric_config_refit_fields_in_to_dict():
@@ -828,8 +851,6 @@ def test_numeric_config_refit_fields_in_to_dict():
 
 def test_numeric_config_new_fields_from_dict_empty_uses_defaults():
     cfg = NumericImputationConfig.from_dict({})
-    assert cfg.knn_n_neighbors is None
-    assert cfg.mice_max_iter is None
     assert cfg.refit_r2_min_complete_rows == 50
     assert cfg.refit_r2_cv_folds == 5
 
@@ -837,18 +858,6 @@ def test_numeric_config_new_fields_from_dict_empty_uses_defaults():
 # ---------------------------------------------------------------------------
 # NumericImputationConfig — from_dict round-trips for non-default values
 # ---------------------------------------------------------------------------
-
-
-def test_numeric_config_knn_n_neighbors_round_trip():
-    original = NumericImputationConfig(knn_n_neighbors=7)
-    restored = NumericImputationConfig.from_dict(original.to_dict())
-    assert restored.knn_n_neighbors == 7
-
-
-def test_numeric_config_mice_max_iter_round_trip():
-    original = NumericImputationConfig(mice_max_iter=100)
-    restored = NumericImputationConfig.from_dict(original.to_dict())
-    assert restored.mice_max_iter == 100
 
 
 def test_numeric_config_refit_r2_min_complete_rows_round_trip():

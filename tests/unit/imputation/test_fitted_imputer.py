@@ -22,7 +22,6 @@ from dataforge_ml.imputation._fitted_imputer import (
     DroppedColumnAbsentWarning,
     FittedColumnAbsentError,
     FittedImputer,
-    UnfittedColumnError,
     UnseenColumnError,
 )
 
@@ -231,27 +230,28 @@ def test_passthrough_column_passes_unchanged_when_no_nulls():
     assert result.dataframe["clean"].to_list() == [1.0, 2.0, 3.0]
 
 
-def test_passthrough_with_nulls_raises_unfitted_column_error():
+def test_passthrough_with_nulls_passes_nulls_through():
+    """Passthrough means leave the column alone, nulls included (ADR-0083)."""
     imputer = FittedImputer(records={
         "clean": _record("clean", ImputationStrategy.Passthrough),
     })
     df = pl.DataFrame({"clean": pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
-    with pytest.raises(UnfittedColumnError, match="clean"):
-        imputer.transform(df)
+    result = imputer.transform(df)
+    assert result.dataframe["clean"].to_list() == [1.0, None, 3.0]
 
 
-def test_unfitted_column_error_message_is_informative():
+def test_passthrough_categorical_with_blanks_passes_through():
+    """A categorical column with ordinary blanks is normal data, not an error."""
     imputer = FittedImputer(records={
-        "my_col": _record("my_col", ImputationStrategy.Passthrough),
+        "cat": ColumnImputationRecord(decision=ColumnImputationDecision(column="cat", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Passthrough, signals=tuple([])), fill_value=None, indicator_added=False),
     })
-    df = pl.DataFrame({"my_col": pl.Series([None, 2.0], dtype=pl.Float64)})
-    with pytest.raises(UnfittedColumnError) as exc_info:
-        imputer.transform(df)
-    assert "my_col" in str(exc_info.value)
+    df = pl.DataFrame({"cat": pl.Series(["a", None, "b"], dtype=pl.String)})
+    result = imputer.transform(df)
+    assert result.dataframe["cat"].to_list() == ["a", None, "b"]
 
 
-def test_unfitted_column_error_names_all_offending_columns():
-    """All passthrough columns with missing values must be named in the single raised error."""
+def test_passthrough_nulls_pass_through_for_every_column():
+    """No Passthrough column raises, however many of them carry nulls."""
     imputer = FittedImputer(records={
         "col_a": _record("col_a", ImputationStrategy.Passthrough),
         "col_b": _record("col_b", ImputationStrategy.Passthrough),
@@ -260,15 +260,13 @@ def test_unfitted_column_error_names_all_offending_columns():
         "col_a": pl.Series([None, 2.0], dtype=pl.Float64),
         "col_b": pl.Series([1.0, None], dtype=pl.Float64),
     })
-    with pytest.raises(UnfittedColumnError) as exc_info:
-        imputer.transform(df)
-    msg = str(exc_info.value)
-    assert "col_a" in msg
-    assert "col_b" in msg
+    result = imputer.transform(df)
+    assert result.dataframe["col_a"].to_list() == [None, 2.0]
+    assert result.dataframe["col_b"].to_list() == [1.0, None]
 
 
-def test_unfitted_column_error_not_raised_for_passthrough_column_absent_from_df():
-    """FittedColumnAbsentError fires (not UnfittedColumnError) when a Passthrough column is absent."""
+def test_absent_passthrough_column_raises_fitted_column_absent_error():
+    """FittedColumnAbsentError fires when a Passthrough column is absent."""
     imputer = FittedImputer(records={
         "clean": _record("clean", ImputationStrategy.Passthrough),
         "other": _record("other", ImputationStrategy.Mean, fill_value=1.0),
@@ -482,22 +480,23 @@ def test_indicator_set_to_one_for_string_sentinel_rows():
     assert result.dataframe["cat_missing"][2] == 0
 
 
-def test_unfitted_column_error_raised_for_inf_in_passthrough_float_column():
+def test_inf_in_passthrough_float_column_normalises_to_null_and_passes_through():
+    """Sentinel normalisation still applies; the resulting null then rides through."""
     imputer = FittedImputer(records={
         "clean": _record("clean", ImputationStrategy.Passthrough),
     })
     df = pl.DataFrame({"clean": pl.Series([1.0, float("inf"), 3.0], dtype=pl.Float64)})
-    with pytest.raises(UnfittedColumnError, match="clean"):
-        imputer.transform(df)
+    result = imputer.transform(df)
+    assert result.dataframe["clean"].to_list() == [1.0, None, 3.0]
 
 
-def test_unfitted_column_error_raised_for_string_sentinel_in_passthrough_column():
+def test_string_sentinel_in_passthrough_column_normalises_to_null_and_passes_through():
     imputer = FittedImputer(records={
         "cat": ColumnImputationRecord(decision=ColumnImputationDecision(column="cat", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Passthrough, signals=tuple([])), fill_value=None, indicator_added=False),
     })
     df = pl.DataFrame({"cat": pl.Series(["NA", "hello"], dtype=pl.String)})
-    with pytest.raises(UnfittedColumnError, match="cat"):
-        imputer.transform(df)
+    result = imputer.transform(df)
+    assert result.dataframe["cat"].to_list() == [None, "hello"]
 
 
 # ---------------------------------------------------------------------------
@@ -946,16 +945,21 @@ def test_fitted_column_absent_error_is_exception():
     assert issubclass(FittedColumnAbsentError, Exception)
 
 
-def test_unseen_column_error_is_distinct_from_unfitted_column_error():
-    assert UnseenColumnError is not UnfittedColumnError
-
-
 def test_unseen_column_error_is_distinct_from_fitted_column_absent_error():
     assert UnseenColumnError is not FittedColumnAbsentError
 
 
-def test_fitted_column_absent_error_is_distinct_from_unfitted_column_error():
-    assert FittedColumnAbsentError is not UnfittedColumnError
+def test_unfitted_column_error_is_absent_from_the_public_api():
+    """ADR-0083's raise-less exception is deleted, not left as a dead export."""
+    import dataforge_ml
+    import dataforge_ml.imputation as imputation_pkg
+    from dataforge_ml.imputation import _fitted_imputer
+
+    assert not hasattr(_fitted_imputer, "UnfittedColumnError")
+    assert "UnfittedColumnError" not in imputation_pkg.__all__
+    assert not hasattr(imputation_pkg, "UnfittedColumnError")
+    assert "UnfittedColumnError" not in dataforge_ml.__all__
+    assert not hasattr(dataforge_ml, "UnfittedColumnError")
 
 
 def test_unseen_column_error_is_instantiable():

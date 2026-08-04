@@ -33,7 +33,10 @@ from dataforge_ml.imputation._fitted_units import (
 from dataforge_ml.imputation._fitters import (
     UnitFitContext,
     _fill_scalar_predictors,
+    fit_cluster_unit,
+    fit_gmm_unit,
     fit_mice_unit,
+    fit_scalar_unit,
 )
 from dataforge_ml.imputation._regression_estimator_factory import (
     RegressionEstimatorFactory,
@@ -284,7 +287,6 @@ def test_mice_closes_scalar_half_train_serve_skew_for_linear_estimator():
             ("tol", 1e-4),
             ("initial_strategy", "median"),
             ("n_nearest_features", None),
-            ("nonlinearity_tag", "Linear"),
         ),
     )
 
@@ -448,3 +450,147 @@ def test_hyperparameter_override_reaches_the_fitter():
     # The decided base is untouched; only the edited plan carries the override.
     assert fitted_edited.model.max_iter == 3
     assert fitted.model.max_iter != 3
+
+
+# ---------------------------------------------------------------------------
+# The fitters read the facts off the column decision, never config (#466)
+# ---------------------------------------------------------------------------
+
+
+def _bimodal_frame(grouped: bool = False) -> pl.DataFrame:
+    """A bimodal frame whose NaN holes are real nulls, as a fitter always sees."""
+    df = _frame(bimodal=True, grouped=grouped)
+    return df.with_columns(
+        [
+            pl.when(pl.col(c).is_nan()).then(None).otherwise(pl.col(c)).alias(c)
+            for c, dtype in df.schema.items()
+            if dtype.is_float()
+        ]
+    )
+
+
+def _fact_ctx(decision: ColumnImputationDecision, config=None) -> UnitFitContext:
+    return UnitFitContext(
+        column_decisions={decision.column: decision},
+        config=config or NumericImputationConfig(),
+        random_seed=7,
+    )
+
+
+def test_constant_fill_is_read_off_the_column_decision():
+    decision = ColumnImputationDecision(
+        column="a",
+        semantic_type=SemanticType.Numeric,
+        strategy=ImputationStrategy.Constant,
+        constant_fill=3.5,
+    )
+    unit = ImputationUnit(
+        unit_id="constant:a", strategy=ImputationStrategy.Constant, columns=("a",)
+    )
+    outcome = fit_scalar_unit(
+        unit, pl.DataFrame({"a": [1.0, None, 2.0]}), _fact_ctx(decision)
+    )
+    assert isinstance(outcome.fitted, FittedScalar)
+    assert outcome.fitted.fill_value == 3.5
+
+
+def test_constant_fill_in_config_alone_no_longer_reaches_the_fitter():
+    """The behaviour ADR-0083 gives up knowingly: config is read at decide-time only."""
+    decision = ColumnImputationDecision(
+        column="a",
+        semantic_type=SemanticType.Numeric,
+        strategy=ImputationStrategy.Constant,
+    )
+    config = NumericImputationConfig()
+    config.set_per_column_constant_fill("a", 3.5)
+    unit = ImputationUnit(
+        unit_id="constant:a", strategy=ImputationStrategy.Constant, columns=("a",)
+    )
+    outcome = fit_scalar_unit(
+        unit, pl.DataFrame({"a": [1.0, None, 2.0]}), _fact_ctx(decision, config)
+    )
+    assert outcome.fitted is None
+    assert "constant_fill" in outcome.fallback_reason
+
+
+def test_gmm_centres_are_read_off_the_column_decision():
+    decision = ColumnImputationDecision(
+        column="bi",
+        semantic_type=SemanticType.Numeric,
+        strategy=ImputationStrategy.GMMSampling,
+        center1=5.0,
+        center2=40.0,
+    )
+    unit = ImputationUnit(
+        unit_id="gmm_sampling:bi",
+        strategy=ImputationStrategy.GMMSampling,
+        columns=("bi",),
+        hyperparameters=(("central_tendency", "median"),),
+    )
+    df = _bimodal_frame()
+    outcome = fit_gmm_unit(unit, df, _fact_ctx(decision))
+    assert isinstance(outcome.fitted, FittedGMMSampling)
+    assert abs(outcome.fitted.center1 - outcome.fitted.center2) > 10
+
+
+def test_gmm_without_centres_on_the_decision_cannot_train():
+    decision = ColumnImputationDecision(
+        column="bi",
+        semantic_type=SemanticType.Numeric,
+        strategy=ImputationStrategy.GMMSampling,
+    )
+    unit = ImputationUnit(
+        unit_id="gmm_sampling:bi",
+        strategy=ImputationStrategy.GMMSampling,
+        columns=("bi",),
+        # Stale hyperparameters must not resurrect the retired keys.
+        hyperparameters=(("center1", 5.0), ("center2", 40.0)),
+    )
+    outcome = fit_gmm_unit(unit, _bimodal_frame(), _fact_ctx(decision))
+    assert outcome.fitted is None
+    assert "bimodal centres" in outcome.fallback_reason
+
+
+def test_cluster_grouping_variable_is_read_off_the_column_decision():
+    decision = ColumnImputationDecision(
+        column="bi",
+        semantic_type=SemanticType.Numeric,
+        strategy=ImputationStrategy.ClusterConditional,
+        center1=5.0,
+        center2=40.0,
+        grouping_variable="grp",
+    )
+    unit = ImputationUnit(
+        unit_id="cluster_conditional:bi",
+        strategy=ImputationStrategy.ClusterConditional,
+        columns=("bi",),
+        hyperparameters=(("central_tendency", "median"),),
+    )
+    outcome = fit_cluster_unit(
+        unit, _bimodal_frame(grouped=True), _fact_ctx(decision)
+    )
+    assert isinstance(outcome.fitted, FittedClusterConditional)
+    assert outcome.fitted.grouping_variable == "grp"
+    assert set(outcome.fitted.group_fills) == {"lo", "hi"}
+
+
+def test_cluster_feature_cols_are_read_off_the_column_decision():
+    decision = ColumnImputationDecision(
+        column="bi",
+        semantic_type=SemanticType.Numeric,
+        strategy=ImputationStrategy.ClusterConditional,
+        center1=5.0,
+        center2=40.0,
+        feature_cols=("a", "d"),
+    )
+    unit = ImputationUnit(
+        unit_id="cluster_conditional:bi",
+        strategy=ImputationStrategy.ClusterConditional,
+        columns=("bi",),
+        hyperparameters=(("central_tendency", "median"),),
+    )
+    outcome = fit_cluster_unit(unit, _bimodal_frame(), _fact_ctx(decision))
+    assert isinstance(outcome.fitted, FittedClusterConditional)
+    assert outcome.fitted.grouping_variable is None
+    assert outcome.fitted.feature_cols == ["a", "d"]
+    assert outcome.fitted.feature_centroid_1 is not None

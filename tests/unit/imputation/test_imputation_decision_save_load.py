@@ -12,17 +12,30 @@ surviving the round-trip.
 import json
 from enum import StrEnum
 
+import polars as pl
 import pytest
+from sklearn.tree import DecisionTreeRegressor
 
 from dataforge_ml import (
     ImputationDecision,
     ModelChoice,
     PipelineConfig,
+    author,
     deserialize,
+    fit_unit,
     inspect,
     serialize,
 )
-from dataforge_ml.imputation import ImputationStrategy, ImputationUnit, decide
+from dataforge_ml.imputation import (
+    ImputationStrategy,
+    ImputationUnit,
+    UnitNotTrainableError,
+    decide,
+)
+from dataforge_ml.imputation._config import _STRATEGY_DIALS
+from dataforge_ml.imputation._regression_estimator_factory import (
+    RegressionEstimatorFactory,
+)
 from dataforge_ml.profiling._config import (
     ColumnProfile,
     NumericKind,
@@ -100,6 +113,15 @@ def _rich_plan() -> ImputationDecision:
 
 
 def test_serialize_deserialize_round_trip_structural_equality() -> None:
+    """Structural equality across the round trip.
+
+    Carve-out: a plan carrying a **user-supplied estimator** is the one
+    exception, and deliberately so — the estimator is never written, so the
+    reloaded plan is genuinely a different (unfittable) plan and compares
+    unequal (ADR-0083). See
+    ``test_a_custom_plan_compares_unequal_to_its_own_round_trip``. ``_rich_plan``
+    carries no such estimator, so equality holds here.
+    """
     plan = _rich_plan()
 
     loaded = deserialize(serialize(plan))
@@ -135,6 +157,122 @@ def test_serialized_envelope_is_json_native() -> None:
     assert document["kind"] == "decision"
     loaded = deserialize(blob)
     assert loaded == plan
+
+
+def test_retired_fields_are_absent_from_the_payload() -> None:
+    """The three unread fields leave no trace on the wire (ADR-0083).
+
+    The round trip itself is unchanged — asserted by the tests above — so what
+    is left to pin is that the plan no longer writes a shape, a provenance, or a
+    per-column forced flag anyone could come to depend on.
+    """
+    document = json.loads(serialize(_rich_plan()).decode("utf-8"))
+    data = document["data"]
+
+    assert "decided_for_shape" not in data
+    assert "profile_provenance" not in data
+    assert all("forced" not in d for d in data["column_decisions"].values())
+
+
+# ---------------------------------------------------------------------------
+# A user-supplied estimator is never persisted (#469, ADR-0083)
+# ---------------------------------------------------------------------------
+
+
+def _custom_plan() -> ImputationDecision:
+    """A hand-authored MICE plan holding the author's own estimator."""
+    return author(
+        {"a": ImputationStrategy.MICE, "b": ImputationStrategy.MICE},
+        columns=["a", "b"],
+        estimators={"mice": DecisionTreeRegressor(max_depth=3, random_state=0)},
+    )
+
+
+def test_the_estimator_is_absent_from_to_dict_and_from_the_wire() -> None:
+    plan = _custom_plan()
+    assert plan.custom_estimators  # it is on the plan to begin with
+
+    assert "custom_estimators" not in plan.to_dict()
+    document = json.loads(serialize(plan).decode("utf-8"))
+    assert "custom_estimators" not in document["data"]
+    # And the envelope is still pure JSON — nothing was pickled in instead.
+    assert json.dumps(document)
+
+
+def test_a_reloaded_plan_keeps_the_custom_label_with_an_empty_slot() -> None:
+    loaded = deserialize(serialize(_custom_plan()))
+
+    assert loaded.column_decisions["a"].model_choice == ModelChoice.Custom
+    assert loaded.column_decisions["b"].model_choice == ModelChoice.Custom
+    assert loaded.custom_estimators == {}
+
+
+def test_build_from_choice_raises_on_custom() -> None:
+    """The backstop: nothing constructs an estimator for a label it did not build."""
+    with pytest.raises(ValueError, match="user-supplied estimator"):
+        RegressionEstimatorFactory.build_from_choice(ModelChoice.Custom)
+
+
+def test_fitting_a_reloaded_custom_plan_fails_loudly_rather_than_falling_back() -> None:
+    loaded = deserialize(serialize(_custom_plan()))
+    df = pl.DataFrame(
+        {
+            "a": [1.0, 2.0, None, 4.0, 5.0, 6.0, None, 8.0],
+            "b": [2.0, 4.0, 6.0, None, 10.0, 12.0, 14.0, 16.0],
+        }
+    )
+
+    with pytest.raises(UnitNotTrainableError, match="estimators="):
+        fit_unit(loaded, "mice", df)
+
+
+def test_a_custom_plan_compares_unequal_to_its_own_round_trip() -> None:
+    """The one round-trip carve-out, and it is the truth (ADR-0083).
+
+    The restored plan cannot fit, so calling it equal to the original would be
+    the lie. Everything *else* about it survives — which is what makes the
+    inequality attributable to the dropped estimator alone.
+    """
+    plan = _custom_plan()
+    loaded = deserialize(serialize(plan))
+
+    assert loaded != plan
+    assert loaded.column_decisions == plan.column_decisions
+    assert loaded.units == plan.units
+    assert loaded.decided_hyperparameters == plan.decided_hyperparameters
+
+
+def test_from_dict_gap_fills_a_dial_the_payload_is_missing() -> None:
+    """An old artifact meeting a newly-added dial keeps running (#464).
+
+    Gap-fill on load is what makes "the base is complete for the unit's
+    strategy" true of the type rather than of the authoring functions, which is
+    what licenses the fitters' bare ``hyp["max_iter"]`` subscripts. The cost is
+    knowingly taken: the reloaded plan silently gains a dial it was never saved
+    with.
+    """
+    document = _rich_plan().to_dict()
+    del document["decided_hyperparameters"]["mice"]["max_iter"]
+
+    loaded = ImputationDecision.from_dict(document)
+
+    assert (
+        dict(loaded.decided_hyperparameters["mice"])["max_iter"]
+        == _STRATEGY_DIALS[ImputationStrategy.MICE]["max_iter"]
+    )
+
+
+def test_from_dict_never_overwrites_a_dial_the_payload_carries() -> None:
+    """Fill what is missing; never touch what is carried (#464)."""
+    plan = _rich_plan()
+    document = plan.to_dict()
+    document["decided_hyperparameters"]["mice"]["max_iter"] = 99
+
+    loaded = ImputationDecision.from_dict(document)
+
+    assert dict(loaded.decided_hyperparameters["mice"])["max_iter"] == 99
+    # A complete payload round-trips untouched — gap-fill is a no-op on it.
+    assert ImputationDecision.from_dict(plan.to_dict()) == plan
 
 
 def test_inspect_reports_kind_and_versions_without_the_payload() -> None:

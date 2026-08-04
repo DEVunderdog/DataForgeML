@@ -113,7 +113,6 @@ def _read_model_metadata(
     strategy: ImputationStrategy,
     models: dict,
     n_rows: int,
-    knn_n_neighbors_override: int | None,
 ) -> tuple:
     """Read convergence/neighbour metadata straight off the fitted models.
 
@@ -123,8 +122,9 @@ def _read_model_metadata(
     Regression or was always MICE, reports through this one block (ADR-0079);
     KNN contributes ``n_neighbors_used`` (the model's own ``n_neighbors``) and
     ``k_capped`` (the count was forced to ``n_rows − 1``); the bimodal
-    strategies contribute none.  ``k_capped`` is ``None`` whenever a
-    ``knn_n_neighbors`` override bypassed the adaptive formula.
+    strategies contribute none.  ``k_capped`` is always computable for a
+    fitted KNN unit — no config override can bypass the adaptive formula
+    (ADR-0083).
     """
     converged = None
     n_iter = None
@@ -142,8 +142,7 @@ def _read_model_metadata(
         fitted_knn = models.get("knn")
         if fitted_knn is not None:
             n_neighbors_used = int(fitted_knn.model.n_neighbors)
-            if knn_n_neighbors_override is None:
-                k_capped = n_neighbors_used == max(1, n_rows - 1)
+            k_capped = n_neighbors_used == max(1, n_rows - 1)
 
     return converged, n_iter, n_neighbors_used, k_capped
 
@@ -558,7 +557,6 @@ class EvaluationOrchestrator(_ObservabilityMixin):
             string_sentinels=fitted_imputer.string_sentinels,
         )
         n_rows = resolved.height
-        numeric_cfg = self._config.imputation.numeric
 
         columns: dict[str, InspectionDiagnostic] = {}
         for col, rec in fitted_imputer.records.items():
@@ -587,7 +585,6 @@ class EvaluationOrchestrator(_ObservabilityMixin):
                 strategy=rec.decision.strategy,
                 models=models_by_id,
                 n_rows=n_rows,
-                knn_n_neighbors_override=numeric_cfg.knn_n_neighbors,
             )
 
             columns[col] = InspectionDiagnostic(

@@ -45,10 +45,14 @@ def test_has_exactly_the_decided_fields() -> None:
         "signals",
         "model_choice",
         "domain_snap_bounds",
+        "center1",
+        "center2",
+        "feature_cols",
+        "grouping_variable",
+        "constant_fill",
         "indicator_flag",
         "mnar",
         "drop",
-        "forced",
     }
 
 
@@ -128,7 +132,6 @@ def test_to_dict_round_trip_shape() -> None:
         indicator_flag=True,
         mnar=False,
         drop=False,
-        forced=True,
     )
     assert decision.to_dict() == {
         "column": "income",
@@ -137,10 +140,14 @@ def test_to_dict_round_trip_shape() -> None:
         "signals": ["linear"],
         "model_choice": "BayesianRidge",
         "domain_snap_bounds": [0.0, 1_000.0],
+        "center1": None,
+        "center2": None,
+        "feature_cols": None,
+        "grouping_variable": None,
+        "constant_fill": None,
         "indicator_flag": True,
         "mnar": False,
         "drop": False,
-        "forced": True,
     }
 
 
@@ -154,49 +161,101 @@ def test_to_dict_none_optionals() -> None:
     assert result["model_choice"] is None
     assert result["domain_snap_bounds"] is None
     assert result["signals"] == []
+    assert result["center1"] is None
+    assert result["center2"] is None
+    assert result["feature_cols"] is None
+    assert result["grouping_variable"] is None
+    assert result["constant_fill"] is None
 
 
 # ---------------------------------------------------------------------------
-# forced — a decide-time fact carried on the plan (ADR-0066)
+# Facts about the data (ADR-0083)
 # ---------------------------------------------------------------------------
 
 
-def test_forced_defaults_to_false() -> None:
-    """An auto-routed column is not forced."""
+def test_facts_about_the_data_round_trip_through_json() -> None:
+    """The five lowered facts survive to_dict → JSON → from_dict unchanged."""
+    decision = ColumnImputationDecision(
+        column="income",
+        semantic_type=SemanticType.Numeric,
+        strategy=ImputationStrategy.ClusterConditional,
+        center1=10.0,
+        center2=90.0,
+        feature_cols=("age", "score"),
+        grouping_variable="region",
+        constant_fill=-1.0,
+    )
+    payload = json.loads(json.dumps(decision.to_dict()))
+    assert payload["center1"] == 10.0
+    assert payload["center2"] == 90.0
+    assert payload["feature_cols"] == ["age", "score"]
+    assert payload["grouping_variable"] == "region"
+    assert payload["constant_fill"] == -1.0
+
+    restored = ColumnImputationDecision.from_dict(payload)
+    assert restored == decision
+    assert isinstance(restored.feature_cols, tuple)
+
+
+def test_facts_keep_the_decision_hashable() -> None:
+    """``feature_cols`` is a tuple, so a decision carrying facts stays set-safe."""
+    decision = ColumnImputationDecision(
+        column="income",
+        semantic_type=SemanticType.Numeric,
+        strategy=ImputationStrategy.ClusterConditional,
+        center1=10.0,
+        center2=90.0,
+        feature_cols=("age",),
+    )
+    assert decision in {decision}
+
+
+def test_facts_default_to_none() -> None:
+    """A column with no measured facts carries none of them."""
     decision = ColumnImputationDecision(
         column="age",
         semantic_type=SemanticType.Numeric,
         strategy=ImputationStrategy.Median,
     )
-    assert decision.forced is False
+    assert decision.center1 is None
+    assert decision.center2 is None
+    assert decision.feature_cols is None
+    assert decision.grouping_variable is None
+    assert decision.constant_fill is None
 
 
-@pytest.mark.parametrize("forced", [True, False])
-def test_forced_round_trips_without_a_config(forced: bool) -> None:
-    """A plan reloaded from a store reports ``forced`` with no config present.
+# ---------------------------------------------------------------------------
+# forced — deleted outright (ADR-0083)
+# ---------------------------------------------------------------------------
 
-    Serialisation is the deciding argument for the field's existence: forced-ness
-    must survive into a process that never sees the originating config.
+
+def test_forced_is_not_a_field() -> None:
+    """``forced`` is gone, not defaulted: it had no reader in ``src/``."""
+    field_names = {f.name for f in dataclasses.fields(ColumnImputationDecision)}
+    assert "forced" not in field_names
+    with pytest.raises(TypeError):
+        ColumnImputationDecision(
+            column="age",
+            semantic_type=SemanticType.Numeric,
+            strategy=ImputationStrategy.MICE,
+            forced=True,  # type: ignore[call-arg]
+        )
+
+
+def test_forced_is_absent_from_the_wire_and_ignored_on_the_way_back() -> None:
+    """A payload carrying the retired key round-trips without resurrecting it.
+
+    Backward compatibility is a non-concern (ADR-0083); what matters is that a
+    stale key cannot smuggle a field back onto the decision.
     """
     decision = ColumnImputationDecision(
         column="age",
         semantic_type=SemanticType.Numeric,
         strategy=ImputationStrategy.MICE,
-        forced=forced,
     )
     payload = json.loads(json.dumps(decision.to_dict()))
-    restored = ColumnImputationDecision.from_dict(payload)
-    assert restored.forced is forced
+    assert "forced" not in payload
+
+    restored = ColumnImputationDecision.from_dict({**payload, "forced": True})
     assert restored == decision
-
-
-def test_forced_is_immutable() -> None:
-    """``forced`` is decided, so it cannot be flipped after the fact."""
-    decision = ColumnImputationDecision(
-        column="age",
-        semantic_type=SemanticType.Numeric,
-        strategy=ImputationStrategy.MICE,
-        forced=True,
-    )
-    with pytest.raises(dataclasses.FrozenInstanceError):
-        decision.forced = False  # type: ignore[misc]
+    assert not hasattr(restored, "forced")

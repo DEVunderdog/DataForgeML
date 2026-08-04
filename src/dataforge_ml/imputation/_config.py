@@ -59,6 +59,50 @@ _MODEL_BASED_STRATEGIES: frozenset[ImputationStrategy] = frozenset(
 )
 
 
+_STRATEGY_DIALS: dict[ImputationStrategy, dict[str, Any]] = {
+    ImputationStrategy.MICE: {
+        "max_iter": 10,
+        "tol": 1e-3,
+        "initial_strategy": "mean",
+        "n_nearest_features": None,
+    },
+    ImputationStrategy.KNN: {
+        "n_neighbors": 5,
+        "weights": "uniform",
+    },
+    ImputationStrategy.MNAR: {
+        "central_tendency": "median",
+    },
+    ImputationStrategy.ClusterConditional: {
+        "central_tendency": "median",
+    },
+}
+"""Every dial a strategy has, and the value it takes at neutral inputs.
+
+The single definition of the decide-time hyperparameter base, read by both
+authors: :func:`~dataforge_ml.imputation._decision_assembler.decide` starts from
+a row and overwrites what it computed, and the manual door writes the row as-is.
+Adding a fifth dial to a strategy is therefore the same act as giving it a
+default, and the two authors' key sets cannot drift.
+
+The values are not a second set of opinions: every one of ``decide``'s formulas
+degenerates to exactly these numbers at neutral inputs, and each is also the
+sklearn default of the estimator it reaches (``IterativeImputer.max_iter`` = 10,
+``KNNImputer.n_neighbors`` = 5, and so on).
+
+A strategy with no row has no dials at all — ``GMMSampling`` and ``Constant``
+are driven entirely by profile facts and declared values, so
+:meth:`ImputationDecision.with_hyperparameters` refuses every key on them. The
+invariant is "every unit that has dials carries all of them", not "every unit id
+appears in the map".
+"""
+
+
+def _dial_defaults(strategy: ImputationStrategy) -> dict[str, Any]:
+    """Fresh copy of a strategy's dial row — empty when it has no dials."""
+    return dict(_STRATEGY_DIALS.get(strategy, {}))
+
+
 class ModelChoice(StrEnum):
     """Concrete estimator family selected for a model-based imputation column.
 
@@ -76,11 +120,24 @@ class ModelChoice(StrEnum):
     for the large-sample ``ComplexNonlinear`` branch. An ``Unpredictable``
     column resolves to no model choice (``None``) and routes to a scalar
     fallback instead.
+
+    ``Custom`` is the one member no branch of that factory builds: it marks a
+    unit whose estimator the *user* supplied, through
+    :func:`~dataforge_ml.imputation.author`'s ``estimators=`` channel (ADR-0083).
+    The instance itself lives in
+    :attr:`ImputationDecision.custom_estimators`, keyed by unit id, so this
+    enum stays a label. It is a value rather than ``None`` because ``None``
+    already carries the load-bearing "no estimator family, cannot train"
+    meaning on the fit path; as a value, every existing reader of a
+    ``ModelChoice`` stays correct without learning anything. Given up: the enum
+    stops being a closed list of families the library can build — one member
+    means "look elsewhere".
     """
 
     BayesianRidge = "bayesian_ridge"
     RandomForestRegressor = "random_forest_regressor"
     GradientBoostingRegressor = "gradient_boosting_regressor"
+    Custom = "custom"
 
 
 # ---------------------------------------------------------------------------
@@ -211,12 +268,6 @@ class NumericImputationConfig:
         bypassing all routing priorities 2–7.  No companion entry in
         ``per_column_strategy`` is required or allowed.  Keyed by column name.
         Defaults to empty dict.
-    knn_n_neighbors : int, optional
-        Overrides the dynamically-computed ``n_neighbors`` for the entire KNN
-        block. A single value governs all KNN columns.
-    mice_max_iter : int, optional
-        Overrides the dynamically-computed ``max_iter`` for the entire MICE
-        block. A single value governs all MICE columns.
     refit_r2_min_complete_rows : int
         Minimum number of complete rows required to attempt the held-out
         accuracy computation.  When fewer complete rows are available, the
@@ -275,8 +326,6 @@ class NumericImputationConfig:
     mcar_feature_predictability_threshold: float = 0.2
     _per_column_strategy: dict[str, ImputationStrategy] = field(default_factory=dict)
     _per_column_constant_fill: dict[str, float] = field(default_factory=dict)
-    knn_n_neighbors: int | None = None
-    mice_max_iter: int | None = None
     refit_r2_min_complete_rows: int = 50
     refit_r2_cv_folds: int = 5
     _bimodal_grouping_variables: dict[str, str] = field(default_factory=dict)
@@ -480,8 +529,6 @@ class NumericImputationConfig:
                 k: str(v) for k, v in self._per_column_strategy.items()
             },
             "per_column_constant_fill": dict(self._per_column_constant_fill),
-            "knn_n_neighbors": self.knn_n_neighbors,
-            "mice_max_iter": self.mice_max_iter,
             "refit_r2_min_complete_rows": self.refit_r2_min_complete_rows,
             "refit_r2_cv_folds": self.refit_r2_cv_folds,
             "bimodal_grouping_variables": dict(self._bimodal_grouping_variables),
@@ -505,7 +552,21 @@ class NumericImputationConfig:
         -------
         NumericImputationConfig
             Reconstructed config instance.
+
+        Raises
+        ------
+        ValueError
+            If ``data`` carries the retired ``mice_max_iter`` or
+            ``knn_n_neighbors`` key (ADR-0083).
         """
+        for retired in ("mice_max_iter", "knn_n_neighbors"):
+            if retired in data:
+                raise ValueError(
+                    f"'{retired}' was removed from NumericImputationConfig "
+                    "Set this dial on the plan instead, via "
+                    "ImputationDecision.with_hyperparameters(unit_id, hyperparameters)."
+                )
+
         config = cls(
             knn_max_rows=int(data.get("knn_max_rows", 50_000)),
             knn_max_features=int(data.get("knn_max_features", 50)),
@@ -532,16 +593,6 @@ class NumericImputationConfig:
             ),
             _per_column_strategy={},
             _per_column_constant_fill={},
-            knn_n_neighbors=(
-                int(data["knn_n_neighbors"])
-                if data.get("knn_n_neighbors") is not None
-                else None
-            ),
-            mice_max_iter=(
-                int(data["mice_max_iter"])
-                if data.get("mice_max_iter") is not None
-                else None
-            ),
             refit_r2_min_complete_rows=int(data.get("refit_r2_min_complete_rows", 50)),
             refit_r2_cv_folds=int(data.get("refit_r2_cv_folds", 5)),
             _bimodal_grouping_variables={},
@@ -779,8 +830,8 @@ class InspectionDiagnostic:
         MICE and the bimodal strategies.
     k_capped : bool, optional
         ``True`` when the KNN neighbour count was forced down to ``n_rows − 1``
-        (the model is averaging nearly every row).  ``None`` when a
-        ``knn_n_neighbors`` override is active or the strategy is not KNN.
+        (the model is averaging nearly every row).  Always computable for a
+        fitted KNN unit; ``None`` only when the strategy is not KNN.
     """
 
     imputed_mean: float
@@ -1121,21 +1172,28 @@ class ColumnImputationDecision:
         ``(min, max)`` bounds used to snap model-based predictions for
         BoundedDiscrete columns. ``None`` for all other columns. Sourced from
         the profile, not learned from training data.
+    center1 : float, optional
+        First of the two bimodal cluster centres the GMM-Sampling and
+        Cluster-Conditional strategies split on. Measured by Phase 1, not
+        learned from training data. ``None`` for non-bimodal columns.
+    center2 : float, optional
+        Second bimodal cluster centre. See ``center1``.
+    feature_cols : tuple[str, ...], optional
+        Columns the Cluster-Conditional centroid branch measures its per-cluster
+        centroids over — the features correlated with this column at decide-time.
+        ``None`` for every other strategy.
+    grouping_variable : str, optional
+        Column whose groups the Cluster-Conditional group-wise branch aggregates
+        within, when one was declared. ``None`` selects the centroid branch.
+    constant_fill : float, optional
+        The declared fill value for a ``Constant`` column. ``None`` for every
+        other strategy. A declared value, never a learned one.
     indicator_flag : bool
         Whether a binary missingness indicator column will be appended.
     mnar : bool
         Whether the column is routed as Missing-Not-At-Random.
     drop : bool
         Whether the column will be dropped for exceeding the drop threshold.
-    forced : bool
-        Whether ``strategy`` was declared by the user rather than routed
-        automatically — written by the router alone, from
-        ``per_column_strategy`` (ADR-0082). This is the machine
-        predicate for forced-ness (ADR-0066): a forced strategy that cannot
-        train raises instead of degrading, and because the fact lives on the
-        plan, a plan loaded from a store answers "was this forced?" without the
-        originating config. The ``per_column_strategy_override`` signal remains
-        for human readers only and is never parsed.
 
     Notes
     -----
@@ -1150,10 +1208,14 @@ class ColumnImputationDecision:
     signals: tuple[str, ...] = ()
     model_choice: Optional[ModelChoice] = None
     domain_snap_bounds: Optional[tuple[float, float]] = None
+    center1: Optional[float] = None
+    center2: Optional[float] = None
+    feature_cols: Optional[tuple[str, ...]] = None
+    grouping_variable: Optional[str] = None
+    constant_fill: Optional[float] = None
     indicator_flag: bool = False
     mnar: bool = False
     drop: bool = False
-    forced: bool = False
 
     def to_dict(self) -> dict:
         """Serialise the decision to a plain dictionary.
@@ -1180,10 +1242,16 @@ class ColumnImputationDecision:
                 if self.domain_snap_bounds is not None
                 else None
             ),
+            "center1": self.center1,
+            "center2": self.center2,
+            "feature_cols": (
+                list(self.feature_cols) if self.feature_cols is not None else None
+            ),
+            "grouping_variable": self.grouping_variable,
+            "constant_fill": self.constant_fill,
             "indicator_flag": self.indicator_flag,
             "mnar": self.mnar,
             "drop": self.drop,
-            "forced": self.forced,
         }
 
     @classmethod
@@ -1206,6 +1274,7 @@ class ColumnImputationDecision:
         """
         raw_bounds = data.get("domain_snap_bounds")
         raw_model_choice = data.get("model_choice")
+        raw_feature_cols = data.get("feature_cols")
         return cls(
             column=data["column"],
             semantic_type=SemanticType[data["semantic_type"]],
@@ -1215,10 +1284,16 @@ class ColumnImputationDecision:
                 ModelChoice[raw_model_choice] if raw_model_choice is not None else None
             ),
             domain_snap_bounds=(tuple(raw_bounds) if raw_bounds is not None else None),
+            center1=data.get("center1"),
+            center2=data.get("center2"),
+            feature_cols=(
+                tuple(raw_feature_cols) if raw_feature_cols is not None else None
+            ),
+            grouping_variable=data.get("grouping_variable"),
+            constant_fill=data.get("constant_fill"),
             indicator_flag=bool(data.get("indicator_flag", False)),
             mnar=bool(data.get("mnar", False)),
             drop=bool(data.get("drop", False)),
-            forced=bool(data.get("forced", False)),
         )
 
 
@@ -1554,29 +1629,38 @@ class ImputationDecision:
         Per-column plan entries keyed by column name, in decision order. Held as
         an internal copy so the constructed plan is independent of the caller's
         mapping.
-    decided_for_shape : tuple[int, int, tuple[str, ...]]
-        The ``(n_rows, n_features, column set)`` shape the plan was decided for;
-        the imputable-column population and size the routing depended on.
-        ``n_rows`` is the row count passed to :func:`decide` — the train split's
-        — so the plan is valid only for a split of that size (ADR-0066). It may
-        legitimately differ from ``profile_provenance["row_count"]``.
     config_snapshot : dict
         Serialised :class:`~dataforge_ml.PipelineConfig` (``config.to_dict()``)
         the plan was decided under.
-    profile_provenance : dict
-        Descriptive, non-load-bearing provenance of the source profile — its
-        ``row_count`` — carried for diagnosis only. ``row_count`` is the
-        *full-dataset* count, since provenance describes the profile rather than
-        the shape the plan was decided for (ADR-0066). Content-addressed identity
-        was retired with cross-process resume (ADR-0072).
     decided_hyperparameters : dict[str, tuple[tuple[str, Any], ...]]
-        The decide-time hyperparameter base per unit id, complete for each unit's
-        strategy and written only by :func:`decide` (ADR-0073).
+        The decide-time hyperparameter base per unit id, written by the authoring
+        function and never by an edit (ADR-0073). Complete for each unit's
+        strategy: it carries every dial the strategy has in ``_STRATEGY_DIALS``,
+        an invariant :meth:`from_dict` re-establishes on load, plus any profile
+        facts the unit's fitter reads.
     override_hyperparameters : dict[str, tuple[tuple[str, Any], ...]]
         The sparse per-unit override delta, written only by
         :meth:`with_hyperparameters`. ``_derive_units`` stamps the per-key merge
         ``decided ⊕ delta`` onto each unit, so the two-map split is invisible
         below the plan surface (ADR-0073).
+    custom_estimators : dict[str, Any]
+        User-supplied estimator instances keyed by unit id, filled by
+        :func:`~dataforge_ml.imputation.author`'s ``estimators=`` channel and
+        paired with :attr:`ModelChoice.Custom` on the unit's columns (ADR-0083).
+        The **caller's own object**, never a clone, here and on every derived
+        copy: cloning would break identity, make ``get_params`` a
+        construction-time requirement stricter than sklearn's own, and silently
+        strip fitted state. Executing a plan cannot mutate it —
+        ``IterativeImputer`` clones per column — so the only live hazard is
+        deliberate post-authoring mutation, which is closed by this paragraph
+        rather than by a guard. Unit-keyed and not per-column: MICE is the only
+        strategy with an estimator slot, so a per-column spelling would let two
+        estimators be named for one block. **Not serialised** —
+        :meth:`to_dict` drops it and the plan reloads as ``Custom`` with the
+        slot empty. It stays in ``==``, so a ``Custom`` plan compares unequal to
+        its own round trip; that is the truth, since the restored plan cannot
+        fit. Nothing learned is lost: the estimator is a line of the user's own
+        code.
     numeric_sentinels : dict[str, list[float]]
         Declared numeric sentinel values per column, carried from the source
         profile so the execution layer can normalise effective nulls without it
@@ -1595,18 +1679,25 @@ class ImputationDecision:
     -----
     ``column_decisions`` is the single source of truth; ``units`` and
     ``dropped_columns`` are always projections of it and are never set directly.
+
+    A plan carrying ``custom_estimators`` may hold a *pre-fitted* estimator: the
+    library tolerates it and never reads its state (sklearn refits from
+    scratch), and no guard refuses it, because any check would recognise only
+    sklearn's trailing-underscore spelling and would read as a guarantee it is
+    not. ADR-0060's value-free claim therefore narrows from a structural
+    guarantee to a statement about the library: **the library never writes
+    learned state onto a plan.**
     """
 
     column_decisions: "dict[str, ColumnImputationDecision]"
-    decided_for_shape: tuple
     config_snapshot: dict
-    profile_provenance: dict
     decided_hyperparameters: "dict[str, tuple[tuple[str, Any], ...]]" = field(
         default_factory=dict
     )
     override_hyperparameters: "dict[str, tuple[tuple[str, Any], ...]]" = field(
         default_factory=dict
     )
+    custom_estimators: "dict[str, Any]" = field(default_factory=dict)
     numeric_sentinels: "dict[str, list[float]]" = field(default_factory=dict)
     string_sentinels: "dict[str, list[str]]" = field(default_factory=dict)
     units: tuple = field(init=False, default=())
@@ -1619,6 +1710,9 @@ class ImputationDecision:
         object.__setattr__(self, "column_decisions", decisions)
         object.__setattr__(self, "decided_hyperparameters", decided_hyp)
         object.__setattr__(self, "override_hyperparameters", override_hyp)
+        # A shallow copy: the mapping is the plan's own, the estimator instances
+        # inside it are the caller's by identity (ADR-0083).
+        object.__setattr__(self, "custom_estimators", dict(self.custom_estimators))
         object.__setattr__(
             self,
             "numeric_sentinels",
@@ -1674,11 +1768,10 @@ class ImputationDecision:
         new_decisions[column] = replace(new_decisions[column], model_choice=resolved)
         return ImputationDecision(
             column_decisions=new_decisions,
-            decided_for_shape=self.decided_for_shape,
             config_snapshot=self.config_snapshot,
-            profile_provenance=self.profile_provenance,
             decided_hyperparameters=self.decided_hyperparameters,
             override_hyperparameters=self.override_hyperparameters,
+            custom_estimators=self.custom_estimators,
             numeric_sentinels=self.numeric_sentinels,
             string_sentinels=self.string_sentinels,
         )
@@ -1697,10 +1790,13 @@ class ImputationDecision:
         only: a joint unit shares one estimator, so per-column overrides on it
         would be meaningless.
 
-        Every key must already exist in the unit's decided base — the base *is*
-        the override schema (there is no separate allowlist), so a key the
-        strategy did not resolve is an unknown key and is rejected here. Values
-        are not type-checked: sklearn rejects an ill-typed value at fit time.
+        Every key must be one of the unit's strategy's dials (``_STRATEGY_DIALS``)
+        — the same table both authors build the decided base from, so what is
+        dialable is one fact rather than a per-author allowlist. A strategy with
+        no row has no dials, and every key is rejected for it. The decided base
+        may carry more than the dials (profile facts a fitter reads, such as a
+        bimodal unit's centres); those are not dialable. Values are not
+        type-checked: sklearn rejects an ill-typed value at fit time.
 
         Parameters
         ----------
@@ -1721,21 +1817,22 @@ class ImputationDecision:
         KeyError
             If ``unit_id`` is not part of the plan's derived units.
         ValueError
-            If ``hyperparameters`` names a key the unit's decided base does not
-            carry, identifying the unit and the offending key.
+            If ``hyperparameters`` names a key that is not one of the unit's
+            strategy's dials, identifying the unit and the offending key.
         """
-        if not any(u.unit_id == unit_id for u in self.units):
+        unit = next((u for u in self.units if u.unit_id == unit_id), None)
+        if unit is None:
             raise KeyError(f"Unit '{unit_id}' is not part of this plan.")
 
         new_override_hyperparameters = dict(self.override_hyperparameters)
         if hyperparameters is None:
             new_override_hyperparameters.pop(unit_id, None)
         else:
-            decided_keys = {k for k, _ in self.decided_hyperparameters.get(unit_id, ())}
+            dial_keys = set(_dial_defaults(unit.strategy))
             for key in hyperparameters:
-                if key not in decided_keys:
+                if key not in dial_keys:
                     raise ValueError(
-                        f"Unit '{unit_id}' has no decided hyperparameter '{key}' "
+                        f"Unit '{unit_id}' ({unit.strategy}) has no dial '{key}' "
                         f"to override."
                     )
             merged_delta = dict(new_override_hyperparameters.get(unit_id, ()))
@@ -1744,11 +1841,10 @@ class ImputationDecision:
 
         return ImputationDecision(
             column_decisions=self.column_decisions,
-            decided_for_shape=self.decided_for_shape,
             config_snapshot=self.config_snapshot,
-            profile_provenance=self.profile_provenance,
             decided_hyperparameters=self.decided_hyperparameters,
             override_hyperparameters=new_override_hyperparameters,
+            custom_estimators=self.custom_estimators,
             numeric_sentinels=self.numeric_sentinels,
             string_sentinels=self.string_sentinels,
         )
@@ -1760,6 +1856,13 @@ class ImputationDecision:
         re-derived — not consumed — on :meth:`from_dict`, so a hand-edited unit
         list can never desynchronise a reloaded plan.
 
+        ``custom_estimators`` is **omitted**: a user-supplied estimator is a
+        live object, not data, and the payload stays JSON-native (ADR-0083). The
+        reloaded plan keeps :attr:`ModelChoice.Custom` with an empty slot, and
+        fitting it raises rather than falling back to a library estimator.
+        Rejected alternatives: refusing to serialize such a plan at all, and
+        pickling the estimator into the envelope.
+
         Returns
         -------
         dict
@@ -1769,13 +1872,7 @@ class ImputationDecision:
             "column_decisions": {
                 col: d.to_dict() for col, d in self.column_decisions.items()
             },
-            "decided_for_shape": [
-                self.decided_for_shape[0],
-                self.decided_for_shape[1],
-                list(self.decided_for_shape[2]),
-            ],
             "config_snapshot": self.config_snapshot,
-            "profile_provenance": self.profile_provenance,
             "decided_hyperparameters": {
                 unit_id: {k: v for k, v in hyp}
                 for unit_id, hyp in self.decided_hyperparameters.items()
@@ -1803,6 +1900,14 @@ class ImputationDecision:
         read from ``data``, so ``from_dict(plan.to_dict())`` is structurally
         equal to ``plan`` even if the serialised unit list was tampered with.
 
+        The decided base is gap-filled against ``_STRATEGY_DIALS`` on the way
+        in — a dial the payload is missing takes the table's neutral value, and
+        a dial the payload carries is never overwritten. "Complete for the
+        unit's strategy" is thereby true of the type rather than of the two
+        authoring functions, which is what lets a fitter subscript a dial
+        outright. Cost taken knowingly: an artifact saved before a dial existed
+        silently gains it rather than dying on a bare ``KeyError``.
+
         Parameters
         ----------
         data : dict
@@ -1813,7 +1918,6 @@ class ImputationDecision:
         ImputationDecision
             Reconstructed plan instance.
         """
-        raw_shape = data["decided_for_shape"]
         decided_hyperparameters = {
             unit_id: _hyperparameters_from_dict(hyp)
             for unit_id, hyp in data.get("decided_hyperparameters", {}).items()
@@ -1822,18 +1926,23 @@ class ImputationDecision:
             unit_id: _hyperparameters_from_dict(hyp)
             for unit_id, hyp in data.get("override_hyperparameters", {}).items()
         }
+        column_decisions = {
+            col: ColumnImputationDecision.from_dict(raw)
+            for col, raw in data.get("column_decisions", {}).items()
+        }
+        for unit in _derive_units(column_decisions):
+            base = dict(decided_hyperparameters.get(unit.unit_id, ()))
+            missing = {
+                key: value
+                for key, value in _dial_defaults(unit.strategy).items()
+                if key not in base
+            }
+            if missing:
+                base.update(missing)
+                decided_hyperparameters[unit.unit_id] = tuple(base.items())
         return cls(
-            column_decisions={
-                col: ColumnImputationDecision.from_dict(raw)
-                for col, raw in data.get("column_decisions", {}).items()
-            },
-            decided_for_shape=(
-                raw_shape[0],
-                raw_shape[1],
-                tuple(raw_shape[2]),
-            ),
+            column_decisions=column_decisions,
             config_snapshot=data.get("config_snapshot", {}),
-            profile_provenance=data.get("profile_provenance", {}),
             decided_hyperparameters=decided_hyperparameters,
             override_hyperparameters=override_hyperparameters,
             numeric_sentinels={

@@ -270,9 +270,7 @@ def test_scalar_units_land_on_records_and_model_units_on_the_list():
 def _synthetic_plan(*decisions: ColumnImputationDecision) -> ImputationDecision:
     return ImputationDecision(
         column_decisions={d.column: d for d in decisions},
-        decided_for_shape=(1000, len(decisions), tuple(d.column for d in decisions)),
         config_snapshot={},
-        profile_provenance={},
     )
 
 
@@ -373,6 +371,22 @@ def test_no_warning_is_emitted_for_a_block_that_cannot_spend_a_budget():
         assert core_budget(plan, max_workers=8, total_cores=12)["mice"] == 1
 
 
+@pytest.mark.parametrize("max_workers", [1, 4, 8, None])
+def test_a_custom_estimator_is_priced_at_one_in_every_branch(max_workers):
+    """The library spends no cores on an estimator it did not build (ADR-0083).
+
+    Including the sequential ``max_workers=1`` branch, which hands a
+    library-built MICE block ``-1``: there is nothing here to open up, since the
+    library never sets a foreign estimator's parameters.
+    """
+    plan = _budget_plan(choice=ModelChoice.Custom)
+    assert core_budget(plan, max_workers=max_workers, total_cores=12) == {
+        "mice": 1,
+        "knn": 1,
+        "median:s1": 1,
+    }
+
+
 def test_a_plan_with_no_mice_unit_is_all_ones():
     plan = _synthetic_plan(
         _numeric("k1", ImputationStrategy.KNN),
@@ -406,3 +420,57 @@ def test_fit_unit_signature_is_unchanged_and_n_jobs_inner_still_defaults_to_minu
         "n_jobs_inner",
     ]
     assert params["n_jobs_inner"].default == -1
+
+
+def test_a_reloaded_plan_fits_identically_with_no_config_in_hand():
+    """Every fact the fitters need rides on the plan itself (#466 / ADR-0083).
+
+    The saved plan is stripped of its config snapshot before reloading, so the
+    only thing left to fit from is ``column_decisions`` — the whole point of
+    lowering the grouping variable and the constant fill onto the column.
+    """
+    rng = np.random.default_rng(3)
+    n = 300
+    lo = rng.random(n) < 0.5
+    bi = np.where(lo, rng.normal(5.0, 1.0, n), rng.normal(40.0, 1.0, n)).tolist()
+    for i in range(n):
+        if rng.random() < 0.1:
+            bi[i] = None
+    const = (rng.normal(0.0, 1.0, n)).tolist()
+    for i in range(n):
+        if rng.random() < 0.1:
+            const[i] = None
+    df = pl.DataFrame(
+        {
+            "bi": pl.Series(bi, dtype=pl.Float64),
+            "grp": pl.Series(np.where(lo, "lo", "hi")),
+            "k": pl.Series(const, dtype=pl.Float64),
+        }
+    )
+
+    config = PipelineConfig()
+    config.random_seed = 11
+    config.imputation.numeric.set_bimodal_grouping_variable("bi", "grp")
+    config.imputation.numeric.set_per_column_constant_fill("k", -9.0)
+    plan = _plan(df, config)
+    assert any(u.unit_id == "cluster_conditional:bi" for u in plan.units)
+    assert any(u.unit_id == "constant:k" for u in plan.units)
+
+    reloaded = ImputationDecision.from_dict({**plan.to_dict(), "config_snapshot": {}})
+    assert reloaded.config_snapshot == {}
+
+    in_process = _fit_all(plan, df)
+    from_disk = _fit_all(reloaded, df)
+    assert set(in_process) == set(from_disk)
+
+    cluster = from_disk["cluster_conditional:bi"].fitted
+    assert cluster.grouping_variable == "grp"
+    assert (
+        cluster.group_fills
+        == in_process["cluster_conditional:bi"].fitted.group_fills
+    )
+    assert from_disk["constant:k"].fitted.fill_value == -9.0
+    for unit_id, result in from_disk.items():
+        assert result.fitted.transform(df).equals(
+            in_process[unit_id].fitted.transform(df)
+        )

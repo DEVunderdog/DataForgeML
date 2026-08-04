@@ -19,6 +19,7 @@ import polars as pl
 import pytest
 
 from dataforge_ml import (
+    EvaluationOrchestrator,
     EventType,
     PipelineConfig,
     PipelineEvent,
@@ -89,5 +90,26 @@ def test_fit_event_stream_has_no_diagnostics_fold_substeps(eval_df, eval_profile
         if e.event_type == EventType.substep and "diagnostics fold" in (e.message or "")
     ]
     assert not fold_msgs, "the fit path must not run diagnostics folds"
+
+
+# ---------------------------------------------------------------------------
+# ``k_capped`` is always computable for a fitted KNN unit (ADR-0083): the
+# ``knn_n_neighbors`` config override that used to blank it is gone, so no
+# config a user can write makes the field unreadable.
+# ---------------------------------------------------------------------------
+
+
+def test_k_capped_is_computable_for_every_fitted_knn_unit(eval_df, eval_profile):
+    config = PipelineConfig(profiling=ProfileConfig())
+    for col in eval_df.columns:
+        config.imputation.numeric.set_per_column_strategy(col, "knn")
+
+    profile = StructuralProfiler(config).profile(eval_df)
+    fitted = fit_imputer(eval_df, profile, config)
+    report = EvaluationOrchestrator(config).inspect(fitted, eval_df)
+
+    assert set(report.columns) == set(eval_df.columns)
+    for col in report.columns:
+        assert report[col].k_capped in (True, False)
 
 
