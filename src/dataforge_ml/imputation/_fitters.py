@@ -21,7 +21,8 @@ dependency edge runs surface → fitters, never back.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from collections.abc import TYPE_CHECKING, Any, Mapping, Optional
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
 import polars as pl
