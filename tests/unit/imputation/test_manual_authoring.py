@@ -58,7 +58,7 @@ def _frame(n=240, seed=11):
 
 def _drive(plan, df):
     """The user-orchestrated loop: train every planned unit, then compose."""
-    results = [fit_unit(plan, unit.unit_id, df, random_seed=7) for unit in plan.units]
+    results = [fit_unit(plan, unit, df, random_seed=7) for unit in plan.units]
     return FittedImputer.compose(plan, results), results
 
 

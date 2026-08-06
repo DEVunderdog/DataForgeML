@@ -859,7 +859,7 @@ def test_hand_authored_plan_drives_column_names_to_an_imputed_frame():
     }
 
     results = {
-        unit.unit_id: fit_unit(plan, unit.unit_id, df, random_seed=42)
+        unit.unit_id: fit_unit(plan, unit, df, random_seed=42)
         for unit in plan.units
     }
     imputer = FittedImputer.compose(plan, results)
@@ -908,7 +908,7 @@ def test_re_authored_decided_plan_drives_to_an_imputed_frame(
     assert edited.config_snapshot == decided.config_snapshot
 
     results = {
-        unit.unit_id: fit_unit(edited, unit.unit_id, train, random_seed=42)
+        unit.unit_id: fit_unit(edited, unit, train, random_seed=42)
         for unit in edited.units
     }
     result = FittedImputer.compose(edited, results).transform(imputation_split.test)

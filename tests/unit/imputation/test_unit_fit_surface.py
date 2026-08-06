@@ -36,6 +36,7 @@ from dataforge_ml.imputation import (
     ImputationDecision,
     ImputationFitWarning,
     ImputationStrategy,
+    ImputationUnit,
     UnitFitResult,
     UnitNotTrainableError,
 )
@@ -64,7 +65,7 @@ def _plan(df, config=None):
 
 def _fit_all(plan, df):
     """The user-owned drive: one ``fit_unit`` call per planned unit."""
-    return {u.unit_id: fit_unit(plan, u.unit_id, df) for u in plan.units}
+    return {u.unit_id: fit_unit(plan, u, df) for u in plan.units}
 
 
 def test_fit_many_is_absent_from_both_public_namespaces():
@@ -91,10 +92,10 @@ def test_full_flow_fit_unit_loop_compose_transform_imputes_the_frame():
 def test_fit_unit_returns_a_bundle_for_one_planned_unit():
     df = _holey_frame()
     plan = _plan(df)
-    unit_id = plan.units[0].unit_id
-    result = fit_unit(plan, unit_id, df)
+    unit = plan.units[0]
+    result = fit_unit(plan, unit, df)
     assert isinstance(result, UnitFitResult)
-    assert result.unit_id == unit_id
+    assert result.unit_id == unit.unit_id
     assert result.strategy == plan.units[0].strategy
     assert result.fitted is not None
 
@@ -170,14 +171,13 @@ def _unpredictable_mice_plan():
 
 def test_untrainable_unit_raises_with_structured_payload():
     df, plan = _unpredictable_mice_plan()
-    unit_id = "mice"
-    assert any(u.unit_id == unit_id for u in plan.units)
+    (unit,) = plan.units_for(ImputationStrategy.MICE)
     assert plan.column_decisions["y"].model_choice is None
 
     with pytest.raises(UnitNotTrainableError) as exc:
-        fit_unit(plan, unit_id, df)
+        fit_unit(plan, unit, df)
     err = exc.value
-    assert err.unit_id == unit_id
+    assert err.unit_id == unit.unit_id
     assert err.columns == ("y",)
     assert err.reason
 
@@ -200,10 +200,10 @@ def test_forced_oversize_warns_structurally_and_records_it():
     config.imputation.numeric.set_per_column_strategy("a", "knn")
     config.imputation.numeric.knn_max_rows = 10  # 200 rows is far past the cap
     plan = _plan(df, config)
-    unit_id = next(u.unit_id for u in plan.units if u.strategy.value == "knn")
+    (unit,) = plan.units_for(ImputationStrategy.KNN)
 
     with pytest.warns(ImputationFitWarning, match="forced past its routing threshold"):
-        result = fit_unit(plan, unit_id, df)
+        result = fit_unit(plan, unit, df)
 
     # Dual-channelled: the same warning is also recorded on the structured record.
     assert result.signals.warnings
@@ -213,8 +213,9 @@ def test_forced_oversize_warns_structurally_and_records_it():
 def test_genuine_failure_still_raises_not_warns():
     """A forced but untrainable unit raises; it does not degrade to a warning."""
     df, plan = _unpredictable_mice_plan()
+    (unit,) = plan.units_for(ImputationStrategy.MICE)
     with pytest.raises(UnitNotTrainableError):
-        fit_unit(plan, "mice", df)
+        fit_unit(plan, unit, df)
 
 
 def test_fit_result_carries_a_populated_fit_signals_record():
@@ -238,10 +239,9 @@ def test_fit_signals_reports_estimator_and_convergence_for_a_model_unit():
     config = PipelineConfig()
     config.imputation.numeric.set_per_column_strategy("a", "mice")
     plan = _plan(df, config)
-    unit_id = "mice"
-    assert any(u.unit_id == unit_id for u in plan.units)
+    (unit,) = plan.units_for(ImputationStrategy.MICE)
 
-    signals = fit_unit(plan, unit_id, df).signals
+    signals = fit_unit(plan, unit, df).signals
     assert signals.estimator is not None
     assert signals.converged is not None
     assert signals.n_iter is not None
@@ -414,12 +414,85 @@ def test_fit_unit_signature_is_unchanged_and_n_jobs_inner_still_defaults_to_minu
     params = inspect.signature(fit_unit).parameters
     assert list(params) == [
         "decision",
-        "unit_id",
+        "unit",
         "df",
         "random_seed",
         "n_jobs_inner",
     ]
     assert params["n_jobs_inner"].default == -1
+
+
+def test_units_for_selects_by_strategy_without_naming_a_unit_id():
+    """The selection surface: an enum the checker sees, not a typed literal."""
+    df = _holey_frame()
+    config = PipelineConfig()
+    config.imputation.numeric.set_per_column_strategy(["a", "b"], "mice")
+    plan = _plan(df, config)
+
+    (unit,) = plan.units_for(ImputationStrategy.MICE)
+    assert unit.strategy == ImputationStrategy.MICE
+    assert unit.is_block
+    assert set(unit.columns) == {"a", "b"}
+
+
+def test_units_for_returns_empty_when_nothing_routed_to_the_strategy():
+    """The empty case is ordinary, so it is a zero-length tuple — never None, never a raise.
+
+    This is what lets a caller loop over the result with no guard.
+    """
+    df = _holey_frame()
+    config = PipelineConfig()
+    config.imputation.numeric.set_per_column_strategy(["a", "b", "c"], "median")
+    plan = _plan(df, config)
+
+    assert plan.units_for(ImputationStrategy.MICE) == ()
+    assert plan.units_for(ImputationStrategy.Dropped) == ()
+    assert [u.unit_id for u in plan.units_for(ImputationStrategy.MICE)] == []
+
+
+def test_fit_unit_resolves_the_passed_unit_against_the_plan_not_its_own_recipe():
+    """The plan wins: a unit held from before an edit trains the edited recipe.
+
+    ``fit_unit`` reads only the id off the passed unit, so a stale object cannot
+    become a second source of truth for the hyperparameters.
+    """
+    df = _holey_frame()
+    config = PipelineConfig()
+    config.imputation.numeric.set_per_column_strategy(["a", "b"], "mice")
+    plan = _plan(df, config)
+
+    (stale,) = plan.units_for(ImputationStrategy.MICE)
+    edited = plan.with_hyperparameters(stale.unit_id, {"max_iter": 3})
+    # The stale object still carries the pre-edit dials.
+    assert dict(stale.hyperparameters or ())["max_iter"] != 3
+
+    fitted = fit_unit(edited, stale, df).fitted
+    assert fitted.model.max_iter == 3
+
+
+def test_passing_a_unit_id_string_raises_a_pointed_type_error():
+    """The pre-4.x call shape fails loudly, naming the replacement."""
+    df = _holey_frame()
+    plan = _plan(df)
+
+    with pytest.raises(TypeError, match="takes an ImputationUnit, not the id"):
+        fit_unit(plan, plan.units[0].unit_id, df)
+
+
+def test_fit_unit_raises_key_error_for_a_unit_from_a_foreign_plan():
+    """Resolution is by id against this plan, so an unknown unit still raises."""
+    df = _holey_frame()
+    plan = _plan(df)
+    foreign = ImputationUnit(
+        unit_id="mice",
+        strategy=ImputationStrategy.MICE,
+        columns=("a",),
+        is_block=True,
+    )
+    assert not plan.units_for(ImputationStrategy.MICE)
+
+    with pytest.raises(KeyError, match="Plan carries no unit 'mice'"):
+        fit_unit(plan, foreign, df)
 
 
 def test_a_reloaded_plan_fits_identically_with_no_config_in_hand():

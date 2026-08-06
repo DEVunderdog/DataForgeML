@@ -182,7 +182,7 @@ def _select_units(plan, strategy_name, target_cols):
 
 
 def _fit_all(plan, units, df):
-    return [(u, fit_unit(plan, u.unit_id, df, random_seed=7).fitted) for u in units]
+    return [(u, fit_unit(plan, u, df, random_seed=7).fitted) for u in units]
 
 
 def _case(strategy_name):

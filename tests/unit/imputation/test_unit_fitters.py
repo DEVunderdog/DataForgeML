@@ -87,7 +87,7 @@ def _drive(df, cfg):
     )
     fitted = {
         unit.unit_id: fit_unit(
-            plan, unit.unit_id, train, random_seed=cfg.random_seed
+            plan, unit, train, random_seed=cfg.random_seed
         ).fitted
         for unit in plan.units
     }
@@ -444,8 +444,9 @@ def test_hyperparameter_override_reaches_the_fitter():
     plan = decide(profile, profile.dataset.row_count, cfg)
 
     edited = plan.with_hyperparameters("mice", {"max_iter": 3})
-    fitted = fit_unit(plan, "mice", df).fitted
-    fitted_edited = fit_unit(edited, "mice", df).fitted
+    (unit,) = plan.units_for(ImputationStrategy.MICE)
+    fitted = fit_unit(plan, unit, df).fitted
+    fitted_edited = fit_unit(edited, unit, df).fitted
 
     # The decided base is untouched; only the edited plan carries the override.
     assert fitted_edited.model.max_iter == 3

@@ -90,7 +90,7 @@ def _fit_sequential(plan, df, random_seed):
     """Fit units back to back, each opening its inner parallelism to every core."""
     return {
         unit.unit_id: fit_unit(
-            plan, unit.unit_id, df, random_seed=random_seed, n_jobs_inner=-1
+            plan, unit, df, random_seed=random_seed, n_jobs_inner=-1
         )
         for unit in plan.units
     }
@@ -103,7 +103,7 @@ def _fit_pooled(plan, df, random_seed, max_workers=None):
             unit.unit_id: pool.submit(
                 fit_unit,
                 plan,
-                unit.unit_id,
+                unit,
                 df,
                 random_seed=random_seed,
                 n_jobs_inner=1,

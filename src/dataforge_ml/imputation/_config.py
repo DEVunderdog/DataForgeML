@@ -169,6 +169,7 @@ _OUTPUT_ONLY_STRATEGIES: frozenset[ImputationStrategy] = frozenset(
 # "passed through because fit saw no missingness" (missing values raise).
 _EXCLUSION_SIGNAL = "soft-excluded for Imputation phase"
 
+
 def _output_only_redirect(column: str, strategy: ImputationStrategy) -> str:
     """Build the redirect message for an output-only strategy declaration."""
     if strategy == ImputationStrategy.Dropped:
@@ -1731,6 +1732,31 @@ class ImputationDecision:
             "dropped_columns",
             tuple(c for c, d in decisions.items() if d.drop),
         )
+
+    def units_for(self, strategy: ImputationStrategy) -> tuple[ImputationUnit, ...]:
+        """Return the plan's units that execute ``strategy``.
+
+        The selection surface for a caller driving their own fit loop: it
+        replaces scanning ``units`` against a hand-typed ``unit_id`` literal,
+        so the id stays an internal name the caller never spells.
+
+        Always returns a tuple — empty when the plan routed nothing to
+        ``strategy``, which is an ordinary outcome rather than an error. A
+        strategy that is structural, or that no column reached, therefore needs
+        no guard at the call site: the loop simply runs zero times. ``MICE`` and
+        ``KNN`` yield at most one unit each, being joint blocks.
+
+        Parameters
+        ----------
+        strategy : ImputationStrategy
+            The strategy to select on.
+
+        Returns
+        -------
+        tuple[ImputationUnit, ...]
+            The matching units, in plan order. Empty if there are none.
+        """
+        return tuple(u for u in self.units if u.strategy == strategy)
 
     def with_model_choice(
         self, column: str, model_choice: "Optional[str | ModelChoice]"

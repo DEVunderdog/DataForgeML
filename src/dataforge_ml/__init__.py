@@ -36,6 +36,7 @@ from .imputation import (
     ImputationFitWarning,
     ImputationResult,
     ImputationStrategy,
+    ImputationUnit,
     InspectionDiagnostic,
     InspectionReport,
     ModelChoice,
@@ -83,26 +84,20 @@ from .splitting import (
 from .utils.data_loader import DataLoader, UnsupportedFormatError
 
 __all__ = [
-    # Pipeline-level config and shared enums
     "PipelineConfig",
     "PipelinePhase",
     "SemanticType",
     "Modality",
-    # Entry points
+
     "StructuralProfiler",
     "EvaluationOrchestrator",
     "FittedImputer",
-    # Imputation is user-orchestrated: decide() plans, the caller's fit_unit()
-    # loop trains (batch scheduling is user-owned, ADR-0075), and
-    # FittedImputer.compose() aggregates. There is no fused entry point
-    # (ADR-0060, ADR-0071).
+    
     "decide",
-    # The manual authoring door: a user who knows their own data writes the
-    # plan decide() would have derived, and it is indistinguishable downstream
-    # (ADR-0083).
     "author",
     "AuthoredColumn",
     "fit_unit",
+    "ImputationUnit",
     "core_budget",
     "UnitFitResult",
     "FitSignals",
@@ -110,7 +105,6 @@ __all__ = [
     "FittedUnit",
     "DataSplitter",
     "DataLoader",
-    # Config objects and Phase Sub-Configs
     "ProfileConfig",
     "MissingnessProfileConfig",
     "NumericProfileConfig",
@@ -122,15 +116,12 @@ __all__ = [
     "ImputationConfig",
     "NumericImputationConfig",
     "SplitConfig",
-    # Input enums
     "NumericKind",
     "ImputationStrategy",
     "ModelChoice",
-    # Observability
     "PipelineEvent",
     "EventType",
     "stderr_observer",
-    # Result and nested-record types
     "StructuralProfileResult",
     "ColumnProfile",
     "DatasetStats",
@@ -141,22 +132,18 @@ __all__ = [
     "SplitResult",
     "FoldResult",
     "HoldoutCVResult",
-    # User-facing fit-quality diagnostics
     "InspectionDiagnostic",
     "InspectionReport",
     "AccuracyDiagnostic",
     "AccuracyReport",
-    # Exceptions the user catches
     "UnseenColumnError",
     "FittedColumnAbsentError",
     "OverrideCoercionError",
     "UnsupportedFormatError",
     "IncompatibleArtifactError",
-    # Warnings the user filters
     "ArtifactPythonVersionWarning",
     "ImputationFitWarning",
     "DroppedColumnAbsentWarning",
-    # Bare-bytes persistence (ADR-0072)
     "serialize",
     "deserialize",
     "inspect",

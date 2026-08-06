@@ -222,8 +222,9 @@ def test_fitting_a_reloaded_custom_plan_fails_loudly_rather_than_falling_back() 
         }
     )
 
+    (unit,) = loaded.units_for(ImputationStrategy.MICE)
     with pytest.raises(UnitNotTrainableError, match="estimators="):
-        fit_unit(loaded, "mice", df)
+        fit_unit(loaded, unit, df)
 
 
 def test_a_custom_plan_compares_unequal_to_its_own_round_trip() -> None:

@@ -77,8 +77,7 @@ class UnitNotTrainableError(RuntimeError):
         self.reason = reason
         names = ", ".join(f"'{c}'" for c in self.columns)
         super().__init__(
-            f"Unit '{unit_id}' ({strategy}) could not train column(s) {names}: "
-            f"{reason}"
+            f"Unit '{unit_id}' ({strategy}) could not train column(s) {names}: {reason}"
         )
 
 
@@ -143,14 +142,28 @@ def _fit_context(
     )
 
 
-def _unit(decision: "ImputationDecision", unit_id: str) -> ImputationUnit:
-    """Return the plan's unit for ``unit_id``, or raise ``KeyError``."""
-    for unit in decision.units:
-        if unit.unit_id == unit_id:
-            return unit
+def _resolve(decision: ImputationDecision, unit: ImputationUnit) -> ImputationUnit:
+    """Re-resolve ``unit`` against the plan by id, or raise ``KeyError``.
+
+    The plan is the single source of truth for a unit's recipe. Resolving by id
+    rather than training from the passed object means a unit held from before a
+    ``with_hyperparameters`` edit trains the plan's current recipe instead of
+    the stale one it was carrying.
+    """
+    if isinstance(unit, str):
+        # The pre-4.x signature took the id. Say so, rather than letting the
+        # attribute lookup below fail with a bare AttributeError.
+        raise TypeError(
+            f"fit_unit() takes an ImputationUnit, not the id {unit!r}. Get the "
+            f"unit from the plan — decision.units, or "
+            f"decision.units_for(ImputationStrategy.…) — and pass that."
+        )
+    for candidate in decision.units:
+        if candidate.unit_id == unit.unit_id:
+            return candidate
     known = ", ".join(f"'{u.unit_id}'" for u in decision.units)
     raise KeyError(
-        f"Plan carries no unit '{unit_id}'. Known units: {known or '(none)'}."
+        f"Plan carries no unit '{unit.unit_id}'. Known units: {known or '(none)'}."
     )
 
 
@@ -167,7 +180,7 @@ def _emit_warnings(signals: FitSignals) -> None:
 
 def fit_unit(
     decision: "ImputationDecision",
-    unit_id: str,
+    unit: ImputationUnit,
     df: pl.DataFrame,
     random_seed: Optional[int] = None,
     n_jobs_inner: int = -1,
@@ -198,8 +211,11 @@ def fit_unit(
         The immutable plan. Supplies the unit recipe, the per-column decisions a
         fitter honours, the config snapshot, and the sentinel maps used to
         normalise ``df``.
-    unit_id : str
-        The id of the unit to train.
+    unit : ImputationUnit
+        The unit to train, taken from the plan's ``units`` or from
+        :meth:`ImputationDecision.units_for`. Only its ``unit_id`` is read: the
+        recipe is re-resolved against ``decision``, so the plan always wins over
+        a unit held from before an edit.
     df : pl.DataFrame
         Training data, raw or already normalised.
     random_seed : int, optional
@@ -218,13 +234,16 @@ def fit_unit(
     Raises
     ------
     KeyError
-        If ``unit_id`` names no unit in the plan.
+        If ``unit`` names no unit in the plan.
+    TypeError
+        If ``unit`` is a unit id string rather than an
+        :class:`~dataforge_ml.ImputationUnit` — the pre-4.x signature.
     UnitNotTrainableError
         If the unit cannot train, carrying its structured payload — the sole
         failure track (ADR-0071).
     """
     start = perf_counter()
-    unit = _unit(decision, unit_id)
+    unit = _resolve(decision, unit)
     train_df = _resolve_effective_nulls(
         df,
         numeric_sentinels=decision.numeric_sentinels,

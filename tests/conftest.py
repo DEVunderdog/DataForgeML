@@ -35,7 +35,7 @@ def fit_imputer(train_df, profile, config=None, observer=None):
     plan = decide(profile, len(train_df), config)
     results = {
         unit.unit_id: fit_unit(
-            plan, unit.unit_id, train_df, random_seed=config.random_seed
+            plan, unit, train_df, random_seed=config.random_seed
         )
         for unit in plan.units
     }

@@ -315,7 +315,7 @@ def test_whole_imputer_round_trips_via_decision_plus_units() -> None:
     profile = StructuralProfiler(cfg).profile(df)
     plan = decide(profile, len(df), cfg)
     results = {
-        unit.unit_id: fit_unit(plan, unit.unit_id, df, random_seed=7)
+        unit.unit_id: fit_unit(plan, unit, df, random_seed=7)
         for unit in plan.units
     }
 
