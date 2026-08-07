@@ -530,13 +530,14 @@ the rest:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">budget</span> <span class="o">=</span> <span class="n">core_budget</span><span class="p">(</span><span class="n">plan</span><span class="p">,</span> <span class="n">max_workers</span><span class="o">=</span><span class="n">n_workers</span><span class="p">,</span> <span class="n">total_cores</span><span class="o">=</span><span class="n">n_cores</span> <span class="o">-</span> <span class="n">reserved</span><span class="p">)</span>
 
 <span class="c1"># The self-parallelising unit runs alone, with the whole machine.</span>
-<span class="n">custom</span> <span class="o">=</span> <span class="n">fit_unit</span><span class="p">(</span><span class="n">plan</span><span class="p">,</span> <span class="s2">&quot;mice&quot;</span><span class="p">,</span> <span class="n">df</span><span class="p">)</span>
+<span class="p">(</span><span class="n">mice</span><span class="p">,)</span> <span class="o">=</span> <span class="n">plan</span><span class="o">.</span><span class="n">units_for</span><span class="p">(</span><span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MICE</span><span class="p">)</span>
+<span class="n">custom</span> <span class="o">=</span> <span class="n">fit_unit</span><span class="p">(</span><span class="n">plan</span><span class="p">,</span> <span class="n">mice</span><span class="p">,</span> <span class="n">df</span><span class="p">)</span>
 
 <span class="k">with</span> <span class="n">ThreadPoolExecutor</span><span class="p">(</span><span class="n">max_workers</span><span class="o">=</span><span class="n">n_workers</span><span class="p">)</span> <span class="k">as</span> <span class="n">pool</span><span class="p">:</span>
     <span class="n">rest</span> <span class="o">=</span> <span class="p">[</span>
-        <span class="n">pool</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">fit_unit</span><span class="p">,</span> <span class="n">plan</span><span class="p">,</span> <span class="n">uid</span><span class="p">,</span> <span class="n">df</span><span class="p">,</span> <span class="n">n_jobs_inner</span><span class="o">=</span><span class="n">budget</span><span class="p">[</span><span class="n">uid</span><span class="p">])</span>
-        <span class="k">for</span> <span class="n">uid</span> <span class="ow">in</span> <span class="n">budget</span>
-        <span class="k">if</span> <span class="n">uid</span> <span class="o">!=</span> <span class="s2">&quot;mice&quot;</span>
+        <span class="n">pool</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">fit_unit</span><span class="p">,</span> <span class="n">plan</span><span class="p">,</span> <span class="n">unit</span><span class="p">,</span> <span class="n">df</span><span class="p">,</span> <span class="n">n_jobs_inner</span><span class="o">=</span><span class="n">budget</span><span class="p">[</span><span class="n">unit</span><span class="o">.</span><span class="n">unit_id</span><span class="p">])</span>
+        <span class="k">for</span> <span class="n">unit</span> <span class="ow">in</span> <span class="n">plan</span><span class="o">.</span><span class="n">units</span>
+        <span class="k">if</span> <span class="n">unit</span><span class="o">.</span><span class="n">strategy</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MICE</span>
     <span class="p">]</span>
     <span class="o">...</span>
 </pre></div>
@@ -1003,6 +1004,31 @@ pickling the estimator into the envelope.</p>
 <dd></dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationDecision.units_for">
+<span class="sig-name descname"><span class="pre">units_for</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_config.html#ImputationDecision.units_for"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationDecision.units_for" title="Link to this definition">#</a></dt>
+<dd><p>Return the plan’s units that execute <code class="docutils literal notranslate"><span class="pre">strategy</span></code>.</p>
+<p>The selection surface for a caller driving their own fit loop: it
+replaces scanning <code class="docutils literal notranslate"><span class="pre">units</span></code> against a hand-typed <code class="docutils literal notranslate"><span class="pre">unit_id</span></code> literal,
+so the id stays an internal name the caller never spells.</p>
+<p>Always returns a tuple — empty when the plan routed nothing to
+<code class="docutils literal notranslate"><span class="pre">strategy</span></code>, which is an ordinary outcome rather than an error. A
+strategy that is structural, or that no column reached, therefore needs
+no guard at the call site: the loop simply runs zero times. <code class="docutils literal notranslate"><span class="pre">MICE</span></code> and
+<code class="docutils literal notranslate"><span class="pre">KNN</span></code> yield at most one unit each, being joint blocks.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>strategy</strong> (<a class="reference internal" href="#dataforge_ml.imputation._config.ImputationStrategy" title="dataforge_ml.imputation._config.ImputationStrategy"><em>ImputationStrategy</em></a>) – The strategy to select on.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The matching units, in plan order. Empty if there are none.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple[<a class="reference internal" href="#dataforge_ml.imputation._config.ImputationUnit" title="dataforge_ml.imputation._config.ImputationUnit">ImputationUnit</a>, …]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="dataforge_ml.imputation._config.ImputationDecision.with_hyperparameters">
 <span class="sig-name descname"><span class="pre">with_hyperparameters</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">unit_id</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hyperparameters</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_config.html#ImputationDecision.with_hyperparameters"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._config.ImputationDecision.with_hyperparameters" title="Link to this definition">#</a></dt>
 <dd><p>Return a new plan overriding named hyperparameters on one unit.</p>
@@ -1338,7 +1364,7 @@ member name and <code class="docutils literal notranslate"><span class="pre">col
 <h2>Execution layer<a class="headerlink" href="#execution-layer" title="Link to this heading">#</a></h2>
 <dl class="py function">
 <dt class="sig sig-object py" id="dataforge_ml.imputation._unit_fit.fit_unit">
-<span class="sig-prename descclassname"><span class="pre">dataforge_ml.imputation._unit_fit.</span></span><span class="sig-name descname"><span class="pre">fit_unit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">decision</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unit_id</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_jobs_inner</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_unit_fit.html#fit_unit"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._unit_fit.fit_unit" title="Link to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">dataforge_ml.imputation._unit_fit.</span></span><span class="sig-name descname"><span class="pre">fit_unit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">decision</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unit</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_jobs_inner</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dataforge_ml/imputation/_unit_fit.html#fit_unit"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dataforge_ml.imputation._unit_fit.fit_unit" title="Link to this definition">#</a></dt>
 <dd><p>Train exactly one planned unit and bundle it into a <a class="reference internal" href="#dataforge_ml.imputation._unit_fit.UnitFitResult" title="dataforge_ml.imputation._unit_fit.UnitFitResult"><code class="xref py py-class docutils literal notranslate"><span class="pre">UnitFitResult</span></code></a>.</p>
 <p>The one training primitive of the user-orchestrated flow: batch scheduling
 is user-owned (ADR-0075), so training a whole plan is a caller-written loop
@@ -1362,7 +1388,10 @@ spent.</p>
 <li><p><strong>decision</strong> (<a class="reference internal" href="#dataforge_ml.imputation._config.ImputationDecision" title="dataforge_ml.imputation._config.ImputationDecision"><em>ImputationDecision</em></a>) – The immutable plan. Supplies the unit recipe, the per-column decisions a
 fitter honours, the config snapshot, and the sentinel maps used to
 normalise <code class="docutils literal notranslate"><span class="pre">df</span></code>.</p></li>
-<li><p><strong>unit_id</strong> (<em>str</em>) – The id of the unit to train.</p></li>
+<li><p><strong>unit</strong> (<a class="reference internal" href="#dataforge_ml.imputation._config.ImputationUnit" title="dataforge_ml.imputation._config.ImputationUnit"><em>ImputationUnit</em></a>) – The unit to train, taken from the plan’s <code class="docutils literal notranslate"><span class="pre">units</span></code> or from
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">ImputationDecision.units_for()</span></code>. Only its <code class="docutils literal notranslate"><span class="pre">unit_id</span></code> is read: the
+recipe is re-resolved against <code class="docutils literal notranslate"><span class="pre">decision</span></code>, so the plan always wins over
+a unit held from before an edit.</p></li>
 <li><p><strong>df</strong> (<em>pl.DataFrame</em>) – Training data, raw or already normalised.</p></li>
 <li><p><strong>random_seed</strong> (<em>int</em><em>, </em><em>optional</em>) – Seed for the stochastic strategies (GMM sampling).</p></li>
 <li><p><strong>n_jobs_inner</strong> (<em>int</em><em>, </em><em>default -1</em>) – Inner estimator <code class="docutils literal notranslate"><span class="pre">n_jobs</span></code> (ADR-0056). Leave at <code class="docutils literal notranslate"><span class="pre">-1</span></code> for a sequential
@@ -1379,7 +1408,9 @@ unit’s value from <a class="reference internal" href="#dataforge_ml.imputation
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
 <dd class="field-even"><ul class="simple">
-<li><p><strong>KeyError</strong> – If <code class="docutils literal notranslate"><span class="pre">unit_id</span></code> names no unit in the plan.</p></li>
+<li><p><strong>KeyError</strong> – If <code class="docutils literal notranslate"><span class="pre">unit</span></code> names no unit in the plan.</p></li>
+<li><p><strong>TypeError</strong> – If <code class="docutils literal notranslate"><span class="pre">unit</span></code> is a unit id string rather than an
+<code class="xref py py-class docutils literal notranslate"><span class="pre">ImputationUnit</span></code> — the pre-4.x signature.</p></li>
 <li><p><a class="reference internal" href="#dataforge_ml.imputation._unit_fit.UnitNotTrainableError" title="dataforge_ml.imputation._unit_fit.UnitNotTrainableError"><strong>UnitNotTrainableError</strong></a> – If the unit cannot train, carrying its structured payload — the sole
 failure track (ADR-0071).</p></li>
 </ul>
@@ -3257,6 +3288,7 @@ Suppress with
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationDecision.string_sentinels"><code class="docutils literal notranslate"><span class="pre">ImputationDecision.string_sentinels</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationDecision.to_dict"><code class="docutils literal notranslate"><span class="pre">ImputationDecision.to_dict()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationDecision.units"><code class="docutils literal notranslate"><span class="pre">ImputationDecision.units</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationDecision.units_for"><code class="docutils literal notranslate"><span class="pre">ImputationDecision.units_for()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationDecision.with_hyperparameters"><code class="docutils literal notranslate"><span class="pre">ImputationDecision.with_hyperparameters()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#dataforge_ml.imputation._config.ImputationDecision.with_model_choice"><code class="docutils literal notranslate"><span class="pre">ImputationDecision.with_model_choice()</span></code></a></li>
 </ul>

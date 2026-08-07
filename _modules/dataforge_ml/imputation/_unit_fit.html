@@ -478,8 +478,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">reason</span> <span class="o">=</span> <span class="n">reason</span>
         <span class="n">names</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">c</span><span class="si">}</span><span class="s2">&#39;&quot;</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;Unit &#39;</span><span class="si">{</span><span class="n">unit_id</span><span class="si">}</span><span class="s2">&#39; (</span><span class="si">{</span><span class="n">strategy</span><span class="si">}</span><span class="s2">) could not train column(s) </span><span class="si">{</span><span class="n">names</span><span class="si">}</span><span class="s2">: &quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">reason</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;Unit &#39;</span><span class="si">{</span><span class="n">unit_id</span><span class="si">}</span><span class="s2">&#39; (</span><span class="si">{</span><span class="n">strategy</span><span class="si">}</span><span class="s2">) could not train column(s) </span><span class="si">{</span><span class="n">names</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">reason</span><span class="si">}</span><span class="s2">&quot;</span>
         <span class="p">)</span></div>
 
 
@@ -548,14 +547,28 @@
     <span class="p">)</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_unit</span><span class="p">(</span><span class="n">decision</span><span class="p">:</span> <span class="s2">&quot;ImputationDecision&quot;</span><span class="p">,</span> <span class="n">unit_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ImputationUnit</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the plan&#39;s unit for ``unit_id``, or raise ``KeyError``.&quot;&quot;&quot;</span>
-    <span class="k">for</span> <span class="n">unit</span> <span class="ow">in</span> <span class="n">decision</span><span class="o">.</span><span class="n">units</span><span class="p">:</span>
-        <span class="k">if</span> <span class="n">unit</span><span class="o">.</span><span class="n">unit_id</span> <span class="o">==</span> <span class="n">unit_id</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">unit</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_resolve</span><span class="p">(</span><span class="n">decision</span><span class="p">:</span> <span class="n">ImputationDecision</span><span class="p">,</span> <span class="n">unit</span><span class="p">:</span> <span class="n">ImputationUnit</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ImputationUnit</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Re-resolve ``unit`` against the plan by id, or raise ``KeyError``.</span>
+
+<span class="sd">    The plan is the single source of truth for a unit&#39;s recipe. Resolving by id</span>
+<span class="sd">    rather than training from the passed object means a unit held from before a</span>
+<span class="sd">    ``with_hyperparameters`` edit trains the plan&#39;s current recipe instead of</span>
+<span class="sd">    the stale one it was carrying.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">unit</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="c1"># The pre-4.x signature took the id. Say so, rather than letting the</span>
+        <span class="c1"># attribute lookup below fail with a bare AttributeError.</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;fit_unit() takes an ImputationUnit, not the id </span><span class="si">{</span><span class="n">unit</span><span class="si">!r}</span><span class="s2">. Get the &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;unit from the plan — decision.units, or &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;decision.units_for(ImputationStrategy.…) — and pass that.&quot;</span>
+        <span class="p">)</span>
+    <span class="k">for</span> <span class="n">candidate</span> <span class="ow">in</span> <span class="n">decision</span><span class="o">.</span><span class="n">units</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">candidate</span><span class="o">.</span><span class="n">unit_id</span> <span class="o">==</span> <span class="n">unit</span><span class="o">.</span><span class="n">unit_id</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">candidate</span>
     <span class="n">known</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">u</span><span class="o">.</span><span class="n">unit_id</span><span class="si">}</span><span class="s2">&#39;&quot;</span> <span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="n">decision</span><span class="o">.</span><span class="n">units</span><span class="p">)</span>
     <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span>
-        <span class="sa">f</span><span class="s2">&quot;Plan carries no unit &#39;</span><span class="si">{</span><span class="n">unit_id</span><span class="si">}</span><span class="s2">&#39;. Known units: </span><span class="si">{</span><span class="n">known</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">&#39;(none)&#39;</span><span class="si">}</span><span class="s2">.&quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;Plan carries no unit &#39;</span><span class="si">{</span><span class="n">unit</span><span class="o">.</span><span class="n">unit_id</span><span class="si">}</span><span class="s2">&#39;. Known units: </span><span class="si">{</span><span class="n">known</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">&#39;(none)&#39;</span><span class="si">}</span><span class="s2">.&quot;</span>
     <span class="p">)</span>
 
 
@@ -574,7 +587,7 @@
 <a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._unit_fit.fit_unit">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">fit_unit</span><span class="p">(</span>
     <span class="n">decision</span><span class="p">:</span> <span class="s2">&quot;ImputationDecision&quot;</span><span class="p">,</span>
-    <span class="n">unit_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">unit</span><span class="p">:</span> <span class="n">ImputationUnit</span><span class="p">,</span>
     <span class="n">df</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span>
     <span class="n">random_seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">n_jobs_inner</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span>
@@ -605,8 +618,11 @@
 <span class="sd">        The immutable plan. Supplies the unit recipe, the per-column decisions a</span>
 <span class="sd">        fitter honours, the config snapshot, and the sentinel maps used to</span>
 <span class="sd">        normalise ``df``.</span>
-<span class="sd">    unit_id : str</span>
-<span class="sd">        The id of the unit to train.</span>
+<span class="sd">    unit : ImputationUnit</span>
+<span class="sd">        The unit to train, taken from the plan&#39;s ``units`` or from</span>
+<span class="sd">        :meth:`ImputationDecision.units_for`. Only its ``unit_id`` is read: the</span>
+<span class="sd">        recipe is re-resolved against ``decision``, so the plan always wins over</span>
+<span class="sd">        a unit held from before an edit.</span>
 <span class="sd">    df : pl.DataFrame</span>
 <span class="sd">        Training data, raw or already normalised.</span>
 <span class="sd">    random_seed : int, optional</span>
@@ -625,13 +641,16 @@
 <span class="sd">    Raises</span>
 <span class="sd">    ------</span>
 <span class="sd">    KeyError</span>
-<span class="sd">        If ``unit_id`` names no unit in the plan.</span>
+<span class="sd">        If ``unit`` names no unit in the plan.</span>
+<span class="sd">    TypeError</span>
+<span class="sd">        If ``unit`` is a unit id string rather than an</span>
+<span class="sd">        :class:`~dataforge_ml.ImputationUnit` — the pre-4.x signature.</span>
 <span class="sd">    UnitNotTrainableError</span>
 <span class="sd">        If the unit cannot train, carrying its structured payload — the sole</span>
 <span class="sd">        failure track (ADR-0071).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">start</span> <span class="o">=</span> <span class="n">perf_counter</span><span class="p">()</span>
-    <span class="n">unit</span> <span class="o">=</span> <span class="n">_unit</span><span class="p">(</span><span class="n">decision</span><span class="p">,</span> <span class="n">unit_id</span><span class="p">)</span>
+    <span class="n">unit</span> <span class="o">=</span> <span class="n">_resolve</span><span class="p">(</span><span class="n">decision</span><span class="p">,</span> <span class="n">unit</span><span class="p">)</span>
     <span class="n">train_df</span> <span class="o">=</span> <span class="n">_resolve_effective_nulls</span><span class="p">(</span>
         <span class="n">df</span><span class="p">,</span>
         <span class="n">numeric_sentinels</span><span class="o">=</span><span class="n">decision</span><span class="o">.</span><span class="n">numeric_sentinels</span><span class="p">,</span>

@@ -82,13 +82,14 @@ the rest:
 budget = core_budget(plan, max_workers=n_workers, total_cores=n_cores - reserved)
 
 # The self-parallelising unit runs alone, with the whole machine.
-custom = fit_unit(plan, "mice", df)
+(mice,) = plan.units_for(ImputationStrategy.MICE)
+custom = fit_unit(plan, mice, df)
 
 with ThreadPoolExecutor(max_workers=n_workers) as pool:
     rest = [
-        pool.submit(fit_unit, plan, uid, df, n_jobs_inner=budget[uid])
-        for uid in budget
-        if uid != "mice"
+        pool.submit(fit_unit, plan, unit, df, n_jobs_inner=budget[unit.unit_id])
+        for unit in plan.units
+        if unit.strategy is not ImputationStrategy.MICE
     ]
     ...
 ```

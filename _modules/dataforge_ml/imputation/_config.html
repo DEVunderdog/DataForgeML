@@ -574,6 +574,7 @@
 <span class="c1"># &quot;passed through because fit saw no missingness&quot; (missing values raise).</span>
 <span class="n">_EXCLUSION_SIGNAL</span> <span class="o">=</span> <span class="s2">&quot;soft-excluded for Imputation phase&quot;</span>
 
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_output_only_redirect</span><span class="p">(</span><span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">strategy</span><span class="p">:</span> <span class="n">ImputationStrategy</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Build the redirect message for an output-only strategy declaration.&quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">Dropped</span><span class="p">:</span>
@@ -2237,6 +2238,34 @@
             <span class="s2">&quot;dropped_columns&quot;</span><span class="p">,</span>
             <span class="nb">tuple</span><span class="p">(</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">decisions</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">drop</span><span class="p">),</span>
         <span class="p">)</span>
+
+<div class="viewcode-block" id="ImputationDecision.units_for">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ImputationDecision.units_for">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">units_for</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">strategy</span><span class="p">:</span> <span class="n">ImputationStrategy</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">ImputationUnit</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the plan&#39;s units that execute ``strategy``.</span>
+
+<span class="sd">        The selection surface for a caller driving their own fit loop: it</span>
+<span class="sd">        replaces scanning ``units`` against a hand-typed ``unit_id`` literal,</span>
+<span class="sd">        so the id stays an internal name the caller never spells.</span>
+
+<span class="sd">        Always returns a tuple — empty when the plan routed nothing to</span>
+<span class="sd">        ``strategy``, which is an ordinary outcome rather than an error. A</span>
+<span class="sd">        strategy that is structural, or that no column reached, therefore needs</span>
+<span class="sd">        no guard at the call site: the loop simply runs zero times. ``MICE`` and</span>
+<span class="sd">        ``KNN`` yield at most one unit each, being joint blocks.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        strategy : ImputationStrategy</span>
+<span class="sd">            The strategy to select on.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tuple[ImputationUnit, ...]</span>
+<span class="sd">            The matching units, in plan order. Empty if there are none.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">u</span> <span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">units</span> <span class="k">if</span> <span class="n">u</span><span class="o">.</span><span class="n">strategy</span> <span class="o">==</span> <span class="n">strategy</span><span class="p">)</span></div>
+
 
 <div class="viewcode-block" id="ImputationDecision.with_model_choice">
 <a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ImputationDecision.with_model_choice">[docs]</a>
