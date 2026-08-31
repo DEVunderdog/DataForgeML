@@ -8,7 +8,7 @@ Result dataclasses carry per-column audit records and the imputed DataFrame.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import StrEnum
+from enum import Enum, StrEnum
 from types import MappingProxyType
 from typing import Any, Optional
 
@@ -1137,6 +1137,57 @@ class AccuracyReport:
         )
 
 
+def _md_cell(value: "Any") -> str:
+    """Render one value as a Markdown table cell.
+
+    Absence is stated rather than left as a bare ``None``, enums render by
+    their string form (matching ``to_dict``), and any pipe or newline in the
+    value is neutralised so it cannot break the surrounding table.
+    """
+    if value is None:
+        return "none"
+    if isinstance(value, Enum):
+        text = str(value)
+    elif isinstance(value, (list, tuple)):
+        text = ", ".join(_md_cell(v) for v in value) if value else "none"
+    elif isinstance(value, dict):
+        text = (
+            ", ".join(f"{k}={_md_cell(v)}" for k, v in value.items())
+            if value
+            else "none"
+        )
+    else:
+        text = str(value)
+    return text.replace("|", "\\|").replace("\n", " ")
+
+
+def _frame_lines(frame: pl.DataFrame) -> list[str]:
+    """Render a Payload Frame's shape and dtypes, never its rows (ADR-0086)."""
+    lines = [
+        f"Shape: {frame.height:,} rows x {frame.width:,} columns\n",
+        "| Column | Dtype |",
+        "|---|---|",
+    ]
+    if frame.width:
+        for name, dtype in frame.schema.items():
+            lines.append(f"| `{name}` | {dtype} |")
+    else:
+        lines.append("| none | |")
+    return lines
+
+
+def _flatten_snapshot(value: "Any", prefix: str = "") -> "list[tuple[str, Any]]":
+    """Flatten a nested config snapshot into dotted-key / value rows."""
+    rows: list[tuple[str, Any]] = []
+    if isinstance(value, dict):
+        for key, sub in value.items():
+            path = f"{prefix}.{key}" if prefix else str(key)
+            rows.extend(_flatten_snapshot(sub, path))
+    else:
+        rows.append((prefix, value))
+    return rows
+
+
 @dataclass(frozen=True)
 class ColumnImputationDecision:
     """Pure, value-free per-column imputation plan entry.
@@ -1297,6 +1348,55 @@ class ColumnImputationDecision:
             drop=bool(data.get("drop", False)),
         )
 
+    def to_markdown(self) -> str:
+        """Render the column decision as a ``###``-rooted Markdown fragment.
+
+        A fragment per rule 5 of the Rendering Contract (ADR-0086): it carries
+        no ``#`` or ``##`` heading, so the owning plan document composes it
+        without a heading collision. Every field is covered; absent values are
+        stated rather than left as a bare ``None``, and enums render by their
+        string form.
+
+        Returns
+        -------
+        str
+            Markdown subsection headed by ``### `<column>``` and a field table.
+        """
+        bounds = (
+            f"{self.domain_snap_bounds[0]}, {self.domain_snap_bounds[1]}"
+            if self.domain_snap_bounds is not None
+            else "none"
+        )
+        lines = [
+            f"### `{self.column}`\n",
+            "| Field | Value |",
+            "|---|---|",
+            f"| semantic_type | {_md_cell(self.semantic_type)} |",
+            f"| strategy | {_md_cell(self.strategy)} |",
+            f"| model_choice | {_md_cell(self.model_choice)} |",
+            f"| signals | {_md_cell(self.signals)} |",
+            f"| domain_snap_bounds | {_md_cell(bounds)} |",
+            f"| center1 | {_md_cell(self.center1)} |",
+            f"| center2 | {_md_cell(self.center2)} |",
+            f"| feature_cols | {_md_cell(self.feature_cols)} |",
+            f"| grouping_variable | {_md_cell(self.grouping_variable)} |",
+            f"| constant_fill | {_md_cell(self.constant_fill)} |",
+            f"| indicator_flag | {_md_cell(self.indicator_flag)} |",
+            f"| mnar | {_md_cell(self.mnar)} |",
+            f"| drop | {_md_cell(self.drop)} |",
+        ]
+        return "\n".join(lines)
+
+    def __str__(self) -> str:
+        """Return the fragment, per rule 2 of the Rendering Contract.
+
+        Returns
+        -------
+        str
+            The output of :meth:`to_markdown`.
+        """
+        return self.to_markdown()
+
 
 @dataclass
 class ColumnImputationRecord:
@@ -1377,6 +1477,40 @@ class ColumnImputationRecord:
             fill_value=data.get("fill_value"),
             indicator_added=bool(data.get("indicator_added", False)),
         )
+
+    def to_markdown(self) -> str:
+        """Render the audit record as a ``###``-rooted Markdown fragment.
+
+        A fragment per rule 5 of the Rendering Contract (ADR-0086): it carries
+        no ``#`` or ``##`` heading, so the owning result document composes it
+        without a heading collision. The composed
+        :class:`ColumnImputationDecision` renders its own table — *what was
+        decided* — and the learned ``fill_value`` and ``indicator_added``
+        continue it, so decided and learned fields sit side by side in one
+        table without being confusable.
+
+        Returns
+        -------
+        str
+            Markdown subsection headed by ``### `<column>``` and a field table
+            covering the decision's fields plus the learned ones.
+        """
+        lines = [
+            self.decision.to_markdown(),
+            f"| fill_value | {_md_cell(self.fill_value)} |",
+            f"| indicator_added | {_md_cell(self.indicator_added)} |",
+        ]
+        return "\n".join(lines)
+
+    def __str__(self) -> str:
+        """Return the fragment, per rule 2 of the Rendering Contract.
+
+        Returns
+        -------
+        str
+            The output of :meth:`to_markdown`.
+        """
+        return self.to_markdown()
 
 
 # ---------------------------------------------------------------------------
@@ -1510,6 +1644,43 @@ class ImputationUnit:
             ),
             is_block=strategy in _JOINT_BLOCK_STRATEGIES,
         )
+
+    def to_markdown(self) -> str:
+        """Render the execution unit as a ``###``-rooted Markdown fragment.
+
+        A fragment per rule 5 of the Rendering Contract (ADR-0086): it carries
+        no ``#`` or ``##`` heading, so the owning plan document composes it
+        without a heading collision. Every field is covered, including the
+        merged hyperparameters stamped onto the unit at plan construction.
+
+        Returns
+        -------
+        str
+            Markdown subsection headed by ``### `<unit_id>``` and a field table.
+        """
+        hyperparameters = (
+            dict(self.hyperparameters) if self.hyperparameters is not None else None
+        )
+        lines = [
+            f"### `{self.unit_id}`\n",
+            "| Field | Value |",
+            "|---|---|",
+            f"| strategy | {_md_cell(self.strategy)} |",
+            f"| columns | {_md_cell(self.columns)} |",
+            f"| is_block | {_md_cell(self.is_block)} |",
+            f"| hyperparameters | {_md_cell(hyperparameters)} |",
+        ]
+        return "\n".join(lines)
+
+    def __str__(self) -> str:
+        """Return the fragment, per rule 2 of the Rendering Contract.
+
+        Returns
+        -------
+        str
+            The output of :meth:`to_markdown`.
+        """
+        return self.to_markdown()
 
 
 def _merge_unit_hyperparameters(
@@ -1756,6 +1927,13 @@ class ImputationDecision:
         tuple[ImputationUnit, ...]
             The matching units, in plan order. Empty if there are none.
         """
+
+        if strategy == _STRUCTURAL_STRATEGIES:
+            raise ValueError(
+                f"{strategy} is an incorrect strategy being provided, "
+                f"Dropped, Passthrough and Indicator strategies are not allowed."
+            )
+
         return tuple(u for u in self.units if u.strategy == strategy)
 
     def with_model_choice(
@@ -1979,6 +2157,148 @@ class ImputationDecision:
             },
         )
 
+    def to_markdown(self) -> str:
+        """Render the whole plan as a Markdown document.
+
+        A document per rule 5 of the Rendering Contract (ADR-0086): it owns the
+        ``#`` and ``##`` heading levels and delegates to the
+        :class:`ColumnImputationDecision` and :class:`ImputationUnit` fragments
+        beneath them. Every field of the plan is covered, so a plan from
+        :func:`~dataforge_ml.imputation.decide` and one built by hand through
+        :func:`~dataforge_ml.imputation.author` render identically in shape and
+        are comparable by eye.
+
+        ``custom_estimators`` holds live user objects rather than data, so it is
+        reported by unit id and estimator class name only.
+
+        Returns
+        -------
+        str
+            Markdown document with a summary, the per-column decisions, the
+            execution units, the declared sentinels, and the config snapshot the
+            plan was decided under.
+        """
+        lines = ["# Imputation Plan\n"]
+
+        lines.append("## Summary\n")
+        lines.append("| Field | Value |")
+        lines.append("|---|---|")
+        lines.append(f"| columns | {len(self.column_decisions)} |")
+        lines.append(f"| units | {len(self.units)} |")
+        lines.append(f"| dropped_columns | {_md_cell(self.dropped_columns)} |")
+        lines.append(
+            "| custom_estimators | "
+            + _md_cell(
+                {
+                    unit_id: type(estimator).__name__
+                    for unit_id, estimator in self.custom_estimators.items()
+                }
+            )
+            + " |"
+        )
+        lines.append("")
+
+        lines.append("## Column Decisions\n")
+        lines.append(
+            "| Column | Semantic type | Strategy | Model choice | Indicator "
+            "| MNAR | Drop |"
+        )
+        lines.append("|---|---|---|---|---|---|---|")
+        if self.column_decisions:
+            for decision in self.column_decisions.values():
+                lines.append(
+                    f"| `{decision.column}` | {_md_cell(decision.semantic_type)} "
+                    f"| {_md_cell(decision.strategy)} "
+                    f"| {_md_cell(decision.model_choice)} "
+                    f"| {_md_cell(decision.indicator_flag)} "
+                    f"| {_md_cell(decision.mnar)} | {_md_cell(decision.drop)} |"
+                )
+        else:
+            lines.append("| none | | | | | | |")
+        lines.append("")
+        if self.column_decisions:
+            for decision in self.column_decisions.values():
+                lines.append(decision.to_markdown())
+                lines.append("")
+
+        lines.append("## Execution Units\n")
+        if self.units:
+            lines.append("| Unit | Strategy | Columns | Block |")
+            lines.append("|---|---|---|---|")
+            for unit in self.units:
+                lines.append(
+                    f"| `{unit.unit_id}` | {_md_cell(unit.strategy)} "
+                    f"| {_md_cell(unit.columns)} | {_md_cell(unit.is_block)} |"
+                )
+            lines.append("")
+            for unit in self.units:
+                lines.append(unit.to_markdown())
+                lines.append("")
+        else:
+            lines.append("none")
+            lines.append("")
+
+        lines.append("## Hyperparameters\n")
+        lines.append("| Unit | Decided base | Override delta |")
+        lines.append("|---|---|---|")
+        unit_ids = list(
+            dict.fromkeys(
+                [u.unit_id for u in self.units]
+                + list(self.decided_hyperparameters)
+                + list(self.override_hyperparameters)
+            )
+        )
+        if unit_ids:
+            for unit_id in unit_ids:
+                decided = dict(self.decided_hyperparameters.get(unit_id, ()))
+                override = dict(self.override_hyperparameters.get(unit_id, ()))
+                lines.append(
+                    f"| `{unit_id}` | {_md_cell(decided)} | {_md_cell(override)} |"
+                )
+        else:
+            lines.append("| none | | |")
+        lines.append("")
+
+        lines.append("## Declared Sentinels\n")
+        lines.append("| Column | Numeric | String |")
+        lines.append("|---|---|---|")
+        sentinel_cols = list(
+            dict.fromkeys(list(self.numeric_sentinels) + list(self.string_sentinels))
+        )
+        if sentinel_cols:
+            for column in sentinel_cols:
+                lines.append(
+                    f"| `{column}` "
+                    f"| {_md_cell(self.numeric_sentinels.get(column))} "
+                    f"| {_md_cell(self.string_sentinels.get(column))} |"
+                )
+        else:
+            lines.append("| none | | |")
+        lines.append("")
+
+        lines.append("## Config Snapshot\n")
+        rows = _flatten_snapshot(self.config_snapshot)
+        if rows:
+            lines.append("| Setting | Value |")
+            lines.append("|---|---|")
+            for key, value in rows:
+                lines.append(f"| {_md_cell(key)} | {_md_cell(value)} |")
+        else:
+            lines.append("not recorded")
+        lines.append("")
+
+        return "\n".join(lines).strip() + "\n"
+
+    def __str__(self) -> str:
+        """Return the Imputation Plan document, per rule 2 of the contract.
+
+        Returns
+        -------
+        str
+            The output of :meth:`to_markdown`.
+        """
+        return self.to_markdown()
+
 
 @dataclass
 class ImputationResult:
@@ -1998,3 +2318,66 @@ class ImputationResult:
     dataframe: pl.DataFrame
     records: dict[str, ColumnImputationRecord] = field(default_factory=dict)
     dropped_columns: list[str] = field(default_factory=list)
+
+    def to_markdown(self) -> str:
+        """Render the transform result as a Markdown document.
+
+        A document per rule 5 of the Rendering Contract (ADR-0086): it owns the
+        ``#`` and ``##`` heading levels and delegates to the
+        :class:`ColumnImputationRecord` fragments beneath them. ``dataframe`` is
+        a Payload Frame — its shape and dtypes are reported and its rows never
+        are — so the output stays bounded in the number of rows imputed.
+
+        Returns
+        -------
+        str
+            Markdown document with a summary, the dropped columns, the imputed
+            frame's shape and dtypes, and the per-column audit records.
+        """
+        lines = ["# Imputation Result\n"]
+
+        lines.append("## Summary\n")
+        lines.append("| Field | Value |")
+        lines.append("|---|---|")
+        lines.append(f"| records | {len(self.records)} |")
+        lines.append(f"| dropped_columns | {_md_cell(self.dropped_columns)} |")
+        lines.append(
+            "| indicators_added | "
+            + _md_cell(sum(1 for r in self.records.values() if r.indicator_added))
+            + " |"
+        )
+        lines.append("")
+
+        lines.append("## Imputed Frame\n")
+        lines.extend(_frame_lines(self.dataframe))
+        lines.append("")
+
+        lines.append("## Column Records\n")
+        lines.append("| Column | Strategy | Fill value | Indicator added |")
+        lines.append("|---|---|---|---|")
+        if self.records:
+            for record in self.records.values():
+                lines.append(
+                    f"| `{record.decision.column}` "
+                    f"| {_md_cell(record.decision.strategy)} "
+                    f"| {_md_cell(record.fill_value)} "
+                    f"| {_md_cell(record.indicator_added)} |"
+                )
+        else:
+            lines.append("| none | | | |")
+        lines.append("")
+        for record in self.records.values():
+            lines.append(record.to_markdown())
+            lines.append("")
+
+        return "\n".join(lines).strip() + "\n"
+
+    def __str__(self) -> str:
+        """Return the Imputation Result document, per rule 2 of the contract.
+
+        Returns
+        -------
+        str
+            The output of :meth:`to_markdown`.
+        """
+        return self.to_markdown()

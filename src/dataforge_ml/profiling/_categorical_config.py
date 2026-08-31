@@ -318,6 +318,73 @@ CategoricalColumnProfile = CategoricalStats
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Markdown rendering helpers (Rendering Contract, ADR-0086)
+# ---------------------------------------------------------------------------
+
+
+def _fmt(value: object) -> str:
+    if value is None:
+        return "not computed"
+    if isinstance(value, StrEnum):
+        return str(value)
+    if isinstance(value, bool):
+        return str(value)
+    if isinstance(value, float):
+        return f"{value:,.4f}"
+    if isinstance(value, int):
+        return f"{value:,}"
+    return str(value)
+
+
+def _fmt_seq(values: list) -> str:
+    return ", ".join(str(v) for v in values) if values else "none"
+
+
+def _categorical_stats_lines(stats: "CategoricalStats") -> list[str]:
+    """Build the ``####``-rooted body for one column's categorical statistics."""
+    lines = [
+        "| Field | Value |",
+        "|---|---|",
+        f"| cardinality | {stats.cardinality:,} |",
+        f"| unique_ratio | {stats.unique_ratio:.2%} |",
+        f"| mode_frequency | {stats.mode_frequency:.2%} |",
+        f"| flags | {_fmt_seq(stats.flags)} |",
+        "",
+        "#### Top Values\n",
+    ]
+    if stats.top_values:
+        lines.append("| Value | Count | Percentage |")
+        lines.append("|---|---|---|")
+        for entry in stats.top_values:
+            lines.append(
+                f"| {_fmt(entry.value)} | {entry.count:,} | {entry.percentage:.2%} |"
+            )
+    else:
+        lines.append("none")
+    lines.append("")
+
+    lines.append("#### Rare Categories\n")
+    lines.append("| Field | Value |")
+    lines.append("|---|---|")
+    rare = stats.rare_categories
+    lines.append(f"| threshold_pct | {_fmt(rare.threshold_pct)} |")
+    lines.append(f"| rare_category_count | {rare.rare_category_count:,} |")
+    lines.append(f"| total_rare_rows | {rare.total_rare_rows:,} |")
+    lines.append(f"| rare_row_percentage | {rare.rare_row_percentage:.2%} |")
+    lines.append(f"| rare_label_threshold_pct | {_fmt(rare.rare_label_threshold_pct)} |")
+    lines.append(f"| rare_label_values | {_fmt_seq(rare.rare_label_values)} |")
+    lines.append("")
+
+    lines.append("#### Imbalance\n")
+    lines.append("| Field | Value |")
+    lines.append("|---|---|")
+    for key, value in stats.imbalance.to_dict().items():
+        lines.append(f"| {key} | {_fmt(value)} |")
+
+    return lines
+
+
 @dataclass
 class CategoricalProfileResult:
     """
@@ -334,8 +401,64 @@ class CategoricalProfileResult:
     columns: dict[str, CategoricalStats] = field(default_factory=dict)
     analysed_columns: list[str] = field(default_factory=list)
 
-    def __str__(self) -> str:  # pragma: no cover
-        lines = ["=== Categorical Profile ==="]
-        for profile in self.columns.values():
-            lines.append(str(profile))
-        return "\n".join(lines)
+    def to_markdown(self) -> str:
+        """Render the categorical profile as a Markdown document.
+
+        A document per rule 5 of the Rendering Contract (ADR-0086): it owns the
+        ``#`` and ``##`` heading levels and places each column's detail beneath
+        them. Every field of every :class:`CategoricalStats` is covered; absent
+        values render a stated absence rather than a bare ``None``.
+
+        Returns
+        -------
+        str
+            Markdown document with a summary table followed by one detail
+            section per profiled column.
+        """
+        analysed = ", ".join(self.analysed_columns) if self.analysed_columns else "none"
+        lines = ["# Categorical Profile\n"]
+
+        lines.append("## Summary\n")
+        lines.append("| Field | Value |")
+        lines.append("|---|---|")
+        lines.append(f"| analysed_columns | {analysed} |")
+        lines.append("")
+
+        lines.append(
+            "| Column | Cardinality | Unique ratio | Mode frequency "
+            "| Rare categories | Flags |"
+        )
+        lines.append("|---|---|---|---|---|---|")
+        if self.columns:
+            for name, stats in self.columns.items():
+                lines.append(
+                    f"| `{name}` | {stats.cardinality:,} "
+                    f"| {stats.unique_ratio:.2%} | {stats.mode_frequency:.2%} "
+                    f"| {stats.rare_categories.rare_category_count:,} "
+                    f"| {_fmt_seq(stats.flags)} |"
+                )
+        else:
+            lines.append("| none | | | | | |")
+        lines.append("")
+
+        lines.append("## Column Details\n")
+        if self.columns:
+            for name, stats in self.columns.items():
+                lines.append(f"### `{name}`\n")
+                lines.extend(_categorical_stats_lines(stats))
+                lines.append("")
+        else:
+            lines.append("none")
+            lines.append("")
+
+        return "\n".join(lines).strip() + "\n"
+
+    def __str__(self) -> str:
+        """Return the Categorical Profile document, per rule 2 of the contract.
+
+        Returns
+        -------
+        str
+            The output of :meth:`to_markdown`.
+        """
+        return self.to_markdown()

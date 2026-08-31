@@ -92,3 +92,67 @@ class TextProfileResult:
 
     columns: dict[str, TextStats] = field(default_factory=dict)
     analysed_columns: list[str] = field(default_factory=list)
+
+    def to_markdown(self) -> str:
+        """Render the text profile as a Markdown document.
+
+        A document per rule 5 of the Rendering Contract (ADR-0086): it owns the
+        ``#`` and ``##`` heading levels. Every field of the result is covered;
+        empty collections render a stated absence rather than a bare ``None``.
+
+        Returns
+        -------
+        str
+            Markdown document with the analysed column scope, a token/vocabulary
+            table and a character-length table, one row per profiled column.
+        """
+        lines = ["# Text Profile\n"]
+
+        lines.append("## Summary\n")
+        analysed = ", ".join(self.analysed_columns) if self.analysed_columns else "none"
+        lines.append("| Field | Value |")
+        lines.append("|---|---|")
+        lines.append(f"| analysed_columns | {analysed} |")
+        lines.append("")
+
+        lines.append("## Tokens and Vocabulary\n")
+        lines.append(
+            "| Column | Avg tokens | Median tokens | Vocabulary size "
+            "| Empty % | Whitespace % |"
+        )
+        lines.append("|---|---|---|---|---|---|")
+        if self.columns:
+            for name, stats in self.columns.items():
+                lines.append(
+                    f"| `{name}` | {stats.avg_token_count:.2f} "
+                    f"| {stats.median_token_count:.2f} | {stats.vocabulary_size:,} "
+                    f"| {stats.empty_ratio:.2%} | {stats.whitespace_ratio:.2%} |"
+                )
+        else:
+            lines.append("| none | | | | | |")
+        lines.append("")
+
+        lines.append("## Character Length\n")
+        lines.append("| Column | Min | Max | Mean | Median |")
+        lines.append("|---|---|---|---|---|")
+        if self.columns:
+            for name, stats in self.columns.items():
+                lines.append(
+                    f"| `{name}` | {stats.char_length_min:,} "
+                    f"| {stats.char_length_max:,} | {stats.char_length_mean:.2f} "
+                    f"| {stats.char_length_median:.2f} |"
+                )
+        else:
+            lines.append("| none | | | | |")
+
+        return "\n".join(lines).strip() + "\n"
+
+    def __str__(self) -> str:
+        """Return the Text Profile document, per rule 2 of the contract.
+
+        Returns
+        -------
+        str
+            The output of :meth:`to_markdown`.
+        """
+        return self.to_markdown()
