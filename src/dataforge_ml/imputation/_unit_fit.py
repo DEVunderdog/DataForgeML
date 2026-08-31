@@ -26,7 +26,7 @@ import polars as pl
 
 from ..config import PipelineConfig, SemanticType
 from ..utils._null_normalization import _resolve_effective_nulls
-from ._config import ImputationStrategy, ImputationUnit, ModelChoice
+from ._config import ImputationStrategy, ImputationUnit, ModelChoice, _md_cell
 from ._fit_signals import FitSignals, ImputationFitWarning
 from ._fitters import UnitFitContext, _dispatch_unit_fit
 
@@ -111,8 +111,49 @@ class UnitFitResult:
     unit_id: str
     strategy: ImputationStrategy
     columns: tuple[str, ...]
-    fitted: "FittedUnit"
+    fitted: FittedUnit
     signals: FitSignals
+
+    def to_markdown(self) -> str:
+        """Render the fit result as a Markdown document.
+
+        A document per rule 5 of the Rendering Contract (ADR-0086): it owns the
+        ``#`` and ``##`` heading levels and delegates to the
+        :class:`~dataforge_ml.imputation.FitSignals` fragment beneath them. The
+        fitted unit itself is opaque state, so it is reported by type name only.
+
+        Returns
+        -------
+        str
+            Markdown document naming the unit, its strategy, its columns and the
+            fitted unit's type, followed by the fit record.
+        """
+        fitted = type(self.fitted).__name__ if self.fitted is not None else "none"
+        lines = [
+            f"# Unit Fit — `{self.unit_id}`\n",
+            "## Summary\n",
+            "| Field | Value |",
+            "|---|---|",
+            f"| strategy | {_md_cell(self.strategy)} |",
+            f"| columns | {_md_cell(self.columns)} |",
+            f"| fitted | {_md_cell(fitted)} |",
+            "",
+            "## Fit Record\n",
+            self.signals.to_markdown()
+            if self.signals is not None
+            else "not recorded",
+        ]
+        return "\n".join(lines).strip() + "\n"
+
+    def __str__(self) -> str:
+        """Return the Unit Fit document, per rule 2 of the contract.
+
+        Returns
+        -------
+        str
+            The output of :meth:`to_markdown`.
+        """
+        return self.to_markdown()
 
 
 def _numeric_config(decision: "ImputationDecision"):

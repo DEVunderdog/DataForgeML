@@ -1,5 +1,10 @@
 # Compact Profile Report — `to_markdown()` is human-readable, `to_full_markdown()` is lossless
 
+## Status
+
+superseded by ADR-0086 — the compact/lossless split is collapsed to a single `to_markdown()`, which is the lossless renderer. `to_full_markdown()` and the compact view are both removed.
+
+
 `StructuralProfileResult` previously had a single `to_markdown()` method documented as "lossless," producing ~1 MB of Markdown for an 82-column dataset. This makes it unreadable for human inspection while adding nothing over `to_json()` for machine consumers.
 
 We rename the lossless method to `to_full_markdown()` and replace `to_markdown()` with a compact, human-oriented view. The complete machine-readable serialization remains in `to_dict()` / `to_json()`; downstream phases always use those, never Markdown.

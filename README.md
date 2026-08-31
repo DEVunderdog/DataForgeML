@@ -49,7 +49,10 @@ pipeline_config.set_column_type(column="Year", semantic_type=SemanticType.Catego
 profiler = StructuralProfiler(config=pipeline_config)
 result = profiler.profile(data=df)          # df is a polars.DataFrame
 
-print(result.to_markdown())                 # human-readable profile report
+# The lossless Profile Report — every to_dict() field rendered as Markdown.
+# On a wide dataset (~82 columns) this is roughly a megabyte of text; for a
+# bounded view, read result.to_dict() and select the fields you care about.
+print(result.to_markdown())
 ```
 
 ## Examples

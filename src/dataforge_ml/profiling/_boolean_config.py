@@ -105,3 +105,56 @@ class BooleanProfileResult:
 
     columns: dict[str, BooleanStats] = field(default_factory=dict)
     analysed_columns: list[str] = field(default_factory=list)
+
+    def to_markdown(self) -> str:
+        """Render the boolean profile as a Markdown document.
+
+        A document per rule 5 of the Rendering Contract (ADR-0086): it owns the
+        ``#`` and ``##`` heading levels. Every field of the result is covered;
+        empty collections render a stated absence rather than a bare ``None``.
+
+        Returns
+        -------
+        str
+            Markdown document with the analysed column scope and one row of
+            value-distribution statistics per profiled column.
+        """
+        lines = ["# Boolean Profile\n"]
+
+        lines.append("## Summary\n")
+        analysed = ", ".join(self.analysed_columns) if self.analysed_columns else "none"
+        lines.append("| Field | Value |")
+        lines.append("|---|---|")
+        lines.append(f"| analysed_columns | {analysed} |")
+        lines.append("")
+
+        lines.append("## Columns\n")
+        lines.append(
+            "| Column | True count | True % | False count | False % | Mode | Flags |"
+        )
+        lines.append("|---|---|---|---|---|---|---|")
+        if self.columns:
+            for name, stats in self.columns.items():
+                mode = "not computed" if stats.mode is None else str(stats.mode)
+                flags = (
+                    ", ".join(str(f) for f in stats.flags) if stats.flags else "none"
+                )
+                lines.append(
+                    f"| `{name}` | {stats.true_count:,} | {stats.true_ratio:.2%} "
+                    f"| {stats.false_count:,} | {stats.false_ratio:.2%} "
+                    f"| {mode} | {flags} |"
+                )
+        else:
+            lines.append("| none | | | | | | |")
+
+        return "\n".join(lines).strip() + "\n"
+
+    def __str__(self) -> str:
+        """Return the Boolean Profile document, per rule 2 of the contract.
+
+        Returns
+        -------
+        str
+            The output of :meth:`to_markdown`.
+        """
+        return self.to_markdown()

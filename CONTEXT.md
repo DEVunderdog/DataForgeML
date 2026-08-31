@@ -486,16 +486,30 @@ Two plain-tier CV schemes for ordered data, never stratified (shuffling is forbi
 - **Purge** — dropping training rows whose **Label Window** overlaps the val block's time span. Enabled by an opt-in `label_end_column` the user declares (the time each row's label is realised — modelling knowledge the library never infers, mirroring `time_column` and `group_column`). When absent, purging degrades to the embargo window only.
 - **Embargo** — dropping training rows in a window *immediately after* the val block, where serial correlation would otherwise bleed val information back into train. Specified as a **time duration** in the units of `time_column` (not a row count or fraction — those misbehave under irregular sampling). Relevant only to purged K-fold, which alone has train-after-val.
 
-## Profile Serialization
+## Rendering Contract
 
-- **Compact Profile Report** — The human-readable serialization of `StructuralProfileResult`, produced by `to_markdown()`. Covers every information category but depth-limits list-heavy fields: `top_values` capped at 3 entries; correlation matrices replaced by top-5 highest absolute Pearson and top-5 highest absolute Spearman per column; histogram bins, `missingness_matrix`, `memory_breakdown`, and `total_rows` (per-column) dropped. All scalar fields are kept in full. Renders using two-tier column rendering. See ADR-0040.
-  _Avoid_: profile summary, readable profile, human profile
+Every type the library **returns** renders itself the same way. Five rules, no exceptions:
 
-- **Full Profile Report** — The lossless Markdown serialization of `StructuralProfileResult`, produced by `to_full_markdown()`. Equivalent in content to `to_dict()` / `to_json()`. Intended for debugging and archival, not routine human inspection. See ADR-0040.
-  _Avoid_: full markdown, complete profile
+1. **One renderer** — `to_markdown() -> str` is it. No second rendering method, no format flag, no verbosity argument.
+2. **`__str__` returns `self.to_markdown()`** — `print(x)` and `x.to_markdown()` produce the same bytes, always.
+3. **`to_dict()` is untouched** — the machine-readable serialiser answers a different question. Types that have it keep it as-is.
+4. **`__repr__` is left alone** — dataclass repr is for debugging and stays unambiguous; a bare `x` in a REPL must not print a page of Markdown.
+5. **Documents own `#` and `##`; fragments start at `###`** — only a returned type emits a document; a nested type emits rows or a subsection carrying no line matching `^#{1,2} `, so a parent composes children without heading collisions.
 
-- **Two-Tier Column Rendering** — The rendering strategy used by the Compact Profile Report. All columns appear in the Column Summary table. Columns meeting the **clean threshold** (no `MissingnessFlag`, no `NumericFlag`, `MissingSeverity` is `None` or `Minor`, `NonlinearityTag` is `None` or `Linear`) appear in the summary table only. All other columns receive a full detail section in the Flagged Columns block, ordered by descending severity then alphabetically. See ADR-0040.
-  _Avoid_: tiered rendering, anomaly-first rendering
+See ADR-0086.
+  _Avoid_: pretty-print, display, format, render (name the contract, not the verb)
+
+- **Result Type** — Any type the library *returns*: directly from a public call, or nested inside something it returns and delegated to by that parent's renderer. Result Types are bound by the Rendering Contract. **Config objects are not Result Types** — they are inputs the user *supplies*, so `PipelineConfig`, `ProfileConfig` and the Phase Sub-Configs carry `to_dict()` alone and owe no renderer. Scope follows what the library hands back, never which types happen to have acquired a `to_dict()`.
+  _Avoid_: output object, DTO, view model
+
+- **Fragment** — The `to_markdown()` of a nested Result Type: a subsection or a set of table rows, never a document. The obligation to be one follows *the document, not the object graph* — a nested type owes a renderer only when an in-scope parent's renderer delegates to it, and anything a parent formats inline owes nothing. Reachability is deliberately not the test, mirroring ADR-0050's rule for the export surface.
+  _Avoid_: partial, snippet, sub-report
+
+- **Profile Report** — The Markdown serialization of `StructuralProfileResult`, produced by `to_markdown()`. **Lossless**: equivalent in content to `to_dict()` / `to_json()`. There is no second, depth-limited view — ADR-0040's **Compact Profile Report**, its **Two-Tier Column Rendering**, and `to_full_markdown()` were all removed by ADR-0086, because a summary presented as a report gives the reader no way to tell what was withheld. Stated consequence: `print(profile)` on an 82-column dataset emits roughly a megabyte. The bounded human view of a profile is `to_dict()` plus the caller's own selection, not a renderer guessing which fields matter.
+  _Avoid_: compact profile, full markdown, readable profile
+
+- **Payload Frame** — A `pl.DataFrame` carried as a field on a Result Type (`ImputationResult.dataframe`, the frames on `SplitResult` / `FoldResult` / `HoldoutCVResult`). A renderer reports a Payload Frame's **shape and dtypes and never its rows**, so rendering stays bounded in row count. Losslessness binds *profile fields*, which are summaries bounded by the column count; it never extends to the data itself.
+  _Avoid_: data frame, payload, the data
 
 ## Persistence
 
