@@ -597,6 +597,58 @@ class NonlinearityProfileResult:
     columns: dict[str, NonlinearitySignals] = field(default_factory=dict)
     analysed_columns: list[str] = field(default_factory=list)
 
+    def to_markdown(self) -> str:
+        """Render the nonlinearity profile as a Markdown document.
+
+        A document per rule 5 of the Rendering Contract (ADR-0086): it owns the
+        ``#`` and ``##`` heading levels. Every field of the result is covered;
+        empty collections render a stated absence rather than a bare ``None``.
+
+        Returns
+        -------
+        str
+            Markdown document with the analysed column scope and one row of
+            nonlinearity signals per profiled column.
+        """
+        lines = ["# Nonlinearity Profile\n"]
+
+        lines.append("## Summary\n")
+        analysed = ", ".join(self.analysed_columns) if self.analysed_columns else "none"
+        lines.append("| Field | Value |")
+        lines.append("|---|---|")
+        lines.append(f"| analysed_columns | {analysed} |")
+        lines.append("")
+
+        lines.append("## Signals\n")
+        lines.append(
+            "| Column | Tag | Spearman-Pearson discrepancy | Mean mutual information "
+            "| R2 gap | Heteroscedasticity p-value |"
+        )
+        lines.append("|---|---|---|---|---|---|")
+        if self.columns:
+            for name, signals in self.columns.items():
+                lines.append(
+                    f"| `{name}` | {str(signals.tag)} "
+                    f"| {signals.spearman_pearson_discrepancy:.4f} "
+                    f"| {signals.mean_mutual_information:.4f} "
+                    f"| {signals.r2_gap:.4f} "
+                    f"| {signals.heteroscedasticity_p_value:.4f} |"
+                )
+        else:
+            lines.append("| none | | | | | |")
+
+        return "\n".join(lines).strip() + "\n"
+
+    def __str__(self) -> str:
+        """Return the Nonlinearity Profile document, per rule 2 of the contract.
+
+        Returns
+        -------
+        str
+            The output of :meth:`to_markdown`.
+        """
+        return self.to_markdown()
+
 
 # ---------------------------------------------------------------------------
 # Sub-config
@@ -728,6 +780,103 @@ class NumericProfileConfig:
         )
 
 
+# ---------------------------------------------------------------------------
+# Markdown rendering helpers (Rendering Contract, ADR-0086)
+# ---------------------------------------------------------------------------
+
+
+def _fmt(value: object) -> str:
+    if value is None:
+        return "not computed"
+    if isinstance(value, StrEnum):
+        return str(value)
+    if isinstance(value, bool):
+        return str(value)
+    if isinstance(value, float):
+        return f"{value:,.4f}"
+    if isinstance(value, int):
+        return f"{value:,}"
+    return str(value)
+
+
+def _fmt_seq(values: list) -> str:
+    return ", ".join(str(v) for v in values) if values else "none"
+
+
+def _numeric_stats_lines(stats: "NumericStats") -> list[str]:
+    """Build the ``####``-rooted body for one column's numeric statistics."""
+    lines = [
+        "| Field | Value |",
+        "|---|---|",
+        f"| mean | {_fmt(stats.mean)} |",
+        f"| median | {_fmt(stats.median)} |",
+        f"| mean_median_ratio | {_fmt(stats.mean_median_ratio)} |",
+        f"| mode | {_fmt(stats.mode)} |",
+        f"| mode_frequency | {_fmt(stats.mode_frequency)} |",
+        f"| std | {_fmt(stats.std)} |",
+        f"| variance | {_fmt(stats.variance)} |",
+        f"| min | {_fmt(stats.min)} |",
+        f"| max | {_fmt(stats.max)} |",
+        f"| iqr | {_fmt(stats.iqr)} |",
+        f"| skewness | {_fmt(stats.skewness)} |",
+        f"| skewness_severity | {_fmt(stats.skewness_severity)} |",
+        f"| kurtosis | {_fmt(stats.kurtosis)} |",
+        f"| kurtosis_tag | {_fmt(stats.kurtosis_tag)} |",
+        f"| flags | {_fmt_seq(stats.flags)} |",
+        f"| nonlinearity_tag | {_fmt(stats.nonlinearity_tag)} |",
+        f"| spearman_pearson_discrepancy | {_fmt(stats.spearman_pearson_discrepancy)} |",
+        f"| mean_mutual_information | {_fmt(stats.mean_mutual_information)} |",
+        f"| r2_gap | {_fmt(stats.r2_gap)} |",
+        f"| heteroscedasticity_p_value | {_fmt(stats.heteroscedasticity_p_value)} |",
+        f"| tail_asymmetry_tag | {_fmt(stats.tail_asymmetry_tag)} |",
+        f"| tail_asymmetry_share | {_fmt(stats.tail_asymmetry_share)} |",
+        f"| outlier_density | {_fmt(stats.outlier_density)} |",
+        "",
+        "#### Percentiles\n",
+        "| Percentile | Value |",
+        "|---|---|",
+    ]
+    for key, value in stats.percentiles.to_dict().items():
+        lines.append(f"| {key} | {_fmt(value)} |")
+    lines.append("")
+
+    lines.append("#### Top Values\n")
+    if stats.top_values:
+        lines.append("| Value | Count | Percentage |")
+        lines.append("|---|---|---|")
+        for entry in stats.top_values:
+            lines.append(
+                f"| {_fmt(entry.value)} | {entry.count:,} | {entry.percentage:.2%} |"
+            )
+    else:
+        lines.append("none")
+    lines.append("")
+
+    lines.append("#### Histogram\n")
+    if stats.histogram:
+        lines.append("| Lower bound | Upper bound | Count | Percentage |")
+        lines.append("|---|---|---|---|")
+        for hist_bin in stats.histogram:
+            lines.append(
+                f"| {_fmt(hist_bin.lower_bound)} | {_fmt(hist_bin.upper_bound)} "
+                f"| {hist_bin.count:,} | {hist_bin.percentage:.2%} |"
+            )
+    else:
+        lines.append("none")
+    lines.append("")
+
+    lines.append("#### Bimodality\n")
+    if stats.bimodal_stats:
+        lines.append("| Field | Value |")
+        lines.append("|---|---|")
+        for key, value in stats.bimodal_stats.to_dict().items():
+            lines.append(f"| {key} | {_fmt(value)} |")
+    else:
+        lines.append("not computed")
+
+    return lines
+
+
 @dataclass
 class NumericProfileResult:
     """
@@ -744,8 +893,64 @@ class NumericProfileResult:
     columns: dict[str, NumericStats] = field(default_factory=dict)
     analysed_columns: list[str] = field(default_factory=list)
 
-    def __str__(self) -> str:  # pragma: no cover
-        lines = ["=== Numeric Distribution Profile ==="]
-        for profile in self.columns.values():
-            lines.append(str(profile))
-        return "\n".join(lines)
+    def to_markdown(self) -> str:
+        """Render the numeric distribution profile as a Markdown document.
+
+        A document per rule 5 of the Rendering Contract (ADR-0086): it owns the
+        ``#`` and ``##`` heading levels and places each column's detail beneath
+        them. Every field of every :class:`NumericStats` is covered; absent
+        values and absent sub-objects render a stated absence rather than a
+        bare ``None``.
+
+        Returns
+        -------
+        str
+            Markdown document with a summary table followed by one detail
+            section per profiled column.
+        """
+        analysed = ", ".join(self.analysed_columns) if self.analysed_columns else "none"
+        lines = ["# Numeric Distribution Profile\n"]
+
+        lines.append("## Summary\n")
+        lines.append("| Field | Value |")
+        lines.append("|---|---|")
+        lines.append(f"| analysed_columns | {analysed} |")
+        lines.append("")
+
+        lines.append(
+            "| Column | Mean | Median | Std | Min | Max | Skewness | Kurtosis | Flags |"
+        )
+        lines.append("|---|---|---|---|---|---|---|---|---|")
+        if self.columns:
+            for name, stats in self.columns.items():
+                lines.append(
+                    f"| `{name}` | {_fmt(stats.mean)} | {_fmt(stats.median)} "
+                    f"| {_fmt(stats.std)} | {_fmt(stats.min)} | {_fmt(stats.max)} "
+                    f"| {_fmt(stats.skewness)} | {_fmt(stats.kurtosis)} "
+                    f"| {_fmt_seq(stats.flags)} |"
+                )
+        else:
+            lines.append("| none | | | | | | | | |")
+        lines.append("")
+
+        lines.append("## Column Details\n")
+        if self.columns:
+            for name, stats in self.columns.items():
+                lines.append(f"### `{name}`\n")
+                lines.extend(_numeric_stats_lines(stats))
+                lines.append("")
+        else:
+            lines.append("none")
+            lines.append("")
+
+        return "\n".join(lines).strip() + "\n"
+
+    def __str__(self) -> str:
+        """Return the Numeric Distribution Profile, per rule 2 of the contract.
+
+        Returns
+        -------
+        str
+            The output of :meth:`to_markdown`.
+        """
+        return self.to_markdown()

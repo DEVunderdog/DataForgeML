@@ -23,6 +23,30 @@ from enum import StrEnum
 from typing import Optional
 
 # ---------------------------------------------------------------------------
+# Rendering helpers
+# ---------------------------------------------------------------------------
+
+
+def _fmt_optional(value: Optional[float]) -> str:
+    return "not computed" if value is None else f"{value:.4f}"
+
+
+def _matrix_rows(matrix: dict[str, dict[str, float]]) -> list[str]:
+    if not matrix:
+        return ["not computed"]
+    keys = list(matrix.keys())
+    rows = [
+        "| | " + " | ".join(f"`{k}`" for k in keys) + " |",
+        "|---" * (len(keys) + 1) + "|",
+    ]
+    for row_key in keys:
+        row = matrix[row_key]
+        cells = [_fmt_optional(row.get(col_key)) for col_key in keys]
+        rows.append(f"| `{row_key}` | " + " | ".join(cells) + " |")
+    return rows
+
+
+# ---------------------------------------------------------------------------
 # Sub-config
 # ---------------------------------------------------------------------------
 
@@ -620,3 +644,191 @@ class CorrelationProfileResult:
                 for m in data.get("mutual_information", [])
             ],
         )
+
+    def to_markdown(self) -> str:
+        """Render the correlation profile as a Markdown document.
+
+        A document per rule 5 of the Rendering Contract (ADR-0086): it owns the
+        ``#`` and ``##`` heading levels. Every field of the result is covered;
+        absent scalars and empty collections render a stated absence rather than
+        a bare ``None``, and enums render by their string form.
+
+        Returns
+        -------
+        str
+            Markdown document with the analysed column scope, the Pearson and
+            Spearman matrices, the pairwise numeric / categorical /
+            numeric-categorical association tables, the near-redundancy
+            summary, the feature-target correlations and the mutual
+            information ranking.
+        """
+        lines = ["# Correlation Profile\n"]
+
+        lines.append("## Summary\n")
+        numeric = (
+            ", ".join(self.analysed_numeric_columns)
+            if self.analysed_numeric_columns
+            else "none"
+        )
+        categorical = (
+            ", ".join(self.analysed_categorical_columns)
+            if self.analysed_categorical_columns
+            else "none"
+        )
+        lines.append("| Field | Value |")
+        lines.append("|---|---|")
+        lines.append(f"| analysed_numeric_columns | {numeric} |")
+        lines.append(f"| analysed_categorical_columns | {categorical} |")
+        lines.append(f"| target_column | {self.target_column or 'not supplied'} |")
+        lines.append(
+            f"| target_type | "
+            f"{str(self.target_type) if self.target_type else 'not supplied'} |"
+        )
+        lines.append("")
+
+        lines.append("## Pearson Matrix\n")
+        lines.extend(_matrix_rows(self.pearson_matrix))
+        lines.append("")
+
+        lines.append("## Spearman Matrix\n")
+        lines.extend(_matrix_rows(self.spearman_matrix))
+        lines.append("")
+
+        lines.append("## Numeric Pairs\n")
+        lines.append("| Column A | Column B | Pearson r | Spearman r | Near redundant |")
+        lines.append("|---|---|---|---|---|")
+        if self.pairwise:
+            for pair in self.pairwise:
+                lines.append(
+                    f"| `{pair.col_a}` | `{pair.col_b}` "
+                    f"| {_fmt_optional(pair.pearson_r)} "
+                    f"| {_fmt_optional(pair.spearman_r)} | {pair.near_redundant} |"
+                )
+        else:
+            lines.append("| none | | | | |")
+        lines.append("")
+
+        lines.append("### Near-redundant numeric pairs\n")
+        if self.near_redundant_pairs:
+            for pair in self.near_redundant_pairs:
+                lines.append(
+                    f"- `{pair.col_a}` / `{pair.col_b}` — "
+                    f"Pearson {_fmt_optional(pair.pearson_r)}, "
+                    f"Spearman {_fmt_optional(pair.spearman_r)}"
+                )
+        else:
+            lines.append("none")
+        lines.append("")
+
+        lines.append("## Categorical Pairs (Cramer's V)\n")
+        lines.append("| Column A | Column B | Cramer's V | Near redundant |")
+        lines.append("|---|---|---|---|")
+        if self.cramer_v_pairs:
+            for cv in self.cramer_v_pairs:
+                lines.append(
+                    f"| `{cv.col_a}` | `{cv.col_b}` | {_fmt_optional(cv.cramer_v)} "
+                    f"| {cv.near_redundant} |"
+                )
+        else:
+            lines.append("| none | | | |")
+        lines.append("")
+
+        lines.append("### Near-redundant categorical pairs\n")
+        if self.near_redundant_cramer_v_pairs:
+            for cv in self.near_redundant_cramer_v_pairs:
+                lines.append(
+                    f"- `{cv.col_a}` / `{cv.col_b}` — "
+                    f"Cramer's V {_fmt_optional(cv.cramer_v)}"
+                )
+        else:
+            lines.append("none")
+        lines.append("")
+
+        lines.append("## Numeric-Categorical Pairs (eta-squared)\n")
+        lines.append("| Numeric | Categorical | eta-squared | Near redundant |")
+        lines.append("|---|---|---|---|")
+        if self.eta_squared_pairs:
+            for eta in self.eta_squared_pairs:
+                lines.append(
+                    f"| `{eta.numeric_col}` | `{eta.categorical_col}` "
+                    f"| {_fmt_optional(eta.eta_squared)} | {eta.near_redundant} |"
+                )
+        else:
+            lines.append("| none | | | |")
+        lines.append("")
+
+        lines.append("### Near-redundant numeric-categorical pairs\n")
+        if self.near_redundant_eta_squared_pairs:
+            for eta in self.near_redundant_eta_squared_pairs:
+                lines.append(
+                    f"- `{eta.numeric_col}` / `{eta.categorical_col}` — "
+                    f"eta-squared {_fmt_optional(eta.eta_squared)}"
+                )
+        else:
+            lines.append("none")
+        lines.append("")
+
+        lines.append("## Near-Redundancy Groups\n")
+        lines.append("| Columns | Suggested drop |")
+        lines.append("|---|---|")
+        if self.near_redundancy_groups:
+            for group in self.near_redundancy_groups:
+                members = ", ".join(group.columns) if group.columns else "none"
+                drop = (
+                    ", ".join(group.suggested_drop)
+                    if group.suggested_drop
+                    else "none"
+                )
+                lines.append(f"| {members} | {drop} |")
+        else:
+            lines.append("| none | |")
+        lines.append("")
+
+        lines.append("## Feature-Target Correlation (numeric target)\n")
+        lines.append("| Feature | Pearson r |")
+        lines.append("|---|---|")
+        if self.feature_target_numeric:
+            for entry in self.feature_target_numeric:
+                lines.append(
+                    f"| `{entry.feature}` | {_fmt_optional(entry.pearson_r)} |"
+                )
+        else:
+            lines.append("| none | |")
+        lines.append("")
+
+        lines.append("## Feature-Target Correlation (categorical target)\n")
+        lines.append("| Feature | F statistic | p-value | eta-squared |")
+        lines.append("|---|---|---|---|")
+        if self.feature_target_categorical:
+            for entry in self.feature_target_categorical:
+                lines.append(
+                    f"| `{entry.feature}` | {_fmt_optional(entry.f_statistic)} "
+                    f"| {_fmt_optional(entry.p_value)} "
+                    f"| {_fmt_optional(entry.eta_squared)} |"
+                )
+        else:
+            lines.append("| none | | | |")
+        lines.append("")
+
+        lines.append("## Mutual Information\n")
+        lines.append("| Rank | Feature | MI score |")
+        lines.append("|---|---|---|")
+        if self.mutual_information:
+            for entry in self.mutual_information:
+                lines.append(
+                    f"| {entry.rank} | `{entry.feature}` | {entry.mi_score:.4f} |"
+                )
+        else:
+            lines.append("| none | | |")
+
+        return "\n".join(lines).strip() + "\n"
+
+    def __str__(self) -> str:
+        """Return the Correlation Profile document, per rule 2 of the contract.
+
+        Returns
+        -------
+        str
+            The output of :meth:`to_markdown`.
+        """
+        return self.to_markdown()

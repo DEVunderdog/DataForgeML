@@ -239,20 +239,46 @@ class ColumnMissingnessProfile:
             correlated_with=list(data.get("correlated_with", [])),
         )
 
-    def __str__(self) -> str:  # pragma: no cover
+    def to_markdown(self) -> str:
+        """Render the column profile as a ``###``-rooted Markdown fragment.
+
+        A fragment per rule 5 of the Rendering Contract (ADR-0086): it carries
+        no ``#`` or ``##`` heading, so a parent document composes it without a
+        heading collision. Every field is rendered; absent values are stated
+        rather than left as a bare ``None``.
+
+        Returns
+        -------
+        str
+            Markdown subsection headed by ``### `<column>``` and a field table.
+        """
+        severity = str(self.severity) if self.severity else "not computed"
+        flags = ", ".join(str(f) for f in self.flags) if self.flags else "none"
+        correlated = ", ".join(self.correlated_with) if self.correlated_with else "none"
         lines = [
-            f"  Column : {self.column}",
-            f"    Standard nulls     : {self.standard_null_count:,}"
-            f"  ({self.standard_null_ratio:.2%})",
-            f"    Effective nulls    : {self.effective_null_count:,}"
-            f"  ({self.effective_null_ratio:.2%})",
-            f"    Severity           : {self.severity or 'N/A'}",
+            f"### `{self.column}`\n",
+            "| Field | Value |",
+            "|---|---|",
+            f"| total_rows | {self.total_rows:,} |",
+            f"| standard_null_count | {self.standard_null_count:,} |",
+            f"| standard_null_ratio | {self.standard_null_ratio:.2%} |",
+            f"| effective_null_count | {self.effective_null_count:,} |",
+            f"| effective_null_ratio | {self.effective_null_ratio:.2%} |",
+            f"| severity | {severity} |",
+            f"| flags | {flags} |",
+            f"| correlated_with | {correlated} |",
         ]
-        if self.correlated_with:
-            lines.append(f"    MAR correlates with: {', '.join(self.correlated_with)}")
-        if self.flags:
-            lines.append(f"    Flags              : {', '.join(self.flags)}")
         return "\n".join(lines)
+
+    def __str__(self) -> str:
+        """Return the fragment, per rule 2 of the Rendering Contract.
+
+        Returns
+        -------
+        str
+            The output of :meth:`to_markdown`.
+        """
+        return self.to_markdown()
 
 
 @dataclass
@@ -286,17 +312,94 @@ class MissingnessProfileResult:
         default_factory=RowMissingnessDistribution
     )
 
-    def __str__(self) -> str:  # pragma: no cover
-        lines = ["=== Missingness Profile ==="]
-        for profile in self.columns.values():
-            lines.append(str(profile))
-        if self.fully_null_columns:
-            lines.append(
-                f"\n  Fully-null columns (must drop): "
-                f"{', '.join(self.fully_null_columns)}"
-            )
+    def to_markdown(self) -> str:
+        """Render the missingness profile as a Markdown document.
 
-        return "\n".join(lines)
+        A document per rule 5 of the Rendering Contract (ADR-0086): it owns the
+        ``#`` and ``##`` heading levels and composes each
+        :class:`ColumnMissingnessProfile` fragment beneath them. Every field of
+        the result is covered; absent sub-objects and empty collections render
+        a stated absence rather than a bare ``None``.
+
+        Returns
+        -------
+        str
+            Markdown document with a summary table, the row-missingness
+            distribution, the missingness correlation matrix, and one
+            per-column detail fragment.
+        """
+        lines = ["# Missingness Profile\n"]
+
+        lines.append("## Summary\n")
+        analysed = ", ".join(self.analysed_columns) if self.analysed_columns else "none"
+        fully_null = (
+            ", ".join(self.fully_null_columns) if self.fully_null_columns else "none"
+        )
+        lines.append("| Field | Value |")
+        lines.append("|---|---|")
+        lines.append(f"| analysed_columns | {analysed} |")
+        lines.append(f"| fully_null_columns (must drop) | {fully_null} |")
+        lines.append("")
+
+        lines.append("| Column | Effective nulls | Effective null % | Severity | Flags |")
+        lines.append("|---|---|---|---|---|")
+        if self.columns:
+            for profile in self.columns.values():
+                severity = str(profile.severity) if profile.severity else "not computed"
+                flags = (
+                    ", ".join(str(f) for f in profile.flags) if profile.flags else "none"
+                )
+                lines.append(
+                    f"| {profile.column} | {profile.effective_null_count:,} "
+                    f"| {profile.effective_null_ratio:.2%} | {severity} | {flags} |"
+                )
+        else:
+            lines.append("| none | | | | |")
+        lines.append("")
+
+        lines.append("## Row Missingness Distribution\n")
+        lines.append("| Field | Value |")
+        lines.append("|---|---|")
+        for key, value in self.row_distribution.to_dict().items():
+            lines.append(f"| {key} | {value} |")
+        lines.append("")
+
+        lines.append("## Missingness Correlation Matrix\n")
+        if self.correlation_matrix:
+            keys = list(self.correlation_matrix.keys())
+            lines.append("| | " + " | ".join(f"`{k}`" for k in keys) + " |")
+            lines.append("|---" * (len(keys) + 1) + "|")
+            for row_key in keys:
+                row = self.correlation_matrix[row_key]
+                cells = []
+                for col_key in keys:
+                    value = row.get(col_key)
+                    cells.append("not computed" if value is None else f"{value:.4f}")
+                lines.append(f"| `{row_key}` | " + " | ".join(cells) + " |")
+        else:
+            lines.append("not computed")
+        lines.append("")
+
+        lines.append("## Column Details\n")
+        if self.columns:
+            for profile in self.columns.values():
+                lines.append(profile.to_markdown())
+                lines.append("")
+        else:
+            lines.append("none")
+            lines.append("")
+
+        return "\n".join(lines).strip() + "\n"
+
+    def __str__(self) -> str:
+        """Return the Missingness Profile document, per rule 2 of the contract.
+
+        Returns
+        -------
+        str
+            The output of :meth:`to_markdown`.
+        """
+        return self.to_markdown()
 
 
 # ---------------------------------------------------------------------------
