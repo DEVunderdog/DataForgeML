@@ -20,6 +20,7 @@ import polars as pl
 
 from ..config import PipelineConfig, PipelinePhase
 from ..models._data_types import _FLOAT_DTYPES, _INT_DTYPES
+from ..utils._dtype_floor import _apply_dtype_floor
 from ..utils._null_normalization import _resolve_effective_nulls
 from ._config import (
     ColumnImputationRecord,
@@ -574,6 +575,12 @@ class FittedImputer:
         missing in the normalised frame receive fill values. A ``Passthrough``
         column is left completely alone, nulls included (ADR-0083).
 
+        The **Dtype Floor** is enforced on the working copy immediately after
+        that normalisation (ADR-0085), so every consumer inside this call reads
+        a column at the dtype its semantic type names. It stops at the boundary:
+        the columns it casts come back at their input dtype, observed cells
+        bit-for-bit (ADR-0078).
+
         Parameters
         ----------
         df : pl.DataFrame
@@ -628,11 +635,30 @@ class FittedImputer:
                 f"cannot be applied to absent columns."
             )
 
+        # Phase entry: effective nulls first, then the Dtype Floor off the
+        # fitted records' decisions (ADR-0085). The floor exists for the
+        # consumers *inside* this call; the columns it casts are the
+        # non-numeric ones, every one of which is Passthrough, so they are
+        # handed back at their pre-floor dtype on the way out and the cast
+        # stays invisible at the public boundary (ADR-0078).
         df = _resolve_effective_nulls(
             df,
             numeric_sentinels=self.numeric_sentinels,
             string_sentinels=self.string_sentinels,
         )
+        pre_floor = df
+        df = _apply_dtype_floor(
+            df,
+            {
+                name: rec.decision.semantic_type
+                for name, rec in self.records.items()
+            },
+        )
+        floored_cols = [
+            name
+            for name, dtype in df.schema.items()
+            if pre_floor.schema[name] != dtype
+        ]
 
         # --- Warn about already-absent dropped columns ---
         for col, rec in self.records.items():
@@ -712,6 +738,17 @@ class FittedImputer:
                         if col in produced.columns
                     ]
                 )
+
+        # Undo the phase-entry floor cast on the way out. The floor is for the
+        # consumers inside this call, not a change to what the caller gets
+        # back: every observed cell is restored from the pre-floor column
+        # bit-for-bit in its original dtype, and a cell that was missing keeps
+        # whatever fill landed on it, rendered back into that dtype (ADR-0078).
+        restore_cols = [c for c in floored_cols if c in result_df.columns]
+        if restore_cols:
+            from ._utils import _preserve_observed
+
+            result_df = _preserve_observed(pre_floor, result_df, restore_cols)
 
         return ImputationResult(
             dataframe=result_df,

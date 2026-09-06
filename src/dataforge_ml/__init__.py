@@ -17,16 +17,30 @@ from ._serialization import (
 )
 from .config import Modality, PipelineConfig, PipelinePhase, SemanticType
 
-# --- User-facing fit-quality diagnostics -----------------------------------
+# --- Evaluation: the opt-in scoring module (ADR-0087) ----------------------
+from .evaluation import (
+    C2STAnnotation,
+    C2STConfig,
+    C2STOutcome,
+    C2STProvenance,
+    C2STReport,
+    C2STResult,
+    C2STScheme,
+    C2STScore,
+    C2STVerdict,
+    ColumnC2STResult,
+    EvaluationConfig,
+    EvaluationMetric,
+    EvaluationReport,
+    evaluate_imputation,
+)
+
 # --- Exceptions the user catches -------------------------------------------
 from .imputation import (
-    AccuracyDiagnostic,
-    AccuracyReport,
     AuthoredColumn,
     ColumnImputationDecision,
     ColumnImputationRecord,
     DroppedColumnAbsentWarning,
-    EvaluationOrchestrator,
     FitSignals,
     FittedColumnAbsentError,
     FittedImputer,
@@ -37,8 +51,6 @@ from .imputation import (
     ImputationResult,
     ImputationStrategy,
     ImputationUnit,
-    InspectionDiagnostic,
-    InspectionReport,
     ModelChoice,
     NumericImputationConfig,
     UnitFitResult,
@@ -90,7 +102,6 @@ __all__ = [
     "Modality",
 
     "StructuralProfiler",
-    "EvaluationOrchestrator",
     "FittedImputer",
     
     "decide",
@@ -132,10 +143,6 @@ __all__ = [
     "SplitResult",
     "FoldResult",
     "HoldoutCVResult",
-    "InspectionDiagnostic",
-    "InspectionReport",
-    "AccuracyDiagnostic",
-    "AccuracyReport",
     "UnseenColumnError",
     "FittedColumnAbsentError",
     "OverrideCoercionError",
@@ -147,4 +154,24 @@ __all__ = [
     "serialize",
     "deserialize",
     "inspect",
+
+    # --- Evaluation ---------------------------------------------------------
+    # ``C2STOutcome`` / ``C2STAnnotation`` / ``C2STVerdict`` classify output and
+    # are never user-supplied, a stated exception to ADR-0050 (ADR-0087):
+    # reading the report *is* branching on them, so the handling half of the
+    # export rule reaches them. The generic seam ``c2st`` stays unexported.
+    "evaluate_imputation",
+    "EvaluationConfig",
+    "C2STConfig",
+    "EvaluationMetric",
+    "C2STScheme",
+    "EvaluationReport",
+    "C2STReport",
+    "ColumnC2STResult",
+    "C2STScore",
+    "C2STResult",
+    "C2STProvenance",
+    "C2STOutcome",
+    "C2STAnnotation",
+    "C2STVerdict",
 ]

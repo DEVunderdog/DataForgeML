@@ -576,3 +576,40 @@ def test_row_distribution_accessible_on_missingness_profile_result():
     result = MissingnessProfiler().profile(df, ["x"])
     assert hasattr(result, "row_distribution")
     assert isinstance(result.row_distribution, RowMissingnessDistribution)
+
+
+# ---------------------------------------------------------------------------
+# pl.Categorical resolves the same effective nulls as its pl.String form
+# (ADR-0085)
+# ---------------------------------------------------------------------------
+
+_CATEGORICAL_MEASURED_CASE = ["x", "y", "NA", "  ", "x", None]
+
+
+def test_categorical_effective_null_count_matches_string_form():
+    as_string = pl.DataFrame(
+        {"c": pl.Series(_CATEGORICAL_MEASURED_CASE, dtype=pl.String)}
+    )
+    as_cat = pl.DataFrame(
+        {"c": pl.Series(_CATEGORICAL_MEASURED_CASE, dtype=pl.Categorical)}
+    )
+
+    string_profile = MissingnessProfiler().profile(as_string, ["c"]).columns["c"]
+    cat_profile = MissingnessProfiler().profile(as_cat, ["c"]).columns["c"]
+
+    assert string_profile.effective_null_count == 3
+    assert cat_profile.effective_null_count == string_profile.effective_null_count
+    assert cat_profile.standard_null_count == 1
+
+
+def test_categorical_declared_string_sentinels_apply():
+    df = pl.DataFrame(
+        {"c": pl.Series(["MISSING", "NA", "keep"], dtype=pl.Categorical)}
+    )
+    profile = (
+        MissingnessProfiler(string_sentinels={"c": ["MISSING"]})
+        .profile(df, ["c"])
+        .columns["c"]
+    )
+    # Replace semantics: "MISSING" counts, the hardcoded "NA" no longer does.
+    assert profile.effective_null_count == 1

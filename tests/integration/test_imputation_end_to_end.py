@@ -916,3 +916,65 @@ def test_re_authored_decided_plan_drives_to_an_imputed_frame(
     for col in ("score", "revenue", "rating"):
         assert result.dataframe[col].null_count() == 0, f"'{col}' still has nulls"
     assert result.records["rating"].decision.strategy == ImputationStrategy.Median
+
+
+# ---------------------------------------------------------------------------
+# Fit purity (#331 / ADR-0058): fitting routes and learns models and nothing
+# else — no diagnostics ride on the records, no cross-validated fold work runs.
+# ---------------------------------------------------------------------------
+
+
+class _Recorder:
+    """Progress Observer that records every event it receives, in order."""
+
+    def __init__(self) -> None:
+        self.events: list = []
+
+    def __call__(self, event) -> None:
+        self.events.append(event)
+
+
+@pytest.fixture(scope="module")
+def purity_df(rng):
+    """A wide, correlated numeric frame so several columns route to MICE."""
+    rng = rng(seed=44)
+    n = 300
+    base = rng.normal(0.0, 1.0, n)
+    cols = {}
+    for name in ("a", "b", "c", "d", "e"):
+        vals = (base + rng.normal(0.0, 0.5, n)).tolist()
+        for i in range(n):
+            if rng.random() < 0.10:
+                vals[i] = None
+        cols[name] = pl.Series(vals, dtype=pl.Float64)
+    return pl.DataFrame(cols)
+
+
+@pytest.fixture(scope="module")
+def purity_profile(purity_df):
+    return StructuralProfiler(PipelineConfig(profiling=ProfileConfig())).profile(
+        purity_df
+    )
+
+
+def test_fit_records_carry_no_diagnostics(purity_df, purity_profile):
+    fitted = fit_imputer(purity_df, purity_profile)
+    for rec in fitted.records.values():
+        assert not hasattr(rec, "diagnostic")
+    # And the serialisable record form carries no diagnostic key.
+    for rec in fitted.records.values():
+        assert "diagnostic" not in rec.to_dict()
+
+
+def test_fit_event_stream_has_no_diagnostics_fold_substeps(purity_df, purity_profile):
+    """Fitting only learns models — no cross-validated fold work happens."""
+    from dataforge_ml import EventType
+
+    recorder = _Recorder()
+    fit_imputer(purity_df, purity_profile, observer=recorder)
+    fold_msgs = [
+        e.message
+        for e in recorder.events
+        if e.event_type == EventType.substep and "diagnostics fold" in (e.message or "")
+    ]
+    assert not fold_msgs, "the fit path must not run diagnostics folds"

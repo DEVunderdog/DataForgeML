@@ -592,6 +592,10 @@ def fit_knn_unit(
 
     arr = _df_to_numpy(train_df, list(cols))
 
+    # The plan's adaptive neighbour count is capped at ``n_rows - 1``; record
+    # whether that ceiling — rather than the formula — chose ``n_neighbors``.
+    k_capped = n_neighbors == max(1, train_df.height - 1)
+
     # NaN-safe StandardScaler: missing cells stay NaN for KNNImputer to fill.
     col_means = np.nanmean(arr, axis=0)
     col_stds = np.nanstd(arr, axis=0)
@@ -620,10 +624,10 @@ def fit_knn_unit(
             estimator="KNNImputer",
             warnings=warnings_,
             notes=(
-                f"knn_params: n_neighbors={n_neighbors}, weights={weights} | "
-                f"n_features={len(cols)}",
-                f"knn_scaling: applied StandardScaler (nanmean/nanstd) "
-                f"across {len(cols)} feature columns",
+                (f"knn_params: n_neighbors={n_neighbors}, weights={weights} | "
+                f"n_features={len(cols)} | k_capped={k_capped}"),
+                (f"knn_scaling: applied StandardScaler (nanmean/nanstd) "
+                f"across {len(cols)} feature columns"),
             ),
         ),
     )
