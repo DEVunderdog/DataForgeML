@@ -9,6 +9,7 @@ DataForgeML is an automated feature engineering and ML pipeline library that pro
 api/pipeline
 api/profiling
 api/imputation
+api/evaluation
 api/splitting
 api/persistence
 api/observability

@@ -26,16 +26,16 @@
   </noscript>
   
   <!-- Loaded before other Sphinx assets -->
-  <link href="../../../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
-<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+  <link href="../../../_static/styles/theme.css?digest=cb8930eaaf36d9849b67" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=cb8930eaaf36d9849b67" rel="stylesheet" />
 
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
   
   <!-- So that users can add custom icons -->
-  <script defer src="../../../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <script defer src="../../../_static/scripts/fontawesome.js?digest=cb8930eaaf36d9849b67"></script>
   <!-- Pre-loaded scripts that we'll load fully later -->
-  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
-<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=cb8930eaaf36d9849b67" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=cb8930eaaf36d9849b67" />
 
     <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
     <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
@@ -150,15 +150,15 @@
 
 
 <li class="nav-item ">
-  <a class="nav-link nav-internal" href="../../../api/splitting.html">
-    Splitting
+  <a class="nav-link nav-internal" href="../../../api/evaluation.html">
+    Evaluation
   </a>
 </li>
 
 
 <li class="nav-item ">
-  <a class="nav-link nav-internal" href="../../../api/persistence.html">
-    Persistence
+  <a class="nav-link nav-internal" href="../../../api/splitting.html">
+    Splitting
   </a>
 </li>
 
@@ -170,6 +170,13 @@
                 </button>
                 <ul id="pst-nav-more-links" class="dropdown-menu">
                     
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../api/persistence.html">
+    Persistence
+  </a>
+</li>
+
+
 <li class=" ">
   <a class="nav-link dropdown-item nav-internal" href="../../../api/observability.html">
     Observability
@@ -281,6 +288,13 @@
 <li class="nav-item ">
   <a class="nav-link nav-internal" href="../../../api/imputation.html">
     Imputation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/evaluation.html">
+    Evaluation
   </a>
 </li>
 
@@ -407,7 +421,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">StrEnum</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">Enum</span><span class="p">,</span> <span class="n">StrEnum</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">types</span><span class="w"> </span><span class="kn">import</span> <span class="n">MappingProxyType</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Optional</span>
 
@@ -449,16 +463,6 @@
     <span class="n">GMMSampling</span> <span class="o">=</span> <span class="s2">&quot;gmm_sampling&quot;</span>
     <span class="n">Indicator</span> <span class="o">=</span> <span class="s2">&quot;indicator&quot;</span>  <span class="c1"># output-only: assigned to {col}_missing columns appended by the MNAR mechanism; cannot be declared in per_column_strategy</span></div>
 
-
-
-<span class="n">_MODEL_BASED_STRATEGIES</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="n">ImputationStrategy</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
-    <span class="p">{</span>
-        <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">MICE</span><span class="p">,</span>
-        <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">KNN</span><span class="p">,</span>
-        <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">ClusterConditional</span><span class="p">,</span>
-        <span class="n">ImputationStrategy</span><span class="o">.</span><span class="n">GMMSampling</span><span class="p">,</span>
-    <span class="p">}</span>
-<span class="p">)</span>
 
 
 <span class="n">_STRATEGY_DIALS</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">ImputationStrategy</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>
@@ -676,17 +680,6 @@
 <span class="sd">        bypassing all routing priorities 2–7.  No companion entry in</span>
 <span class="sd">        ``per_column_strategy`` is required or allowed.  Keyed by column name.</span>
 <span class="sd">        Defaults to empty dict.</span>
-<span class="sd">    refit_r2_min_complete_rows : int</span>
-<span class="sd">        Minimum number of complete rows required to attempt the held-out</span>
-<span class="sd">        accuracy computation.  When fewer complete rows are available, the</span>
-<span class="sd">        ``r2_cv``, ``rmse``, and ``mae`` fields on ``AccuracyDiagnostic`` are set</span>
-<span class="sd">        to ``None``.  With k-fold CV (``refit_r2_cv_folds=5``), each validation</span>
-<span class="sd">        fold contains 1/k of the complete rows; the floor of 50 ensures at least</span>
-<span class="sd">        10 rows per fold.  Default ``50``.</span>
-<span class="sd">    refit_r2_cv_folds : int</span>
-<span class="sd">        Number of folds for the cross-validated accuracy computation</span>
-<span class="sd">        (:meth:`EvaluationOrchestrator.score_accuracy`).  Applied uniformly</span>
-<span class="sd">        across KNN and MICE columns.  Default ``5``.</span>
 <span class="sd">    bimodal_grouping_variables : dict[str, str]</span>
 <span class="sd">        Maps a bimodal column name to the name of the grouping column that</span>
 <span class="sd">        explains the bimodal split (e.g. ``{&quot;age&quot;: &quot;employment_status&quot;}``).</span>
@@ -734,8 +727,6 @@
     <span class="n">mcar_feature_predictability_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.2</span>
     <span class="n">_per_column_strategy</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ImputationStrategy</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
     <span class="n">_per_column_constant_fill</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
-    <span class="n">refit_r2_min_complete_rows</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50</span>
-    <span class="n">refit_r2_cv_folds</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span>
     <span class="n">_bimodal_grouping_variables</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
     <span class="n">bimodal_min_correlated_features</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span>
     <span class="n">bimodal_correlation_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.2</span>
@@ -948,8 +939,6 @@
                 <span class="n">k</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_per_column_strategy</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
             <span class="p">},</span>
             <span class="s2">&quot;per_column_constant_fill&quot;</span><span class="p">:</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_per_column_constant_fill</span><span class="p">),</span>
-            <span class="s2">&quot;refit_r2_min_complete_rows&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">refit_r2_min_complete_rows</span><span class="p">,</span>
-            <span class="s2">&quot;refit_r2_cv_folds&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">refit_r2_cv_folds</span><span class="p">,</span>
             <span class="s2">&quot;bimodal_grouping_variables&quot;</span><span class="p">:</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bimodal_grouping_variables</span><span class="p">),</span>
             <span class="s2">&quot;bimodal_min_correlated_features&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">bimodal_min_correlated_features</span><span class="p">,</span>
             <span class="s2">&quot;bimodal_correlation_threshold&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">bimodal_correlation_threshold</span><span class="p">,</span>
@@ -1015,8 +1004,6 @@
             <span class="p">),</span>
             <span class="n">_per_column_strategy</span><span class="o">=</span><span class="p">{},</span>
             <span class="n">_per_column_constant_fill</span><span class="o">=</span><span class="p">{},</span>
-            <span class="n">refit_r2_min_complete_rows</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;refit_r2_min_complete_rows&quot;</span><span class="p">,</span> <span class="mi">50</span><span class="p">)),</span>
-            <span class="n">refit_r2_cv_folds</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;refit_r2_cv_folds&quot;</span><span class="p">,</span> <span class="mi">5</span><span class="p">)),</span>
             <span class="n">_bimodal_grouping_variables</span><span class="o">=</span><span class="p">{},</span>
             <span class="n">bimodal_min_correlated_features</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span>
                 <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;bimodal_min_correlated_features&quot;</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
@@ -1227,391 +1214,55 @@
 
 
 
-<div class="viewcode-block" id="InspectionDiagnostic">
-<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.InspectionDiagnostic">[docs]</a>
-<span class="nd">@dataclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">InspectionDiagnostic</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Retrain-free inspection diagnostic for a single model-based column.</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_md_cell</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="s2">&quot;Any&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Render one value as a Markdown table cell.</span>
 
-<span class="sd">    Produced by :meth:`EvaluationOrchestrator.inspect` — the cheap, retrain-free</span>
-<span class="sd">    check that reuses the models ``fit()`` already learned (ADR-0058).  It</span>
-<span class="sd">    answers &quot;do the imputed values look sensible?&quot; by comparing the values the</span>
-<span class="sd">    fitted model filled into the originally-null cells against the observed</span>
-<span class="sd">    (non-null) values, and by surfacing the fitted model&#39;s own metadata.  It</span>
-<span class="sd">    carries no held-out accuracy numbers — those live on</span>
-<span class="sd">    :class:`AccuracyDiagnostic`, which is irreducibly a refit.</span>
-
-<span class="sd">    Present for KNN, MICE, and the bimodal strategies</span>
-<span class="sd">    (Cluster-Conditional, GMM-Sampling); absent (no report entry) for</span>
-<span class="sd">    Passthrough, Dropped, Constant, MNAR, and the scalar strategies</span>
-<span class="sd">    (Mean, Median, Mode).</span>
-
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    imputed_mean : float</span>
-<span class="sd">        Mean of the values the fitted model filled into the originally-null</span>
-<span class="sd">        rows.  ``0.0`` when the inspected frame has no nulls in this column.</span>
-<span class="sd">    imputed_std : float</span>
-<span class="sd">        Standard deviation of those imputed values.  ``0.0`` when the inspected</span>
-<span class="sd">        frame has no nulls in this column.</span>
-<span class="sd">    observed_mean : float</span>
-<span class="sd">        Mean of the non-null values in this column.</span>
-<span class="sd">    observed_std : float</span>
-<span class="sd">        Standard deviation of the non-null values in this column.</span>
-<span class="sd">    variance_ratio : float</span>
-<span class="sd">        ``imputed_std / observed_std`` (``0.0`` when ``observed_std`` is zero).</span>
-<span class="sd">        A value near zero flags distribution collapse — the model is predicting</span>
-<span class="sd">        near-constant fills.</span>
-<span class="sd">    converged : bool, optional</span>
-<span class="sd">        Whether ``IterativeImputer`` halted before reaching ``max_iter``.  Read</span>
-<span class="sd">        from the fitted MICE model.  ``None`` for KNN and the</span>
-<span class="sd">        bimodal strategies (convergence is not applicable).</span>
-<span class="sd">    n_iter : int, optional</span>
-<span class="sd">        Actual iteration count of the fitted ``IterativeImputer``.  ``None`` for</span>
-<span class="sd">        KNN and the bimodal strategies.</span>
-<span class="sd">    n_neighbors_used : int, optional</span>
-<span class="sd">        Actual ``n_neighbors`` used by the fitted KNN block.  ``None`` for</span>
-<span class="sd">        MICE and the bimodal strategies.</span>
-<span class="sd">    k_capped : bool, optional</span>
-<span class="sd">        ``True`` when the KNN neighbour count was forced down to ``n_rows − 1``</span>
-<span class="sd">        (the model is averaging nearly every row).  Always computable for a</span>
-<span class="sd">        fitted KNN unit; ``None`` only when the strategy is not KNN.</span>
+<span class="sd">    Absence is stated rather than left as a bare ``None``, enums render by</span>
+<span class="sd">    their string form (matching ``to_dict``), and any pipe or newline in the</span>
+<span class="sd">    value is neutralised so it cannot break the surrounding table.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="n">imputed_mean</span><span class="p">:</span> <span class="nb">float</span>
-    <span class="n">imputed_std</span><span class="p">:</span> <span class="nb">float</span>
-    <span class="n">observed_mean</span><span class="p">:</span> <span class="nb">float</span>
-    <span class="n">observed_std</span><span class="p">:</span> <span class="nb">float</span>
-    <span class="n">variance_ratio</span><span class="p">:</span> <span class="nb">float</span>
-    <span class="n">converged</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">n_iter</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">n_neighbors_used</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">k_capped</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
-
-<div class="viewcode-block" id="InspectionDiagnostic.to_dict">
-<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.InspectionDiagnostic.to_dict">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Serialise the diagnostic to a plain dictionary.</span>
-
-<span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-<span class="sd">        dict</span>
-<span class="sd">            All field values keyed by field name.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="p">{</span>
-            <span class="s2">&quot;imputed_mean&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">imputed_mean</span><span class="p">,</span>
-            <span class="s2">&quot;imputed_std&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">imputed_std</span><span class="p">,</span>
-            <span class="s2">&quot;observed_mean&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">observed_mean</span><span class="p">,</span>
-            <span class="s2">&quot;observed_std&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">observed_std</span><span class="p">,</span>
-            <span class="s2">&quot;variance_ratio&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">variance_ratio</span><span class="p">,</span>
-            <span class="s2">&quot;converged&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">converged</span><span class="p">,</span>
-            <span class="s2">&quot;n_iter&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_iter</span><span class="p">,</span>
-            <span class="s2">&quot;n_neighbors_used&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_neighbors_used</span><span class="p">,</span>
-            <span class="s2">&quot;k_capped&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">k_capped</span><span class="p">,</span>
-        <span class="p">}</span></div>
+    <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;none&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Enum</span><span class="p">):</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)):</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">_md_cell</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">value</span><span class="p">)</span> <span class="k">if</span> <span class="n">value</span> <span class="k">else</span> <span class="s2">&quot;none&quot;</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">=</span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">value</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+            <span class="k">if</span> <span class="n">value</span>
+            <span class="k">else</span> <span class="s2">&quot;none&quot;</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">text</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;|&quot;</span><span class="p">,</span> <span class="s2">&quot;</span><span class="se">\\</span><span class="s2">|&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot; &quot;</span><span class="p">)</span>
 
 
-<div class="viewcode-block" id="InspectionDiagnostic.from_dict">
-<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.InspectionDiagnostic.from_dict">[docs]</a>
-    <span class="nd">@classmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;InspectionDiagnostic&quot;</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reconstruct an ``InspectionDiagnostic`` from a plain dictionary.</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">        data : dict</span>
-<span class="sd">            Mapping produced by :meth:`to_dict`.</span>
-
-<span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-<span class="sd">        InspectionDiagnostic</span>
-<span class="sd">            Reconstructed diagnostic instance.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
-            <span class="n">imputed_mean</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;imputed_mean&quot;</span><span class="p">]),</span>
-            <span class="n">imputed_std</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;imputed_std&quot;</span><span class="p">]),</span>
-            <span class="n">observed_mean</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;observed_mean&quot;</span><span class="p">]),</span>
-            <span class="n">observed_std</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;observed_std&quot;</span><span class="p">]),</span>
-            <span class="n">variance_ratio</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;variance_ratio&quot;</span><span class="p">]),</span>
-            <span class="n">converged</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;converged&quot;</span><span class="p">),</span>
-            <span class="n">n_iter</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;n_iter&quot;</span><span class="p">),</span>
-            <span class="n">n_neighbors_used</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;n_neighbors_used&quot;</span><span class="p">),</span>
-            <span class="n">k_capped</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;k_capped&quot;</span><span class="p">),</span>
-        <span class="p">)</span></div>
-</div>
+<span class="k">def</span><span class="w"> </span><span class="nf">_frame_lines</span><span class="p">(</span><span class="n">frame</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Render a Payload Frame&#39;s shape and dtypes, never its rows (ADR-0086).&quot;&quot;&quot;</span>
+    <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="sa">f</span><span class="s2">&quot;Shape: </span><span class="si">{</span><span class="n">frame</span><span class="o">.</span><span class="n">height</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2"> rows x </span><span class="si">{</span><span class="n">frame</span><span class="o">.</span><span class="n">width</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2"> columns</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;| Column | Dtype |&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;|---|---|&quot;</span><span class="p">,</span>
+    <span class="p">]</span>
+    <span class="k">if</span> <span class="n">frame</span><span class="o">.</span><span class="n">width</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">dtype</span> <span class="ow">in</span> <span class="n">frame</span><span class="o">.</span><span class="n">schema</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;| `</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">` | </span><span class="si">{</span><span class="n">dtype</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;| none | |&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">lines</span>
 
 
-
-<div class="viewcode-block" id="InspectionReport">
-<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.InspectionReport">[docs]</a>
-<span class="nd">@dataclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">InspectionReport</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Per-column inspection report returned by :meth:`EvaluationOrchestrator.inspect`.</span>
-
-<span class="sd">    Holds one :class:`InspectionDiagnostic` per model-based column (KNN,</span>
-<span class="sd">    MICE, and the bimodal strategies); columns handled by scalar</span>
-<span class="sd">    strategies, Passthrough, Dropped, Constant, or MNAR carry no entry.</span>
-<span class="sd">    Supports ``report[col]`` lookup and ``col in report`` membership tests</span>
-<span class="sd">    (ADR-0058).</span>
-
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    columns : dict[str, InspectionDiagnostic]</span>
-<span class="sd">        Mapping from column name to its inspection diagnostic.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="n">columns</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">InspectionDiagnostic</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">InspectionDiagnostic</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the diagnostic for ``column``.</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">        column : str</span>
-<span class="sd">            Column name to look up.</span>
-
-<span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-<span class="sd">        InspectionDiagnostic</span>
-<span class="sd">            The inspection diagnostic for ``column``.</span>
-
-<span class="sd">        Raises</span>
-<span class="sd">        ------</span>
-<span class="sd">        KeyError</span>
-<span class="sd">            If ``column`` has no diagnostic in this report.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">column</span><span class="p">]</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="fm">__contains__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return whether ``column`` has a diagnostic in this report.</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">        column : object</span>
-<span class="sd">            Column name to test for membership.</span>
-
-<span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-<span class="sd">        bool</span>
-<span class="sd">            ``True`` when a diagnostic is present for ``column``.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">column</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span>
-
-<div class="viewcode-block" id="InspectionReport.to_dict">
-<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.InspectionReport.to_dict">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Serialise the report to a plain dictionary.</span>
-
-<span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-<span class="sd">        dict</span>
-<span class="sd">            Mapping with a single ``&quot;columns&quot;`` key whose value maps each</span>
-<span class="sd">            column name to its serialised diagnostic.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;columns&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">col</span><span class="p">:</span> <span class="n">diag</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span> <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">diag</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">items</span><span class="p">()}}</span></div>
-
-
-<div class="viewcode-block" id="InspectionReport.from_dict">
-<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.InspectionReport.from_dict">[docs]</a>
-    <span class="nd">@classmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;InspectionReport&quot;</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reconstruct an ``InspectionReport`` from a plain dictionary.</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">        data : dict</span>
-<span class="sd">            Mapping produced by :meth:`to_dict`.</span>
-
-<span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-<span class="sd">        InspectionReport</span>
-<span class="sd">            Reconstructed report instance.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
-            <span class="n">columns</span><span class="o">=</span><span class="p">{</span>
-                <span class="n">col</span><span class="p">:</span> <span class="n">InspectionDiagnostic</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
-                <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">raw</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;columns&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-            <span class="p">}</span>
-        <span class="p">)</span></div>
-</div>
-
-
-
-<div class="viewcode-block" id="AccuracyDiagnostic">
-<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.AccuracyDiagnostic">[docs]</a>
-<span class="nd">@dataclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">AccuracyDiagnostic</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Held-out accuracy diagnostic for a single model-based column.</span>
-
-<span class="sd">    Produced by :meth:`EvaluationOrchestrator.score_accuracy` — the expensive,</span>
-<span class="sd">    refit-based check (ADR-0058).  Honest held-out accuracy is *irreducibly* a</span>
-<span class="sd">    refit: the model learned at fit time has already seen every cell, so scoring</span>
-<span class="sd">    it in-sample is optimistically biased.  These numbers therefore come from</span>
-<span class="sd">    cross-validating the column&#39;s recorded strategy on folds of the complete</span>
-<span class="sd">    rows, never from the final fitted model.</span>
-
-<span class="sd">    Present for KNN, MICE, and the bimodal strategies</span>
-<span class="sd">    (Cluster-Conditional, GMM-Sampling); absent (no report entry) for</span>
-<span class="sd">    Passthrough, Dropped, Constant, MNAR, and the scalar strategies</span>
-<span class="sd">    (Mean, Median, Mode).</span>
-
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    r2_cv : float, optional</span>
-<span class="sd">        Mean R² across k cross-validation folds on complete rows (k =</span>
-<span class="sd">        ``refit_r2_cv_folds``).  Named ``r2_cv`` — not ``r2_train`` — because it</span>
-<span class="sd">        is always a held-out score, never an in-sample one.  ``None`` when fewer</span>
-<span class="sd">        than ``refit_r2_min_complete_rows`` complete rows are available, when all</span>
-<span class="sd">        folds are skipped due to zero variance in ``y_true``, or when the</span>
-<span class="sd">        strategy has no held-out truth to score (GMM-Sampling and the</span>
-<span class="sd">        grouping-variable Cluster-Conditional branch).</span>
-<span class="sd">    rmse : float, optional</span>
-<span class="sd">        Root-mean-squared error across the same held-out folds, in the column&#39;s</span>
-<span class="sd">        own units.  ``None`` under the same conditions as ``r2_cv``.</span>
-<span class="sd">    mae : float, optional</span>
-<span class="sd">        Mean absolute error across the same held-out folds, in the column&#39;s own</span>
-<span class="sd">        units.  ``None`` under the same conditions as ``r2_cv``.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="n">r2_cv</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span>
-    <span class="n">rmse</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span>
-    <span class="n">mae</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span>
-
-<div class="viewcode-block" id="AccuracyDiagnostic.to_dict">
-<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.AccuracyDiagnostic.to_dict">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Serialise the diagnostic to a plain dictionary.</span>
-
-<span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-<span class="sd">        dict</span>
-<span class="sd">            All three field values keyed by field name.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="p">{</span>
-            <span class="s2">&quot;r2_cv&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">r2_cv</span><span class="p">,</span>
-            <span class="s2">&quot;rmse&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">rmse</span><span class="p">,</span>
-            <span class="s2">&quot;mae&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">mae</span><span class="p">,</span>
-        <span class="p">}</span></div>
-
-
-<div class="viewcode-block" id="AccuracyDiagnostic.from_dict">
-<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.AccuracyDiagnostic.from_dict">[docs]</a>
-    <span class="nd">@classmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;AccuracyDiagnostic&quot;</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reconstruct an ``AccuracyDiagnostic`` from a plain dictionary.</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">        data : dict</span>
-<span class="sd">            Mapping produced by :meth:`to_dict`.</span>
-
-<span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-<span class="sd">        AccuracyDiagnostic</span>
-<span class="sd">            Reconstructed diagnostic instance.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
-            <span class="n">r2_cv</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;r2_cv&quot;</span><span class="p">),</span>
-            <span class="n">rmse</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;rmse&quot;</span><span class="p">),</span>
-            <span class="n">mae</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;mae&quot;</span><span class="p">),</span>
-        <span class="p">)</span></div>
-</div>
-
-
-
-<div class="viewcode-block" id="AccuracyReport">
-<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.AccuracyReport">[docs]</a>
-<span class="nd">@dataclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">AccuracyReport</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Per-column accuracy report returned by :meth:`EvaluationOrchestrator.score_accuracy`.</span>
-
-<span class="sd">    Holds one :class:`AccuracyDiagnostic` per model-based column (KNN,</span>
-<span class="sd">    MICE, and the bimodal strategies); columns handled by scalar</span>
-<span class="sd">    strategies, Passthrough, Dropped, Constant, or MNAR carry no entry.</span>
-<span class="sd">    Supports ``report[col]`` lookup and ``col in report`` membership tests</span>
-<span class="sd">    (ADR-0058).</span>
-
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    columns : dict[str, AccuracyDiagnostic]</span>
-<span class="sd">        Mapping from column name to its held-out accuracy diagnostic.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="n">columns</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">AccuracyDiagnostic</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AccuracyDiagnostic</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the diagnostic for ``column``.</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">        column : str</span>
-<span class="sd">            Column name to look up.</span>
-
-<span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-<span class="sd">        AccuracyDiagnostic</span>
-<span class="sd">            The held-out accuracy diagnostic for ``column``.</span>
-
-<span class="sd">        Raises</span>
-<span class="sd">        ------</span>
-<span class="sd">        KeyError</span>
-<span class="sd">            If ``column`` has no diagnostic in this report.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">column</span><span class="p">]</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="fm">__contains__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return whether ``column`` has a diagnostic in this report.</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">        column : object</span>
-<span class="sd">            Column name to test for membership.</span>
-
-<span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-<span class="sd">        bool</span>
-<span class="sd">            ``True`` when a diagnostic is present for ``column``.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">column</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span>
-
-<div class="viewcode-block" id="AccuracyReport.to_dict">
-<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.AccuracyReport.to_dict">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Serialise the report to a plain dictionary.</span>
-
-<span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-<span class="sd">        dict</span>
-<span class="sd">            Mapping with a single ``&quot;columns&quot;`` key whose value maps each</span>
-<span class="sd">            column name to its serialised diagnostic.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;columns&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">col</span><span class="p">:</span> <span class="n">diag</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span> <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">diag</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">items</span><span class="p">()}}</span></div>
-
-
-<div class="viewcode-block" id="AccuracyReport.from_dict">
-<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.AccuracyReport.from_dict">[docs]</a>
-    <span class="nd">@classmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;AccuracyReport&quot;</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reconstruct an ``AccuracyReport`` from a plain dictionary.</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">        data : dict</span>
-<span class="sd">            Mapping produced by :meth:`to_dict`.</span>
-
-<span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-<span class="sd">        AccuracyReport</span>
-<span class="sd">            Reconstructed report instance.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
-            <span class="n">columns</span><span class="o">=</span><span class="p">{</span>
-                <span class="n">col</span><span class="p">:</span> <span class="n">AccuracyDiagnostic</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
-                <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">raw</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;columns&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-            <span class="p">}</span>
-        <span class="p">)</span></div>
-</div>
-
+<span class="k">def</span><span class="w"> </span><span class="nf">_flatten_snapshot</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="s2">&quot;Any&quot;</span><span class="p">,</span> <span class="n">prefix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;list[tuple[str, Any]]&quot;</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Flatten a nested config snapshot into dotted-key / value rows.&quot;&quot;&quot;</span>
+    <span class="n">rows</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">sub</span> <span class="ow">in</span> <span class="n">value</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">path</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="n">prefix</span> <span class="k">else</span> <span class="nb">str</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+            <span class="n">rows</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">_flatten_snapshot</span><span class="p">(</span><span class="n">sub</span><span class="p">,</span> <span class="n">path</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">rows</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">prefix</span><span class="p">,</span> <span class="n">value</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">rows</span>
 
 
 <div class="viewcode-block" id="ColumnImputationDecision">
@@ -1780,7 +1431,59 @@
             <span class="n">mnar</span><span class="o">=</span><span class="nb">bool</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;mnar&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)),</span>
             <span class="n">drop</span><span class="o">=</span><span class="nb">bool</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;drop&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)),</span>
         <span class="p">)</span></div>
-</div>
+
+
+<div class="viewcode-block" id="ColumnImputationDecision.to_markdown">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ColumnImputationDecision.to_markdown">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_markdown</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Render the column decision as a ``###``-rooted Markdown fragment.</span>
+
+<span class="sd">        A fragment per rule 5 of the Rendering Contract (ADR-0086): it carries</span>
+<span class="sd">        no ``#`` or ``##`` heading, so the owning plan document composes it</span>
+<span class="sd">        without a heading collision. Every field is covered; absent values are</span>
+<span class="sd">        stated rather than left as a bare ``None``, and enums render by their</span>
+<span class="sd">        string form.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            Markdown subsection headed by ``### `&lt;column&gt;``` and a field table.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">bounds</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">domain_snap_bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">domain_snap_bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">domain_snap_bounds</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="s2">&quot;none&quot;</span>
+        <span class="p">)</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="sa">f</span><span class="s2">&quot;### `</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">column</span><span class="si">}</span><span class="s2">`</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;| Field | Value |&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;|---|---|&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| semantic_type | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">semantic_type</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| strategy | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">strategy</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| model_choice | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model_choice</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| signals | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">signals</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| domain_snap_bounds | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="n">bounds</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| center1 | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">center1</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| center2 | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">center2</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| feature_cols | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">feature_cols</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| grouping_variable | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">grouping_variable</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| constant_fill | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">constant_fill</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| indicator_flag | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indicator_flag</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| mnar | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mnar</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| drop | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">drop</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+        <span class="p">]</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the fragment, per rule 2 of the Rendering Contract.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            The output of :meth:`to_markdown`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_markdown</span><span class="p">()</span></div>
 
 
 
@@ -1813,9 +1516,7 @@
 <span class="sd">    -----</span>
 <span class="sd">    Fit-quality metrics are no longer carried here.  ``fit()`` only learns</span>
 <span class="sd">    fill values and models; quality measurement is a deliberate second step</span>
-<span class="sd">    via the opt-in Evaluation phase, which returns an</span>
-<span class="sd">    :class:`InspectionReport` or :class:`AccuracyReport` keyed by column</span>
-<span class="sd">    (ADR-0058).</span>
+<span class="sd">    via the opt-in Evaluation phase (ADR-0058).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">decision</span><span class="p">:</span> <span class="n">ColumnImputationDecision</span>
@@ -1870,7 +1571,44 @@
             <span class="n">fill_value</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;fill_value&quot;</span><span class="p">),</span>
             <span class="n">indicator_added</span><span class="o">=</span><span class="nb">bool</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;indicator_added&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)),</span>
         <span class="p">)</span></div>
-</div>
+
+
+<div class="viewcode-block" id="ColumnImputationRecord.to_markdown">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ColumnImputationRecord.to_markdown">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_markdown</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Render the audit record as a ``###``-rooted Markdown fragment.</span>
+
+<span class="sd">        A fragment per rule 5 of the Rendering Contract (ADR-0086): it carries</span>
+<span class="sd">        no ``#`` or ``##`` heading, so the owning result document composes it</span>
+<span class="sd">        without a heading collision. The composed</span>
+<span class="sd">        :class:`ColumnImputationDecision` renders its own table — *what was</span>
+<span class="sd">        decided* — and the learned ``fill_value`` and ``indicator_added``</span>
+<span class="sd">        continue it, so decided and learned fields sit side by side in one</span>
+<span class="sd">        table without being confusable.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            Markdown subsection headed by ``### `&lt;column&gt;``` and a field table</span>
+<span class="sd">            covering the decision&#39;s fields plus the learned ones.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">decision</span><span class="o">.</span><span class="n">to_markdown</span><span class="p">(),</span>
+            <span class="sa">f</span><span class="s2">&quot;| fill_value | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fill_value</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| indicator_added | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indicator_added</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+        <span class="p">]</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the fragment, per rule 2 of the Rendering Contract.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            The output of :meth:`to_markdown`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_markdown</span><span class="p">()</span></div>
 
 
 
@@ -2012,7 +1750,47 @@
             <span class="p">),</span>
             <span class="n">is_block</span><span class="o">=</span><span class="n">strategy</span> <span class="ow">in</span> <span class="n">_JOINT_BLOCK_STRATEGIES</span><span class="p">,</span>
         <span class="p">)</span></div>
-</div>
+
+
+<div class="viewcode-block" id="ImputationUnit.to_markdown">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ImputationUnit.to_markdown">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_markdown</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Render the execution unit as a ``###``-rooted Markdown fragment.</span>
+
+<span class="sd">        A fragment per rule 5 of the Rendering Contract (ADR-0086): it carries</span>
+<span class="sd">        no ``#`` or ``##`` heading, so the owning plan document composes it</span>
+<span class="sd">        without a heading collision. Every field is covered, including the</span>
+<span class="sd">        merged hyperparameters stamped onto the unit at plan construction.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            Markdown subsection headed by ``### `&lt;unit_id&gt;``` and a field table.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">hyperparameters</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hyperparameters</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">hyperparameters</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="p">)</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="sa">f</span><span class="s2">&quot;### `</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">unit_id</span><span class="si">}</span><span class="s2">`</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;| Field | Value |&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;|---|---|&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| strategy | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">strategy</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| columns | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| is_block | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">is_block</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| hyperparameters | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="n">hyperparameters</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+        <span class="p">]</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the fragment, per rule 2 of the Rendering Contract.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            The output of :meth:`to_markdown`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_markdown</span><span class="p">()</span></div>
 
 
 
@@ -2264,6 +2042,13 @@
 <span class="sd">        tuple[ImputationUnit, ...]</span>
 <span class="sd">            The matching units, in plan order. Empty if there are none.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="n">_STRUCTURAL_STRATEGIES</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">strategy</span><span class="si">}</span><span class="s2"> is an incorrect strategy being provided, &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;Dropped, Passthrough and Indicator strategies are not allowed.&quot;</span>
+            <span class="p">)</span>
+
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">u</span> <span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">units</span> <span class="k">if</span> <span class="n">u</span><span class="o">.</span><span class="n">strategy</span> <span class="o">==</span> <span class="n">strategy</span><span class="p">)</span></div>
 
 
@@ -2498,7 +2283,152 @@
                 <span class="n">col</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;string_sentinels&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
             <span class="p">},</span>
         <span class="p">)</span></div>
-</div>
+
+
+<div class="viewcode-block" id="ImputationDecision.to_markdown">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ImputationDecision.to_markdown">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_markdown</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Render the whole plan as a Markdown document.</span>
+
+<span class="sd">        A document per rule 5 of the Rendering Contract (ADR-0086): it owns the</span>
+<span class="sd">        ``#`` and ``##`` heading levels and delegates to the</span>
+<span class="sd">        :class:`ColumnImputationDecision` and :class:`ImputationUnit` fragments</span>
+<span class="sd">        beneath them. Every field of the plan is covered, so a plan from</span>
+<span class="sd">        :func:`~dataforge_ml.imputation.decide` and one built by hand through</span>
+<span class="sd">        :func:`~dataforge_ml.imputation.author` render identically in shape and</span>
+<span class="sd">        are comparable by eye.</span>
+
+<span class="sd">        ``custom_estimators`` holds live user objects rather than data, so it is</span>
+<span class="sd">        reported by unit id and estimator class name only.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            Markdown document with a summary, the per-column decisions, the</span>
+<span class="sd">            execution units, the declared sentinels, and the config snapshot the</span>
+<span class="sd">            plan was decided under.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;# Imputation Plan</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">]</span>
+
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;## Summary</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;| Field | Value |&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;|---|---|&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;| columns | </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">column_decisions</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;| units | </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">units</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;| dropped_columns | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dropped_columns</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="s2">&quot;| custom_estimators | &quot;</span>
+            <span class="o">+</span> <span class="n">_md_cell</span><span class="p">(</span>
+                <span class="p">{</span>
+                    <span class="n">unit_id</span><span class="p">:</span> <span class="nb">type</span><span class="p">(</span><span class="n">estimator</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span>
+                    <span class="k">for</span> <span class="n">unit_id</span><span class="p">,</span> <span class="n">estimator</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">custom_estimators</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+                <span class="p">}</span>
+            <span class="p">)</span>
+            <span class="o">+</span> <span class="s2">&quot; |&quot;</span>
+        <span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;## Column Decisions</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="s2">&quot;| Column | Semantic type | Strategy | Model choice | Indicator &quot;</span>
+            <span class="s2">&quot;| MNAR | Drop |&quot;</span>
+        <span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;|---|---|---|---|---|---|---|&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">column_decisions</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">decision</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">column_decisions</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+                <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;| `</span><span class="si">{</span><span class="n">decision</span><span class="o">.</span><span class="n">column</span><span class="si">}</span><span class="s2">` | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="n">decision</span><span class="o">.</span><span class="n">semantic_type</span><span class="p">)</span><span class="si">}</span><span class="s2"> &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;| </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="n">decision</span><span class="o">.</span><span class="n">strategy</span><span class="p">)</span><span class="si">}</span><span class="s2"> &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;| </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="n">decision</span><span class="o">.</span><span class="n">model_choice</span><span class="p">)</span><span class="si">}</span><span class="s2"> &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;| </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="n">decision</span><span class="o">.</span><span class="n">indicator_flag</span><span class="p">)</span><span class="si">}</span><span class="s2"> &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;| </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="n">decision</span><span class="o">.</span><span class="n">mnar</span><span class="p">)</span><span class="si">}</span><span class="s2"> | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="n">decision</span><span class="o">.</span><span class="n">drop</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span>
+                <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;| none | | | | | | |&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">column_decisions</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">decision</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">column_decisions</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+                <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">decision</span><span class="o">.</span><span class="n">to_markdown</span><span class="p">())</span>
+                <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;## Execution Units</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">units</span><span class="p">:</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;| Unit | Strategy | Columns | Block |&quot;</span><span class="p">)</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;|---|---|---|---|&quot;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">unit</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">units</span><span class="p">:</span>
+                <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;| `</span><span class="si">{</span><span class="n">unit</span><span class="o">.</span><span class="n">unit_id</span><span class="si">}</span><span class="s2">` | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="n">unit</span><span class="o">.</span><span class="n">strategy</span><span class="p">)</span><span class="si">}</span><span class="s2"> &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;| </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="n">unit</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span><span class="si">}</span><span class="s2"> | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="n">unit</span><span class="o">.</span><span class="n">is_block</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span>
+                <span class="p">)</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">unit</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">units</span><span class="p">:</span>
+                <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">unit</span><span class="o">.</span><span class="n">to_markdown</span><span class="p">())</span>
+                <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;none&quot;</span><span class="p">)</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;## Hyperparameters</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;| Unit | Decided base | Override delta |&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;|---|---|---|&quot;</span><span class="p">)</span>
+        <span class="n">unit_ids</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span>
+            <span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">(</span>
+                <span class="p">[</span><span class="n">u</span><span class="o">.</span><span class="n">unit_id</span> <span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">units</span><span class="p">]</span>
+                <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">decided_hyperparameters</span><span class="p">)</span>
+                <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">override_hyperparameters</span><span class="p">)</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">unit_ids</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">unit_id</span> <span class="ow">in</span> <span class="n">unit_ids</span><span class="p">:</span>
+                <span class="n">decided</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">decided_hyperparameters</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">unit_id</span><span class="p">,</span> <span class="p">()))</span>
+                <span class="n">override</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">override_hyperparameters</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">unit_id</span><span class="p">,</span> <span class="p">()))</span>
+                <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;| `</span><span class="si">{</span><span class="n">unit_id</span><span class="si">}</span><span class="s2">` | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="n">decided</span><span class="p">)</span><span class="si">}</span><span class="s2"> | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="n">override</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span>
+                <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;| none | | |&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;## Declared Sentinels</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;| Column | Numeric | String |&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;|---|---|---|&quot;</span><span class="p">)</span>
+        <span class="n">sentinel_cols</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span>
+            <span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">numeric_sentinels</span><span class="p">)</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">string_sentinels</span><span class="p">))</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">sentinel_cols</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">column</span> <span class="ow">in</span> <span class="n">sentinel_cols</span><span class="p">:</span>
+                <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;| `</span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s2">` &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;| </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">numeric_sentinels</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">column</span><span class="p">))</span><span class="si">}</span><span class="s2"> &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;| </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">string_sentinels</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">column</span><span class="p">))</span><span class="si">}</span><span class="s2"> |&quot;</span>
+                <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;| none | | |&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;## Config Snapshot</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">rows</span> <span class="o">=</span> <span class="n">_flatten_snapshot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config_snapshot</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">rows</span><span class="p">:</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;| Setting | Value |&quot;</span><span class="p">)</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;|---|---|&quot;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">:</span>
+                <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;| </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="n">key</span><span class="p">)</span><span class="si">}</span><span class="s2"> | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;not recorded&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the Imputation Plan document, per rule 2 of the contract.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            The output of :meth:`to_markdown`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_markdown</span><span class="p">()</span></div>
 
 
 
@@ -2521,7 +2451,73 @@
 
     <span class="n">dataframe</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span>
     <span class="n">records</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ColumnImputationRecord</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
-    <span class="n">dropped_columns</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span></div>
+    <span class="n">dropped_columns</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
+
+<div class="viewcode-block" id="ImputationResult.to_markdown">
+<a class="viewcode-back" href="../../../api/imputation.html#dataforge_ml.imputation._config.ImputationResult.to_markdown">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_markdown</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Render the transform result as a Markdown document.</span>
+
+<span class="sd">        A document per rule 5 of the Rendering Contract (ADR-0086): it owns the</span>
+<span class="sd">        ``#`` and ``##`` heading levels and delegates to the</span>
+<span class="sd">        :class:`ColumnImputationRecord` fragments beneath them. ``dataframe`` is</span>
+<span class="sd">        a Payload Frame — its shape and dtypes are reported and its rows never</span>
+<span class="sd">        are — so the output stays bounded in the number of rows imputed.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            Markdown document with a summary, the dropped columns, the imputed</span>
+<span class="sd">            frame&#39;s shape and dtypes, and the per-column audit records.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;# Imputation Result</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">]</span>
+
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;## Summary</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;| Field | Value |&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;|---|---|&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;| records | </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;| dropped_columns | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dropped_columns</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="s2">&quot;| indicators_added | &quot;</span>
+            <span class="o">+</span> <span class="n">_md_cell</span><span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">indicator_added</span><span class="p">))</span>
+            <span class="o">+</span> <span class="s2">&quot; |&quot;</span>
+        <span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;## Imputed Frame</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">_frame_lines</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dataframe</span><span class="p">))</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;## Column Records</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;| Column | Strategy | Fill value | Indicator added |&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;|---|---|---|---|&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+                <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;| `</span><span class="si">{</span><span class="n">record</span><span class="o">.</span><span class="n">decision</span><span class="o">.</span><span class="n">column</span><span class="si">}</span><span class="s2">` &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;| </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">decision</span><span class="o">.</span><span class="n">strategy</span><span class="p">)</span><span class="si">}</span><span class="s2"> &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;| </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">fill_value</span><span class="p">)</span><span class="si">}</span><span class="s2"> &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;| </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">indicator_added</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span>
+                <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;| none | | | |&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">to_markdown</span><span class="p">())</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the Imputation Result document, per rule 2 of the contract.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            The output of :meth:`to_markdown`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_markdown</span><span class="p">()</span></div>
 
 </pre></div>
 
@@ -2552,8 +2548,8 @@
   </div>
   
   <!-- Scripts loaded after <body> so the DOM is not blocked -->
-  <script defer src="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
-<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=cb8930eaaf36d9849b67"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=cb8930eaaf36d9849b67"></script>
 
   <footer class="bd-footer">
 <div class="bd-footer__inner bd-page-width">
@@ -2577,7 +2573,7 @@
         <div class="footer-item">
 <p class="theme-version">
   <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
-  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.21.0.
 </p></div>
       
     </div>

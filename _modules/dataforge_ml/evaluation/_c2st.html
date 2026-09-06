@@ -1,0 +1,1038 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>dataforge_ml.evaluation._c2st &#8212; DataForgeML  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=cb8930eaaf36d9849b67" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=cb8930eaaf36d9849b67" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../../../_static/scripts/fontawesome.js?digest=cb8930eaaf36d9849b67"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=cb8930eaaf36d9849b67" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=cb8930eaaf36d9849b67" />
+
+    <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/dataforge_ml/evaluation/_c2st';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../../../_static/searchtools.js"></script>
+    <script src="../../../_static/language_data.js"></script>
+    <script src="../../../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">DataForgeML  documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/pipeline.html">
+    Pipeline
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/profiling.html">
+    Profiling
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/imputation.html">
+    Imputation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/evaluation.html">
+    Evaluation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/splitting.html">
+    Splitting
+  </a>
+</li>
+
+            <li class="nav-item dropdown">
+                <button class="btn dropdown-toggle nav-item" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false"
+                aria-controls="pst-nav-more-links">
+                    More
+                </button>
+                <ul id="pst-nav-more-links" class="dropdown-menu">
+                    
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../api/persistence.html">
+    Persistence
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../api/observability.html">
+    Observability
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../api/utilities.html">
+    Utilities
+  </a>
+</li>
+
+                </ul>
+            </li>
+            
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/pipeline.html">
+    Pipeline
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/profiling.html">
+    Profiling
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/imputation.html">
+    Imputation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/evaluation.html">
+    Evaluation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/splitting.html">
+    Splitting
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/persistence.html">
+    Persistence
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/observability.html">
+    Observability
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/utilities.html">
+    Utilities
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">dataforge_ml.evaluation._c2st</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for dataforge_ml.evaluation._c2st</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;The generic Classifier Two-Sample Test — two frames in, one result out.</span>
+
+<span class="sd">The arithmetic half of C2ST (ADR-0087), written against two samples and</span>
+<span class="sd">nothing else. It trains a classifier to tell a ``reference`` sample from a</span>
+<span class="sd">``candidate`` sample and reads its held-out accuracy as a standardised ``z``</span>
+<span class="sd">against the closed-form ``Binomial(n_test, 1/2)`` null: if nothing can tell the</span>
+<span class="sd">two samples apart, they are distributionally indistinguishable.</span>
+
+<span class="sd">**What this layer owns, exhaustively:** balancing by repeated subsampling, the</span>
+<span class="sd">``R`` repeat loop, the size floor (a pure predicate the caller may ask first,</span>
+<span class="sd">asserted internally so a direct caller cannot bypass it), the default</span>
+<span class="sd">classifier factory and its two pins, the pooling rule, and the repeat Substep</span>
+<span class="sd">emit.</span>
+
+<span class="sd">**What it does not know:** ``m``, masks, column semantics, imputation. There is</span>
+<span class="sd">no column-type argument either — **dtype is the whole type contract**. A</span>
+<span class="sd">``pl.String`` column raises :class:`C2STDtypeError` naming the column, and an</span>
+<span class="sd">int-coded categorical sitting as ``pl.Int64`` is treated as an ordered numeric,</span>
+<span class="sd">a stated and unenforceable precondition on the caller&#39;s typing.</span>
+
+<span class="sd">The one imported dependency beyond the numeric stack is</span>
+<span class="sd">:mod:`dataforge_ml.observability`, because the repeat Substep can only be</span>
+<span class="sd">emitted from here (ADR-0087). ``Emitter`` takes ``phase`` and ``stage`` as plain</span>
+<span class="sd">strings and is phase-agnostic infrastructure, so the seam&#39;s rule bans</span>
+<span class="sd">*imputation*-shaped knowledge, not observability.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">Enum</span><span class="p">,</span> <span class="n">StrEnum</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.ensemble</span><span class="w"> </span><span class="kn">import</span> <span class="n">HistGradientBoostingClassifier</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">..observability</span><span class="w"> </span><span class="kn">import</span> <span class="n">Emitter</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">&quot;C2STDtypeError&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;C2STResult&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;C2STScheme&quot;</span><span class="p">,</span>
+<span class="p">]</span>
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># The three module-level constants the generic side owns.</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+<span class="c1"># Pin 1 of 2 (ADR-0087). sklearn&#39;s default of 20 cannot split fewer than 40</span>
+<span class="c1"># training rows, so the classifier constant-predicts, scores exactly 0.5</span>
+<span class="c1"># against a balanced test set and reports z = 0.000 — a constant fill returned</span>
+<span class="c1"># as a perfect pass. This constant is also ``C2STConfig.min_samples_leaf``&#39;s</span>
+<span class="c1"># field default, so the configured value and the value a bare</span>
+<span class="c1"># ``c2st(classifier=None)`` builds can never drift apart.</span>
+<span class="n">DEFAULT_MIN_SAMPLES_LEAF</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span>
+
+<span class="c1"># The hard refusal floor, applied to the *smaller* sample before balancing.</span>
+<span class="c1"># Also ``C2STConfig.min_filled_cells``&#39;s field default. Measured: the one-sided</span>
+<span class="c1"># false-positive rate is 9.0% at 20 rows per pile and 4.5% at 30.</span>
+<span class="n">MIN_SAMPLE_FLOOR</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">30</span>
+
+<span class="c1"># The train/test proportion of the ``Split`` scheme, and the split</span>
+<span class="c1"># ``early_stopping=&#39;auto&#39;`` was measured against in ADR-0087. Not a dial: both</span>
+<span class="c1"># schemes exist to keep ``n_test`` exactly known, and a third way of carving the</span>
+<span class="c1"># piles would only make two reports incomparable.</span>
+<span class="n">_TEST_FRACTION</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.3</span>
+
+<span class="c1"># The fold count of the ``CrossValidation`` scheme — five fits per repeat.</span>
+<span class="n">_CV_FOLDS</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">C2STDtypeError</span><span class="p">(</span><span class="ne">TypeError</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A column&#39;s dtype cannot be handed to a C2ST classifier.</span>
+
+<span class="sd">    Raised by :func:`c2st` when a sample carries a ``pl.String`` column, which</span>
+<span class="sd">    :class:`~sklearn.ensemble.HistGradientBoostingClassifier` rejects with a</span>
+<span class="sd">    bare ``could not convert string to float`` naming a *value* rather than a</span>
+<span class="sd">    column. Under ADR-0085&#39;s dtype floor no semantic categorical arrives as a</span>
+<span class="sd">    string, and ``Text``/``Identifier`` columns are dropped by the imputation</span>
+<span class="sd">    adapter before it ever calls here, so this is a diagnosis for a direct</span>
+<span class="sd">    caller of the generic seam rather than a path the adapter can trip.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+
+<div class="viewcode-block" id="C2STScheme">
+<a class="viewcode-back" href="../../../api/evaluation.html#dataforge_ml.evaluation._config.C2STScheme">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">C2STScheme</span><span class="p">(</span><span class="n">StrEnum</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The train/test scheme of one C2ST repeat — a dial; balancing is not.</span>
+
+<span class="sd">    ``Split`` fits once per repeat on a 70/30 stratified carve of the balanced</span>
+<span class="sd">    piles; ``CrossValidation`` fits five times and pools the out-of-fold</span>
+<span class="sd">    predictions. Both keep ``n_test`` exactly known, which is what the</span>
+<span class="sd">    closed-form null requires. ``Split`` is the default a config declares:</span>
+<span class="sd">    repeats are already mandatory, so a default that silently costs 5× is a bad</span>
+<span class="sd">    default. The repeat count is never auto-downgraded when cross-validation is</span>
+<span class="sd">    on.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">Split</span> <span class="o">=</span> <span class="s2">&quot;split&quot;</span>
+    <span class="n">CrossValidation</span> <span class="o">=</span> <span class="s2">&quot;cross_validation&quot;</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_md_cell</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Render one value as a Markdown table cell.</span>
+
+<span class="sd">    Absence is stated rather than left as a bare ``None``, enums render by their</span>
+<span class="sd">    string form, and any pipe or newline is neutralised so it cannot break the</span>
+<span class="sd">    surrounding table.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;none&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Enum</span><span class="p">):</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)):</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">_md_cell</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">value</span><span class="p">)</span> <span class="k">if</span> <span class="n">value</span> <span class="k">else</span> <span class="s2">&quot;none&quot;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">text</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;|&quot;</span><span class="p">,</span> <span class="s2">&quot;</span><span class="se">\\</span><span class="s2">|&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot; &quot;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="C2STResult">
+<a class="viewcode-back" href="../../../api/evaluation.html#dataforge_ml.evaluation._config.C2STResult">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">C2STResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;What the generic test returns for one pair of samples.</span>
+
+<span class="sd">    Every number here is pooled over the ``R`` repeats of a single ``c2st``</span>
+<span class="sd">    call. The headline is :attr:`mean_repeat_z` — the **mean ``z`` against the</span>
+<span class="sd">    single-run null**. Dividing the null&#39;s SD by ``√R`` is forbidden (ADR-0087):</span>
+<span class="sd">    the repeats share the candidate sample entirely, so shrinking the null</span>
+<span class="sd">    manufactures significance. No field is ever named plain ``z``; that is the</span>
+<span class="sd">    field someone averages along the wrong axis.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    mean_repeat_z : float</span>
+<span class="sd">        The mean of :attr:`repeat_z`, read against the single-run null.</span>
+<span class="sd">    repeat_z : tuple[float, ...]</span>
+<span class="sd">        One ``z`` per repeat, in repeat order.</span>
+<span class="sd">    repeat_z_spread : float</span>
+<span class="sd">        The sample standard deviation of :attr:`repeat_z` (``0.0`` for a single</span>
+<span class="sd">        repeat) — the guard that says whether the mean is stable or the artefact</span>
+<span class="sd">        of one lucky draw.</span>
+<span class="sd">    train_accuracy : float</span>
+<span class="sd">        Mean training accuracy over the repeats. Reported beside</span>
+<span class="sd">        :attr:`test_accuracy` so a 1.000/0.500 pair reads as memorisation —</span>
+<span class="sd">        which fails *safe*, yielding false negatives, never false positives.</span>
+<span class="sd">    test_accuracy : float</span>
+<span class="sd">        Mean held-out accuracy over the repeats; the quantity the ``z``</span>
+<span class="sd">        standardises.</span>
+<span class="sd">    n_test : int</span>
+<span class="sd">        The held-out row count of one repeat, exactly known and identical across</span>
+<span class="sd">        repeats: ``2 × round(m × 0.3)`` under ``Split`` and ``2 × m`` under</span>
+<span class="sd">        ``CrossValidation``, where ``m`` is the balanced pile size.</span>
+<span class="sd">    degenerate : bool</span>
+<span class="sd">        ``True`` when *every* repeat&#39;s classifier predicted a single class — a</span>
+<span class="sd">        runtime safety net for an injected classifier, explicitly not the size</span>
+<span class="sd">        floor.</span>
+<span class="sd">    unseen_category : bool</span>
+<span class="sd">        ``True`` when some ``pl.Categorical``/``pl.Boolean`` level appears in</span>
+<span class="sd">        the candidate sample and never in the reference sample. Computed as a</span>
+<span class="sd">        set difference before the test; the ``z`` is reported regardless.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">mean_repeat_z</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">repeat_z</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">tuple</span><span class="p">)</span>
+    <span class="n">repeat_z_spread</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">train_accuracy</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">test_accuracy</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">n_test</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">degenerate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">unseen_category</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+
+<div class="viewcode-block" id="C2STResult.to_markdown">
+<a class="viewcode-back" href="../../../api/evaluation.html#dataforge_ml.evaluation._config.C2STResult.to_markdown">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_markdown</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Render the result as a ``###``-rooted Markdown fragment.</span>
+
+<span class="sd">        A fragment per rule 5 of the Rendering Contract (ADR-0086): it carries</span>
+<span class="sd">        no ``#`` or ``##`` heading, so an owning document composes it without a</span>
+<span class="sd">        heading collision.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            Markdown subsection headed by ``### C2ST Sample-Pair Result``,</span>
+<span class="sd">            holding the pooled figures and the two runtime flags.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+            <span class="p">[</span>
+                <span class="s2">&quot;### C2ST Sample-Pair Result</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;| Field | Value |&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;|---|---|&quot;</span><span class="p">,</span>
+                <span class="sa">f</span><span class="s2">&quot;| mean_repeat_z | </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">mean_repeat_z</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+                <span class="sa">f</span><span class="s2">&quot;| repeat_z_spread | </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">repeat_z_spread</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+                <span class="sa">f</span><span class="s2">&quot;| repeats | </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">repeat_z</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;| repeat_z | &quot;</span> <span class="o">+</span> <span class="n">_md_cell</span><span class="p">([</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">z</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">z</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">repeat_z</span><span class="p">])</span> <span class="o">+</span> <span class="s2">&quot; |&quot;</span><span class="p">,</span>
+                <span class="sa">f</span><span class="s2">&quot;| train_accuracy | </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">train_accuracy</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+                <span class="sa">f</span><span class="s2">&quot;| test_accuracy | </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">test_accuracy</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+                <span class="sa">f</span><span class="s2">&quot;| n_test | </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">n_test</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+                <span class="sa">f</span><span class="s2">&quot;| degenerate | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">degenerate</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+                <span class="sa">f</span><span class="s2">&quot;| unseen_category | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">unseen_category</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="p">]</span>
+        <span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the fragment, per rule 2 of the Rendering Contract.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            The output of :meth:`to_markdown`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_markdown</span><span class="p">()</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_default_c2st_classifier</span><span class="p">(</span>
+    <span class="n">min_samples_leaf</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">DEFAULT_MIN_SAMPLES_LEAF</span><span class="p">,</span>
+    <span class="n">random_state</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Build the library&#39;s default C2ST classifier, pins included.</span>
+
+<span class="sd">    The single place a default classifier is constructed, so</span>
+<span class="sd">    ``c2st(classifier=None)`` can never build a bare sklearn-default</span>
+<span class="sd">    ``HistGradientBoostingClassifier``. Exactly two settings are pinned, under</span>
+<span class="sd">    the rule *pin only where sklearn&#39;s default encodes a dataset-size assumption</span>
+<span class="sd">    balanced C2ST piles violate* (ADR-0087): ``min_samples_leaf`` reads</span>
+<span class="sd">    :data:`DEFAULT_MIN_SAMPLES_LEAF`, and ``early_stopping`` is ``False`` rather</span>
+<span class="sd">    than the ``&#39;auto&#39;`` that flips at 10,000 training rows. Everything else —</span>
+<span class="sd">    ``max_iter``, ``learning_rate``, ``max_leaf_nodes``, ``l2_regularization``,</span>
+<span class="sd">    ``class_weight`` — is inherited; tuning those is what the injection channel</span>
+<span class="sd">    is for.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    min_samples_leaf : int, optional</span>
+<span class="sd">        The leaf-size floor to pin; defaults to :data:`DEFAULT_MIN_SAMPLES_LEAF`,</span>
+<span class="sd">        which is also ``C2STConfig.min_samples_leaf``&#39;s field default, so the</span>
+<span class="sd">        configured value and the value a bare ``c2st(classifier=None)`` builds</span>
+<span class="sd">        read one number in one place.</span>
+<span class="sd">    random_state : int, optional</span>
+<span class="sd">        Seed handed to the estimator.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Any</span>
+<span class="sd">        An unfitted ``HistGradientBoostingClassifier``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">HistGradientBoostingClassifier</span><span class="p">(</span>
+        <span class="n">min_samples_leaf</span><span class="o">=</span><span class="n">min_samples_leaf</span><span class="p">,</span>
+        <span class="n">early_stopping</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">random_state</span><span class="o">=</span><span class="n">random_state</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_meets_sample_floor</span><span class="p">(</span>
+    <span class="n">reference</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span>
+    <span class="n">candidate</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">min_rows</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MIN_SAMPLE_FLOOR</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Report whether two samples clear the size floor, without running a test.</span>
+
+<span class="sd">    A pure predicate, so a caller describing 190 ordinary refusals on a wide</span>
+<span class="sd">    table does not have to raise 190 exceptions to learn what it already knows.</span>
+<span class="sd">    The floor is applied to the **smaller** sample and checked *before*</span>
+<span class="sd">    balancing, since every number ADR-0087 measured is in rows per pile after</span>
+<span class="sd">    balancing.</span>
+
+<span class="sd">    :func:`c2st` asserts the same condition internally against its own</span>
+<span class="sd">    ``min_rows``, so a direct caller who skips this predicate is refused rather</span>
+<span class="sd">    than handed a five-row ``z``; a consumer whose dial has moved the floor</span>
+<span class="sd">    states that number in both places.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    reference : polars.DataFrame</span>
+<span class="sd">        The reference sample.</span>
+<span class="sd">    candidate : polars.DataFrame</span>
+<span class="sd">        The candidate sample.</span>
+<span class="sd">    min_rows : int, optional</span>
+<span class="sd">        The floor to test against; defaults to :data:`MIN_SAMPLE_FLOOR`, which</span>
+<span class="sd">        is also the field default of the configured dial.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    bool</span>
+<span class="sd">        ``True`` when ``min(reference.height, candidate.height) &gt;= min_rows``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="nb">min</span><span class="p">(</span><span class="n">reference</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="n">candidate</span><span class="o">.</span><span class="n">height</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">min_rows</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_check_dtypes</span><span class="p">(</span><span class="n">frame</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">side</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Raise :class:`C2STDtypeError` for the first ``pl.String`` column.&quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">dtype</span> <span class="ow">in</span> <span class="n">frame</span><span class="o">.</span><span class="n">schema</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">dtype</span> <span class="o">==</span> <span class="n">pl</span><span class="o">.</span><span class="n">String</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">C2STDtypeError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;C2ST cannot test a pl.String column: </span><span class="si">{</span><span class="n">side</span><span class="si">}</span><span class="s2"> column &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">!r}</span><span class="s2"> has dtype </span><span class="si">{</span><span class="n">dtype</span><span class="si">}</span><span class="s2">. Cast it to pl.Categorical, or &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;drop it from both samples.&quot;</span>
+            <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_align</span><span class="p">(</span><span class="n">reference</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">candidate</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Stack the two samples into one frame, reference rows first.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">list</span><span class="p">(</span><span class="n">reference</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">list</span><span class="p">(</span><span class="n">candidate</span><span class="o">.</span><span class="n">columns</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;C2ST needs the same columns in the same order in both samples: &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;reference has </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">reference</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span><span class="si">}</span><span class="s2">, &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;candidate has </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">candidate</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span><span class="si">}</span><span class="s2">.&quot;</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">pl</span><span class="o">.</span><span class="n">concat</span><span class="p">([</span><span class="n">reference</span><span class="p">,</span> <span class="n">candidate</span><span class="p">],</span> <span class="n">how</span><span class="o">=</span><span class="s2">&quot;vertical&quot;</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_has_unseen_category</span><span class="p">(</span><span class="n">reference</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">candidate</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Report whether a categorical or boolean level is candidate-only.&quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">dtype</span> <span class="ow">in</span> <span class="n">candidate</span><span class="o">.</span><span class="n">schema</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">dtype</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">Categorical</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">Boolean</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dtype</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">Enum</span><span class="p">):</span>
+            <span class="k">continue</span>
+        <span class="n">seen</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">reference</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">drop_nulls</span><span class="p">()</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">String</span><span class="p">)</span><span class="o">.</span><span class="n">to_list</span><span class="p">())</span>
+        <span class="n">used</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">candidate</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">drop_nulls</span><span class="p">()</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">String</span><span class="p">)</span><span class="o">.</span><span class="n">to_list</span><span class="p">())</span>
+        <span class="k">if</span> <span class="n">used</span> <span class="o">-</span> <span class="n">seen</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+    <span class="k">return</span> <span class="kc">False</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_fold_sizes</span><span class="p">(</span><span class="n">m</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">folds</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Split ``m`` rows into ``folds`` contiguous blocks, largest first.&quot;&quot;&quot;</span>
+    <span class="n">base</span><span class="p">,</span> <span class="n">remainder</span> <span class="o">=</span> <span class="nb">divmod</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">folds</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">base</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">remainder</span> <span class="o">+</span> <span class="p">[</span><span class="n">base</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">folds</span> <span class="o">-</span> <span class="n">remainder</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_fit_predict</span><span class="p">(</span>
+    <span class="n">classifier</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">pooled</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span>
+    <span class="n">labels</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+    <span class="n">train_idx</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+    <span class="n">test_idx</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Fit on the training rows; return the test predictions and train accuracy.&quot;&quot;&quot;</span>
+    <span class="n">train_rows</span> <span class="o">=</span> <span class="n">pooled</span><span class="p">[</span><span class="n">train_idx</span><span class="o">.</span><span class="n">tolist</span><span class="p">()]</span>
+    <span class="n">classifier</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">train_rows</span><span class="p">,</span> <span class="n">labels</span><span class="p">[</span><span class="n">train_idx</span><span class="p">])</span>
+    <span class="n">train_accuracy</span> <span class="o">=</span> <span class="nb">float</span><span class="p">((</span><span class="n">classifier</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">train_rows</span><span class="p">)</span> <span class="o">==</span> <span class="n">labels</span><span class="p">[</span><span class="n">train_idx</span><span class="p">])</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span>
+    <span class="n">predictions</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">classifier</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">pooled</span><span class="p">[</span><span class="n">test_idx</span><span class="o">.</span><span class="n">tolist</span><span class="p">()]))</span>
+    <span class="k">return</span> <span class="n">predictions</span><span class="p">,</span> <span class="n">train_accuracy</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">c2st</span><span class="p">(</span>
+    <span class="n">reference</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span>
+    <span class="n">candidate</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">repeats</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">scheme</span><span class="p">:</span> <span class="n">C2STScheme</span><span class="p">,</span>
+    <span class="n">classifier</span><span class="p">:</span> <span class="n">Any</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">random_state</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">min_rows</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MIN_SAMPLE_FLOOR</span><span class="p">,</span>
+    <span class="n">emitter</span><span class="p">:</span> <span class="n">Emitter</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">C2STResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Run a Classifier Two-Sample Test on two samples.</span>
+
+<span class="sd">    Two frames in, one result out — never a frame plus a label vector, so a</span>
+<span class="sd">    mislabelled or misaligned ``y`` is unrepresentable. The larger sample is</span>
+<span class="sd">    subsampled to the smaller sample&#39;s size, ``repeats`` times with different</span>
+<span class="sd">    draws; each repeat fits a classifier under ``scheme`` and scores its</span>
+<span class="sd">    held-out accuracy as ``z = (accuracy − ½) · 2 · √n_test`` against the</span>
+<span class="sd">    ``Binomial(n_test, ½)`` null. **Balancing is mandatory and not a dial**:</span>
+<span class="sd">    unequal samples break that null outright, since at 850 against 150 a</span>
+<span class="sd">    classifier that always answers &quot;reference&quot; scores 85% having learned</span>
+<span class="sd">    nothing.</span>
+
+<span class="sd">    The repeats are pooled by the **mean ``z`` against the single-run null**;</span>
+<span class="sd">    the null&#39;s SD is never divided by ``√repeats`` (ADR-0087).</span>
+
+<span class="sd">    The samples must carry the same columns in the same order, and dtype is the</span>
+<span class="sd">    whole type contract: ``pl.Categorical`` is read natively, nulls are handled</span>
+<span class="sd">    natively, and ``pl.String`` raises. An int-coded categorical sitting as</span>
+<span class="sd">    ``pl.Int64`` is treated as an ordered numeric — a stated and unenforceable</span>
+<span class="sd">    precondition on the caller&#39;s typing.</span>
+
+<span class="sd">    Nothing here knows about masks, ``m``, column semantics or imputation. A</span>
+<span class="sd">    train/test drift check (reference = training rows, candidate = holdout) and</span>
+<span class="sd">    an outlier-clipping check (reference = rows left alone, candidate = rows</span>
+<span class="sd">    clipped) are served by this call as-is.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    reference : polars.DataFrame</span>
+<span class="sd">        The reference sample. Which sample is which is a naming convenience:</span>
+<span class="sd">        accuracy does not care.</span>
+<span class="sd">    candidate : polars.DataFrame</span>
+<span class="sd">        The candidate sample, carrying the same columns in the same order.</span>
+<span class="sd">    repeats : int</span>
+<span class="sd">        The number of balanced subsampling repeats, ``R``. At least 1.</span>
+<span class="sd">    scheme : C2STScheme</span>
+<span class="sd">        ``Split`` for one fit per repeat, ``CrossValidation`` for five.</span>
+<span class="sd">    classifier : Any, optional</span>
+<span class="sd">        An unfitted classifier to use **verbatim** — no ``set_params``, no</span>
+<span class="sd">        clone, so its parameters are exactly what the caller set. ``None``</span>
+<span class="sd">        builds the library&#39;s default through</span>
+<span class="sd">        :func:`_default_c2st_classifier`. Stated hole (ADR-0087): an injected</span>
+<span class="sd">        *bare* ``HistGradientBoostingClassifier`` reintroduces the</span>
+<span class="sd">        constant-predictor pathology at 30–60 rows per pile.</span>
+<span class="sd">    random_state : int, optional</span>
+<span class="sd">        Seed for the subsampling, the train/test carve and the default</span>
+<span class="sd">        classifier. The same seed on the same samples gives the same result.</span>
+<span class="sd">    min_rows : int, optional</span>
+<span class="sd">        The size floor asserted internally, applied to the **smaller** sample</span>
+<span class="sd">        before balancing; defaults to :data:`MIN_SAMPLE_FLOOR`. Mechanism</span>
+<span class="sd">        rather than configuration, and the same number</span>
+<span class="sd">        :func:`_meets_sample_floor` takes, so a consumer whose own dial has</span>
+<span class="sd">        moved the floor states it once and the assertion cannot then refuse</span>
+<span class="sd">        what the consumer deliberately allowed.</span>
+<span class="sd">    emitter : Emitter, optional</span>
+<span class="sd">        Observability sink; one ``substep`` heartbeat is emitted per repeat.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    C2STResult</span>
+<span class="sd">        The pooled result of the ``repeats`` repeats.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    C2STDtypeError</span>
+<span class="sd">        When either sample carries a ``pl.String`` column; the message names the</span>
+<span class="sd">        column.</span>
+<span class="sd">    ValueError</span>
+<span class="sd">        When ``repeats`` is below 1, when the two samples do not carry the same</span>
+<span class="sd">        columns in the same order, or when the smaller sample falls below</span>
+<span class="sd">        ``min_rows`` — the internal assertion of the floor</span>
+<span class="sd">        :func:`_meets_sample_floor` exposes, so a direct caller cannot bypass</span>
+<span class="sd">        it.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">repeats</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;C2ST needs at least 1 repeat, got </span><span class="si">{</span><span class="n">repeats</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+    <span class="n">_check_dtypes</span><span class="p">(</span><span class="n">reference</span><span class="p">,</span> <span class="s2">&quot;reference&quot;</span><span class="p">)</span>
+    <span class="n">_check_dtypes</span><span class="p">(</span><span class="n">candidate</span><span class="p">,</span> <span class="s2">&quot;candidate&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">_meets_sample_floor</span><span class="p">(</span><span class="n">reference</span><span class="p">,</span> <span class="n">candidate</span><span class="p">,</span> <span class="n">min_rows</span><span class="o">=</span><span class="n">min_rows</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;C2ST refuses samples below the size floor: the smaller of &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">reference</span><span class="o">.</span><span class="n">height</span><span class="si">}</span><span class="s2"> reference and </span><span class="si">{</span><span class="n">candidate</span><span class="o">.</span><span class="n">height</span><span class="si">}</span><span class="s2"> candidate &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;rows is under </span><span class="si">{</span><span class="n">min_rows</span><span class="si">}</span><span class="s2">. Ask _meets_sample_floor &quot;</span>
+            <span class="s2">&quot;before calling to describe such a pair rather than raise on it.&quot;</span>
+        <span class="p">)</span>
+
+    <span class="n">pooled</span> <span class="o">=</span> <span class="n">_align</span><span class="p">(</span><span class="n">reference</span><span class="p">,</span> <span class="n">candidate</span><span class="p">)</span>
+    <span class="n">n_reference</span> <span class="o">=</span> <span class="n">reference</span><span class="o">.</span><span class="n">height</span>
+    <span class="n">candidate_height</span> <span class="o">=</span> <span class="n">candidate</span><span class="o">.</span><span class="n">height</span>
+    <span class="n">labels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span>
+        <span class="p">[</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n_reference</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">),</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">candidate_height</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">),</span>
+        <span class="p">]</span>
+    <span class="p">)</span>
+    <span class="n">unseen_category</span> <span class="o">=</span> <span class="n">_has_unseen_category</span><span class="p">(</span><span class="n">reference</span><span class="p">,</span> <span class="n">candidate</span><span class="p">)</span>
+
+    <span class="n">model</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">_default_c2st_classifier</span><span class="p">(</span><span class="n">random_state</span><span class="o">=</span><span class="n">random_state</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">classifier</span> <span class="ow">is</span> <span class="kc">None</span>
+        <span class="k">else</span> <span class="n">classifier</span>
+    <span class="p">)</span>
+    <span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">random_state</span><span class="p">)</span>
+    <span class="n">balanced</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">n_reference</span><span class="p">,</span> <span class="n">candidate_height</span><span class="p">)</span>
+
+    <span class="n">repeat_z</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">train_accuracies</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">test_accuracies</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">degenerate_repeats</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">n_test</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">for</span> <span class="n">repeat</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">repeats</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="c1"># Balancing: an independent draw of ``balanced`` rows from each sample.</span>
+        <span class="n">drawn_reference</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="n">n_reference</span><span class="p">,</span> <span class="n">balanced</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">drawn_candidate</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">rng</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="n">candidate_height</span><span class="p">,</span> <span class="n">balanced</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="o">+</span> <span class="n">n_reference</span>
+        <span class="p">)</span>
+        <span class="n">rng</span><span class="o">.</span><span class="n">shuffle</span><span class="p">(</span><span class="n">drawn_reference</span><span class="p">)</span>
+        <span class="n">rng</span><span class="o">.</span><span class="n">shuffle</span><span class="p">(</span><span class="n">drawn_candidate</span><span class="p">)</span>
+
+        <span class="n">predictions</span><span class="p">,</span> <span class="n">truth</span><span class="p">,</span> <span class="n">fold_train_accuracies</span> <span class="o">=</span> <span class="n">_run_repeat</span><span class="p">(</span>
+            <span class="n">model</span><span class="p">,</span> <span class="n">pooled</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">drawn_reference</span><span class="p">,</span> <span class="n">drawn_candidate</span><span class="p">,</span> <span class="n">scheme</span>
+        <span class="p">)</span>
+        <span class="n">n_test</span> <span class="o">=</span> <span class="n">predictions</span><span class="o">.</span><span class="n">size</span>
+        <span class="n">accuracy</span> <span class="o">=</span> <span class="nb">float</span><span class="p">((</span><span class="n">predictions</span> <span class="o">==</span> <span class="n">truth</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span>
+        <span class="n">repeat_z</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">accuracy</span> <span class="o">-</span> <span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">n_test</span><span class="p">)))</span>
+        <span class="n">test_accuracies</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">accuracy</span><span class="p">)</span>
+        <span class="n">train_accuracies</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">fold_train_accuracies</span><span class="p">)))</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">predictions</span><span class="p">)</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">degenerate_repeats</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">emitter</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">emitter</span><span class="o">.</span><span class="n">substep</span><span class="p">(</span><span class="s2">&quot;c2st repeat&quot;</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="n">repeat</span><span class="p">,</span> <span class="n">total</span><span class="o">=</span><span class="n">repeats</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">C2STResult</span><span class="p">(</span>
+        <span class="n">mean_repeat_z</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">repeat_z</span><span class="p">)),</span>
+        <span class="n">repeat_z</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">repeat_z</span><span class="p">),</span>
+        <span class="n">repeat_z_spread</span><span class="o">=</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">repeat_z</span><span class="p">,</span> <span class="n">ddof</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">repeat_z</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="k">else</span> <span class="mf">0.0</span><span class="p">),</span>
+        <span class="n">train_accuracy</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">train_accuracies</span><span class="p">)),</span>
+        <span class="n">test_accuracy</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">test_accuracies</span><span class="p">)),</span>
+        <span class="n">n_test</span><span class="o">=</span><span class="n">n_test</span><span class="p">,</span>
+        <span class="n">degenerate</span><span class="o">=</span><span class="n">degenerate_repeats</span> <span class="o">==</span> <span class="n">repeats</span><span class="p">,</span>
+        <span class="n">unseen_category</span><span class="o">=</span><span class="n">unseen_category</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_run_repeat</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">pooled</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span>
+    <span class="n">labels</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+    <span class="n">drawn_reference</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+    <span class="n">drawn_candidate</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+    <span class="n">scheme</span><span class="p">:</span> <span class="n">C2STScheme</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Fit one repeat under ``scheme`` and return its held-out predictions.</span>
+
+<span class="sd">    The test set is balanced by construction — the same number of rows is taken</span>
+<span class="sd">    from each sample — which is what makes ``n_test`` exactly known and the</span>
+<span class="sd">    ``Binomial(n_test, ½)`` null the right one.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">balanced</span> <span class="o">=</span> <span class="n">drawn_reference</span><span class="o">.</span><span class="n">size</span>
+    <span class="k">if</span> <span class="n">scheme</span> <span class="ow">is</span> <span class="n">C2STScheme</span><span class="o">.</span><span class="n">Split</span><span class="p">:</span>
+        <span class="n">held</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">round</span><span class="p">(</span><span class="n">balanced</span> <span class="o">*</span> <span class="n">_TEST_FRACTION</span><span class="p">))</span>
+        <span class="n">test_idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">drawn_reference</span><span class="p">[:</span><span class="n">held</span><span class="p">],</span> <span class="n">drawn_candidate</span><span class="p">[:</span><span class="n">held</span><span class="p">]])</span>
+        <span class="n">train_idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">drawn_reference</span><span class="p">[</span><span class="n">held</span><span class="p">:],</span> <span class="n">drawn_candidate</span><span class="p">[</span><span class="n">held</span><span class="p">:]])</span>
+        <span class="n">predictions</span><span class="p">,</span> <span class="n">train_accuracy</span> <span class="o">=</span> <span class="n">_fit_predict</span><span class="p">(</span>
+            <span class="n">model</span><span class="p">,</span>
+            <span class="n">pooled</span><span class="p">,</span>
+            <span class="n">labels</span><span class="p">,</span>
+            <span class="n">train_idx</span><span class="p">,</span>
+            <span class="n">test_idx</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">predictions</span><span class="p">,</span> <span class="n">labels</span><span class="p">[</span><span class="n">test_idx</span><span class="p">],</span> <span class="p">[</span><span class="n">train_accuracy</span><span class="p">]</span>
+
+    <span class="n">predictions</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">truth</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">train_accuracies</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">start</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">size</span> <span class="ow">in</span> <span class="n">_fold_sizes</span><span class="p">(</span><span class="n">balanced</span><span class="p">,</span> <span class="n">_CV_FOLDS</span><span class="p">):</span>
+        <span class="n">stop</span> <span class="o">=</span> <span class="n">start</span> <span class="o">+</span> <span class="n">size</span>
+        <span class="n">fold</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span>
+            <span class="p">[</span><span class="n">drawn_reference</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">stop</span><span class="p">],</span> <span class="n">drawn_candidate</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">stop</span><span class="p">]]</span>
+        <span class="p">)</span>
+        <span class="n">rest</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span>
+            <span class="p">[</span>
+                <span class="n">drawn_reference</span><span class="p">[:</span><span class="n">start</span><span class="p">],</span>
+                <span class="n">drawn_reference</span><span class="p">[</span><span class="n">stop</span><span class="p">:],</span>
+                <span class="n">drawn_candidate</span><span class="p">[:</span><span class="n">start</span><span class="p">],</span>
+                <span class="n">drawn_candidate</span><span class="p">[</span><span class="n">stop</span><span class="p">:],</span>
+            <span class="p">]</span>
+        <span class="p">)</span>
+        <span class="n">fold_predictions</span><span class="p">,</span> <span class="n">train_accuracy</span> <span class="o">=</span> <span class="n">_fit_predict</span><span class="p">(</span>
+            <span class="n">model</span><span class="p">,</span> <span class="n">pooled</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">rest</span><span class="p">,</span> <span class="n">fold</span>
+        <span class="p">)</span>
+        <span class="n">predictions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">fold_predictions</span><span class="p">)</span>
+        <span class="n">truth</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">labels</span><span class="p">[</span><span class="n">fold</span><span class="p">])</span>
+        <span class="n">train_accuracies</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">train_accuracy</span><span class="p">)</span>
+        <span class="n">start</span> <span class="o">=</span> <span class="n">stop</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="n">predictions</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="n">truth</span><span class="p">),</span> <span class="n">train_accuracies</span>
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=cb8930eaaf36d9849b67"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=cb8930eaaf36d9849b67"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.21.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

@@ -166,43 +166,6 @@ with ThreadPoolExecutor(max_workers=n_workers) as pool:
    :show-inheritance:
 ```
 
-## Evaluation
-
-```{eval-rst}
-.. autoclass:: dataforge_ml.imputation.evaluation.EvaluationOrchestrator
-   :members:
-   :undoc-members:
-   :show-inheritance:
-```
-
-```{eval-rst}
-.. autoclass:: dataforge_ml.imputation._config.InspectionDiagnostic
-   :members:
-   :undoc-members:
-   :show-inheritance:
-```
-
-```{eval-rst}
-.. autoclass:: dataforge_ml.imputation._config.InspectionReport
-   :members:
-   :undoc-members:
-   :show-inheritance:
-```
-
-```{eval-rst}
-.. autoclass:: dataforge_ml.imputation._config.AccuracyDiagnostic
-   :members:
-   :undoc-members:
-   :show-inheritance:
-```
-
-```{eval-rst}
-.. autoclass:: dataforge_ml.imputation._config.AccuracyReport
-   :members:
-   :undoc-members:
-   :show-inheritance:
-```
-
 ## Configuration
 
 ```{eval-rst}

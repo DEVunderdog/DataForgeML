@@ -26,16 +26,16 @@
   </noscript>
   
   <!-- Loaded before other Sphinx assets -->
-  <link href="../../../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
-<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+  <link href="../../../_static/styles/theme.css?digest=cb8930eaaf36d9849b67" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=cb8930eaaf36d9849b67" rel="stylesheet" />
 
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
   
   <!-- So that users can add custom icons -->
-  <script defer src="../../../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <script defer src="../../../_static/scripts/fontawesome.js?digest=cb8930eaaf36d9849b67"></script>
   <!-- Pre-loaded scripts that we'll load fully later -->
-  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
-<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=cb8930eaaf36d9849b67" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=cb8930eaaf36d9849b67" />
 
     <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
     <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
@@ -150,15 +150,15 @@
 
 
 <li class="nav-item ">
-  <a class="nav-link nav-internal" href="../../../api/splitting.html">
-    Splitting
+  <a class="nav-link nav-internal" href="../../../api/evaluation.html">
+    Evaluation
   </a>
 </li>
 
 
 <li class="nav-item ">
-  <a class="nav-link nav-internal" href="../../../api/persistence.html">
-    Persistence
+  <a class="nav-link nav-internal" href="../../../api/splitting.html">
+    Splitting
   </a>
 </li>
 
@@ -170,6 +170,13 @@
                 </button>
                 <ul id="pst-nav-more-links" class="dropdown-menu">
                     
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../api/persistence.html">
+    Persistence
+  </a>
+</li>
+
+
 <li class=" ">
   <a class="nav-link dropdown-item nav-internal" href="../../../api/observability.html">
     Observability
@@ -281,6 +288,13 @@
 <li class="nav-item ">
   <a class="nav-link nav-internal" href="../../../api/imputation.html">
     Imputation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/evaluation.html">
+    Evaluation
   </a>
 </li>
 
@@ -424,8 +438,9 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">..config</span><span class="w"> </span><span class="kn">import</span> <span class="n">PipelineConfig</span><span class="p">,</span> <span class="n">SemanticType</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..utils._dtype_floor</span><span class="w"> </span><span class="kn">import</span> <span class="n">_apply_dtype_floor</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">..utils._null_normalization</span><span class="w"> </span><span class="kn">import</span> <span class="n">_resolve_effective_nulls</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">ImputationStrategy</span><span class="p">,</span> <span class="n">ImputationUnit</span><span class="p">,</span> <span class="n">ModelChoice</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">ImputationStrategy</span><span class="p">,</span> <span class="n">ImputationUnit</span><span class="p">,</span> <span class="n">ModelChoice</span><span class="p">,</span> <span class="n">_md_cell</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._fit_signals</span><span class="w"> </span><span class="kn">import</span> <span class="n">FitSignals</span><span class="p">,</span> <span class="n">ImputationFitWarning</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._fitters</span><span class="w"> </span><span class="kn">import</span> <span class="n">UnitFitContext</span><span class="p">,</span> <span class="n">_dispatch_unit_fit</span>
 
@@ -515,8 +530,49 @@
     <span class="n">unit_id</span><span class="p">:</span> <span class="nb">str</span>
     <span class="n">strategy</span><span class="p">:</span> <span class="n">ImputationStrategy</span>
     <span class="n">columns</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
-    <span class="n">fitted</span><span class="p">:</span> <span class="s2">&quot;FittedUnit&quot;</span>
-    <span class="n">signals</span><span class="p">:</span> <span class="n">FitSignals</span></div>
+    <span class="n">fitted</span><span class="p">:</span> <span class="n">FittedUnit</span>
+    <span class="n">signals</span><span class="p">:</span> <span class="n">FitSignals</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_markdown</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Render the fit result as a Markdown document.</span>
+
+<span class="sd">        A document per rule 5 of the Rendering Contract (ADR-0086): it owns the</span>
+<span class="sd">        ``#`` and ``##`` heading levels and delegates to the</span>
+<span class="sd">        :class:`~dataforge_ml.imputation.FitSignals` fragment beneath them. The</span>
+<span class="sd">        fitted unit itself is opaque state, so it is reported by type name only.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            Markdown document naming the unit, its strategy, its columns and the</span>
+<span class="sd">            fitted unit&#39;s type, followed by the fit record.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">fitted</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fitted</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">fitted</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="s2">&quot;none&quot;</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="sa">f</span><span class="s2">&quot;# Unit Fit — `</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">unit_id</span><span class="si">}</span><span class="s2">`</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;## Summary</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;| Field | Value |&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;|---|---|&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| strategy | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">strategy</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| columns | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| fitted | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="n">fitted</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;## Fit Record</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">signals</span><span class="o">.</span><span class="n">to_markdown</span><span class="p">()</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">signals</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="s2">&quot;not recorded&quot;</span><span class="p">,</span>
+        <span class="p">]</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the Unit Fit document, per rule 2 of the contract.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            The output of :meth:`to_markdown`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_markdown</span><span class="p">()</span></div>
 
 
 
@@ -624,7 +680,10 @@
 <span class="sd">        recipe is re-resolved against ``decision``, so the plan always wins over</span>
 <span class="sd">        a unit held from before an edit.</span>
 <span class="sd">    df : pl.DataFrame</span>
-<span class="sd">        Training data, raw or already normalised.</span>
+<span class="sd">        Training data, raw or already normalised. A working copy is taken at</span>
+<span class="sd">        entry: effective nulls are resolved and the **Dtype Floor** enforced</span>
+<span class="sd">        against the plan&#39;s semantic types (ADR-0085). The caller&#39;s frame is</span>
+<span class="sd">        never mutated.</span>
 <span class="sd">    random_seed : int, optional</span>
 <span class="sd">        Seed for the stochastic strategies (GMM sampling).</span>
 <span class="sd">    n_jobs_inner : int, default -1</span>
@@ -651,10 +710,19 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">start</span> <span class="o">=</span> <span class="n">perf_counter</span><span class="p">()</span>
     <span class="n">unit</span> <span class="o">=</span> <span class="n">_resolve</span><span class="p">(</span><span class="n">decision</span><span class="p">,</span> <span class="n">unit</span><span class="p">)</span>
-    <span class="n">train_df</span> <span class="o">=</span> <span class="n">_resolve_effective_nulls</span><span class="p">(</span>
-        <span class="n">df</span><span class="p">,</span>
-        <span class="n">numeric_sentinels</span><span class="o">=</span><span class="n">decision</span><span class="o">.</span><span class="n">numeric_sentinels</span><span class="p">,</span>
-        <span class="n">string_sentinels</span><span class="o">=</span><span class="n">decision</span><span class="o">.</span><span class="n">string_sentinels</span><span class="p">,</span>
+    <span class="c1"># Phase entry: effective nulls first, then the Dtype Floor off the plan&#39;s</span>
+    <span class="c1"># semantic types (ADR-0085). The floor casts away the string namespace the</span>
+    <span class="c1"># sentinel rules need, so the order is fixed.</span>
+    <span class="n">train_df</span> <span class="o">=</span> <span class="n">_apply_dtype_floor</span><span class="p">(</span>
+        <span class="n">_resolve_effective_nulls</span><span class="p">(</span>
+            <span class="n">df</span><span class="p">,</span>
+            <span class="n">numeric_sentinels</span><span class="o">=</span><span class="n">decision</span><span class="o">.</span><span class="n">numeric_sentinels</span><span class="p">,</span>
+            <span class="n">string_sentinels</span><span class="o">=</span><span class="n">decision</span><span class="o">.</span><span class="n">string_sentinels</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="p">{</span>
+            <span class="n">name</span><span class="p">:</span> <span class="n">cd</span><span class="o">.</span><span class="n">semantic_type</span>
+            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">cd</span> <span class="ow">in</span> <span class="n">decision</span><span class="o">.</span><span class="n">column_decisions</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="p">},</span>
     <span class="p">)</span>
     <span class="n">ctx</span> <span class="o">=</span> <span class="n">_fit_context</span><span class="p">(</span><span class="n">decision</span><span class="p">,</span> <span class="n">random_seed</span><span class="p">)</span>
     <span class="n">outcome</span> <span class="o">=</span> <span class="n">_dispatch_unit_fit</span><span class="p">(</span><span class="n">unit</span><span class="p">,</span> <span class="n">train_df</span><span class="p">,</span> <span class="n">ctx</span><span class="p">,</span> <span class="n">n_jobs_inner</span><span class="p">)</span>
@@ -847,8 +915,8 @@
   </div>
   
   <!-- Scripts loaded after <body> so the DOM is not blocked -->
-  <script defer src="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
-<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=cb8930eaaf36d9849b67"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=cb8930eaaf36d9849b67"></script>
 
   <footer class="bd-footer">
 <div class="bd-footer__inner bd-page-width">
@@ -872,7 +940,7 @@
         <div class="footer-item">
 <p class="theme-version">
   <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
-  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.21.0.
 </p></div>
       
     </div>

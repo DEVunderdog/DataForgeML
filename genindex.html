@@ -26,16 +26,16 @@
   </noscript>
   
   <!-- Loaded before other Sphinx assets -->
-  <link href="_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
-<link href="_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+  <link href="_static/styles/theme.css?digest=cb8930eaaf36d9849b67" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=cb8930eaaf36d9849b67" rel="stylesheet" />
 
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
   
   <!-- So that users can add custom icons -->
-  <script defer src="_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <script defer src="_static/scripts/fontawesome.js?digest=cb8930eaaf36d9849b67"></script>
   <!-- Pre-loaded scripts that we'll load fully later -->
-  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
-<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=cb8930eaaf36d9849b67" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=cb8930eaaf36d9849b67" />
 
     <script src="_static/documentation_options.js?v=5929fcd5"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
@@ -150,15 +150,15 @@
 
 
 <li class="nav-item ">
-  <a class="nav-link nav-internal" href="api/splitting.html">
-    Splitting
+  <a class="nav-link nav-internal" href="api/evaluation.html">
+    Evaluation
   </a>
 </li>
 
 
 <li class="nav-item ">
-  <a class="nav-link nav-internal" href="api/persistence.html">
-    Persistence
+  <a class="nav-link nav-internal" href="api/splitting.html">
+    Splitting
   </a>
 </li>
 
@@ -170,6 +170,13 @@
                 </button>
                 <ul id="pst-nav-more-links" class="dropdown-menu">
                     
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="api/persistence.html">
+    Persistence
+  </a>
+</li>
+
+
 <li class=" ">
   <a class="nav-link dropdown-item nav-internal" href="api/observability.html">
     Observability
@@ -281,6 +288,13 @@
 <li class="nav-item ">
   <a class="nav-link nav-internal" href="api/imputation.html">
     Imputation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="api/evaluation.html">
+    Evaluation
   </a>
 </li>
 
@@ -399,21 +413,19 @@
 <h2 id="A">A</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/imputation.html#dataforge_ml.imputation._config.AccuracyDiagnostic">AccuracyDiagnostic (class in dataforge_ml.imputation._config)</a>
-</li>
-      <li><a href="api/imputation.html#dataforge_ml.imputation._config.AccuracyReport">AccuracyReport (class in dataforge_ml.imputation._config)</a>
-</li>
       <li><a href="api/pipeline.html#dataforge_ml.config.PipelineConfig.add_exclusion">add_exclusion() (dataforge_ml.config.PipelineConfig method)</a>
 </li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.ImputationConfig.add_indicator_column">add_indicator_column() (dataforge_ml.imputation._config.ImputationConfig method)</a>
 </li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.ImputationConfig.add_indicator_columns">add_indicator_columns (dataforge_ml.imputation._config.ImputationConfig property)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.ImputationConfig.add_mnar_column">add_mnar_column() (dataforge_ml.imputation._config.ImputationConfig method)</a>
 </li>
       <li><a href="api/pipeline.html#dataforge_ml.config.PipelineConfig.add_phase_exclusion">add_phase_exclusion() (dataforge_ml.config.PipelineConfig method)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.ColumnC2STResult.annotations">annotations (dataforge_ml.evaluation.imputation._records.ColumnC2STResult attribute)</a>
 </li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._fitted_imputer.FittedImputer.apply_exclusions">apply_exclusions() (dataforge_ml.imputation._fitted_imputer.FittedImputer method)</a>
 </li>
@@ -433,16 +445,18 @@
 </li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.ModelChoice.BayesianRidge">BayesianRidge (dataforge_ml.imputation._config.ModelChoice attribute)</a>
 </li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STOutcome.BelowSampleFloor">BelowSampleFloor (dataforge_ml.evaluation.imputation._records.C2STOutcome attribute)</a>
+</li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.NumericImputationConfig.bimodal_correlation_threshold">bimodal_correlation_threshold (dataforge_ml.imputation._config.NumericImputationConfig attribute)</a>
 </li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._numeric_config.NumericProfileConfig.bimodal_dip_p_value_threshold">bimodal_dip_p_value_threshold (dataforge_ml.profiling._numeric_config.NumericProfileConfig attribute)</a>
 </li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.NumericImputationConfig.bimodal_grouping_variables">bimodal_grouping_variables (dataforge_ml.imputation._config.NumericImputationConfig property)</a>
 </li>
-      <li><a href="api/profiling.html#dataforge_ml.profiling._numeric_config.NumericProfileConfig.bimodal_min_component_weight">bimodal_min_component_weight (dataforge_ml.profiling._numeric_config.NumericProfileConfig attribute)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/profiling.html#dataforge_ml.profiling._numeric_config.NumericProfileConfig.bimodal_min_component_weight">bimodal_min_component_weight (dataforge_ml.profiling._numeric_config.NumericProfileConfig attribute)</a>
+</li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.NumericImputationConfig.bimodal_min_correlated_features">bimodal_min_correlated_features (dataforge_ml.imputation._config.NumericImputationConfig attribute)</a>
 </li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._numeric_config.NumericProfileConfig.bimodal_min_separation_threshold">bimodal_min_separation_threshold (dataforge_ml.profiling._numeric_config.NumericProfileConfig attribute)</a>
@@ -461,6 +475,30 @@
 <h2 id="C">C</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation._config.EvaluationConfig.c2st">c2st (dataforge_ml.evaluation._config.EvaluationConfig attribute)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation._config.EvaluationMetric.C2ST">C2ST (dataforge_ml.evaluation._config.EvaluationMetric attribute)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.EvaluationReport.c2st">c2st (dataforge_ml.evaluation.imputation._records.EvaluationReport attribute)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STAnnotation">C2STAnnotation (class in dataforge_ml.evaluation.imputation._records)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation._config.C2STConfig">C2STConfig (class in dataforge_ml.evaluation._config)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STOutcome">C2STOutcome (class in dataforge_ml.evaluation.imputation._records)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STProvenance">C2STProvenance (class in dataforge_ml.evaluation.imputation._records)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STReport">C2STReport (class in dataforge_ml.evaluation.imputation._records)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation._c2st.C2STResult">C2STResult (class in dataforge_ml.evaluation._c2st)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation._c2st.C2STScheme">C2STScheme (class in dataforge_ml.evaluation._c2st)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STScore">C2STScore (class in dataforge_ml.evaluation.imputation._records)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STVerdict">C2STVerdict (class in dataforge_ml.evaluation.imputation._records)</a>
+</li>
       <li><a href="api/pipeline.html#dataforge_ml.config.SemanticType.Categorical">Categorical (dataforge_ml.config.SemanticType attribute)</a>
 </li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._config.ProfileConfig.categorical">categorical (dataforge_ml.profiling._config.ProfileConfig attribute)</a>
@@ -481,21 +519,35 @@
       </ul></li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._config.ProfileConfig.chunk_size">chunk_size (dataforge_ml.profiling._config.ProfileConfig attribute)</a>
 </li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation._config.C2STConfig.classifier">classifier (dataforge_ml.evaluation._config.C2STConfig attribute)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STProvenance.classifier_class">classifier_class (dataforge_ml.evaluation.imputation._records.C2STProvenance attribute)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STProvenance.classifier_injected">classifier_injected (dataforge_ml.evaluation.imputation._records.C2STProvenance attribute)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STProvenance.classifier_params">classifier_params (dataforge_ml.evaluation.imputation._records.C2STProvenance attribute)</a>
+</li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.ImputationStrategy.ClusterConditional">ClusterConditional (dataforge_ml.imputation._config.ImputationStrategy attribute)</a>
 </li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._missingness_config.MissingnessProfileConfig.col_drop_threshold">col_drop_threshold (dataforge_ml.profiling._missingness_config.MissingnessProfileConfig attribute)</a>
 </li>
-      <li><a href="api/imputation.html#dataforge_ml.imputation._config.ColumnImputationDecision.column">column (dataforge_ml.imputation._config.ColumnImputationDecision attribute)</a>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.ColumnC2STResult.column">column (dataforge_ml.evaluation.imputation._records.ColumnC2STResult attribute)</a>
 
       <ul>
+        <li><a href="api/imputation.html#dataforge_ml.imputation._config.ColumnImputationDecision.column">(dataforge_ml.imputation._config.ColumnImputationDecision attribute)</a>
+</li>
         <li><a href="api/observability.html#dataforge_ml.observability.PipelineEvent.column">(dataforge_ml.observability.PipelineEvent attribute)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/profiling.html#dataforge_ml.profiling._config.DatasetStats.column_count">column_count (dataforge_ml.profiling._config.DatasetStats attribute)</a>
 </li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.ImputationDecision.column_decisions">column_decisions (dataforge_ml.imputation._config.ImputationDecision attribute)</a>
 </li>
       <li><a href="api/pipeline.html#dataforge_ml.config.PipelineConfig.column_overrides">column_overrides (dataforge_ml.config.PipelineConfig property)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.ColumnC2STResult">ColumnC2STResult (class in dataforge_ml.evaluation.imputation._records)</a>
 </li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.ColumnImputationDecision">ColumnImputationDecision (class in dataforge_ml.imputation._config)</a>
 </li>
@@ -503,12 +555,10 @@
 </li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._config.ColumnProfile">ColumnProfile (class in dataforge_ml.profiling._config)</a>
 </li>
-      <li><a href="api/imputation.html#dataforge_ml.imputation._config.AccuracyReport.columns">columns (dataforge_ml.imputation._config.AccuracyReport attribute)</a>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STReport.columns">columns (dataforge_ml.evaluation.imputation._records.C2STReport attribute)</a>
 
       <ul>
         <li><a href="api/imputation.html#dataforge_ml.imputation._config.ImputationUnit.columns">(dataforge_ml.imputation._config.ImputationUnit attribute)</a>
-</li>
-        <li><a href="api/imputation.html#dataforge_ml.imputation._config.InspectionReport.columns">(dataforge_ml.imputation._config.InspectionReport attribute)</a>
 </li>
         <li><a href="api/imputation.html#dataforge_ml.imputation._unit_fit.UnitFitResult.columns">(dataforge_ml.imputation._unit_fit.UnitFitResult attribute)</a>
 </li>
@@ -517,13 +567,13 @@
         <li><a href="api/profiling.html#dataforge_ml.profiling._config.StructuralProfileResult.columns">(dataforge_ml.profiling._config.StructuralProfileResult attribute)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/imputation.html#dataforge_ml.imputation._fitted_imputer.FittedImputer.compose">compose() (dataforge_ml.imputation._fitted_imputer.FittedImputer class method)</a>
 </li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._config.ProfileConfig.compute_correlation">compute_correlation (dataforge_ml.profiling._config.ProfileConfig attribute)</a>
 </li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._config.ProfileConfig.compute_nonlinearity">compute_nonlinearity (dataforge_ml.profiling._config.ProfileConfig attribute)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STProvenance.config">config (dataforge_ml.evaluation.imputation._records.C2STProvenance attribute)</a>
 </li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.ImputationDecision.config_snapshot">config_snapshot (dataforge_ml.imputation._config.ImputationDecision attribute)</a>
 </li>
@@ -537,12 +587,8 @@
       </ul></li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._config.NumericKind.Continuous">Continuous (dataforge_ml.profiling._config.NumericKind attribute)</a>
 </li>
-      <li><a href="api/imputation.html#dataforge_ml.imputation._config.InspectionDiagnostic.converged">converged (dataforge_ml.imputation._config.InspectionDiagnostic attribute)</a>
-
-      <ul>
-        <li><a href="api/imputation.html#dataforge_ml.imputation._fit_signals.FitSignals.converged">(dataforge_ml.imputation._fit_signals.FitSignals attribute)</a>
+      <li><a href="api/imputation.html#dataforge_ml.imputation._fit_signals.FitSignals.converged">converged (dataforge_ml.imputation._fit_signals.FitSignals attribute)</a>
 </li>
-      </ul></li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._unit_fit.core_budget">core_budget() (in module dataforge_ml.imputation._unit_fit)</a>
 </li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._config.ProfileConfig.correlation">correlation (dataforge_ml.profiling._config.ProfileConfig attribute)</a>
@@ -550,6 +596,8 @@
       <li><a href="api/profiling.html#dataforge_ml.profiling._config.ProfileConfig.correlation_target_column">correlation_target_column (dataforge_ml.profiling._config.ProfileConfig attribute)</a>
 </li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._correlation_config.CorrelationProfileConfig">CorrelationProfileConfig (class in dataforge_ml.profiling._correlation_config)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation._c2st.C2STScheme.CrossValidation">CrossValidation (dataforge_ml.evaluation._c2st.C2STScheme attribute)</a>
 </li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.ModelChoice.Custom">Custom (dataforge_ml.imputation._config.ModelChoice attribute)</a>
 </li>
@@ -587,14 +635,18 @@
 </li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.ImputationDecision.decided_hyperparameters">decided_hyperparameters (dataforge_ml.imputation._config.ImputationDecision attribute)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.ColumnImputationRecord.decision">decision (dataforge_ml.imputation._config.ColumnImputationRecord attribute)</a>
 
       <ul>
         <li><a href="api/observability.html#dataforge_ml.observability.EventType.decision">(dataforge_ml.observability.EventType attribute)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation._c2st.C2STResult.degenerate">degenerate (dataforge_ml.evaluation._c2st.C2STResult attribute)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STAnnotation.Degenerate">Degenerate (dataforge_ml.evaluation.imputation._records.C2STAnnotation attribute)</a>
+</li>
       <li><a href="api/persistence.html#dataforge_ml._serialization.deserialize">deserialize() (in module dataforge_ml._serialization)</a>
 </li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._authoring.AuthoredColumn.domain_snap_bounds">domain_snap_bounds (dataforge_ml.imputation._authoring.AuthoredColumn attribute)</a>
@@ -635,9 +687,15 @@
 </li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._fit_signals.FitSignals.estimator">estimator (dataforge_ml.imputation._fit_signals.FitSignals attribute)</a>
 </li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._adapter.evaluate_imputation">evaluate_imputation() (in module dataforge_ml.evaluation.imputation._adapter)</a>
+</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/imputation.html#dataforge_ml.imputation.evaluation.EvaluationOrchestrator">EvaluationOrchestrator (class in dataforge_ml.imputation.evaluation)</a>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation._config.EvaluationConfig">EvaluationConfig (class in dataforge_ml.evaluation._config)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation._config.EvaluationMetric">EvaluationMetric (class in dataforge_ml.evaluation._config)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.EvaluationReport">EvaluationReport (class in dataforge_ml.evaluation.imputation._records)</a>
 </li>
       <li><a href="api/observability.html#dataforge_ml.observability.PipelineEvent.event_type">event_type (dataforge_ml.observability.PipelineEvent attribute)</a>
 </li>
@@ -651,6 +709,8 @@
 <h2 id="F">F</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation._config.C2STConfig.fdr_alpha">fdr_alpha (dataforge_ml.evaluation._config.C2STConfig attribute)</a>
+</li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._authoring.AuthoredColumn.feature_cols">feature_cols (dataforge_ml.imputation._authoring.AuthoredColumn attribute)</a>
 
       <ul>
@@ -673,11 +733,17 @@
 </li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._fitted_imputer.FittedUnit">FittedUnit (class in dataforge_ml.imputation._fitted_imputer)</a>
 </li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STVerdict.Flagged">Flagged (dataforge_ml.evaluation.imputation._records.C2STVerdict attribute)</a>
+</li>
       <li><a href="api/splitting.html#dataforge_ml.splitting._config.FoldResult.fold_index">fold_index (dataforge_ml.splitting._config.FoldResult attribute)</a>
 </li>
       <li><a href="api/splitting.html#dataforge_ml.splitting._config.FoldResult">FoldResult (class in dataforge_ml.splitting._config)</a>
 </li>
       <li><a href="api/splitting.html#dataforge_ml.splitting._config.HoldoutCVResult.folds">folds (dataforge_ml.splitting._config.HoldoutCVResult attribute)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STScore.frame_z_spread">frame_z_spread (dataforge_ml.evaluation.imputation._records.C2STScore attribute)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STScore.frames">frames (dataforge_ml.evaluation.imputation._records.C2STScore attribute)</a>
 </li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._type_detection_config.TypeDetectionConfig.free_text_avg_words">free_text_avg_words (dataforge_ml.profiling._type_detection_config.TypeDetectionConfig attribute)</a>
 </li>
@@ -689,12 +755,14 @@
 </li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._type_detection_config.TypeDetectionConfig.free_text_p90_chars">free_text_p90_chars (dataforge_ml.profiling._type_detection_config.TypeDetectionConfig attribute)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/pipeline.html#dataforge_ml.config.PipelineConfig.from_dict">from_dict() (dataforge_ml.config.PipelineConfig class method)</a>
 
       <ul>
-        <li><a href="api/imputation.html#dataforge_ml.imputation._config.AccuracyDiagnostic.from_dict">(dataforge_ml.imputation._config.AccuracyDiagnostic class method)</a>
+        <li><a href="api/evaluation.html#dataforge_ml.evaluation._config.C2STConfig.from_dict">(dataforge_ml.evaluation._config.C2STConfig class method)</a>
 </li>
-        <li><a href="api/imputation.html#dataforge_ml.imputation._config.AccuracyReport.from_dict">(dataforge_ml.imputation._config.AccuracyReport class method)</a>
+        <li><a href="api/evaluation.html#dataforge_ml.evaluation._config.EvaluationConfig.from_dict">(dataforge_ml.evaluation._config.EvaluationConfig class method)</a>
 </li>
         <li><a href="api/imputation.html#dataforge_ml.imputation._config.ColumnImputationDecision.from_dict">(dataforge_ml.imputation._config.ColumnImputationDecision class method)</a>
 </li>
@@ -705,10 +773,6 @@
         <li><a href="api/imputation.html#dataforge_ml.imputation._config.ImputationDecision.from_dict">(dataforge_ml.imputation._config.ImputationDecision class method)</a>
 </li>
         <li><a href="api/imputation.html#dataforge_ml.imputation._config.ImputationUnit.from_dict">(dataforge_ml.imputation._config.ImputationUnit class method)</a>
-</li>
-        <li><a href="api/imputation.html#dataforge_ml.imputation._config.InspectionDiagnostic.from_dict">(dataforge_ml.imputation._config.InspectionDiagnostic class method)</a>
-</li>
-        <li><a href="api/imputation.html#dataforge_ml.imputation._config.InspectionReport.from_dict">(dataforge_ml.imputation._config.InspectionReport class method)</a>
 </li>
         <li><a href="api/imputation.html#dataforge_ml.imputation._config.NumericImputationConfig.from_dict">(dataforge_ml.imputation._config.NumericImputationConfig class method)</a>
 </li>
@@ -737,8 +801,6 @@
         <li><a href="api/splitting.html#dataforge_ml.splitting._config.SplitConfig.from_dict">(dataforge_ml.splitting._config.SplitConfig class method)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/pipeline.html#dataforge_ml.config.PipelineConfig.from_json">from_json() (dataforge_ml.config.PipelineConfig class method)</a>
 
       <ul>
@@ -801,6 +863,10 @@
 </li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._type_detection_config.TypeDetectionConfig.identifier_unique_ratio">identifier_unique_ratio (dataforge_ml.profiling._type_detection_config.TypeDetectionConfig attribute)</a>
 </li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation._config.C2STConfig.imbalance_warn_ratio">imbalance_warn_ratio (dataforge_ml.evaluation._config.C2STConfig attribute)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STAnnotation.ImbalancedPiles">ImbalancedPiles (dataforge_ml.evaluation.imputation._records.C2STAnnotation attribute)</a>
+</li>
       <li><a href="api/pipeline.html#dataforge_ml.config.PipelineConfig.imputation">imputation (dataforge_ml.config.PipelineConfig attribute)</a>
 </li>
       <li><a href="api/pipeline.html#dataforge_ml.config.PipelinePhase.Imputation">Imputation (dataforge_ml.config.PipelinePhase attribute)</a>
@@ -813,16 +879,12 @@
 </li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.ImputationResult">ImputationResult (class in dataforge_ml.imputation._config)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.ImputationStrategy">ImputationStrategy (class in dataforge_ml.imputation._config)</a>
 </li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.ImputationUnit">ImputationUnit (class in dataforge_ml.imputation._config)</a>
 </li>
-      <li><a href="api/imputation.html#dataforge_ml.imputation._config.InspectionDiagnostic.imputed_mean">imputed_mean (dataforge_ml.imputation._config.InspectionDiagnostic attribute)</a>
-</li>
-      <li><a href="api/imputation.html#dataforge_ml.imputation._config.InspectionDiagnostic.imputed_std">imputed_std (dataforge_ml.imputation._config.InspectionDiagnostic attribute)</a>
-</li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/persistence.html#dataforge_ml._serialization.IncompatibleArtifactError">IncompatibleArtifactError (class in dataforge_ml._serialization)</a>
 </li>
       <li><a href="api/observability.html#dataforge_ml.observability.PipelineEvent.index">index (dataforge_ml.observability.PipelineEvent attribute)</a>
@@ -835,15 +897,7 @@
 </li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._config.ColumnProfile.inferred_dtype">inferred_dtype (dataforge_ml.profiling._config.ColumnProfile attribute)</a>
 </li>
-      <li><a href="api/imputation.html#dataforge_ml.imputation.evaluation.EvaluationOrchestrator.inspect">inspect() (dataforge_ml.imputation.evaluation.EvaluationOrchestrator method)</a>
-
-      <ul>
-        <li><a href="api/persistence.html#dataforge_ml._serialization.inspect">(in module dataforge_ml._serialization)</a>
-</li>
-      </ul></li>
-      <li><a href="api/imputation.html#dataforge_ml.imputation._config.InspectionDiagnostic">InspectionDiagnostic (class in dataforge_ml.imputation._config)</a>
-</li>
-      <li><a href="api/imputation.html#dataforge_ml.imputation._config.InspectionReport">InspectionReport (class in dataforge_ml.imputation._config)</a>
+      <li><a href="api/persistence.html#dataforge_ml._serialization.inspect">inspect() (in module dataforge_ml._serialization)</a>
 </li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.ImputationUnit.is_block">is_block (dataforge_ml.imputation._config.ImputationUnit attribute)</a>
 </li>
@@ -857,8 +911,6 @@
 <h2 id="K">K</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/imputation.html#dataforge_ml.imputation._config.InspectionDiagnostic.k_capped">k_capped (dataforge_ml.imputation._config.InspectionDiagnostic attribute)</a>
-</li>
       <li><a href="api/splitting.html#dataforge_ml.splitting._splitter.DataSplitter.kfold">kfold() (dataforge_ml.splitting._splitter.DataSplitter method)</a>
 </li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.ImputationStrategy.KNN">KNN (dataforge_ml.imputation._config.ImputationStrategy attribute)</a>
@@ -867,10 +919,10 @@
 </li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.NumericImputationConfig.knn_distance_weight_max_null_ratio">knn_distance_weight_max_null_ratio (dataforge_ml.imputation._config.NumericImputationConfig attribute)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.NumericImputationConfig.knn_max_features">knn_max_features (dataforge_ml.imputation._config.NumericImputationConfig attribute)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.NumericImputationConfig.knn_max_neighbors">knn_max_neighbors (dataforge_ml.imputation._config.NumericImputationConfig attribute)</a>
 </li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.NumericImputationConfig.knn_max_rows">knn_max_rows (dataforge_ml.imputation._config.NumericImputationConfig attribute)</a>
@@ -890,13 +942,17 @@
       <li><a href="api/utilities.html#dataforge_ml.utils.data_loader.DataLoader.load">load() (dataforge_ml.utils.data_loader.DataLoader method)</a>
 </li>
   </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation._config.C2STConfig.low_power_below">low_power_below (dataforge_ml.evaluation._config.C2STConfig attribute)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STAnnotation.LowPower">LowPower (dataforge_ml.evaluation.imputation._records.C2STAnnotation attribute)</a>
+</li>
+  </ul></td>
 </tr></table>
 
 <h2 id="M">M</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/imputation.html#dataforge_ml.imputation._config.AccuracyDiagnostic.mae">mae (dataforge_ml.imputation._config.AccuracyDiagnostic attribute)</a>
-</li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._missingness_config.MissingnessProfileConfig.mar_correlation_threshold">mar_correlation_threshold (dataforge_ml.profiling._missingness_config.MissingnessProfileConfig attribute)</a>
 </li>
       <li><a href="api/splitting.html#dataforge_ml.splitting._config.SplitConfig.max_stratification_signals">max_stratification_signals (dataforge_ml.splitting._config.SplitConfig attribute)</a>
@@ -906,6 +962,10 @@
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.NumericImputationConfig.mcar_feature_predictability_threshold">mcar_feature_predictability_threshold (dataforge_ml.imputation._config.NumericImputationConfig attribute)</a>
 </li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.ImputationStrategy.Mean">Mean (dataforge_ml.imputation._config.ImputationStrategy attribute)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STScore.mean_frame_z">mean_frame_z (dataforge_ml.evaluation.imputation._records.C2STScore attribute)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation._c2st.C2STResult.mean_repeat_z">mean_repeat_z (dataforge_ml.evaluation._c2st.C2STResult attribute)</a>
 </li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.ImputationStrategy.Median">Median (dataforge_ml.imputation._config.ImputationStrategy attribute)</a>
 </li>
@@ -931,7 +991,11 @@
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation._config.C2STConfig.min_filled_cells">min_filled_cells (dataforge_ml.evaluation._config.C2STConfig attribute)</a>
+</li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._numeric_config.NonlinearityProfileConfig.min_rows">min_rows (dataforge_ml.profiling._numeric_config.NonlinearityProfileConfig attribute)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation._config.C2STConfig.min_samples_leaf">min_samples_leaf (dataforge_ml.evaluation._config.C2STConfig attribute)</a>
 </li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._config.ColumnProfile.missingness">missingness (dataforge_ml.profiling._config.ColumnProfile attribute)</a>
 
@@ -975,13 +1039,13 @@
 <h2 id="N">N</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/imputation.html#dataforge_ml.imputation._config.InspectionDiagnostic.n_iter">n_iter (dataforge_ml.imputation._config.InspectionDiagnostic attribute)</a>
-
-      <ul>
-        <li><a href="api/imputation.html#dataforge_ml.imputation._fit_signals.FitSignals.n_iter">(dataforge_ml.imputation._fit_signals.FitSignals attribute)</a>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.ColumnC2STResult.n_filled">n_filled (dataforge_ml.evaluation.imputation._records.ColumnC2STResult attribute)</a>
 </li>
-      </ul></li>
-      <li><a href="api/imputation.html#dataforge_ml.imputation._config.InspectionDiagnostic.n_neighbors_used">n_neighbors_used (dataforge_ml.imputation._config.InspectionDiagnostic attribute)</a>
+      <li><a href="api/imputation.html#dataforge_ml.imputation._fit_signals.FitSignals.n_iter">n_iter (dataforge_ml.imputation._fit_signals.FitSignals attribute)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.ColumnC2STResult.n_observed">n_observed (dataforge_ml.evaluation.imputation._records.ColumnC2STResult attribute)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation._c2st.C2STResult.n_test">n_test (dataforge_ml.evaluation._c2st.C2STResult attribute)</a>
 </li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._config.ColumnProfile.name">name (dataforge_ml.profiling._config.ColumnProfile attribute)</a>
 </li>
@@ -997,16 +1061,24 @@
 </li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._correlation_config.CorrelationProfileConfig.near_redundant_pearson_threshold">near_redundant_pearson_threshold (dataforge_ml.profiling._correlation_config.CorrelationProfileConfig attribute)</a>
 </li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STOutcome.NoFilledCells">NoFilledCells (dataforge_ml.evaluation.imputation._records.C2STOutcome attribute)</a>
+</li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._config.ProfileConfig.nonlinearity">nonlinearity (dataforge_ml.profiling._config.ProfileConfig attribute)</a>
 </li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._numeric_config.NonlinearityProfileConfig">NonlinearityProfileConfig (class in dataforge_ml.profiling._numeric_config)</a>
 </li>
-      <li><a href="api/pipeline.html#dataforge_ml.config.PipelinePhase.Normalization">Normalization (dataforge_ml.config.PipelinePhase attribute)</a>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STOutcome.NoObservedCells">NoObservedCells (dataforge_ml.evaluation.imputation._records.C2STOutcome attribute)</a>
 </li>
-      <li><a href="api/imputation.html#dataforge_ml.imputation._fit_signals.FitSignals.notes">notes (dataforge_ml.imputation._fit_signals.FitSignals attribute)</a>
+      <li><a href="api/pipeline.html#dataforge_ml.config.PipelinePhase.Normalization">Normalization (dataforge_ml.config.PipelinePhase attribute)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/imputation.html#dataforge_ml.imputation._fit_signals.FitSignals.notes">notes (dataforge_ml.imputation._fit_signals.FitSignals attribute)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STVerdict.NotFlagged">NotFlagged (dataforge_ml.evaluation.imputation._records.C2STVerdict attribute)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STVerdict.NoVerdict">NoVerdict (dataforge_ml.evaluation.imputation._records.C2STVerdict attribute)</a>
+</li>
       <li><a href="api/pipeline.html#dataforge_ml.config.SemanticType.Numeric">Numeric (dataforge_ml.config.SemanticType attribute)</a>
 </li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.ImputationConfig.numeric">numeric (dataforge_ml.imputation._config.ImputationConfig attribute)</a>
@@ -1043,11 +1115,9 @@
 <h2 id="O">O</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/imputation.html#dataforge_ml.imputation._config.InspectionDiagnostic.observed_mean">observed_mean (dataforge_ml.imputation._config.InspectionDiagnostic attribute)</a>
-</li>
-      <li><a href="api/imputation.html#dataforge_ml.imputation._config.InspectionDiagnostic.observed_std">observed_std (dataforge_ml.imputation._config.InspectionDiagnostic attribute)</a>
-</li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._config.ColumnProfile.original_dtype">original_dtype (dataforge_ml.profiling._config.ColumnProfile attribute)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.ColumnC2STResult.outcome">outcome (dataforge_ml.evaluation.imputation._records.ColumnC2STResult attribute)</a>
 </li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._numeric_config.NumericProfileConfig.outlier_sigma_threshold">outlier_sigma_threshold (dataforge_ml.profiling._numeric_config.NumericProfileConfig attribute)</a>
 </li>
@@ -1067,6 +1137,10 @@
 <h2 id="P">P</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STScore.p_adjusted">p_adjusted (dataforge_ml.evaluation.imputation._records.C2STScore attribute)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STScore.p_value">p_value (dataforge_ml.evaluation.imputation._records.C2STScore attribute)</a>
+</li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.ImputationStrategy.Passthrough">Passthrough (dataforge_ml.imputation._config.ImputationStrategy attribute)</a>
 </li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.NumericImputationConfig.per_column_constant_fill">per_column_constant_fill (dataforge_ml.imputation._config.NumericImputationConfig property)</a>
@@ -1079,10 +1153,10 @@
 </li>
       <li><a href="api/pipeline.html#dataforge_ml.config.PipelineConfig">PipelineConfig (class in dataforge_ml.config)</a>
 </li>
-      <li><a href="api/observability.html#dataforge_ml.observability.PipelineEvent">PipelineEvent (class in dataforge_ml.observability)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/observability.html#dataforge_ml.observability.PipelineEvent">PipelineEvent (class in dataforge_ml.observability)</a>
+</li>
       <li><a href="api/pipeline.html#dataforge_ml.config.PipelinePhase">PipelinePhase (class in dataforge_ml.config)</a>
 </li>
       <li><a href="api/profiling.html#dataforge_ml.profiling.orchestrator.StructuralProfiler.profile">profile() (dataforge_ml.profiling.orchestrator.StructuralProfiler method)</a>
@@ -1097,14 +1171,14 @@
 </li>
       <li><a href="api/pipeline.html#dataforge_ml.config.PipelinePhase.Profiling">Profiling (dataforge_ml.config.PipelinePhase attribute)</a>
 </li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STReport.provenance">provenance (dataforge_ml.evaluation.imputation._records.C2STReport attribute)</a>
+</li>
   </ul></td>
 </tr></table>
 
 <h2 id="R">R</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/imputation.html#dataforge_ml.imputation._config.AccuracyDiagnostic.r2_cv">r2_cv (dataforge_ml.imputation._config.AccuracyDiagnostic attribute)</a>
-</li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._numeric_config.NonlinearityProfileConfig.r2_gap_threshold">r2_gap_threshold (dataforge_ml.profiling._numeric_config.NonlinearityProfileConfig attribute)</a>
 </li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._numeric_config.NonlinearityProfileConfig.r2_rf_unpredictable_threshold">r2_rf_unpredictable_threshold (dataforge_ml.profiling._numeric_config.NonlinearityProfileConfig attribute)</a>
@@ -1117,8 +1191,12 @@
       </ul></li>
       <li><a href="api/splitting.html#dataforge_ml.splitting._splitter.DataSplitter.random_split">random_split() (dataforge_ml.splitting._splitter.DataSplitter method)</a>
 </li>
-      <li><a href="api/profiling.html#dataforge_ml.profiling._numeric_config.NonlinearityProfileConfig.random_state">random_state (dataforge_ml.profiling._numeric_config.NonlinearityProfileConfig attribute)</a>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation._config.C2STConfig.random_state">random_state (dataforge_ml.evaluation._config.C2STConfig attribute)</a>
+
+      <ul>
+        <li><a href="api/profiling.html#dataforge_ml.profiling._numeric_config.NonlinearityProfileConfig.random_state">(dataforge_ml.profiling._numeric_config.NonlinearityProfileConfig attribute)</a>
 </li>
+      </ul></li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.ModelChoice.RandomForestRegressor">RandomForestRegressor (dataforge_ml.imputation._config.ModelChoice attribute)</a>
 </li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._categorical_config.CategoricalProfileConfig.rare_threshold_pct">rare_threshold_pct (dataforge_ml.profiling._categorical_config.CategoricalProfileConfig attribute)</a>
@@ -1137,17 +1215,17 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/splitting.html#dataforge_ml.splitting._config.SplitConfig.redundancy_correlation_threshold">redundancy_correlation_threshold (dataforge_ml.splitting._config.SplitConfig attribute)</a>
 </li>
-      <li><a href="api/imputation.html#dataforge_ml.imputation._config.NumericImputationConfig.refit_r2_cv_folds">refit_r2_cv_folds (dataforge_ml.imputation._config.NumericImputationConfig attribute)</a>
-</li>
-      <li><a href="api/imputation.html#dataforge_ml.imputation._config.NumericImputationConfig.refit_r2_min_complete_rows">refit_r2_min_complete_rows (dataforge_ml.imputation._config.NumericImputationConfig attribute)</a>
-</li>
       <li><a href="api/splitting.html#dataforge_ml.splitting._config.FoldResult.repeat_index">repeat_index (dataforge_ml.splitting._config.FoldResult attribute)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation._c2st.C2STResult.repeat_z">repeat_z (dataforge_ml.evaluation._c2st.C2STResult attribute)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation._c2st.C2STResult.repeat_z_spread">repeat_z_spread (dataforge_ml.evaluation._c2st.C2STResult attribute)</a>
 </li>
       <li><a href="api/splitting.html#dataforge_ml.splitting._splitter.DataSplitter.repeated_kfold">repeated_kfold() (dataforge_ml.splitting._splitter.DataSplitter method)</a>
 </li>
-      <li><a href="api/pipeline.html#dataforge_ml.config.PipelineConfig.resolve_active_columns">resolve_active_columns() (dataforge_ml.config.PipelineConfig method)</a>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation._config.C2STConfig.repeats">repeats (dataforge_ml.evaluation._config.C2STConfig attribute)</a>
 </li>
-      <li><a href="api/imputation.html#dataforge_ml.imputation._config.AccuracyDiagnostic.rmse">rmse (dataforge_ml.imputation._config.AccuracyDiagnostic attribute)</a>
+      <li><a href="api/pipeline.html#dataforge_ml.config.PipelineConfig.resolve_active_columns">resolve_active_columns() (dataforge_ml.config.PipelineConfig method)</a>
 </li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._config.DatasetStats.row_count">row_count (dataforge_ml.profiling._config.DatasetStats attribute)</a>
 </li>
@@ -1167,7 +1245,9 @@
 </li>
       <li><a href="api/pipeline.html#dataforge_ml.config.PipelinePhase.Scaling">Scaling (dataforge_ml.config.PipelinePhase attribute)</a>
 </li>
-      <li><a href="api/imputation.html#dataforge_ml.imputation.evaluation.EvaluationOrchestrator.score_accuracy">score_accuracy() (dataforge_ml.imputation.evaluation.EvaluationOrchestrator method)</a>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation._config.C2STConfig.scheme">scheme (dataforge_ml.evaluation._config.C2STConfig attribute)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.ColumnC2STResult.score">score (dataforge_ml.evaluation.imputation._records.ColumnC2STResult attribute)</a>
 </li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.ColumnImputationDecision.semantic_type">semantic_type (dataforge_ml.imputation._config.ColumnImputationDecision attribute)</a>
 
@@ -1213,13 +1293,17 @@
 </li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._numeric_config.NumericProfileConfig.skew_moderate">skew_moderate (dataforge_ml.profiling._numeric_config.NumericProfileConfig attribute)</a>
 </li>
+      <li><a href="api/profiling.html#dataforge_ml.profiling._numeric_config.NumericProfileConfig.skew_normal">skew_normal (dataforge_ml.profiling._numeric_config.NumericProfileConfig attribute)</a>
+</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/profiling.html#dataforge_ml.profiling._numeric_config.NumericProfileConfig.skew_normal">skew_normal (dataforge_ml.profiling._numeric_config.NumericProfileConfig attribute)</a>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STProvenance.sklearn_version">sklearn_version (dataforge_ml.evaluation.imputation._records.C2STProvenance attribute)</a>
 </li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._numeric_config.NonlinearityProfileConfig.spearman_pearson_discrepancy_threshold">spearman_pearson_discrepancy_threshold (dataforge_ml.profiling._numeric_config.NonlinearityProfileConfig attribute)</a>
 </li>
       <li><a href="api/pipeline.html#dataforge_ml.config.PipelineConfig.split">split (dataforge_ml.config.PipelineConfig attribute)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation._c2st.C2STScheme.Split">Split (dataforge_ml.evaluation._c2st.C2STScheme attribute)</a>
 </li>
       <li><a href="api/splitting.html#dataforge_ml.splitting._config.SplitConfig">SplitConfig (class in dataforge_ml.splitting._config)</a>
 </li>
@@ -1295,9 +1379,13 @@
         <li><a href="api/splitting.html#dataforge_ml.splitting._config.SplitResult.test">(dataforge_ml.splitting._config.SplitResult attribute)</a>
 </li>
       </ul></li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation._c2st.C2STResult.test_accuracy">test_accuracy (dataforge_ml.evaluation._c2st.C2STResult attribute)</a>
+</li>
       <li><a href="api/splitting.html#dataforge_ml.splitting._config.SplitResult.test_ratio">test_ratio (dataforge_ml.splitting._config.SplitResult attribute)</a>
 </li>
       <li><a href="api/splitting.html#dataforge_ml.splitting._config.SplitResult.test_size">test_size (dataforge_ml.splitting._config.SplitResult attribute)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STOutcome.Tested">Tested (dataforge_ml.evaluation.imputation._records.C2STOutcome attribute)</a>
 </li>
       <li><a href="api/pipeline.html#dataforge_ml.config.SemanticType.Text">Text (dataforge_ml.config.SemanticType attribute)</a>
 </li>
@@ -1306,9 +1394,9 @@
       <li><a href="api/pipeline.html#dataforge_ml.config.PipelineConfig.to_dict">to_dict() (dataforge_ml.config.PipelineConfig method)</a>
 
       <ul>
-        <li><a href="api/imputation.html#dataforge_ml.imputation._config.AccuracyDiagnostic.to_dict">(dataforge_ml.imputation._config.AccuracyDiagnostic method)</a>
+        <li><a href="api/evaluation.html#dataforge_ml.evaluation._config.C2STConfig.to_dict">(dataforge_ml.evaluation._config.C2STConfig method)</a>
 </li>
-        <li><a href="api/imputation.html#dataforge_ml.imputation._config.AccuracyReport.to_dict">(dataforge_ml.imputation._config.AccuracyReport method)</a>
+        <li><a href="api/evaluation.html#dataforge_ml.evaluation._config.EvaluationConfig.to_dict">(dataforge_ml.evaluation._config.EvaluationConfig method)</a>
 </li>
         <li><a href="api/imputation.html#dataforge_ml.imputation._config.ColumnImputationDecision.to_dict">(dataforge_ml.imputation._config.ColumnImputationDecision method)</a>
 </li>
@@ -1319,10 +1407,6 @@
         <li><a href="api/imputation.html#dataforge_ml.imputation._config.ImputationDecision.to_dict">(dataforge_ml.imputation._config.ImputationDecision method)</a>
 </li>
         <li><a href="api/imputation.html#dataforge_ml.imputation._config.ImputationUnit.to_dict">(dataforge_ml.imputation._config.ImputationUnit method)</a>
-</li>
-        <li><a href="api/imputation.html#dataforge_ml.imputation._config.InspectionDiagnostic.to_dict">(dataforge_ml.imputation._config.InspectionDiagnostic method)</a>
-</li>
-        <li><a href="api/imputation.html#dataforge_ml.imputation._config.InspectionReport.to_dict">(dataforge_ml.imputation._config.InspectionReport method)</a>
 </li>
         <li><a href="api/imputation.html#dataforge_ml.imputation._config.NumericImputationConfig.to_dict">(dataforge_ml.imputation._config.NumericImputationConfig method)</a>
 </li>
@@ -1353,8 +1437,6 @@
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/profiling.html#dataforge_ml.profiling._config.StructuralProfileResult.to_full_markdown">to_full_markdown() (dataforge_ml.profiling._config.StructuralProfileResult method)</a>
-</li>
       <li><a href="api/pipeline.html#dataforge_ml.config.PipelineConfig.to_json">to_json() (dataforge_ml.config.PipelineConfig method)</a>
 
       <ul>
@@ -1363,8 +1445,32 @@
         <li><a href="api/profiling.html#dataforge_ml.profiling._config.StructuralProfileResult.to_json">(dataforge_ml.profiling._config.StructuralProfileResult method)</a>
 </li>
       </ul></li>
-      <li><a href="api/profiling.html#dataforge_ml.profiling._config.StructuralProfileResult.to_markdown">to_markdown() (dataforge_ml.profiling._config.StructuralProfileResult method)</a>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation._c2st.C2STResult.to_markdown">to_markdown() (dataforge_ml.evaluation._c2st.C2STResult method)</a>
+
+      <ul>
+        <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STProvenance.to_markdown">(dataforge_ml.evaluation.imputation._records.C2STProvenance method)</a>
 </li>
+        <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STReport.to_markdown">(dataforge_ml.evaluation.imputation._records.C2STReport method)</a>
+</li>
+        <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STScore.to_markdown">(dataforge_ml.evaluation.imputation._records.C2STScore method)</a>
+</li>
+        <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.ColumnC2STResult.to_markdown">(dataforge_ml.evaluation.imputation._records.ColumnC2STResult method)</a>
+</li>
+        <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.EvaluationReport.to_markdown">(dataforge_ml.evaluation.imputation._records.EvaluationReport method)</a>
+</li>
+        <li><a href="api/imputation.html#dataforge_ml.imputation._config.ColumnImputationDecision.to_markdown">(dataforge_ml.imputation._config.ColumnImputationDecision method)</a>
+</li>
+        <li><a href="api/imputation.html#dataforge_ml.imputation._config.ColumnImputationRecord.to_markdown">(dataforge_ml.imputation._config.ColumnImputationRecord method)</a>
+</li>
+        <li><a href="api/imputation.html#dataforge_ml.imputation._config.ImputationDecision.to_markdown">(dataforge_ml.imputation._config.ImputationDecision method)</a>
+</li>
+        <li><a href="api/imputation.html#dataforge_ml.imputation._config.ImputationResult.to_markdown">(dataforge_ml.imputation._config.ImputationResult method)</a>
+</li>
+        <li><a href="api/imputation.html#dataforge_ml.imputation._config.ImputationUnit.to_markdown">(dataforge_ml.imputation._config.ImputationUnit method)</a>
+</li>
+        <li><a href="api/profiling.html#dataforge_ml.profiling._config.StructuralProfileResult.to_markdown">(dataforge_ml.profiling._config.StructuralProfileResult method)</a>
+</li>
+      </ul></li>
       <li><a href="api/observability.html#dataforge_ml.observability.PipelineEvent.total">total (dataforge_ml.observability.PipelineEvent attribute)</a>
 </li>
       <li><a href="api/splitting.html#dataforge_ml.splitting._config.FoldResult.train">train (dataforge_ml.splitting._config.FoldResult attribute)</a>
@@ -1373,6 +1479,8 @@
         <li><a href="api/splitting.html#dataforge_ml.splitting._config.SplitResult.train">(dataforge_ml.splitting._config.SplitResult attribute)</a>
 </li>
       </ul></li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation._c2st.C2STResult.train_accuracy">train_accuracy (dataforge_ml.evaluation._c2st.C2STResult attribute)</a>
+</li>
       <li><a href="api/splitting.html#dataforge_ml.splitting._config.SplitResult.train_ratio">train_ratio (dataforge_ml.splitting._config.SplitResult attribute)</a>
 </li>
       <li><a href="api/splitting.html#dataforge_ml.splitting._config.FoldResult.train_size">train_size (dataforge_ml.splitting._config.FoldResult attribute)</a>
@@ -1393,12 +1501,16 @@
 </li>
       <li><a href="api/profiling.html#dataforge_ml.profiling._type_detection_config.TypeDetectionConfig">TypeDetectionConfig (class in dataforge_ml.profiling._type_detection_config)</a>
 </li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STOutcome.TypeNotTestable">TypeNotTestable (dataforge_ml.evaluation.imputation._records.C2STOutcome attribute)</a>
+</li>
   </ul></td>
 </tr></table>
 
 <h2 id="U">U</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STOutcome.Uninformative">Uninformative (dataforge_ml.evaluation.imputation._records.C2STOutcome attribute)</a>
+</li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.ImputationUnit.unit_id">unit_id (dataforge_ml.imputation._config.ImputationUnit attribute)</a>
 
       <ul>
@@ -1411,10 +1523,10 @@
       </ul></li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._unit_fit.UnitFitResult">UnitFitResult (class in dataforge_ml.imputation._unit_fit)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/imputation.html#dataforge_ml.imputation._unit_fit.UnitNotTrainableError">UnitNotTrainableError (class in dataforge_ml.imputation._unit_fit)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.ImputationDecision.units">units (dataforge_ml.imputation._config.ImputationDecision attribute)</a>
 
       <ul>
@@ -1422,6 +1534,10 @@
 </li>
       </ul></li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.ImputationDecision.units_for">units_for() (dataforge_ml.imputation._config.ImputationDecision method)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation._c2st.C2STResult.unseen_category">unseen_category (dataforge_ml.evaluation._c2st.C2STResult attribute)</a>
+</li>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STAnnotation.UnseenCategory">UnseenCategory (dataforge_ml.evaluation.imputation._records.C2STAnnotation attribute)</a>
 </li>
       <li><a href="api/imputation.html#dataforge_ml.imputation._fitted_imputer.UnseenColumnError">UnseenColumnError (class in dataforge_ml.imputation._fitted_imputer)</a>
 </li>
@@ -1441,7 +1557,7 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/imputation.html#dataforge_ml.imputation._config.ImputationConfig.validate">validate() (dataforge_ml.imputation._config.ImputationConfig method)</a>
 </li>
-      <li><a href="api/imputation.html#dataforge_ml.imputation._config.InspectionDiagnostic.variance_ratio">variance_ratio (dataforge_ml.imputation._config.InspectionDiagnostic attribute)</a>
+      <li><a href="api/evaluation.html#dataforge_ml.evaluation.imputation._records.ColumnC2STResult.verdict">verdict (dataforge_ml.evaluation.imputation._records.ColumnC2STResult attribute)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -1493,8 +1609,8 @@
   </div>
   
   <!-- Scripts loaded after <body> so the DOM is not blocked -->
-  <script defer src="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
-<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+  <script defer src="_static/scripts/bootstrap.js?digest=cb8930eaaf36d9849b67"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=cb8930eaaf36d9849b67"></script>
 
   <footer class="bd-footer">
 <div class="bd-footer__inner bd-page-width">
@@ -1518,7 +1634,7 @@
         <div class="footer-item">
 <p class="theme-version">
   <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
-  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.21.0.
 </p></div>
       
     </div>

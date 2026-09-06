@@ -26,16 +26,16 @@
   </noscript>
   
   <!-- Loaded before other Sphinx assets -->
-  <link href="../../../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
-<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+  <link href="../../../_static/styles/theme.css?digest=cb8930eaaf36d9849b67" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=cb8930eaaf36d9849b67" rel="stylesheet" />
 
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
   
   <!-- So that users can add custom icons -->
-  <script defer src="../../../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <script defer src="../../../_static/scripts/fontawesome.js?digest=cb8930eaaf36d9849b67"></script>
   <!-- Pre-loaded scripts that we'll load fully later -->
-  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
-<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=cb8930eaaf36d9849b67" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=cb8930eaaf36d9849b67" />
 
     <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
     <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
@@ -150,15 +150,15 @@
 
 
 <li class="nav-item ">
-  <a class="nav-link nav-internal" href="../../../api/splitting.html">
-    Splitting
+  <a class="nav-link nav-internal" href="../../../api/evaluation.html">
+    Evaluation
   </a>
 </li>
 
 
 <li class="nav-item ">
-  <a class="nav-link nav-internal" href="../../../api/persistence.html">
-    Persistence
+  <a class="nav-link nav-internal" href="../../../api/splitting.html">
+    Splitting
   </a>
 </li>
 
@@ -170,6 +170,13 @@
                 </button>
                 <ul id="pst-nav-more-links" class="dropdown-menu">
                     
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../api/persistence.html">
+    Persistence
+  </a>
+</li>
+
+
 <li class=" ">
   <a class="nav-link dropdown-item nav-internal" href="../../../api/observability.html">
     Observability
@@ -281,6 +288,13 @@
 <li class="nav-item ">
   <a class="nav-link nav-internal" href="../../../api/imputation.html">
     Imputation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api/evaluation.html">
+    Evaluation
   </a>
 </li>
 
@@ -429,6 +443,7 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">..config</span><span class="w"> </span><span class="kn">import</span> <span class="n">Modality</span><span class="p">,</span> <span class="n">PipelineConfig</span><span class="p">,</span> <span class="n">PipelinePhase</span><span class="p">,</span> <span class="n">SemanticType</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">..observability</span><span class="w"> </span><span class="kn">import</span> <span class="n">Observer</span><span class="p">,</span> <span class="n">_ObservabilityMixin</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..utils._dtype_floor</span><span class="w"> </span><span class="kn">import</span> <span class="n">_apply_dtype_floor</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">..utils._null_normalization</span><span class="w"> </span><span class="kn">import</span> <span class="n">_resolve_effective_nulls</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._base</span><span class="w"> </span><span class="kn">import</span> <span class="n">ColumnBatchProfiler</span><span class="p">,</span> <span class="n">ModalityProfiler</span><span class="p">,</span> <span class="n">OverrideCoercionError</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._boolean_profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">BooleanProfiler</span>
@@ -647,11 +662,25 @@
             <span class="n">type_to_cols</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">sem_type</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">col_name</span><span class="p">)</span>
 
         <span class="n">pc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">profiling</span>
-        <span class="n">profiling_frame</span> <span class="o">=</span> <span class="n">_resolve_effective_nulls</span><span class="p">(</span>
+        <span class="c1"># Phase entry: resolve effective nulls, then enforce the Dtype Floor</span>
+        <span class="c1"># (ADR-0085). The order is fixed — the floor casts away the string</span>
+        <span class="c1"># namespace the sentinel rules need.</span>
+        <span class="n">resolved_frame</span> <span class="o">=</span> <span class="n">_resolve_effective_nulls</span><span class="p">(</span>
             <span class="n">data</span><span class="p">,</span>
             <span class="n">numeric_sentinels</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">pc</span><span class="o">.</span><span class="n">numeric_sentinels</span><span class="p">),</span>
             <span class="n">string_sentinels</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">pc</span><span class="o">.</span><span class="n">string_sentinels</span><span class="p">),</span>
         <span class="p">)</span>
+        <span class="n">profiling_frame</span> <span class="o">=</span> <span class="n">_apply_dtype_floor</span><span class="p">(</span>
+            <span class="n">resolved_frame</span><span class="p">,</span>
+            <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">cp</span><span class="o">.</span><span class="n">semantic_type</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">cp</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span>
+        <span class="p">)</span>
+        <span class="c1"># The Boolean and Datetime profilers are the coercion *authority* for</span>
+        <span class="c1"># their own semantic types, not consumers of the floor: they alone</span>
+        <span class="c1"># apply the user&#39;s declared datetime formats and epoch units, and they</span>
+        <span class="c1"># raise Format Mismatch by counting the values that survive coercion.</span>
+        <span class="c1"># Reading a floored frame would hide the dirt behind the floor&#39;s own</span>
+        <span class="c1"># generic coercion, so they read the frame as it arrived.</span>
+        <span class="n">_COERCION_AUTHORITIES</span> <span class="o">=</span> <span class="p">(</span><span class="n">SemanticType</span><span class="o">.</span><span class="n">Boolean</span><span class="p">,</span> <span class="n">SemanticType</span><span class="o">.</span><span class="n">Datetime</span><span class="p">)</span>
 
         <span class="c1"># This is the expensive stretch: emit an ``item`` heartbeat per column</span>
         <span class="c1"># (1-based, monotonic across the whole stage) so a watching observer</span>
@@ -685,7 +714,12 @@
                     <span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cols</span>
                     <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="ow">and</span> <span class="n">TypeFlag</span><span class="o">.</span><span class="n">UserOverride</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">type_flags</span>
                 <span class="p">}</span>
-                <span class="n">batch</span> <span class="o">=</span> <span class="n">profiler</span><span class="o">.</span><span class="n">profile</span><span class="p">(</span><span class="n">profiling_frame</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">cols</span><span class="p">,</span> <span class="n">user_overrides</span><span class="o">=</span><span class="n">user_overrides</span><span class="p">)</span>
+                <span class="n">frame</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="n">resolved_frame</span>
+                    <span class="k">if</span> <span class="n">sem_type</span> <span class="ow">in</span> <span class="n">_COERCION_AUTHORITIES</span>
+                    <span class="k">else</span> <span class="n">profiling_frame</span>
+                <span class="p">)</span>
+                <span class="n">batch</span> <span class="o">=</span> <span class="n">profiler</span><span class="o">.</span><span class="n">profile</span><span class="p">(</span><span class="n">frame</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">cols</span><span class="p">,</span> <span class="n">user_overrides</span><span class="o">=</span><span class="n">user_overrides</span><span class="p">)</span>
                 <span class="k">for</span> <span class="n">col_name</span> <span class="ow">in</span> <span class="n">batch</span><span class="o">.</span><span class="n">analysed_columns</span><span class="p">:</span>
                     <span class="k">if</span> <span class="n">col_name</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
                         <span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">col_name</span><span class="p">]</span><span class="o">.</span><span class="n">stats</span> <span class="o">=</span> <span class="n">batch</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">col_name</span><span class="p">)</span>
@@ -914,8 +948,8 @@
   </div>
   
   <!-- Scripts loaded after <body> so the DOM is not blocked -->
-  <script defer src="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
-<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=cb8930eaaf36d9849b67"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=cb8930eaaf36d9849b67"></script>
 
   <footer class="bd-footer">
 <div class="bd-footer__inner bd-page-width">
@@ -939,7 +973,7 @@
         <div class="footer-item">
 <p class="theme-version">
   <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
-  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.21.0.
 </p></div>
       
     </div>

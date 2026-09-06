@@ -1,0 +1,1220 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>dataforge_ml.evaluation.imputation._records &#8212; DataForgeML  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../../_static/styles/theme.css?digest=cb8930eaaf36d9849b67" rel="stylesheet" />
+<link href="../../../../_static/styles/pydata-sphinx-theme.css?digest=cb8930eaaf36d9849b67" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=8f2a1f02" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../../../../_static/scripts/fontawesome.js?digest=cb8930eaaf36d9849b67"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../../_static/scripts/bootstrap.js?digest=cb8930eaaf36d9849b67" />
+<link rel="preload" as="script" href="../../../../_static/scripts/pydata-sphinx-theme.js?digest=cb8930eaaf36d9849b67" />
+
+    <script src="../../../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/dataforge_ml/evaluation/imputation/_records';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../../../../_static/searchtools.js"></script>
+    <script src="../../../../_static/language_data.js"></script>
+    <script src="../../../../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">DataForgeML  documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../api/pipeline.html">
+    Pipeline
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../api/profiling.html">
+    Profiling
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../api/imputation.html">
+    Imputation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../api/evaluation.html">
+    Evaluation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../api/splitting.html">
+    Splitting
+  </a>
+</li>
+
+            <li class="nav-item dropdown">
+                <button class="btn dropdown-toggle nav-item" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false"
+                aria-controls="pst-nav-more-links">
+                    More
+                </button>
+                <ul id="pst-nav-more-links" class="dropdown-menu">
+                    
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../../api/persistence.html">
+    Persistence
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../../api/observability.html">
+    Observability
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../../api/utilities.html">
+    Utilities
+  </a>
+</li>
+
+                </ul>
+            </li>
+            
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../api/pipeline.html">
+    Pipeline
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../api/profiling.html">
+    Profiling
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../api/imputation.html">
+    Imputation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../api/evaluation.html">
+    Evaluation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../api/splitting.html">
+    Splitting
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../api/persistence.html">
+    Persistence
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../api/observability.html">
+    Observability
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../api/utilities.html">
+    Utilities
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">dataforge_ml.evaluation.imputation._records</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for dataforge_ml.evaluation.imputation._records</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;The records ``evaluate_imputation`` returns.</span>
+
+<span class="sd">One record per **active** column, always: *untestable is a result, never an</span>
+<span class="sd">absence*. A 200-column table yields 200 records, and the ones the test could</span>
+<span class="sd">not run on carry a reason rather than going silently missing. ``report[col]``</span>
+<span class="sd">and ``col in report`` work; a column the user excluded raises ``KeyError``,</span>
+<span class="sd">because it is not in the census at all.</span>
+
+<span class="sd">Refusal is **structural, not a sentinel number**: a refused column has no</span>
+<span class="sd">:class:`C2STScore` object, so ``result.score.mean_frame_z`` raises</span>
+<span class="sd">``AttributeError`` on the spot instead of feeding a ``0.0`` into a mean, a plot</span>
+<span class="sd">or a comparison. The ``m`` frames nest *inside* the column record rather than</span>
+<span class="sd">forming a second key, because the missingness mask is ``m``-invariant — pile</span>
+<span class="sd">sizes, floors and annotations are column-level facts that cannot differ</span>
+<span class="sd">between frames, so they are stated once and cannot disagree with themselves.</span>
+
+<span class="sd">A tested column&#39;s :class:`C2STVerdict` is stamped on by :class:`C2STReport`</span>
+<span class="sd">after Benjamini-Hochberg runs across the tested set, because BH is a property</span>
+<span class="sd">of the *set* and no single record can compute it. The verdict is three-valued</span>
+<span class="sd">and never a bool: a refused column has ``NoVerdict``, where ``False`` would</span>
+<span class="sd">read as &quot;checked, fine&quot;.</span>
+
+<span class="sd">Every type here is a Result Type under the Rendering Contract (ADR-0086): one</span>
+<span class="sd">``to_markdown()``, ``__str__`` delegating to it, fragments rooted at ``###``.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Iterator</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">replace</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">StrEnum</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Optional</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.._c2st</span><span class="w"> </span><span class="kn">import</span> <span class="n">C2STResult</span><span class="p">,</span> <span class="n">_md_cell</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">C2STConfig</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">&quot;C2STAnnotation&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;C2STOutcome&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;C2STProvenance&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;C2STReport&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;C2STScore&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;C2STVerdict&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;ColumnC2STResult&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;EvaluationReport&quot;</span><span class="p">,</span>
+<span class="p">]</span>
+
+<span class="c1"># The two fixed notes a report carrying a ``Flagged`` column prints. Both are</span>
+<span class="c1"># constants and neither has a dial: the full-configurability principle governs</span>
+<span class="c1"># thresholds and behaviour, not whether the library discloses a known limit of</span>
+<span class="c1"># its own number (ADR-0087).</span>
+<span class="n">_BASELINE_FRAMING</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="s2">&quot;**Reading a flag.** A column filled by a scalar strategy &quot;</span>
+    <span class="s2">&quot;(Mean/Median/Mode/Constant) is *expected* to be flagged: the filled cells &quot;</span>
+    <span class="s2">&quot;sit on one exact value, the column is itself a feature, and C2ST catches &quot;</span>
+    <span class="s2">&quot;that at close to 100%. Forty flagged scalar columns are the baseline this &quot;</span>
+    <span class="s2">&quot;number is read against, not forty defects — judge a model-based column &quot;</span>
+    <span class="s2">&quot;against them.&quot;</span>
+<span class="p">)</span>
+
+<span class="n">_MAR_CAVEAT</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="s2">&quot;**Caveat — MAR.** A fired test cannot separate </span><span class="se">\&quot;</span><span class="s2">the imputation is bad</span><span class="se">\&quot;</span><span class="s2"> &quot;</span>
+    <span class="s2">&quot;from </span><span class="se">\&quot;</span><span class="s2">the missingness is strongly MAR</span><span class="se">\&quot;</span><span class="s2">: under a MAR mechanism the &quot;</span>
+    <span class="s2">&quot;observed and filled rows are *supposed* to differ, so the piles differ for &quot;</span>
+    <span class="s2">&quot;a reason that is not the imputation&#39;s fault. The `z` is true; the &quot;</span>
+    <span class="s2">&quot;attribution is not. Nothing suppresses this note.&quot;</span>
+<span class="p">)</span>
+
+
+<div class="viewcode-block" id="C2STOutcome">
+<a class="viewcode-back" href="../../../../api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STOutcome">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">C2STOutcome</span><span class="p">(</span><span class="n">StrEnum</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;What happened to one column — the closed six-member vocabulary.</span>
+
+<span class="sd">    A seventh member is a breaking change. Exported despite classifying output</span>
+<span class="sd">    and never being supplied, a stated exception to ADR-0050: reading the</span>
+<span class="sd">    report *is* comparing against it (``rec.outcome is C2STOutcome.Tested``),</span>
+<span class="sd">    so the handling half of the export rule reaches it.</span>
+
+<span class="sd">    ``Tested`` is the only member carrying a :class:`C2STScore`; the other five</span>
+<span class="sd">    are refusals, each naming why the test could not produce an honest number.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">Tested</span> <span class="o">=</span> <span class="s2">&quot;tested&quot;</span>
+    <span class="n">NoFilledCells</span> <span class="o">=</span> <span class="s2">&quot;no_filled_cells&quot;</span>
+    <span class="n">NoObservedCells</span> <span class="o">=</span> <span class="s2">&quot;no_observed_cells&quot;</span>
+    <span class="n">TypeNotTestable</span> <span class="o">=</span> <span class="s2">&quot;type_not_testable&quot;</span>
+    <span class="n">BelowSampleFloor</span> <span class="o">=</span> <span class="s2">&quot;below_sample_floor&quot;</span>
+    <span class="n">Uninformative</span> <span class="o">=</span> <span class="s2">&quot;uninformative&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="C2STAnnotation">
+<a class="viewcode-back" href="../../../../api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STAnnotation">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">C2STAnnotation</span><span class="p">(</span><span class="n">StrEnum</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A fact riding on a result the test actually ran — never a refusal.</span>
+
+<span class="sd">    Annotations do not suppress the ``z``; they qualify it. A column carrying</span>
+<span class="sd">    ``LowPower`` was tested honestly and simply had too little data for the</span>
+<span class="sd">    answer to mean much, which is why a pass there reads &quot;not enough data to</span>
+<span class="sd">    tell&quot; rather than &quot;clean&quot;.</span>
+
+<span class="sd">    Two members are column-level facts read off the pile sizes</span>
+<span class="sd">    (:attr:`LowPower`, :attr:`ImbalancedPiles`) and two are rolled up from the</span>
+<span class="sd">    per-frame :class:`~dataforge_ml.evaluation.C2STResult` flags</span>
+<span class="sd">    (:attr:`Degenerate`, :attr:`UnseenCategory`). Unlike</span>
+<span class="sd">    :class:`C2STOutcome` this vocabulary is open: a seventh outcome is a</span>
+<span class="sd">    breaking change, a further annotation is additive.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    LowPower</span>
+<span class="sd">        The balanced pile size is under ``C2STConfig.low_power_below``.</span>
+<span class="sd">    ImbalancedPiles</span>
+<span class="sd">        ``min(n_observed, n_filled) / max(...)`` is under</span>
+<span class="sd">        ``C2STConfig.imbalance_warn_ratio``, so the smaller pile caps the</span>
+<span class="sd">        effective sample size.</span>
+<span class="sd">    Degenerate</span>
+<span class="sd">        At least one — but not every — frame&#39;s classifier predicted a single</span>
+<span class="sd">        class in every repeat. Every frame degenerating is the ``Uninformative``</span>
+<span class="sd">        outcome instead, since there is then no honest number left to report.</span>
+<span class="sd">    UnseenCategory</span>
+<span class="sd">        Some ``Categorical``/``Boolean`` level appears among the filled rows and</span>
+<span class="sd">        never among the observed ones. Computed as a set difference before the</span>
+<span class="sd">        test; the ``z`` is reported regardless, because inventing an unseen</span>
+<span class="sd">        *category* is always wrong whereas an unseen *numeric* value is</span>
+<span class="sd">        legitimate interpolation.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">LowPower</span> <span class="o">=</span> <span class="s2">&quot;low_power&quot;</span>
+    <span class="n">ImbalancedPiles</span> <span class="o">=</span> <span class="s2">&quot;imbalanced_piles&quot;</span>
+    <span class="n">Degenerate</span> <span class="o">=</span> <span class="s2">&quot;degenerate&quot;</span>
+    <span class="n">UnseenCategory</span> <span class="o">=</span> <span class="s2">&quot;unseen_category&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="C2STVerdict">
+<a class="viewcode-back" href="../../../../api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STVerdict">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">C2STVerdict</span><span class="p">(</span><span class="n">StrEnum</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether a human should go look at this column — three-valued, never a bool.</span>
+
+<span class="sd">    Stamped onto the record by :class:`C2STReport` after Benjamini-Hochberg</span>
+<span class="sd">    runs, because BH is a property of the *set* of tested columns and no single</span>
+<span class="sd">    record can compute it. The third member is the point: a column the test</span>
+<span class="sd">    could not run on has ``NoVerdict``, where ``False`` would read as &quot;checked,</span>
+<span class="sd">    fine&quot;.</span>
+
+<span class="sd">    A consequence worth stating: a :class:`ColumnC2STResult` lifted out of its</span>
+<span class="sd">    report carries a verdict whose meaning depends on the set it came from.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    Flagged</span>
+<span class="sd">        The BH-adjusted p-value is at or below ``C2STConfig.fdr_alpha``.</span>
+<span class="sd">    NotFlagged</span>
+<span class="sd">        The column was tested and its adjusted p-value is above the level.</span>
+<span class="sd">    NoVerdict</span>
+<span class="sd">        The column was never tested, so there is nothing to correct and nothing</span>
+<span class="sd">        to conclude.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">Flagged</span> <span class="o">=</span> <span class="s2">&quot;flagged&quot;</span>
+    <span class="n">NotFlagged</span> <span class="o">=</span> <span class="s2">&quot;not_flagged&quot;</span>
+    <span class="n">NoVerdict</span> <span class="o">=</span> <span class="s2">&quot;no_verdict&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="C2STScore">
+<a class="viewcode-back" href="../../../../api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STScore">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">C2STScore</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Every number that exists only when the test actually ran.</span>
+
+<span class="sd">    Nullability is the whole point: a refused column holds ``score = None``, so</span>
+<span class="sd">    a refusal can never arithmetic-collapse into a passing figure. A refused</span>
+<span class="sd">    column and a chance-scoring column differ by *having or not having this</span>
+<span class="sd">    object*.</span>
+
+<span class="sd">    The headline is :attr:`mean_frame_z` — the mean ``z`` over the ``m`` frames</span>
+<span class="sd">    **against the single-run null**. Dividing that null&#39;s SD by ``√m`` is</span>
+<span class="sd">    forbidden (ADR-0087): the frames share pile A entirely, so shrinking the</span>
+<span class="sd">    null manufactures significance. No field at any level is named plain ``z``.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    mean_frame_z : float</span>
+<span class="sd">        The mean of the per-frame :attr:`C2STResult.mean_repeat_z`, read</span>
+<span class="sd">        against the single-run null. The score.</span>
+<span class="sd">    frame_z_spread : float</span>
+<span class="sd">        The sample standard deviation of the per-frame ``z`` (``0.0`` at</span>
+<span class="sd">        ``m = 1``).</span>
+<span class="sd">    p_value : float</span>
+<span class="sd">        The one-sided, **upper-tail** normal p-value of :attr:`mean_frame_z`.</span>
+<span class="sd">        Present but never the score: a p-value is a function of the</span>
+<span class="sd">        discrepancy *and* of ``n``, so it floors out on large tables and</span>
+<span class="sd">        changes meaning across datasets. Below-chance accuracy therefore reads</span>
+<span class="sd">        as noise rather than as evidence of excellent imputation.</span>
+<span class="sd">    p_adjusted : float, optional</span>
+<span class="sd">        The Benjamini–Hochberg adjusted p-value, stamped on by the report after</span>
+<span class="sd">        correction runs across the tested set. ``None`` until it does.</span>
+<span class="sd">    frames : tuple[C2STResult, ...]</span>
+<span class="sd">        One generic result per imputed frame, in the order the frames were</span>
+<span class="sd">        supplied.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">mean_frame_z</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">frame_z_spread</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">p_value</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="n">p_adjusted</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">frames</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">C2STResult</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+
+<div class="viewcode-block" id="C2STScore.to_markdown">
+<a class="viewcode-back" href="../../../../api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STScore.to_markdown">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_markdown</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Render the score as a ``###``-rooted Markdown fragment.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            Markdown subsection headed by ``### C2ST Score``, holding the</span>
+<span class="sd">            pooled figures and one row per frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="s2">&quot;### C2ST Score</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;| Field | Value |&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;|---|---|&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| mean_frame_z | </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">mean_frame_z</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| frame_z_spread | </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">frame_z_spread</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| p_value | </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">p_value</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;| p_adjusted | &quot;</span>
+            <span class="o">+</span> <span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">p_adjusted</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">p_adjusted</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="k">else</span> <span class="n">_md_cell</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+            <span class="p">)</span>
+            <span class="o">+</span> <span class="s2">&quot; |&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| frames | </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">frames</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+        <span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">frames</span><span class="p">:</span>
+            <span class="n">lines</span> <span class="o">+=</span> <span class="p">[</span>
+                <span class="p">(</span>
+                    <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">| Frame | mean_repeat_z | repeat_z_spread &quot;</span>
+                    <span class="s2">&quot;| train_accuracy | test_accuracy | n_test |&quot;</span>
+                <span class="p">),</span>
+                <span class="s2">&quot;|---|---|---|---|---|---|&quot;</span><span class="p">,</span>
+            <span class="p">]</span>
+            <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">frame</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">frames</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+                <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;| </span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2"> | </span><span class="si">{</span><span class="n">frame</span><span class="o">.</span><span class="n">mean_repeat_z</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> | &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">frame</span><span class="o">.</span><span class="n">repeat_z_spread</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> | &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">frame</span><span class="o">.</span><span class="n">train_accuracy</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> | &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">frame</span><span class="o">.</span><span class="n">test_accuracy</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> | </span><span class="si">{</span><span class="n">frame</span><span class="o">.</span><span class="n">n_test</span><span class="si">}</span><span class="s2"> |&quot;</span>
+                <span class="p">)</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the fragment, per rule 2 of the Rendering Contract.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            The output of :meth:`to_markdown`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_markdown</span><span class="p">()</span></div>
+
+
+
+<div class="viewcode-block" id="ColumnC2STResult">
+<a class="viewcode-back" href="../../../../api/evaluation.html#dataforge_ml.evaluation.imputation._records.ColumnC2STResult">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ColumnC2STResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;One active column&#39;s result — an outcome first, a number only sometimes.</span>
+
+<span class="sd">    The two pile sizes are stated whatever the outcome, because they are the</span>
+<span class="sd">    facts that explain a refusal.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    column : str</span>
+<span class="sd">        The column the record describes.</span>
+<span class="sd">    outcome : C2STOutcome</span>
+<span class="sd">        What happened. Only ``Tested`` carries a :attr:`score`.</span>
+<span class="sd">    annotations : tuple[C2STAnnotation, ...]</span>
+<span class="sd">        Facts qualifying a result the test actually ran, in a fixed order.</span>
+<span class="sd">        Empty on a column refused before the test ever ran, since there is</span>
+<span class="sd">        then no number for them to qualify. They never suppress the ``z``.</span>
+<span class="sd">    verdict : C2STVerdict</span>
+<span class="sd">        Whether a human should go look at this column, stamped on by</span>
+<span class="sd">        :class:`C2STReport` once Benjamini-Hochberg has run across the tested</span>
+<span class="sd">        set. ``NoVerdict`` on every refusal — and on a record that has not been</span>
+<span class="sd">        through a report at all.</span>
+<span class="sd">    n_observed : int</span>
+<span class="sd">        Pile A&#39;s raw size — the rows where the column was observed, before</span>
+<span class="sd">        balancing.</span>
+<span class="sd">    n_filled : int</span>
+<span class="sd">        Pile B&#39;s raw size — the rows where the column was filled, before</span>
+<span class="sd">        balancing. Rows carrying a declared sentinel are here, not in pile A.</span>
+<span class="sd">    score : C2STScore, optional</span>
+<span class="sd">        The numbers, present only on a ``Tested`` outcome. ``None`` on every</span>
+<span class="sd">        refusal, so ``result.score.mean_frame_z`` raises ``AttributeError``</span>
+<span class="sd">        rather than reading a stand-in.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">column</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">outcome</span><span class="p">:</span> <span class="n">C2STOutcome</span>
+    <span class="n">n_observed</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">n_filled</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">score</span><span class="p">:</span> <span class="n">C2STScore</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">annotations</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">C2STAnnotation</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+    <span class="n">verdict</span><span class="p">:</span> <span class="n">C2STVerdict</span> <span class="o">=</span> <span class="n">C2STVerdict</span><span class="o">.</span><span class="n">NoVerdict</span>
+
+<div class="viewcode-block" id="ColumnC2STResult.to_markdown">
+<a class="viewcode-back" href="../../../../api/evaluation.html#dataforge_ml.evaluation.imputation._records.ColumnC2STResult.to_markdown">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_markdown</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Render the column&#39;s result as a ``###``-rooted Markdown fragment.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            Markdown subsection headed by ``### Column `&lt;name&gt;```, followed by</span>
+<span class="sd">            the score&#39;s own fragment when the column was tested.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="sa">f</span><span class="s2">&quot;### Column `</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">column</span><span class="si">}</span><span class="s2">`</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;| Field | Value |&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;|---|---|&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| outcome | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">outcome</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| verdict | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">verdict</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| annotations | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">annotations</span><span class="p">))</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| n_observed | </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">n_observed</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| n_filled | </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">n_filled</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+        <span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">score</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;| mean_frame_z | </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">score</span><span class="o">.</span><span class="n">mean_frame_z</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">)</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">score</span><span class="o">.</span><span class="n">to_markdown</span><span class="p">())</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the fragment, per rule 2 of the Rendering Contract.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            The output of :meth:`to_markdown`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_markdown</span><span class="p">()</span></div>
+
+
+
+<div class="viewcode-block" id="C2STProvenance">
+<a class="viewcode-back" href="../../../../api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STProvenance">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">C2STProvenance</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;What ran, so a number can still be argued with six months later.</span>
+
+<span class="sd">    One object per call: a single evaluation uses one classifier and one</span>
+<span class="sd">    resolved :class:`~dataforge_ml.evaluation.C2STConfig` for every column, so</span>
+<span class="sd">    it hangs off the report rather than off each record.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    classifier_class : str</span>
+<span class="sd">        The fully qualified class name of the classifier that ran.</span>
+<span class="sd">    classifier_params : dict[str, str]</span>
+<span class="sd">        The classifier&#39;s **full** ``get_params()``, values stringified.</span>
+<span class="sd">        Deliberately not its ``repr``, which elides every parameter left at its</span>
+<span class="sd">        default — exactly the fact most needed when arguing with a report.</span>
+<span class="sd">        Stringified because ``get_params()`` can hold live nested estimators.</span>
+<span class="sd">    classifier_injected : bool</span>
+<span class="sd">        Whether the classifier was the user&#39;s. Its own field rather than</span>
+<span class="sd">        something inferred from the class name: &quot;the library&#39;s default&quot; and &quot;a</span>
+<span class="sd">        user-supplied instance that happens to look identical&quot; answer different</span>
+<span class="sd">        questions, and only the first carries the pins.</span>
+<span class="sd">    sklearn_version : str</span>
+<span class="sd">        The scikit-learn version that produced the numbers, so a figure that</span>
+<span class="sd">        changes after an upgrade is explicable.</span>
+<span class="sd">    config : C2STConfig</span>
+<span class="sd">        The resolved dials. A report that cannot say what ``min_filled_cells``</span>
+<span class="sd">        was when it refused a column is a report you cannot argue with.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">classifier_class</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">classifier_params</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">classifier_injected</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">sklearn_version</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">C2STConfig</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">C2STConfig</span><span class="p">)</span>
+
+<div class="viewcode-block" id="C2STProvenance.to_markdown">
+<a class="viewcode-back" href="../../../../api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STProvenance.to_markdown">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_markdown</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Render the provenance as a ``###``-rooted Markdown fragment.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            Markdown subsection headed by ``### C2ST Provenance``, holding the</span>
+<span class="sd">            classifier identity, its full parameter set, and the resolved</span>
+<span class="sd">            dials.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="s2">&quot;### C2ST Provenance</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;| Field | Value |&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;|---|---|&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| classifier_class | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">classifier_class</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| classifier_injected | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">classifier_injected</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;| sklearn_version | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sklearn_version</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">#### Classifier parameters</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;| Parameter | Value |&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;|---|---|&quot;</span><span class="p">,</span>
+        <span class="p">]</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">classifier_params</span><span class="p">):</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;| </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="n">key</span><span class="p">)</span><span class="si">}</span><span class="s2"> | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">classifier_params</span><span class="p">[</span><span class="n">key</span><span class="p">])</span><span class="si">}</span><span class="s2"> |&quot;</span>
+            <span class="p">)</span>
+        <span class="n">lines</span> <span class="o">+=</span> <span class="p">[</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">#### Resolved config</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;| Dial | Value |&quot;</span><span class="p">,</span> <span class="s2">&quot;|---|---|&quot;</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;| </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="n">key</span><span class="p">)</span><span class="si">}</span><span class="s2"> | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="si">}</span><span class="s2"> |&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the fragment, per rule 2 of the Rendering Contract.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            The output of :meth:`to_markdown`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_markdown</span><span class="p">()</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_benjamini_hochberg</span><span class="p">(</span><span class="n">p_values</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the BH step-up adjusted p-values, in the input&#39;s own order.</span>
+
+<span class="sd">    ``p_adj_(i) = min over j &gt;= i of  p_(j) * k / j`` over the ascending sort,</span>
+<span class="sd">    the running minimum being what keeps the adjusted sequence monotone. Each</span>
+<span class="sd">    value is capped at 1.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">k</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">p_values</span><span class="p">)</span>
+    <span class="n">ascending</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">k</span><span class="p">),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">p_values</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+    <span class="n">adjusted</span> <span class="o">=</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">]</span> <span class="o">*</span> <span class="n">k</span>
+    <span class="n">running</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="k">for</span> <span class="n">rank</span><span class="p">,</span> <span class="n">index</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">reversed</span><span class="p">(</span><span class="n">ascending</span><span class="p">)):</span>
+        <span class="n">j</span> <span class="o">=</span> <span class="n">k</span> <span class="o">-</span> <span class="n">rank</span>
+        <span class="n">running</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">running</span><span class="p">,</span> <span class="n">p_values</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">*</span> <span class="n">k</span> <span class="o">/</span> <span class="n">j</span><span class="p">)</span>
+        <span class="n">adjusted</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">running</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">adjusted</span>
+
+
+<div class="viewcode-block" id="C2STReport">
+<a class="viewcode-back" href="../../../../api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STReport">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">C2STReport</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The column-keyed C2ST report for one evaluation call.</span>
+
+<span class="sd">    Holds one :class:`ColumnC2STResult` per **active** column, in the frame&#39;s</span>
+<span class="sd">    own column order, plus the run&#39;s :class:`C2STProvenance`.</span>
+
+<span class="sd">    Constructing the report is what runs Benjamini-Hochberg: the tested</span>
+<span class="sd">    columns&#39; verdicts and adjusted p-values are stamped on in</span>
+<span class="sd">    :meth:`__post_init__`, so a report never exists in an uncorrected state and</span>
+<span class="sd">    a record can never be corrected against a set it did not come from.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    columns : dict[str, ColumnC2STResult]</span>
+<span class="sd">        The census: every active column, keyed by name.</span>
+<span class="sd">    provenance : C2STProvenance</span>
+<span class="sd">        What ran and under which dials.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">columns</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ColumnC2STResult</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">provenance</span><span class="p">:</span> <span class="n">C2STProvenance</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span>
+        <span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">C2STProvenance</span><span class="p">(</span><span class="n">classifier_class</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+    <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Run Benjamini-Hochberg across the tested columns and stamp the records.</span>
+
+<span class="sd">        The correction lives here, and not in the adapter&#39;s per-column loop,</span>
+<span class="sd">        because BH is a property of the **set**: the adjusted p-value of one</span>
+<span class="sd">        column is a function of every other column&#39;s. Assembling the report is</span>
+<span class="sd">        therefore the only moment it can be computed, and doing it in</span>
+<span class="sd">        ``__post_init__`` means no ``C2STReport`` can exist in an uncorrected</span>
+<span class="sd">        state.</span>
+
+<span class="sd">        Only :attr:`ColumnC2STResult.score` and</span>
+<span class="sd">        :attr:`ColumnC2STResult.verdict` are rewritten. The raw</span>
+<span class="sd">        ``mean_frame_z`` is left exactly as measured: BH moves the shortlist,</span>
+<span class="sd">        never the score.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">tested</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">name</span>
+            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">record</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">record</span><span class="o">.</span><span class="n">score</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">tested</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="n">alpha</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">provenance</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">fdr_alpha</span>
+        <span class="n">adjusted</span> <span class="o">=</span> <span class="n">_benjamini_hochberg</span><span class="p">(</span>
+            <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">score</span><span class="o">.</span><span class="n">p_value</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">tested</span><span class="p">]</span>
+        <span class="p">)</span>
+        <span class="n">stamped</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">p_adjusted</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">tested</span><span class="p">,</span> <span class="n">adjusted</span><span class="p">):</span>
+            <span class="n">record</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+            <span class="n">stamped</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span>
+                <span class="n">record</span><span class="p">,</span>
+                <span class="n">score</span><span class="o">=</span><span class="n">replace</span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">score</span><span class="p">,</span> <span class="n">p_adjusted</span><span class="o">=</span><span class="n">p_adjusted</span><span class="p">),</span>
+                <span class="n">verdict</span><span class="o">=</span><span class="p">(</span>
+                    <span class="n">C2STVerdict</span><span class="o">.</span><span class="n">Flagged</span>
+                    <span class="k">if</span> <span class="n">p_adjusted</span> <span class="o">&lt;=</span> <span class="n">alpha</span>
+                    <span class="k">else</span> <span class="n">C2STVerdict</span><span class="o">.</span><span class="n">NotFlagged</span>
+                <span class="p">),</span>
+            <span class="p">)</span>
+        <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;columns&quot;</span><span class="p">,</span> <span class="n">stamped</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ColumnC2STResult</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return one column&#39;s record.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        column : str</span>
+<span class="sd">            The column name.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        ColumnC2STResult</span>
+<span class="sd">            The record for that column.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        KeyError</span>
+<span class="sd">            When the column was not evaluated — a column excluded by the</span>
+<span class="sd">            Phase Active-Columns Contract is not in the census at all, which is</span>
+<span class="sd">            what keeps exclusion and refusal distinguishable.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">column</span><span class="p">]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__contains__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Report whether a column has a record.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        column : object</span>
+<span class="sd">            The column name to look for.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        bool</span>
+<span class="sd">            ``True`` when the column was evaluated; ``False`` when it was</span>
+<span class="sd">            excluded.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">column</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Iterator</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Iterate the evaluated column names in report order.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Iterator[str]</span>
+<span class="sd">            The census&#39;s column names.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">iter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the number of evaluated columns.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        int</span>
+<span class="sd">            The census size.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_census</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Render the outcome census — the lines a 200-column report opens with.</span>
+
+<span class="sd">        Counts before rows: 190 refusals are two table rows here and a wall of</span>
+<span class="sd">        190 records below, so the reader learns the shape of the run before</span>
+<span class="sd">        deciding whether to read it.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="s2">&quot;**Outcome census** — no active columns.&quot;</span><span class="p">]</span>
+        <span class="n">outcomes</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">verdicts</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">outcomes</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">outcome</span><span class="p">)]</span> <span class="o">=</span> <span class="n">outcomes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">outcome</span><span class="p">),</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="n">verdicts</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">verdict</span><span class="p">)]</span> <span class="o">=</span> <span class="n">verdicts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">verdict</span><span class="p">),</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;**Outcome census** — </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span><span class="si">}</span><span class="s2"> active column&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="s1">&#39;&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;s&#39;</span><span class="si">}</span><span class="s2">.</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="p">),</span>
+            <span class="s2">&quot;| Outcome | Columns | Verdict | Columns |&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;|---|---|---|---|&quot;</span><span class="p">,</span>
+        <span class="p">]</span>
+        <span class="n">outcome_rows</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">member</span><span class="p">),</span> <span class="n">outcomes</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">member</span><span class="p">)])</span>
+            <span class="k">for</span> <span class="n">member</span> <span class="ow">in</span> <span class="n">C2STOutcome</span>
+            <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">member</span><span class="p">)</span> <span class="ow">in</span> <span class="n">outcomes</span>
+        <span class="p">]</span>
+        <span class="n">verdict_rows</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">member</span><span class="p">),</span> <span class="n">verdicts</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">member</span><span class="p">)])</span>
+            <span class="k">for</span> <span class="n">member</span> <span class="ow">in</span> <span class="n">C2STVerdict</span>
+            <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">member</span><span class="p">)</span> <span class="ow">in</span> <span class="n">verdicts</span>
+        <span class="p">]</span>
+        <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">outcome_rows</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">verdict_rows</span><span class="p">))):</span>
+            <span class="n">outcome</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">outcome_rows</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="k">if</span> <span class="n">index</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">outcome_rows</span><span class="p">)</span> <span class="k">else</span> <span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+            <span class="p">)</span>
+            <span class="n">verdict</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">verdict_rows</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="k">if</span> <span class="n">index</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">verdict_rows</span><span class="p">)</span> <span class="k">else</span> <span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+            <span class="p">)</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;| </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="n">outcome</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="si">}</span><span class="s2"> | </span><span class="si">{</span><span class="n">outcome</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2"> | &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="n">verdict</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="si">}</span><span class="s2"> | </span><span class="si">{</span><span class="n">verdict</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2"> |&quot;</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">lines</span>
+
+<div class="viewcode-block" id="C2STReport.to_markdown">
+<a class="viewcode-back" href="../../../../api/evaluation.html#dataforge_ml.evaluation.imputation._records.C2STReport.to_markdown">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_markdown</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Render the report as a ``###``-rooted Markdown fragment.</span>
+
+<span class="sd">        Leads with the outcome census, because a 200-column table emitting 190</span>
+<span class="sd">        refusals is otherwise a wall. When any column is ``Flagged`` two fixed</span>
+<span class="sd">        notes ride along: the baseline framing, which says that a scalar-filled</span>
+<span class="sd">        column is *supposed* to fire, and the MAR caveat, printed as a footer</span>
+<span class="sd">        and suppressible by nothing (ADR-0087).</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            Markdown subsection headed by ``### C2ST``, holding the outcome</span>
+<span class="sd">            census, a per-column summary table, each column&#39;s own fragment,</span>
+<span class="sd">            the provenance, and — whenever anything is flagged — the baseline</span>
+<span class="sd">            framing and the MAR caveat.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">flagged</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">record</span>
+            <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">values</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">record</span><span class="o">.</span><span class="n">verdict</span> <span class="ow">is</span> <span class="n">C2STVerdict</span><span class="o">.</span><span class="n">Flagged</span>
+        <span class="p">]</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;### C2ST</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_census</span><span class="p">(),</span> <span class="s2">&quot;&quot;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">flagged</span><span class="p">:</span>
+            <span class="n">lines</span> <span class="o">+=</span> <span class="p">[</span><span class="n">_BASELINE_FRAMING</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">]</span>
+        <span class="n">lines</span> <span class="o">+=</span> <span class="p">[</span>
+            <span class="p">(</span>
+                <span class="s2">&quot;| Column | Outcome | Verdict | mean_frame_z | p_adjusted &quot;</span>
+                <span class="s2">&quot;| Annotations | n_observed | n_filled |&quot;</span>
+            <span class="p">),</span>
+            <span class="s2">&quot;|---|---|---|---|---|---|---|---|&quot;</span><span class="p">,</span>
+        <span class="p">]</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">record</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">z</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">record</span><span class="o">.</span><span class="n">score</span><span class="o">.</span><span class="n">mean_frame_z</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="k">if</span> <span class="n">record</span><span class="o">.</span><span class="n">score</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="k">else</span> <span class="n">_md_cell</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+            <span class="p">)</span>
+            <span class="n">p_adjusted</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">record</span><span class="o">.</span><span class="n">score</span><span class="o">.</span><span class="n">p_adjusted</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="k">if</span> <span class="n">record</span><span class="o">.</span><span class="n">score</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="ow">and</span> <span class="n">record</span><span class="o">.</span><span class="n">score</span><span class="o">.</span><span class="n">p_adjusted</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="k">else</span> <span class="n">_md_cell</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+            <span class="p">)</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;| `</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">` | </span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">outcome</span><span class="p">)</span><span class="si">}</span><span class="s2"> | &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">verdict</span><span class="p">)</span><span class="si">}</span><span class="s2"> | </span><span class="si">{</span><span class="n">z</span><span class="si">}</span><span class="s2"> | </span><span class="si">{</span><span class="n">p_adjusted</span><span class="si">}</span><span class="s2"> | &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">_md_cell</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">annotations</span><span class="p">))</span><span class="si">}</span><span class="s2"> | &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">record</span><span class="o">.</span><span class="n">n_observed</span><span class="si">}</span><span class="s2"> | </span><span class="si">{</span><span class="n">record</span><span class="o">.</span><span class="n">n_filled</span><span class="si">}</span><span class="s2"> |&quot;</span>
+            <span class="p">)</span>
+        <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="n">record</span><span class="o">.</span><span class="n">to_markdown</span><span class="p">())</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">provenance</span><span class="o">.</span><span class="n">to_markdown</span><span class="p">())</span>
+        <span class="k">if</span> <span class="n">flagged</span><span class="p">:</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="n">_MAR_CAVEAT</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the fragment, per rule 2 of the Rendering Contract.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            The output of :meth:`to_markdown`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_markdown</span><span class="p">()</span></div>
+
+
+
+<div class="viewcode-block" id="EvaluationReport">
+<a class="viewcode-back" href="../../../../api/evaluation.html#dataforge_ml.evaluation.imputation._records.EvaluationReport">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">EvaluationReport</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The umbrella return of ``evaluate_imputation``.</span>
+
+<span class="sd">    One nullable field per metric, so a later metric lands as an additive</span>
+<span class="sd">    sibling rather than a breaking return-type change. ``report.c2st is None``</span>
+<span class="sd">    means **not requested** — deliberately a different state from *ran and</span>
+<span class="sd">    refused*, which is a :class:`C2STOutcome` at column level.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    c2st : C2STReport, optional</span>
+<span class="sd">        The Classifier Two-Sample Test&#39;s report, or ``None`` when ``metrics=``</span>
+<span class="sd">        did not select it.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">c2st</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">C2STReport</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="EvaluationReport.to_markdown">
+<a class="viewcode-back" href="../../../../api/evaluation.html#dataforge_ml.evaluation.imputation._records.EvaluationReport.to_markdown">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_markdown</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Render the report as a Markdown document.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            Markdown document headed by ``# Evaluation Report``, holding one</span>
+<span class="sd">            section per metric that ran.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;# Evaluation Report</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">c2st</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;C2ST: not requested.</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">c2st</span><span class="o">.</span><span class="n">to_markdown</span><span class="p">())</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the document, per rule 2 of the Rendering Contract.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            The output of :meth:`to_markdown`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_markdown</span><span class="p">()</span></div>
+
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../../_static/scripts/bootstrap.js?digest=cb8930eaaf36d9849b67"></script>
+<script defer src="../../../../_static/scripts/pydata-sphinx-theme.js?digest=cb8930eaaf36d9849b67"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.21.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>
