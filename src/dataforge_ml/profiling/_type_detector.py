@@ -4,6 +4,10 @@ TypeDetector  –  selective data-type detection for Polars DataFrames.
 Detection is opt-in: only columns listed in ProfileConfig.type_detection_columns
 are examined.  The detector never mutates the original frame.
 
+A pl.Categorical column is cast to Utf8 up front and then follows exactly the
+same pipeline as its pl.String form (ADR-0085), so the two encodings of the
+same values always receive the same classification.
+
 Detection pipeline (in order, applied per column):
   1. Numeric coercion   – object/Utf8 columns  →  try cast to Float64
   2. Datetime coercion  – object/Utf8 columns with date-like names/values
@@ -61,6 +65,10 @@ class TypeDetector:
         Return a mapping of column name → ColumnTypeInfo for every
         column in self._columns.
 
+        A ``pl.Categorical`` column is detected against a Utf8 view of itself,
+        so it yields the same ``SemanticType`` as its ``pl.String`` form.
+        ``ColumnTypeInfo.original_dtype`` still reports the real dtype.
+
         Parameters
         ----------
         df : pl.DataFrame
@@ -82,6 +90,13 @@ class TypeDetector:
                 original_dtype=original_dtype,
                 inferred_dtype=original_dtype,
             )
+            # pl.Categorical is a dictionary encoding of the same string
+            # values, so it is routed down the string path against a Utf8 view
+            # (ADR-0085). Without this it falls past every string branch to the
+            # fallback and is misclassified as Text.
+            if series.dtype == pl.Categorical:
+                series = series.cast(pl.Utf8)
+
             working = series
 
             # 1 & 2: Coercion for string columns

@@ -34,6 +34,16 @@ import polars as pl
 import pytest
 
 from dataforge_ml.config import PipelineConfig, SemanticType
+from dataforge_ml.evaluation import (
+    C2STConfig,
+    C2STOutcome,
+    C2STProvenance,
+    C2STReport,
+    C2STResult,
+    C2STScore,
+    ColumnC2STResult,
+    EvaluationReport,
+)
 from dataforge_ml.imputation import (
     FitSignals,
     FittedImputer,
@@ -247,6 +257,71 @@ def _imputation_result() -> ImputationResult:
     return fitted.transform(_sample_frame())
 
 
+def _c2st_result() -> C2STResult:
+    # Built directly rather than by running the generic test: the contract
+    # under assertion is the rendering, and a real ``c2st`` call would pay for
+    # several classifier fits to reach the same fields.
+    return C2STResult(
+        mean_repeat_z=4.2137,
+        repeat_z=(3.9, 4.4, 4.3),
+        repeat_z_spread=0.2646,
+        train_accuracy=1.0,
+        test_accuracy=0.6321,
+        n_test=180,
+        degenerate=False,
+        unseen_category=True,
+    )
+
+
+def _c2st_score() -> C2STScore:
+    return C2STScore(
+        mean_frame_z=4.2137,
+        frame_z_spread=0.1041,
+        p_value=0.000013,
+        p_adjusted=0.000052,
+        frames=(_c2st_result(),),
+    )
+
+
+def _column_c2st_result() -> ColumnC2STResult:
+    return ColumnC2STResult(
+        column="score",
+        outcome=C2STOutcome.Tested,
+        n_observed=310,
+        n_filled=90,
+        score=_c2st_score(),
+    )
+
+
+def _c2st_provenance() -> C2STProvenance:
+    return C2STProvenance(
+        classifier_class="sklearn.ensemble.HistGradientBoostingClassifier",
+        classifier_params={"min_samples_leaf": "5", "early_stopping": "False"},
+        classifier_injected=False,
+        sklearn_version="1.9.0",
+        config=C2STConfig(),
+    )
+
+
+def _c2st_report() -> C2STReport:
+    return C2STReport(
+        columns={
+            "score": _column_c2st_result(),
+            "note": ColumnC2STResult(
+                column="note",
+                outcome=C2STOutcome.TypeNotTestable,
+                n_observed=400,
+                n_filled=0,
+            ),
+        },
+        provenance=_c2st_provenance(),
+    )
+
+
+def _evaluation_report() -> EvaluationReport:
+    return EvaluationReport(c2st=_c2st_report())
+
+
 def _column_imputation_record() -> ColumnImputationRecord:
     return next(iter(_imputation_result().records.values()))
 
@@ -286,6 +361,12 @@ REGISTRY: list[ContractEntry] = [
     ),
     ContractEntry("UnitFitResult", _unit_fit_result(), "document"),
     ContractEntry("FitSignals", _fit_signals(), "fragment"),
+    ContractEntry("C2STResult", _c2st_result(), "fragment"),
+    ContractEntry("C2STScore", _c2st_score(), "fragment"),
+    ContractEntry("ColumnC2STResult", _column_c2st_result(), "fragment"),
+    ContractEntry("C2STProvenance", _c2st_provenance(), "fragment"),
+    ContractEntry("C2STReport", _c2st_report(), "fragment"),
+    ContractEntry("EvaluationReport", _evaluation_report(), "document"),
 ]
 
 # Empty / default-constructed instances of the same types. A renderer must
@@ -395,6 +476,23 @@ EMPTY_REGISTRY: list[ContractEntry] = [
         FitSignals(unit_id="", strategy=ImputationStrategy.Median),
         "fragment",
     ),
+    ContractEntry("C2STResult", C2STResult(mean_repeat_z=0.0), "fragment"),
+    ContractEntry("C2STScore", C2STScore(mean_frame_z=0.0), "fragment"),
+    ContractEntry(
+        "ColumnC2STResult",
+        ColumnC2STResult(
+            column="",
+            outcome=C2STOutcome.NoFilledCells,
+            n_observed=0,
+            n_filled=0,
+        ),
+        "fragment",
+    ),
+    ContractEntry(
+        "C2STProvenance", C2STProvenance(classifier_class=""), "fragment"
+    ),
+    ContractEntry("C2STReport", C2STReport(), "fragment"),
+    ContractEntry("EvaluationReport", EvaluationReport(), "document"),
 ]
 
 # Payload Frame carriers. ``build(n_rows)`` grows only the wrapped frames; the

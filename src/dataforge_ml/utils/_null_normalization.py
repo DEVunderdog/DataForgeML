@@ -27,7 +27,7 @@ def _resolve_effective_nulls(
 
     Applies dtype-driven rules identical to Phase 1:
 
-    - String/Utf8: empty/whitespace strings always → null; sentinel string
+    - String/Utf8/Categorical: empty/whitespace strings always → null; sentinel string
       matching uses **replace semantics** when the column name appears in
       ``string_sentinels`` (only declared values converted, hardcoded defaults
       suppressed for that column), or falls back to the hardcoded
@@ -73,6 +73,14 @@ def _resolve_effective_nulls(
         col_sentinels = sentinels.get(col_name)
 
         if _sentinel_eligible(dtype):
+            # Categorical is sentinel-eligible but has no string namespace, so
+            # matching runs against a Utf8 view. The `.otherwise` branch below
+            # keeps the original column, so the dtype survives the round trip.
+            str_view = (
+                pl.col(col_name).cast(pl.Utf8)
+                if dtype == pl.Categorical
+                else pl.col(col_name)
+            )
             col_str_decl = str_decls.get(col_name)
             if col_str_decl is not None:
                 # Replace semantics: declared values only (case-insensitive),
@@ -80,14 +88,14 @@ def _resolve_effective_nulls(
                 sentinel_set = [s.upper() for s in col_str_decl]
                 condition = (
                     pl.col(col_name).is_null()
-                    | (pl.col(col_name).str.strip_chars() == "")
-                    | pl.col(col_name).str.to_uppercase().is_in(sentinel_set)
+                    | (str_view.str.strip_chars() == "")
+                    | str_view.str.to_uppercase().is_in(sentinel_set)
                 )
             else:
                 condition = (
                     pl.col(col_name).is_null()
-                    | (pl.col(col_name).str.strip_chars() == "")
-                    | pl.col(col_name).str.to_uppercase().is_in(list(_SENTINEL_STRINGS))
+                    | (str_view.str.strip_chars() == "")
+                    | str_view.str.to_uppercase().is_in(list(_SENTINEL_STRINGS))
                 )
             exprs.append(
                 pl.when(condition)

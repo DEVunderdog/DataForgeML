@@ -17,6 +17,7 @@ from ..profiling._boolean_config import BooleanStats
 from ..profiling._categorical_config import CategoricalStats
 from ..profiling._config import NumericKind, StructuralProfileResult
 from ..profiling._numeric_config import NumericFlag, NumericStats, SkewSeverity
+from ..utils._dtype_floor import _apply_dtype_floor
 from ..utils._null_normalization import _resolve_effective_nulls
 from ._config import SplitConfig
 
@@ -85,7 +86,8 @@ def build_label_matrix(
     (n_rows, 0), signalling the caller to fall back to random splitting.
 
     Effective-null resolution (via ``_resolve_effective_nulls``) is applied
-    to the full DataFrame once before any signal is computed. This means
+    to the full DataFrame once before any signal is computed, and the **Dtype
+    Floor** is enforced immediately after it (ADR-0085). This means
     **all** signals — including the per-column missingness signal (signal 1),
     the Joint MAR pair signal (signal 2), and the compound row missingness
     signal (signal 8) — use the same dtype-driven effective-null mask:
@@ -123,10 +125,14 @@ def build_label_matrix(
         Returns shape ``(n_rows, 0)`` when no usable signals exist.
     """
     _config = config if config is not None else SplitConfig()
-    df = _resolve_effective_nulls(
-        df,
-        numeric_sentinels=profile.numeric_sentinels,
-        string_sentinels=profile.string_sentinels,
+    # Phase entry: effective nulls first, then the Dtype Floor (ADR-0085).
+    df = _apply_dtype_floor(
+        _resolve_effective_nulls(
+            df,
+            numeric_sentinels=profile.numeric_sentinels,
+            string_sentinels=profile.string_sentinels,
+        ),
+        {name: cp.semantic_type for name, cp in profile.columns.items()},
     )
     n = len(df)
     # Each signal is collected with its family priority (for the gate-3 redundancy
@@ -492,8 +498,8 @@ def unsplittable_train_mask(
     target has no discrete class that could go unseen and is skipped.
 
     Effective-null resolution (via ``_resolve_effective_nulls``) is applied
-    once before any label is tested, matching ``build_label_matrix`` so the same
-    rows are considered.
+    once before any label is tested, followed by the **Dtype Floor**, matching
+    ``build_label_matrix`` so the same rows are considered.
 
     Parameters
     ----------
@@ -518,10 +524,14 @@ def unsplittable_train_mask(
         no such rows exist.
     """
     _config = config if config is not None else SplitConfig()
-    df = _resolve_effective_nulls(
-        df,
-        numeric_sentinels=profile.numeric_sentinels,
-        string_sentinels=profile.string_sentinels,
+    # Phase entry: effective nulls first, then the Dtype Floor (ADR-0085).
+    df = _apply_dtype_floor(
+        _resolve_effective_nulls(
+            df,
+            numeric_sentinels=profile.numeric_sentinels,
+            string_sentinels=profile.string_sentinels,
+        ),
+        {name: cp.semantic_type for name, cp in profile.columns.items()},
     )
     n = len(df)
     mask = np.zeros(n, dtype=bool)

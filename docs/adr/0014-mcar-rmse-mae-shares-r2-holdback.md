@@ -1,6 +1,6 @@
 # ADR 0014: MCAR RMSE/MAE evaluation shares the R² holdback pass — no separate masking pass
 
-**Status:** Amended by ADR-0057 / ADR-0058 — the shared evaluation pass survives inside `EvaluationOrchestrator.score_accuracy` (`AccuracyDiagnostic.rmse`/`mae` computed on the same held-out rows as `r2_cv`); the fit-time diagnostic object it originally described no longer exists.
+**Status:** Superseded by ADR-0087 (previously amended by ADR-0057 / ADR-0058) — the shared evaluation pass is **deleted outright, not renamed**. RMSE and MAE are cut as evaluation measures altogether (FIMD §2.6/§3.2.3; Näf et al. rank the oracle imputer last by RMSE), so there is no holdback pass left for them to share.
 
 The simulated-missingness RMSE/MAE evaluation (Scope 4) uses the same 20% held-back complete rows already established by ADR-0013 for `r2_train`. R², RMSE, and MAE are all computed in a single evaluation pass; the final stored model is then re-fit on all complete rows as ADR-0013 prescribes.
 

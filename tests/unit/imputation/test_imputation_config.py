@@ -104,8 +104,6 @@ def test_numeric_config_to_dict_contains_all_keys():
         "mcar_feature_predictability_threshold",
         "per_column_strategy",
         "per_column_constant_fill",
-        "refit_r2_min_complete_rows",
-        "refit_r2_cv_folds",
         "bimodal_grouping_variables",
         "bimodal_min_correlated_features",
         "bimodal_correlation_threshold",
@@ -828,69 +826,17 @@ def test_numeric_config_from_dict_raises_on_retired_key_set_to_none():
         NumericImputationConfig.from_dict({"knn_n_neighbors": None})
 
 
-def test_numeric_config_default_refit_r2_min_complete_rows():
-    cfg = NumericImputationConfig()
-    assert cfg.refit_r2_min_complete_rows == 50
-
-
 # ---------------------------------------------------------------------------
-# NumericImputationConfig — six new fields in to_dict
+# NumericImputationConfig — retired refit keys from a v4.x payload
 # ---------------------------------------------------------------------------
 
 
-def test_numeric_config_refit_fields_in_to_dict():
-    cfg = NumericImputationConfig()
-    d = cfg.to_dict()
-    assert d["refit_r2_min_complete_rows"] == 50
-
-
-# ---------------------------------------------------------------------------
-# NumericImputationConfig — from_dict({}) produces correct defaults
-# ---------------------------------------------------------------------------
-
-
-def test_numeric_config_new_fields_from_dict_empty_uses_defaults():
-    cfg = NumericImputationConfig.from_dict({})
-    assert cfg.refit_r2_min_complete_rows == 50
-    assert cfg.refit_r2_cv_folds == 5
-
-
-# ---------------------------------------------------------------------------
-# NumericImputationConfig — from_dict round-trips for non-default values
-# ---------------------------------------------------------------------------
-
-
-def test_numeric_config_refit_r2_min_complete_rows_round_trip():
-    original = NumericImputationConfig(refit_r2_min_complete_rows=50)
-    restored = NumericImputationConfig.from_dict(original.to_dict())
-    assert restored.refit_r2_min_complete_rows == 50
-
-
-# ---------------------------------------------------------------------------
-# NumericImputationConfig — refit_r2_cv_folds
-# ---------------------------------------------------------------------------
-
-
-def test_numeric_config_default_refit_r2_cv_folds():
-    cfg = NumericImputationConfig()
-    assert cfg.refit_r2_cv_folds == 5
-
-
-def test_numeric_config_refit_r2_cv_folds_in_to_dict():
-    cfg = NumericImputationConfig()
-    d = cfg.to_dict()
-    assert d["refit_r2_cv_folds"] == 5
-
-
-def test_numeric_config_refit_r2_cv_folds_round_trip():
-    original = NumericImputationConfig(refit_r2_cv_folds=10)
-    restored = NumericImputationConfig.from_dict(original.to_dict())
-    assert restored.refit_r2_cv_folds == 10
-
-
-def test_numeric_config_refit_r2_cv_folds_from_dict_empty_uses_default():
-    cfg = NumericImputationConfig.from_dict({})
-    assert cfg.refit_r2_cv_folds == 5
+def test_numeric_config_from_dict_ignores_retired_refit_keys():
+    cfg = NumericImputationConfig.from_dict(
+        {"refit_r2_min_complete_rows": 50, "refit_r2_cv_folds": 5}
+    )
+    assert not hasattr(cfg, "refit_r2_min_complete_rows")
+    assert not hasattr(cfg, "refit_r2_cv_folds")
 
 
 # ---------------------------------------------------------------------------

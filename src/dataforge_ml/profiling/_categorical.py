@@ -180,11 +180,17 @@ class CategoricalProfiler(ColumnBatchProfiler[CategoricalProfileResult]):
         Build value-count frame, populate top-5, rare stats, and imbalance.
         Returns the full value-count DataFrame for possible reuse.
         """
-        # Exclude nulls and whitespace-only values from distribution stats
+        # Exclude nulls and whitespace-only values from distribution stats.
+        # A Categorical column carries the same string values but has no string
+        # namespace, so the predicate is built against a Utf8 view while the
+        # filtered series keeps its own dtype (ADR-0085).
+        str_view = (
+            series.cast(pl.Utf8) if series.dtype == pl.Categorical else series
+        )
         clean = series.filter(
             ~series.is_null()
-            & (series.str.strip_chars() != "")
-            & ~series.str.to_uppercase().is_in(["NA", "NAN", "NULL", "NONE", "?"])
+            & (str_view.str.strip_chars() != "")
+            & ~str_view.str.to_uppercase().is_in(["NA", "NAN", "NULL", "NONE", "?"])
         )
 
         if clean.len() == 0:

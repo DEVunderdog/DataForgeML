@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import polars as pl
 
-from ..models._data_types import _INT_DTYPES
+from ..models._data_types import _FALSE_STRINGS, _INT_DTYPES, _TRUE_STRINGS
 from ._base import ColumnBatchProfiler
 from ._boolean_config import BooleanFlag, BooleanProfileResult
 from ._config import BooleanStats
@@ -30,8 +30,9 @@ from ._config import BooleanStats
 # String values that represent True / False
 # ---------------------------------------------------------------------------
 
-_TRUE_STRINGS: frozenset[str] = frozenset({"true", "yes", "1", "t", "y"})
-_FALSE_STRINGS: frozenset[str] = frozenset({"false", "no", "0", "f", "n"})
+# _TRUE_STRINGS / _FALSE_STRINGS live in models._data_types so this profiler
+# and the dtype-floor normaliser cannot drift apart on what counts as a
+# boolean token (ADR-0085).
 
 
 class BooleanProfiler(ColumnBatchProfiler[BooleanProfileResult]):

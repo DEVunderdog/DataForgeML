@@ -11,7 +11,7 @@ We split `evaluate` into **two methods on `EvaluationOrchestrator`**:
 
 ## Status
 
-accepted — revises ADR-0057 (supersedes its single-`evaluate`/full-refit design and its `DiagnosticsReport`/`ImputationFitDiagnostic` return shape)
+superseded by ADR-0087 — both methods are deleted with no replacement. `inspect` and `score_accuracy` split a question C2ST does not ask: the cell-level and estimate-level error they measured scores the imputation *model*, and the oracle imputer ranks last by that measure. `InspectionReport`, `AccuracyReport` and their diagnostics go with them. This ADR still records the split of ADR-0057's single `evaluate`, which is why it is stamped rather than deleted.
 
 ## Considered Options
 

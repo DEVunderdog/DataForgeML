@@ -15,9 +15,10 @@ from __future__ import annotations
 import logging
 import sys
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Callable, Optional
+from typing import Optional
 
 # ---------------------------------------------------------------------------
 # Trace sink: the named library logger, silent by default.
@@ -238,7 +239,7 @@ class Emitter:
         phase: str,
         stage: str,
         observer: Observer | None,
-        total: Optional[int] = None,
+        total: int | None = None,
     ) -> None:
         self._phase = phase
         self._stage = stage
@@ -246,6 +247,41 @@ class Emitter:
         self._total = total
         self._index = 0
         self._lock = threading.Lock()
+
+    def stage_start(self) -> None:
+        """Emit the ``stage_start`` boundary event for the Emitter's stage.
+
+        The stage boundaries live on :class:`_ObservabilityMixin` for the
+        orchestrators that are classes; an entry point that is a *free function*
+        inherits nothing, so the Emitter carries them too (ADR-0087). Purely
+        additive — the mixin is unchanged and its users are unaffected.
+        """
+        _emit(
+            PipelineEvent(
+                event_type=EventType.stage_start,
+                phase=self._phase,
+                stage=self._stage,
+                message=f"[{self._phase}] {self._stage} started",
+            ),
+            self._observer,
+        )
+
+    def stage_end(self) -> None:
+        """Emit the ``stage_end`` boundary event for the Emitter's stage.
+
+        The closing half of :meth:`stage_start`; see that method for why the
+        boundaries exist on the Emitter as well as on
+        :class:`_ObservabilityMixin`.
+        """
+        _emit(
+            PipelineEvent(
+                event_type=EventType.stage_end,
+                phase=self._phase,
+                stage=self._stage,
+                message=f"[{self._phase}] {self._stage} completed",
+            ),
+            self._observer,
+        )
 
     def item(self, column: Optional[str], message: Optional[str] = None) -> None:
         """Emit an ``item`` heartbeat for a column, auto-incrementing the index.

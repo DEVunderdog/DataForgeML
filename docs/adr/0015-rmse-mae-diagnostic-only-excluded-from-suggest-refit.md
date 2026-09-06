@@ -1,6 +1,6 @@
 # ADR 0015: RMSE and MAE are diagnostic-only — not used for automated decisions
 
-**Status:** Accepted, terminology amended by ADR-0057 / ADR-0058 — `ImputationFitDiagnostic`/`r2_train` are now `AccuracyDiagnostic`/`r2_cv` on `EvaluationOrchestrator.score_accuracy`, and `suggest_refit` no longer exists (evaluation is opt-in and drives no automated decisions). The core stance — RMSE/MAE are diagnostic-only, never thresholds — stands.
+**Status:** Superseded by ADR-0087 (previously amended by ADR-0057 / ADR-0058) — `AccuracyDiagnostic`, `r2_cv`, `rmse` and `mae` are **deleted, not renamed**. The stance was right and ADR-0087 generalises it: the unit-scale argument against thresholding RMSE is one instance of why cell-level error is the wrong target, and C2ST's `z` is the dimensionless, cross-column-comparable number this ADR reached for and could not build from RMSE.
 
 `ImputationFitDiagnostic` exposes `r2_train`, `rmse`, and `mae`. Only `r2_train` and `converged` are consumed by automated decision logic; `rmse` and `mae` are reporting fields only.
 
