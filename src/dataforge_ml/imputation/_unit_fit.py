@@ -25,6 +25,7 @@ import joblib
 import polars as pl
 
 from ..config import PipelineConfig, SemanticType
+from ..utils._dtype_floor import _apply_dtype_floor
 from ..utils._null_normalization import _resolve_effective_nulls
 from ._config import ImputationStrategy, ImputationUnit, ModelChoice, _md_cell
 from ._fit_signals import FitSignals, ImputationFitWarning
@@ -258,7 +259,10 @@ def fit_unit(
         recipe is re-resolved against ``decision``, so the plan always wins over
         a unit held from before an edit.
     df : pl.DataFrame
-        Training data, raw or already normalised.
+        Training data, raw or already normalised. A working copy is taken at
+        entry: effective nulls are resolved and the **Dtype Floor** enforced
+        against the plan's semantic types (ADR-0085). The caller's frame is
+        never mutated.
     random_seed : int, optional
         Seed for the stochastic strategies (GMM sampling).
     n_jobs_inner : int, default -1
@@ -285,10 +289,19 @@ def fit_unit(
     """
     start = perf_counter()
     unit = _resolve(decision, unit)
-    train_df = _resolve_effective_nulls(
-        df,
-        numeric_sentinels=decision.numeric_sentinels,
-        string_sentinels=decision.string_sentinels,
+    # Phase entry: effective nulls first, then the Dtype Floor off the plan's
+    # semantic types (ADR-0085). The floor casts away the string namespace the
+    # sentinel rules need, so the order is fixed.
+    train_df = _apply_dtype_floor(
+        _resolve_effective_nulls(
+            df,
+            numeric_sentinels=decision.numeric_sentinels,
+            string_sentinels=decision.string_sentinels,
+        ),
+        {
+            name: cd.semantic_type
+            for name, cd in decision.column_decisions.items()
+        },
     )
     ctx = _fit_context(decision, random_seed)
     outcome = _dispatch_unit_fit(unit, train_df, ctx, n_jobs_inner)

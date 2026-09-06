@@ -382,3 +382,69 @@ def test_numeric_kind_override_absent_column_is_silently_ignored():
     # Must not raise; result.columns should not contain the absent column.
     result = StructuralProfiler(cfg).profile(_numeric_df())
     assert "nonexistent_column" not in result.columns
+
+
+# ---------------------------------------------------------------------------
+# pl.Categorical is routed down the string path (ADR-0085)
+# ---------------------------------------------------------------------------
+
+
+def test_categorical_column_classified_categorical_not_text():
+    # Dictionary-encoded Parquet input: previously fell past every string
+    # branch to the fallback and came back as Text.
+    vals = ["red", "green", "blue", "red", "green", "blue", "red", "green"]
+    df = pl.DataFrame({"colour": pl.Series(vals, dtype=pl.Categorical)})
+    info = TypeDetector(columns=["colour"]).detect(df)["colour"]
+    assert info.semantic_type == SemanticType.Categorical
+
+
+def test_categorical_classification_matches_string_form():
+    vals = ["red", "green", "blue", "red", "green", "blue", "red", "green"]
+    as_string = pl.DataFrame({"colour": pl.Series(vals, dtype=pl.String)})
+    as_cat = pl.DataFrame({"colour": pl.Series(vals, dtype=pl.Categorical)})
+
+    string_info = TypeDetector(columns=["colour"]).detect(as_string)["colour"]
+    cat_info = TypeDetector(columns=["colour"]).detect(as_cat)["colour"]
+
+    assert cat_info.semantic_type == string_info.semantic_type
+    assert cat_info.flags == string_info.flags
+
+
+def test_categorical_classification_is_idempotent_under_recast():
+    # The dtype floor casts a Categorical column to pl.Categorical; re-profiling
+    # and casting again must not drift.
+    vals = ["red", "green", "blue", "red", "green", "blue", "red", "green"]
+    df = pl.DataFrame({"colour": pl.Series(vals, dtype=pl.String)})
+
+    first = TypeDetector(columns=["colour"]).detect(df)["colour"]
+    assert first.semantic_type == SemanticType.Categorical
+
+    recast = df.with_columns(pl.col("colour").cast(pl.Categorical))
+    second = TypeDetector(columns=["colour"]).detect(recast)["colour"]
+
+    recast_again = recast.with_columns(pl.col("colour").cast(pl.Categorical))
+    third = TypeDetector(columns=["colour"]).detect(recast_again)["colour"]
+
+    assert second.semantic_type == first.semantic_type
+    assert third.semantic_type == second.semantic_type
+
+
+def test_categorical_original_dtype_still_reports_categorical():
+    df = pl.DataFrame({"colour": pl.Series(["a", "b", "a"], dtype=pl.Categorical)})
+    info = TypeDetector(columns=["colour"]).detect(df)["colour"]
+    assert "Categorical" in info.original_dtype
+
+
+def test_categorical_boolean_strings_still_resolve_to_boolean():
+    # Parity with the pl.String path: the Utf8 view keeps the boolean branch live.
+    vals = ["yes", "no", "yes", "no", "yes"]
+    df = pl.DataFrame({"flag": pl.Series(vals, dtype=pl.Categorical)})
+    info = TypeDetector(columns=["flag"]).detect(df)["flag"]
+    assert info.semantic_type == SemanticType.Boolean
+
+
+def test_categorical_unique_tokens_still_resolve_to_identifier():
+    uuids = [f"3f2a1b-{i:04d}-cd90-ef12" for i in range(100)]
+    df = pl.DataFrame({"id": pl.Series(uuids, dtype=pl.Categorical)})
+    info = TypeDetector(columns=["id"]).detect(df)["id"]
+    assert info.semantic_type == SemanticType.Identifier

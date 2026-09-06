@@ -190,20 +190,23 @@ class MissingnessProfiler(DatasetLevelProfiler[MissingnessProfileResult]):
         std_null = series.is_null()
 
         if _sentinel_eligible(dtype):
+            # Categorical is sentinel-eligible but has no string namespace,
+            # so matching runs against a Utf8 view of the same values.
+            str_view = series.cast(pl.Utf8) if dtype == pl.Categorical else series
             if string_sentinels is not None:
                 # Replace semantics: only declared values (case-insensitive);
                 # hardcoded _SENTINEL_STRINGS suppressed for this column.
                 declared_upper = [s.upper() for s in string_sentinels]
                 eff_null = (
                     std_null
-                    | (series.str.strip_chars() == "")
-                    | series.str.to_uppercase().is_in(declared_upper)
+                    | (str_view.str.strip_chars() == "")
+                    | str_view.str.to_uppercase().is_in(declared_upper)
                 )
             else:
                 eff_null = (
                     std_null
-                    | (series.str.strip_chars() == "")
-                    | series.str.to_uppercase().is_in(list(_SENTINEL_STRINGS))
+                    | (str_view.str.strip_chars() == "")
+                    | str_view.str.to_uppercase().is_in(list(_SENTINEL_STRINGS))
                 )
         elif _inf_eligible(dtype):
             eff_null = std_null | series.is_nan() | series.is_infinite()

@@ -6,7 +6,7 @@ Evaluation is **its own orchestrator** (mirroring the "each phase is an orchestr
 
 ## Status
 
-accepted
+superseded by ADR-0087 — the opt-in, stateless Evaluation phase survives; the orchestrator class, the diagnostics it computed and the premise that the imputation *model* is what gets scored do not.
 
 ## Considered Options
 

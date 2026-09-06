@@ -13,8 +13,14 @@ _SENTINEL_STRINGS: frozenset[str] = frozenset({"NA", "NAN", "NULL", "NONE", "?"}
 
 
 def _sentinel_eligible(dtype: pl.DataType) -> bool:
-    """True when sentinel-string detection should run for this column (String/Utf8 only)."""
-    return dtype in (pl.Utf8, pl.String)
+    """True when sentinel-string detection should run (String/Utf8/Categorical).
+
+    Categorical is included because it is a dictionary encoding of the same
+    string values: a sentinel is a sentinel regardless of physical encoding.
+    Callers must cast to Utf8 before applying ``.str`` operations, since the
+    string namespace rejects a Categorical series.
+    """
+    return dtype in (pl.Utf8, pl.String) or dtype == pl.Categorical
 
 
 def _inf_eligible(dtype: pl.DataType) -> bool:

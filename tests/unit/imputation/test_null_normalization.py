@@ -365,3 +365,50 @@ def test_string_sentinel_declared_value_not_in_hardcoded_defaults_converted():
     out = _resolve_effective_nulls(df, string_sentinels={"s": ["custom_missing"]})
     assert out["s"][0] is None
     assert out["s"][1] == "real"
+
+
+# ---------------------------------------------------------------------------
+# pl.Categorical is sentinel-eligible and resolves exactly like pl.String
+# (ADR-0085)
+# ---------------------------------------------------------------------------
+
+_MEASURED_CASE = ["x", "y", "NA", "  ", "x", None]
+
+
+def test_categorical_resolves_same_count_as_string_form():
+    # The measured case from ADR-0085: 3 effective nulls, not 1.
+    as_string = pl.DataFrame({"c": pl.Series(_MEASURED_CASE, dtype=pl.String)})
+    as_cat = pl.DataFrame({"c": pl.Series(_MEASURED_CASE, dtype=pl.Categorical)})
+
+    string_nulls = int(_resolve_effective_nulls(as_string)["c"].is_null().sum())
+    cat_nulls = int(_resolve_effective_nulls(as_cat)["c"].is_null().sum())
+
+    assert string_nulls == 3
+    assert cat_nulls == string_nulls
+
+
+def test_categorical_normalization_preserves_categorical_dtype():
+    df = pl.DataFrame({"c": pl.Series(_MEASURED_CASE, dtype=pl.Categorical)})
+    out = _resolve_effective_nulls(df)
+    assert out["c"].dtype == pl.Categorical
+
+
+def test_categorical_surviving_values_are_unchanged():
+    df = pl.DataFrame({"c": pl.Series(_MEASURED_CASE, dtype=pl.Categorical)})
+    out = _resolve_effective_nulls(df)
+    assert out["c"].to_list() == ["x", "y", None, None, "x", None]
+
+
+def test_categorical_declared_string_sentinels_replace_hardcoded_defaults():
+    # Same replace semantics as pl.String: "NA" is no longer a sentinel once
+    # "MISSING" is declared, while whitespace detection still applies.
+    values = ["MISSING", "NA", "  ", "keep"]
+    as_string = pl.DataFrame({"c": pl.Series(values, dtype=pl.String)})
+    as_cat = pl.DataFrame({"c": pl.Series(values, dtype=pl.Categorical)})
+    decl = {"c": ["MISSING"]}
+
+    out_string = _resolve_effective_nulls(as_string, string_sentinels=decl)
+    out_cat = _resolve_effective_nulls(as_cat, string_sentinels=decl)
+
+    assert out_cat["c"].to_list() == out_string["c"].to_list()
+    assert out_cat["c"].to_list() == [None, "NA", None, "keep"]

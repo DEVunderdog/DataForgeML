@@ -37,6 +37,16 @@ def test_sentinel_eligible_false_for_non_string(dtype):
     assert _sentinel_eligible(dtype) is False
 
 
+def test_sentinel_eligible_categorical():
+    # ADR-0085: a dictionary-encoded column carries the same string values,
+    # so sentinel matching must run on it too.
+    assert _sentinel_eligible(pl.Categorical) is True
+
+
+def test_sentinel_eligible_instantiated_categorical():
+    assert _sentinel_eligible(pl.Categorical()) is True
+
+
 def test_sentinel_eligible_accepts_no_override_parameter():
     sig = inspect.signature(_sentinel_eligible)
     assert list(sig.parameters.keys()) == ["dtype"]

@@ -11,7 +11,7 @@ Rule: **freeze the recipe, re-learn the parameters; never freeze anything M lear
 
 ## Status
 
-accepted — refines ADR-0058
+superseded by ADR-0087 — refined ADR-0058, which is itself superseded. There is no fold loop left to govern: C2ST needs no refit, no fold stand-in and no complete-row basis, so **Fold Stand-in Fidelity** ceases to be a term. The freeze-the-recipe / re-learn-the-parameters rule is recorded here should any future metric need a held-out refit.
 
 ## Considered Options
 

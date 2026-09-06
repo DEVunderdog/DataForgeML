@@ -30,6 +30,7 @@ import polars as pl
 
 from ..config import Modality, PipelineConfig, PipelinePhase, SemanticType
 from ..observability import Observer, _ObservabilityMixin
+from ..utils._dtype_floor import _apply_dtype_floor
 from ..utils._null_normalization import _resolve_effective_nulls
 from ._base import ColumnBatchProfiler, ModalityProfiler, OverrideCoercionError
 from ._boolean_profiler import BooleanProfiler
@@ -244,11 +245,25 @@ class StructuralProfiler(_ObservabilityMixin):
             type_to_cols.setdefault(sem_type, []).append(col_name)
 
         pc = self.config.profiling
-        profiling_frame = _resolve_effective_nulls(
+        # Phase entry: resolve effective nulls, then enforce the Dtype Floor
+        # (ADR-0085). The order is fixed — the floor casts away the string
+        # namespace the sentinel rules need.
+        resolved_frame = _resolve_effective_nulls(
             data,
             numeric_sentinels=dict(pc.numeric_sentinels),
             string_sentinels=dict(pc.string_sentinels),
         )
+        profiling_frame = _apply_dtype_floor(
+            resolved_frame,
+            {name: cp.semantic_type for name, cp in result.columns.items()},
+        )
+        # The Boolean and Datetime profilers are the coercion *authority* for
+        # their own semantic types, not consumers of the floor: they alone
+        # apply the user's declared datetime formats and epoch units, and they
+        # raise Format Mismatch by counting the values that survive coercion.
+        # Reading a floored frame would hide the dirt behind the floor's own
+        # generic coercion, so they read the frame as it arrived.
+        _COERCION_AUTHORITIES = (SemanticType.Boolean, SemanticType.Datetime)
 
         # This is the expensive stretch: emit an ``item`` heartbeat per column
         # (1-based, monotonic across the whole stage) so a watching observer
@@ -282,7 +297,12 @@ class StructuralProfiler(_ObservabilityMixin):
                     c for c in cols
                     if result.columns.get(c) and TypeFlag.UserOverride in result.columns[c].type_flags
                 }
-                batch = profiler.profile(profiling_frame, columns=cols, user_overrides=user_overrides)
+                frame = (
+                    resolved_frame
+                    if sem_type in _COERCION_AUTHORITIES
+                    else profiling_frame
+                )
+                batch = profiler.profile(frame, columns=cols, user_overrides=user_overrides)
                 for col_name in batch.analysed_columns:
                     if col_name in result.columns:
                         result.columns[col_name].stats = batch.columns.get(col_name)
