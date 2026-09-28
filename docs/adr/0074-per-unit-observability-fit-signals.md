@@ -19,6 +19,8 @@ Locked decisions:
 
 accepted; the `fit_many` clauses (normalise-once `duration_s` skew, batch fail-fast return) are superseded by ADR-0075 (`fit_many` removed) — every `duration_s` now spans its own normalisation
 
+Amended by [What fit_unit consumes](https://github.com/DEVunderdog/DataForgeML/issues/532) (map #528): `FitSignals` gains `hyperparameters`, the merged dials the fit ran with (`recipe.hyperparameters(unit_id)` at call time), `None` for a strategy with no dial row. In a tuning loop that fits one unit under many override sets, "which dials did this result use" is then answered from the result, not by pairing recipes with results by hand. It stays ephemeral and off the `FittedUnit`: a saved and reloaded unit cannot answer it, and whether a *persisted* unit carries its settings is the persistence ticket's. Putting dials on every `FittedUnit` was rejected, as it restates recipe facts on the artifact, which this ADR removed.
+
 Consumes the charting leans of #383. Depends on ADR-0071 (`fit_unit`/`UnitFitResult` shape) and ADR-0072 (ephemerality — nothing here is persisted).
 
 ## Considered Options

@@ -1,4 +1,4 @@
-"""The records ``evaluate_imputation`` returns.
+"""The records ``imputation_score_c2st`` returns.
 
 One record per **active** column, always: *untestable is a result, never an
 absence*. A 200-column table yields 200 records, and the ones the test could
@@ -29,7 +29,6 @@ from __future__ import annotations
 from collections.abc import Iterator
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
-from typing import Optional
 
 from .._c2st import C2STResult, _md_cell
 from .._config import C2STConfig
@@ -42,7 +41,6 @@ __all__ = [
     "C2STScore",
     "C2STVerdict",
     "ColumnC2STResult",
-    "EvaluationReport",
 ]
 
 # The two fixed notes a report carrying a ``Flagged`` column prints. Both are
@@ -68,20 +66,26 @@ _MAR_CAVEAT: str = (
 
 
 class C2STOutcome(StrEnum):
-    """What happened to one column — the closed six-member vocabulary.
+    """What happened to one column — the closed seven-member vocabulary.
 
-    A seventh member is a breaking change. Exported despite classifying output
+    A further member is a breaking change. Exported despite classifying output
     and never being supplied, a stated exception to ADR-0050: reading the
     report *is* comparing against it (``rec.outcome is C2STOutcome.Tested``),
     so the handling half of the export rule reaches it.
 
-    ``Tested`` is the only member carrying a :class:`C2STScore`; the other five
+    ``Tested`` is the only member carrying a :class:`C2STScore`; the other six
     are refusals, each naming why the test could not produce an honest number.
+    ``Unfilled`` is the column an imputed frame still carries nulls in where
+    the original was missing — a declared MNAR column, which is left unfilled
+    by design (ADR-0098), or any column the imputation passed through. The
+    null alone would separate the piles, so a ``z`` there would score the
+    null, not a fill.
     """
 
     Tested = "tested"
     NoFilledCells = "no_filled_cells"
     NoObservedCells = "no_observed_cells"
+    Unfilled = "unfilled"
     TypeNotTestable = "type_not_testable"
     BelowSampleFloor = "below_sample_floor"
     Uninformative = "uninformative"
@@ -99,7 +103,7 @@ class C2STAnnotation(StrEnum):
     (:attr:`LowPower`, :attr:`ImbalancedPiles`) and two are rolled up from the
     per-frame :class:`~dataforge_ml.evaluation.C2STResult` flags
     (:attr:`Degenerate`, :attr:`UnseenCategory`). Unlike
-    :class:`C2STOutcome` this vocabulary is open: a seventh outcome is a
+    :class:`C2STOutcome` this vocabulary is open: a further outcome is a
     breaking change, a further annotation is additive.
 
     Attributes
@@ -650,51 +654,6 @@ class C2STReport:
 
     def __str__(self) -> str:
         """Return the fragment, per rule 2 of the Rendering Contract.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()
-
-
-@dataclass(frozen=True)
-class EvaluationReport:
-    """The umbrella return of ``evaluate_imputation``.
-
-    One nullable field per metric, so a later metric lands as an additive
-    sibling rather than a breaking return-type change. ``report.c2st is None``
-    means **not requested** — deliberately a different state from *ran and
-    refused*, which is a :class:`C2STOutcome` at column level.
-
-    Attributes
-    ----------
-    c2st : C2STReport, optional
-        The Classifier Two-Sample Test's report, or ``None`` when ``metrics=``
-        did not select it.
-    """
-
-    c2st: Optional[C2STReport] = None
-
-    def to_markdown(self) -> str:
-        """Render the report as a Markdown document.
-
-        Returns
-        -------
-        str
-            Markdown document headed by ``# Evaluation Report``, holding one
-            section per metric that ran.
-        """
-        lines = ["# Evaluation Report\n"]
-        if self.c2st is None:
-            lines.append("C2ST: not requested.\n")
-        else:
-            lines.append(self.c2st.to_markdown())
-        return "\n".join(lines)
-
-    def __str__(self) -> str:
-        """Return the document, per rule 2 of the Rendering Contract.
 
         Returns
         -------

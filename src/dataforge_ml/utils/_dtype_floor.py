@@ -99,7 +99,7 @@ def _apply_dtype_floor(
         ``_resolve_effective_nulls``.  Never mutated.
     semantic_types : Mapping[str, SemanticType or None]
         Column name to semantic type, read off whatever the phase holds — the
-        profile's ``ColumnProfile``, the plan's ``ColumnImputationDecision``, or
+        profile's ``ColumnProfile``, the routing's ``ColumnRouting``, or
         a fitted record's decision.
 
     Returns

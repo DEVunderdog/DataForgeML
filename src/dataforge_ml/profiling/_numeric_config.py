@@ -284,8 +284,20 @@ class NumericStats:
         Max Spearman-Pearson correlation difference across predictors.
     mean_mutual_information : float, optional
         Mean mutual information across all predictor columns.
+    max_mutual_information : float, optional
+        Maximum per-predictor mutual information (nats) across all predictor
+        columns. Read by the Signal Score's Latent Structure component
+        (ADR-0092) — the max, not the mean, so one strong predictor among many
+        weak ones is not averaged away.
     r2_gap : float, optional
         Difference between RandomForest and Linear Regression cross-validated R2.
+    r2_linear : float, optional
+        Cross-validated R2 for ``LinearRegression`` on a bootstrap sample.
+        Read by the Signal Score's Explainable Variance component (ADR-0092).
+    r2_rf : float, optional
+        Cross-validated R2 for the shallow ``RandomForestRegressor`` on the
+        same bootstrap sample. Read by the Signal Score's Explainable
+        Variance component (ADR-0092).
     heteroscedasticity_p_value : float, optional
         P-value for Breusch-Pagan heteroscedasticity test on linear residuals.
     bimodal_stats : BimodalStats, optional
@@ -318,7 +330,10 @@ class NumericStats:
     nonlinearity_tag: Optional[NonlinearityTag] = None
     spearman_pearson_discrepancy: Optional[float] = None
     mean_mutual_information: Optional[float] = None
+    max_mutual_information: Optional[float] = None
     r2_gap: Optional[float] = None
+    r2_linear: Optional[float] = None
+    r2_rf: Optional[float] = None
     heteroscedasticity_p_value: Optional[float] = None
     bimodal_stats: Optional[BimodalStats] = None
     tail_asymmetry_tag: Optional[TailAsymmetryTag] = None
@@ -335,6 +350,15 @@ class NumericStats:
             Difference between the 75th and 25th percentiles, or None if unset.
         """
         return self.percentiles.iqr
+
+    @property
+    def max_MI(self) -> Optional[float]:
+        """Alias for max_mutual_information (per-predictor max mutual information)."""
+        return self.max_mutual_information
+
+    @max_MI.setter
+    def max_MI(self, value: Optional[float]) -> None:
+        self.max_mutual_information = value
 
     def has_flag(self, flag: NumericFlag) -> bool:
         """Check if a specific numeric anomaly flag is present.
@@ -380,7 +404,10 @@ class NumericStats:
             "nonlinearity_tag": str(self.nonlinearity_tag) if self.nonlinearity_tag else None,
             "spearman_pearson_discrepancy": self.spearman_pearson_discrepancy,
             "mean_mutual_information": self.mean_mutual_information,
+            "max_mutual_information": self.max_mutual_information,
             "r2_gap": self.r2_gap,
+            "r2_linear": self.r2_linear,
+            "r2_rf": self.r2_rf,
             "heteroscedasticity_p_value": self.heteroscedasticity_p_value,
             "bimodal_stats": self.bimodal_stats.to_dict() if self.bimodal_stats else None,
             "tail_asymmetry_tag": str(self.tail_asymmetry_tag) if self.tail_asymmetry_tag else None,
@@ -423,7 +450,10 @@ class NumericStats:
             nonlinearity_tag=NonlinearityTag(data["nonlinearity_tag"]) if data.get("nonlinearity_tag") else None,
             spearman_pearson_discrepancy=data.get("spearman_pearson_discrepancy"),
             mean_mutual_information=data.get("mean_mutual_information"),
+            max_mutual_information=data.get("max_mutual_information"),
             r2_gap=data.get("r2_gap"),
+            r2_linear=data.get("r2_linear"),
+            r2_rf=data.get("r2_rf"),
             heteroscedasticity_p_value=data.get("heteroscedasticity_p_value"),
             bimodal_stats=BimodalStats.from_dict(data["bimodal_stats"]) if data.get("bimodal_stats") else None,
             tail_asymmetry_tag=TailAsymmetryTag(data["tail_asymmetry_tag"]) if data.get("tail_asymmetry_tag") else None,
@@ -566,19 +596,40 @@ class NonlinearitySignals:
         Assigned nonlinearity classification.
     spearman_pearson_discrepancy : float
         Max ``|Spearman_r − Pearson_r|`` over all predictors.
-    mean_mutual_information : float
-        Mean ``mutual_info_regression`` score across all predictors.
+    mean_mutual_information : float, optional
+        Mean ``mutual_info_regression`` score across all predictors. ``None``
+        when the MI fit could not run (ADR-0092).
+    max_mutual_information : float, optional
+        Maximum per-predictor ``mutual_info_regression`` score across all
+        predictors. Read by the Signal Score's Latent Structure component
+        (ADR-0092). ``None`` when the MI fit could not run.
     r2_gap : float
         Cross-validated ``R²_RF − R²_linear`` on a bootstrap sample.
+    r2_linear : float
+        Cross-validated R² for ``LinearRegression`` on the same bootstrap
+        sample. Read by the Signal Score's Explainable Variance component
+        (ADR-0092).
+    r2_rf : float
+        Cross-validated R² for the shallow ``RandomForestRegressor`` on the
+        same bootstrap sample. Read by the Signal Score's Explainable
+        Variance component (ADR-0092).
     heteroscedasticity_p_value : float
         Breusch-Pagan p-value from the linear model residuals.
     """
 
     tag: NonlinearityTag
     spearman_pearson_discrepancy: float
-    mean_mutual_information: float
+    mean_mutual_information: Optional[float]
+    max_mutual_information: Optional[float]
     r2_gap: float
+    r2_linear: float
+    r2_rf: float
     heteroscedasticity_p_value: float
+
+    @property
+    def max_MI(self) -> Optional[float]:
+        """Alias for max_mutual_information."""
+        return self.max_mutual_information
 
 
 @dataclass
@@ -622,20 +673,24 @@ class NonlinearityProfileResult:
         lines.append("## Signals\n")
         lines.append(
             "| Column | Tag | Spearman-Pearson discrepancy | Mean mutual information "
-            "| R2 gap | Heteroscedasticity p-value |"
+            "| Max mutual information | R2 gap | R2 linear | R2 RF "
+            "| Heteroscedasticity p-value |"
         )
-        lines.append("|---|---|---|---|---|---|")
+        lines.append("|---|---|---|---|---|---|---|---|---|")
         if self.columns:
             for name, signals in self.columns.items():
                 lines.append(
                     f"| `{name}` | {str(signals.tag)} "
                     f"| {signals.spearman_pearson_discrepancy:.4f} "
-                    f"| {signals.mean_mutual_information:.4f} "
+                    f"| {_fmt_mi(signals.mean_mutual_information)} "
+                    f"| {_fmt_mi(signals.max_mutual_information)} "
                     f"| {signals.r2_gap:.4f} "
+                    f"| {signals.r2_linear:.4f} "
+                    f"| {signals.r2_rf:.4f} "
                     f"| {signals.heteroscedasticity_p_value:.4f} |"
                 )
         else:
-            lines.append("| none | | | | | |")
+            lines.append("| none | | | | | | | | |")
 
         return "\n".join(lines).strip() + "\n"
 
@@ -799,6 +854,10 @@ def _fmt(value: object) -> str:
     return str(value)
 
 
+def _fmt_mi(value: Optional[float]) -> str:
+    return "not computed" if value is None else f"{value:.4f}"
+
+
 def _fmt_seq(values: list) -> str:
     return ", ".join(str(v) for v in values) if values else "none"
 
@@ -826,7 +885,10 @@ def _numeric_stats_lines(stats: "NumericStats") -> list[str]:
         f"| nonlinearity_tag | {_fmt(stats.nonlinearity_tag)} |",
         f"| spearman_pearson_discrepancy | {_fmt(stats.spearman_pearson_discrepancy)} |",
         f"| mean_mutual_information | {_fmt(stats.mean_mutual_information)} |",
+        f"| max_mutual_information | {_fmt(stats.max_mutual_information)} |",
         f"| r2_gap | {_fmt(stats.r2_gap)} |",
+        f"| r2_linear | {_fmt(stats.r2_linear)} |",
+        f"| r2_rf | {_fmt(stats.r2_rf)} |",
         f"| heteroscedasticity_p_value | {_fmt(stats.heteroscedasticity_p_value)} |",
         f"| tail_asymmetry_tag | {_fmt(stats.tail_asymmetry_tag)} |",
         f"| tail_asymmetry_share | {_fmt(stats.tail_asymmetry_share)} |",

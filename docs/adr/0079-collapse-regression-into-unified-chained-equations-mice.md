@@ -48,7 +48,7 @@ The collapse rests on two spikes, both scored as RMSE against known ground truth
 
 ## Status
 
-accepted
+accepted — amended by ADR-0091: the `mice_min_rows` floor is replaced by the Feasibility Floor (Usable Rows, Rows per Predictor), and the `n_nearest_features` gate reads active-numeric breadth, not the block's own size.
 
 Planning-only. This ADR is the map's destination ([#403](https://github.com/DEVunderdog/DataForgeML/issues/403)); the code change is a follow-on effort.
 

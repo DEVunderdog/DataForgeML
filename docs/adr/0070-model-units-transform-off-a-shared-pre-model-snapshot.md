@@ -31,6 +31,8 @@ Locked decisions:
 
 accepted
 
+Amended by [Whether the KNN block reads the full active-numeric predictors](https://github.com/DEVunderdog/DataForgeML/issues/541) (map #528, ADR-0093): the KNN block now reads every active numeric column and writes back only its own, as the MICE block has since ADR-0079. Both joint blocks have inputs ⊃ targets; "a MICE or KNN block reads exactly the columns it fills" above is history. The snapshot, disjoint targets and order-independent merge all stand, and the KNN block fits on the scalar-filled frame it serves on, as MICE does.
+
 ## Considered Options
 
 - **Keep the chain (ADR-0067's status quo).** Rejected. It costs nothing today, which was its whole appeal, but it preserves a "better features" benefit that 30 seeds cannot detect, in exchange for: an independence rule that must stay permanently caveated, a plan order silently coupled to imputation output, and a sibling train/serve skew. Every one of those is a real, ongoing cost paid for a measured non-benefit.

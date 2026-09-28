@@ -85,3 +85,7 @@ Keep `BoundedDiscrete → Mode, unconditionally` (ADR-0018 as written). Rejected
 The Bimodal Imputation Framework for BoundedDiscrete (domain-constrained GMM Sampling, Cluster-Conditional fills snapped to the nearest valid discrete value) remains a future scope and is not changed by this ADR. The existing ADR-0032 bimodal provisions for BoundedDiscrete are unchanged.
 
 `_LegacyRegressionModel` (a private migration shim for pre-Issue-#141 serialised `(BayesianRidge, feat_means)` tuples) is removed in this scope: the class, its migration block in `FittedImputer.from_dict()`, and `test_regression_legacy_migration_in_from_dict` are deleted. All serialised models produced after Issue #141 carry `FittedRegression` directly.
+
+## Amendment (ADR-0092)
+
+Sub-chain steps (a) `Unpredictable` → Mode and (b) `NearConstant` → Mode are deleted. The sub-chain is bimodal → MAR → MCAR, and model-worthiness is graded by the **Signal Score** at the escalation point; its bottom tier fills with Mode for BoundedDiscrete, preserving the scalar-fill rule and domain-snap.

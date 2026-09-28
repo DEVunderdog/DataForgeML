@@ -1,17 +1,17 @@
 """Stateless training surface for the user-orchestrated imputation layer.
 
-The execution half of the Decision/Execution split, redrawn around a single
-primitive (ADR-0071, ADR-0075): the user keeps the pure
-:class:`ImputationDecision` produced by
-:func:`~dataforge_ml.imputation.decide`, trains each planned unit with their
-own :func:`fit_unit` loop — batch scheduling is user-owned (ADR-0075) — and
+The execution half of the layered imputation door (ADR-0071, ADR-0075,
+ADR-0084): the user keeps the :class:`~dataforge_ml.imputation.ImputationRecipe`
+produced by :func:`~dataforge_ml.imputation.resolve_recipe`, trains each unit
+from :func:`~dataforge_ml.imputation.derive_units` with their own
+:func:`fit_unit` loop — batch scheduling is user-owned (ADR-0075) — and
 composes the fitted units into a whole-frame imputer with
 :meth:`FittedImputer.compose`. There is no executor, no state machine, and no
 store: a fit either produces a fitted unit or raises
 :class:`UnitNotTrainableError` (single-track failure, ADR-0071).
 
-The frame is normalised off the plan's declared sentinel maps before the unit
-trains (ADR-0068), so a raw frame may be handed straight in.
+The frame is normalised off the recipe's declared sentinel maps before the
+unit trains (ADR-0068), so a raw frame may be handed straight in.
 """
 
 from __future__ import annotations
@@ -19,34 +19,32 @@ from __future__ import annotations
 import warnings
 from dataclasses import dataclass, replace
 from time import perf_counter
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
-import joblib
 import polars as pl
 
-from ..config import PipelineConfig, SemanticType
 from ..utils._dtype_floor import _apply_dtype_floor
 from ..utils._null_normalization import _resolve_effective_nulls
-from ._config import ImputationStrategy, ImputationUnit, ModelChoice, _md_cell
+from ._config import ImputationStrategy, ImputationUnit, _md_cell
 from ._fit_signals import FitSignals, ImputationFitWarning
 from ._fitters import UnitFitContext, _dispatch_unit_fit
+from ._units import derive_units
 
 if TYPE_CHECKING:
-    from ._config import ImputationDecision
     from ._fitted_imputer import FittedUnit
+    from ._recipe import ImputationRecipe
 
 __all__ = [
     "FitSignals",
     "ImputationFitWarning",
     "UnitFitResult",
     "UnitNotTrainableError",
-    "core_budget",
     "fit_unit",
 ]
 
 
 class UnitNotTrainableError(RuntimeError):
-    """Raised when a planned unit cannot be trained.
+    """Raised when a routed unit cannot be trained.
 
     Single-track failure (ADR-0071): a unit that cannot train always raises,
     carrying a structured payload — the unit id, its strategy, its columns, and
@@ -87,14 +85,14 @@ class UnitFitResult:
     """A trained unit bundled with a structured record of the fit.
 
     What :func:`fit_unit` returns: the fitted unit that can transform its own
-    columns, alongside the plan-carried facts that identify it (``unit_id``,
+    columns, alongside the recipe-carried facts that identify it (``unit_id``,
     ``strategy``, ``columns``) and the structured
     :class:`~dataforge_ml.imputation.FitSignals` the fit produced (ADR-0074).
 
     Attributes
     ----------
     unit_id : str
-        The plan id of the trained unit.
+        The id of the trained unit.
     strategy : ImputationStrategy
         The strategy that was executed.
     columns : tuple[str, ...]
@@ -157,56 +155,57 @@ class UnitFitResult:
         return self.to_markdown()
 
 
-def _numeric_config(decision: "ImputationDecision"):
-    """Rebuild the numeric imputation config from the plan's config snapshot.
-
-    The plan carries the serialised :class:`PipelineConfig` it was decided
-    under, so a training function needs no config argument — everything a
-    fitter honours is reachable from the decision alone.
-    """
-    return PipelineConfig.from_dict(decision.config_snapshot).imputation.numeric
-
-
 def _fit_context(
-    decision: "ImputationDecision", random_seed: Optional[int]
+    recipe: ImputationRecipe, random_seed: int | None
 ) -> UnitFitContext:
-    """Build the context the shared fitters read the plan through."""
+    """Build the context the shared fitters read the recipe through."""
+    from ._recipe import _active_numeric_columns
+
     return UnitFitContext(
-        column_decisions=decision.column_decisions,
-        config=_numeric_config(decision),
-        feature_columns=tuple(
-            col
-            for col, d in decision.column_decisions.items()
-            if d.semantic_type == SemanticType.Numeric
-        ),
+        column_routings=recipe.routing.column_routings,
+        column_estimates=recipe.column_estimates,
+        unit_hyperparameters={
+            unit.unit_id: recipe.hyperparameters(unit.unit_id)
+            for unit in derive_units(recipe.routing)
+        },
+        feature_columns=tuple(_active_numeric_columns(recipe.routing)),
+        mice_estimator=recipe.routing.mice_estimator,
         random_seed=random_seed,
-        custom_estimators=decision.custom_estimators,
+        mice_model_choice=recipe.routing.mice_model_choice,
     )
 
 
-def _resolve(decision: ImputationDecision, unit: ImputationUnit) -> ImputationUnit:
-    """Re-resolve ``unit`` against the plan by id, or raise ``KeyError``.
+def _resolve(recipe: ImputationRecipe, unit: ImputationUnit) -> ImputationUnit:
+    """Match ``unit`` against the recipe's routing by id, or raise.
 
-    The plan is the single source of truth for a unit's recipe. Resolving by id
-    rather than training from the passed object means a unit held from before a
-    ``with_hyperparameters`` edit trains the plan's current recipe instead of
-    the stale one it was carrying.
+    An unknown id raises ``KeyError``. A known id whose ``strategy`` or
+    ``columns`` differ from the recipe's own unit of that id can only have
+    come from a different routing — training it would silently train a
+    mismatched recipe, so this raises ``ValueError`` naming both instead.
     """
     if isinstance(unit, str):
         # The pre-4.x signature took the id. Say so, rather than letting the
         # attribute lookup below fail with a bare AttributeError.
         raise TypeError(
             f"fit_unit() takes an ImputationUnit, not the id {unit!r}. Get the "
-            f"unit from the plan — decision.units, or "
-            f"decision.units_for(ImputationStrategy.…) — and pass that."
+            f"unit from derive_units(recipe.routing) and pass that."
         )
-    for candidate in decision.units:
-        if candidate.unit_id == unit.unit_id:
-            return candidate
-    known = ", ".join(f"'{u.unit_id}'" for u in decision.units)
-    raise KeyError(
-        f"Plan carries no unit '{unit.unit_id}'. Known units: {known or '(none)'}."
-    )
+    recipe_units = {u.unit_id: u for u in derive_units(recipe.routing)}
+    recipe_unit = recipe_units.get(unit.unit_id)
+    if recipe_unit is None:
+        known = ", ".join(f"'{u}'" for u in recipe_units)
+        raise KeyError(
+            f"Recipe's routing carries no unit '{unit.unit_id}'. Known units: "
+            f"{known or '(none)'}."
+        )
+    if recipe_unit.strategy != unit.strategy or recipe_unit.columns != unit.columns:
+        raise ValueError(
+            f"Unit '{unit.unit_id}' does not match the recipe's routing: "
+            f"passed {unit!r}, recipe's routing carries {recipe_unit!r}. This "
+            f"unit was derived from a different routing — re-derive it with "
+            f"derive_units(recipe.routing) before fitting."
+        )
+    return recipe_unit
 
 
 def _emit_warnings(signals: FitSignals) -> None:
@@ -221,54 +220,50 @@ def _emit_warnings(signals: FitSignals) -> None:
 
 
 def fit_unit(
-    decision: "ImputationDecision",
+    recipe: ImputationRecipe,
     unit: ImputationUnit,
     df: pl.DataFrame,
-    random_seed: Optional[int] = None,
+    random_seed: int | None = None,
     n_jobs_inner: int = -1,
 ) -> UnitFitResult:
-    """Train exactly one planned unit and bundle it into a :class:`UnitFitResult`.
+    """Train exactly one unit and bundle it into a :class:`UnitFitResult`.
 
     The one training primitive of the user-orchestrated flow: batch scheduling
-    is user-owned (ADR-0075), so training a whole plan is a caller-written loop
-    of ``fit_unit`` calls. The frame is normalised off the plan's declared
-    sentinel maps (ADR-0068) before the fit, so a raw frame may be handed
-    straight in.
+    is user-owned (ADR-0075), so training a whole routing is a caller-written
+    loop of ``fit_unit`` calls. The frame is normalised off the recipe's
+    declared sentinel maps (ADR-0068) before the fit, so a raw frame may be
+    handed straight in.
 
-    **Concurrency — budget the inner layer when you parallelise the loop.** The
-    caller owns the outer/inner split (ADR-0069): parallelism lives in exactly
-    one layer, and ``n_jobs_inner`` is how you say which. A sequential loop —
-    one ``fit_unit`` at a time — takes the default ``n_jobs_inner=-1``, which
-    opens each fit's inner sklearn parallelism to every core. A self-parallelised
-    drive — units fitted side by side in your own thread pool — calls
-    :func:`core_budget` once before the loop and passes each unit's value here;
-    a drive that parallelises and passes nothing leaves every concurrent fit
-    fanning out to every core, so the two layers oversubscribe the machine. The
-    value never moves the result (ADR-0069); it only changes how the cores are
-    spent.
+    **Concurrency — the caller owns the outer/inner split** (ADR-0069):
+    parallelism lives in exactly one layer, and ``n_jobs_inner`` is how you
+    say which. A sequential loop — one ``fit_unit`` at a time — takes the
+    default ``n_jobs_inner=-1``. A self-parallelised drive picks its own
+    per-unit value so the two layers do not oversubscribe the machine. The
+    value never moves the result (ADR-0069); it only changes how the cores
+    are spent.
 
     Parameters
     ----------
-    decision : ImputationDecision
-        The immutable plan. Supplies the unit recipe, the per-column decisions a
-        fitter honours, the config snapshot, and the sentinel maps used to
-        normalise ``df``.
+    recipe : ImputationRecipe
+        The immutable recipe. Supplies the routing every unit is matched
+        against, the per-unit hyperparameters, the profile-derived estimates,
+        and the sentinel maps used to normalise ``df``.
     unit : ImputationUnit
-        The unit to train, taken from the plan's ``units`` or from
-        :meth:`ImputationDecision.units_for`. Only its ``unit_id`` is read: the
-        recipe is re-resolved against ``decision``, so the plan always wins over
-        a unit held from before an edit.
+        The unit to train, taken from
+        :func:`~dataforge_ml.imputation.derive_units`. Matched against the
+        recipe's own routing by ``unit_id``; a mismatch on ``strategy`` or
+        ``columns`` raises rather than silently training the recipe's version.
     df : pl.DataFrame
         Training data, raw or already normalised. A working copy is taken at
         entry: effective nulls are resolved and the **Dtype Floor** enforced
-        against the plan's semantic types (ADR-0085). The caller's frame is
-        never mutated.
+        against the routing's semantic types. The caller's frame is never
+        mutated.
     random_seed : int, optional
         Seed for the stochastic strategies (GMM sampling).
     n_jobs_inner : int, default -1
-        Inner estimator ``n_jobs`` (ADR-0056). Leave at ``-1`` for a sequential
-        drive; when your own loop already fits units concurrently, pass this
-        unit's value from :func:`core_budget` (ADR-0081). Never affects results.
+        Inner estimator ``n_jobs`` (ADR-0056), unused by every fitter reachable
+        today. Accepted for signature stability with the (not-yet-implemented)
+        model-based fitters.
 
     Returns
     -------
@@ -279,31 +274,34 @@ def fit_unit(
     Raises
     ------
     KeyError
-        If ``unit`` names no unit in the plan.
+        If ``unit`` names no unit in the recipe's routing.
     TypeError
         If ``unit`` is a unit id string rather than an
         :class:`~dataforge_ml.ImputationUnit` — the pre-4.x signature.
+    ValueError
+        If ``unit``'s ``strategy`` or ``columns`` differ from the recipe's own
+        unit of the same id — it was derived from a different routing.
     UnitNotTrainableError
         If the unit cannot train, carrying its structured payload — the sole
         failure track (ADR-0071).
     """
     start = perf_counter()
-    unit = _resolve(decision, unit)
-    # Phase entry: effective nulls first, then the Dtype Floor off the plan's
-    # semantic types (ADR-0085). The floor casts away the string namespace the
+    unit = _resolve(recipe, unit)
+    # Phase entry: effective nulls first, then the Dtype Floor off the
+    # routing's semantic types. The floor casts away the string namespace the
     # sentinel rules need, so the order is fixed.
     train_df = _apply_dtype_floor(
         _resolve_effective_nulls(
             df,
-            numeric_sentinels=decision.numeric_sentinels,
-            string_sentinels=decision.string_sentinels,
+            numeric_sentinels=recipe.numeric_sentinels,
+            string_sentinels=recipe.string_sentinels,
         ),
         {
-            name: cd.semantic_type
-            for name, cd in decision.column_decisions.items()
+            name: r.semantic_type
+            for name, r in recipe.routing.column_routings.items()
         },
     )
-    ctx = _fit_context(decision, random_seed)
+    ctx = _fit_context(recipe, random_seed)
     outcome = _dispatch_unit_fit(unit, train_df, ctx, n_jobs_inner)
     if outcome.fitted is None or outcome.signals is None:
         raise UnitNotTrainableError(
@@ -322,142 +320,3 @@ def fit_unit(
         signals=signals,
     )
 
-
-def _block_model_choice(
-    decision: "ImputationDecision", columns: tuple[str, ...]
-) -> Optional[ModelChoice]:
-    """Return the estimator family the plan stamped on a block of columns.
-
-    A joint block trains one estimator, so every column carries the same choice
-    and the first one that has it answers for all — the same rule the MICE
-    fitter reads the block through. ``None`` means the block routed to no
-    estimator family and cannot train at all.
-    """
-    for col in columns:
-        col_decision = decision.column_decisions.get(col)
-        if col_decision is not None and col_decision.model_choice is not None:
-            return col_decision.model_choice
-    return None
-
-
-def core_budget(
-    decision: "ImputationDecision",
-    max_workers: Optional[int],
-    total_cores: Optional[int] = None,
-) -> dict[str, int]:
-    """Compute the whole-plan inner-parallelism budget: ``unit_id -> n_jobs_inner``.
-
-    The library owns this **arithmetic** and nothing else (ADR-0081): the pool,
-    the loop, the submission order and the failure policy stay user-owned
-    (ADR-0075 is unamended). Call it once immediately before your own
-    :func:`fit_unit` loop and pass each unit's value as that call's
-    ``n_jobs_inner``.
-
-    The arithmetic is heavy-aware rather than degree-proportional. A plan holds
-    at most two joint blocks, and at most one unit — the ``"mice"`` block, and
-    only when its ``model_choice`` is
-    :attr:`~dataforge_ml.ModelChoice.RandomForestRegressor` — can absorb inner
-    parallelism at all, so the MICE block receives
-    ``max(1, total_cores - 1_if_knn_present)`` and every other unit receives
-    ``1``. Dividing the cores evenly across the outer degree instead would hand
-    the MICE block a ``1`` and leave the machine idle.
-
-    A free function and not a property on
-    :class:`~dataforge_ml.ImputationDecision`: the plan is derived purely from
-    ``(profile, shape, config)``, and hanging a machine fact on it would make the
-    same serialized plan answer differently on a different box (ADR-0072's
-    precedent). It answers for the whole plan at once because the
-    reserved-for-KNN term is a fact about the plan, not about any one unit.
-
-    Parameters
-    ----------
-    decision : ImputationDecision
-        The plan to price. Read-only — ``units``, and ``column_decisions`` for
-        the MICE block's ``model_choice``.
-    max_workers : int or None
-        The outer degree of the drive the budget is for. ``1`` is a sequential
-        one-unit-at-a-time drive, which is outer-degree-one and gets the wide
-        ``-1`` for MICE (ADR-0069). Anything greater is a parallel pool, and
-        ``None`` — a :class:`~concurrent.futures.ThreadPoolExecutor` of unknown
-        degree — takes that same parallel branch rather than being read as
-        sequential or rejected.
-    total_cores : int, optional
-        Overrides core detection, for a caller subdividing a box across
-        processes. Detection is ``joblib.cpu_count()``, which respects cgroup
-        quotas and is the same detector sklearn uses for its own ``n_jobs=-1``,
-        so the budget and sklearn's actual fan-out agree on how big the box is.
-
-    Returns
-    -------
-    dict[str, int]
-        A mapping whose keys are exactly the plan's unit ids and whose values are
-        the ``n_jobs_inner`` each unit should be fitted with.
-
-    Notes
-    -----
-    **All ones is a legitimate answer.** ``BayesianRidge`` and
-    ``GradientBoostingRegressor`` have no ``n_jobs`` to spend (ADR-0069), so a
-    MICE block routed to either is priced at ``1``, with no error and no warning
-    — ``1`` is the truthful number, and a warning would fire on a correct plan.
-    On default config this covers every ``ComplexNonlinear`` frame at or above
-    ``gradient_boost_min_rows``, which routes to
-    ``GradientBoostingRegressor``: there is no speedup to be had there. The
-    condition is branch-specific, not a frame-size ceiling —
-    ``MonotonicNonlinear`` takes ``RandomForestRegressor`` at any row count and
-    stays able to spend a budget.
-
-    **A user-supplied estimator is priced at ``1`` in every branch**, the
-    sequential ``max_workers=1`` one included (ADR-0083). The library never sets
-    a foreign estimator's parameters, so ``1`` is the truthful count of cores
-    *the library* spends; ``total_cores`` remains the hatch for reserving the
-    rest. There is no ``n_jobs`` probe: it would fire on correct plans while
-    missing ``nthread``, ``num_threads``, and every internal pool that is not
-    exposed as a parameter.
-
-    The budget is therefore structurally blind to parallelism configured inside
-    a foreign object, and the documented pattern for one is to **fit that unit
-    outside your pool**, where it has the machine to itself, driving the
-    remaining units through the pool on this budget. ``total_cores`` is the
-    reservation hatch: pass it reduced by whatever the self-parallelising fit
-    will take, so the two never contend for the same cores.
-
-    **The budget is a snapshot.** It describes the plan as it was when the call
-    returned. A plan edit in between — :meth:`ImputationDecision.with_model_choice`,
-    :meth:`ImputationDecision.with_hyperparameters` — or a fresh
-    :func:`decide` silently invalidates it, and nothing detects that. The
-    mitigation is placement: compute the budget immediately before the loop that
-    consumes it, not enforcement.
-    """
-    cores = joblib.cpu_count() if total_cores is None else total_cores
-    budget = {unit.unit_id: 1 for unit in decision.units}
-
-    mice_unit = next(
-        (u for u in decision.units if u.strategy == ImputationStrategy.MICE), None
-    )
-    if mice_unit is None:
-        return budget
-
-    model_choice = _block_model_choice(decision, mice_unit.columns)
-    if model_choice == ModelChoice.Custom:
-        # A user-supplied estimator is never configured by the library, so 1 is
-        # the truthful count of cores *the library* spends on it — in every
-        # branch, the sequential one included (ADR-0083). No introspection and
-        # no new knob: total_cores is already the reservation hatch.
-        return budget
-
-    if max_workers == 1:
-        # Outer degree one: the inner layer gets the whole machine (ADR-0069).
-        # Unconditional, so a sequential driver reads the same -1 here that
-        # fit_unit defaults to — the function stays purely additive.
-        budget[mice_unit.unit_id] = -1
-        return budget
-
-    if model_choice != ModelChoice.RandomForestRegressor:
-        # BayesianRidge and GradientBoostingRegressor have no n_jobs to spend
-        # (ADR-0069), and a block that resolved no choice cannot train at all;
-        # 1 is the truthful number and no warning is owed on a correct plan.
-        return budget
-
-    knn_present = any(u.strategy == ImputationStrategy.KNN for u in decision.units)
-    budget[mice_unit.unit_id] = max(1, cores - (1 if knn_present else 0))
-    return budget

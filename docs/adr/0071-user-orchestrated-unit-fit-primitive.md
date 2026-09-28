@@ -18,6 +18,8 @@ Locked decisions:
 
 accepted; the `fit_many` batch-driver decision is superseded by ADR-0075 (`fit_many` removed; batch scheduling is user-owned) — `fit_unit`, `FittedImputer.compose`, and everything else here stands
 
+Amended by [What fit_unit consumes](https://github.com/DEVunderdog/DataForgeML/issues/532) (map #528): both primitives consume an `ImputationRecipe` (ADR-0089) in place of the `ImputationDecision`: `fit_unit(recipe, unit, df, …)` and `FittedImputer.compose(recipe, results)`. `compose` reads units via `derive_units(recipe.routing)`, per-column records from `ColumnRouting`, and sentinels from the recipe. A `UnitFitResult` whose `strategy` or `columns` disagree with the recipe's unit of the same id raises `ValueError`; raw fitted units still match by owned columns. Exact coverage is unchanged. Given up: `compose` cannot prove a unit was fitted under *this* recipe's dials, and deliberately does not try, since composing units fitted under different override sets is legitimate.
+
 Supersedes ADR-0061. Retires ADR-0066 (degradation policy and the auto/forced two-track no longer exist). Consumes and finalises the charting leans of #378, #379, #380.
 
 ## Considered Options

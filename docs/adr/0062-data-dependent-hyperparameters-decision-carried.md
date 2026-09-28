@@ -1,5 +1,9 @@
 # Data-dependent imputation hyperparameters are decision-carried, resolved from the profile
 
+> **Amended by [Where dial defaults and profile estimates are resolved](https://github.com/DEVunderdog/DataForgeML/issues/531) (map #528, ADR-0089).** Dials stay profile-fed, with neutral defaults for missing stats. They no longer attach to `ImputationUnit`: `resolve_recipe(routing, profile, config)` resolves them onto an `ImputationRecipe`, keyed by unit id, off the profile's own row count. There is no `n_rows` argument, so the one `n_rows` operand (the `n_rows - 1` cap on KNN `n_neighbors`) reads the profile's count.
+
+> **Amended by [Whether the two quantities govern the estimator pick and ADR-0062's hyperparameters](https://github.com/DEVunderdog/DataForgeML/issues/526) (map #528, ADR-0094).** The `n_rows - 1` cap on KNN `n_neighbors` is deleted: `KNNImputer` already caps each column at its donor count. No dial reads a row count; `max_iter` and `tol` read no Feasibility Term.
+
 ADR-0060 made the `ImputationDecision` a pure function of `(profile, shape, config)` and pulled `model_choice` to decide-time so the plan is a complete, inspectable, overridable artifact. This ADR settles the remaining fit-time array reads in `_numeric_imputer.py` — the model *hyperparameters* (`max_iter`, `tol`, `n_neighbors`, `weights`, `initial_strategy`, `n_nearest_features`) and the KNN scaling params — classifying each as either **decision-carried** (resolved in the decision layer from profile statistics) or **execution-computed** (a learned value the plan cannot hold). The outcome: with one new profiler metric, **every hyperparameter becomes decision-carried**, and execution computes only genuinely-learned values.
 
 Locked decisions:

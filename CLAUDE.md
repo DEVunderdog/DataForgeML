@@ -9,9 +9,9 @@ Every class, every public method on that class, and every exported standalone fu
 A symbol is **in scope** if it belongs to one of:
 - Everything exported from `dataforge_ml.__init__`
 - Phase Orchestrators (`StructuralProfiler`, and future phase orchestrators)
-- The layered imputation door (`decide`, `author`, `fit_unit`, `FittedUnit`, `FittedImputer`)
-- The evaluation module: the entry point `evaluate_imputation`, every exported record type (`EvaluationReport`, `C2STReport`, `ColumnC2STResult`, `C2STScore`, `C2STResult`, `C2STProvenance`) including each `to_markdown()`, and the generic seam function `c2st` — private, but documented because it is the contract a second adapter is written against
-- All Config dataclasses (`PipelineConfig`, `ProfileConfig`, `ImputationConfig`, all Phase Sub-Configs, `SplitConfig`, `EvaluationConfig`, `C2STConfig`)
+- The layered imputation door: `route`, `author`, `resolve_recipe`, `derive_units`, `fit_unit`, `FittedUnit`, `FittedImputer`, plus the layer objects a user reads or edits (`ImputationRouting`, `ColumnRouting`, `ImputationRecipe`, `ColumnEstimates`, `ImputationUnit`)
+- The evaluation module: the entry point `imputation_score_c2st`, every exported record type (`C2STReport`, `ColumnC2STResult`, `C2STScore`, `C2STResult`, `C2STProvenance`) including each `to_markdown()`, and the generic seam function `c2st` — now Public (ADR-0087 amended), documented as the contract a second adapter is written against
+- All Config dataclasses (`PipelineConfig`, `ProfileConfig`, `ImputationConfig`, all Phase Sub-Configs, `SplitConfig`, `C2STConfig`)
 - All standalone public functions in the Public API
 
 `_`-prefixed (private) methods and functions are **exempt**.

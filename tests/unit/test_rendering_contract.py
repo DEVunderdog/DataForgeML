@@ -42,20 +42,23 @@ from dataforge_ml.evaluation import (
     C2STResult,
     C2STScore,
     ColumnC2STResult,
-    EvaluationReport,
 )
 from dataforge_ml.imputation import (
+    ColumnEstimates,
     FitSignals,
     FittedImputer,
+    ImputationRecipe,
+    ImputationRouting,
     UnitFitResult,
     author,
-    decide,
+    derive_units,
     fit_unit,
+    resolve_recipe,
+    route,
 )
 from dataforge_ml.imputation._config import (
-    ColumnImputationDecision,
     ColumnImputationRecord,
-    ImputationDecision,
+    ColumnRouting,
     ImputationResult,
     ImputationStrategy,
     ImputationUnit,
@@ -215,32 +218,52 @@ def _holdout_cv_result() -> HoldoutCVResult:
     )
 
 
-def _imputation_plan() -> ImputationDecision:
-    frame = _sample_frame()
-    config = PipelineConfig(profiling=ProfileConfig(compute_correlation=True))
-    profile = StructuralProfiler(config).profile(frame)
-    return decide(profile, frame.height, config)
+def _imputation_config() -> PipelineConfig:
+    return PipelineConfig(profiling=ProfileConfig(compute_correlation=True))
 
 
-def _authored_plan() -> ImputationDecision:
+def _imputation_profile() -> StructuralProfileResult:
+    return StructuralProfiler(_imputation_config()).profile(_sample_frame())
+
+
+def _imputation_routing() -> ImputationRouting:
+    return route(_imputation_profile(), _imputation_config())
+
+
+def _authored_routing() -> ImputationRouting:
     return author(
-        {"score": ImputationStrategy.Median, "label": ImputationStrategy.Mode},
-        columns=["score", "label"],
+        {"score": ImputationStrategy.Median, "label": ImputationStrategy.Passthrough},
+        profile=_imputation_profile(),
     )
 
 
-def _column_imputation_decision() -> ColumnImputationDecision:
-    return next(iter(_imputation_plan().column_decisions.values()))
+def _column_routing() -> ColumnRouting:
+    return next(iter(_imputation_routing().column_routings.values()))
 
 
 def _imputation_unit() -> ImputationUnit:
-    return _authored_plan().units[0]
+    return derive_units(_authored_routing())[0]
+
+
+def _imputation_recipe() -> ImputationRecipe:
+    return resolve_recipe(
+        _imputation_routing(), _imputation_profile(), _imputation_config()
+    )
+
+
+def _column_estimates() -> ColumnEstimates:
+    return ColumnEstimates(
+        center1=1.0,
+        center2=5.0,
+        feature_cols=("x", "y"),
+        domain_snap_bounds=(0.0, 10.0),
+    )
 
 
 def _unit_fit_results() -> list[UnitFitResult]:
-    plan = _imputation_plan()
+    recipe = _imputation_recipe()
     frame = _sample_frame()
-    return [fit_unit(plan, unit, frame) for unit in plan.units]
+    return [fit_unit(recipe, unit, frame) for unit in derive_units(recipe.routing)]
 
 
 def _unit_fit_result() -> UnitFitResult:
@@ -252,8 +275,10 @@ def _fit_signals() -> FitSignals:
 
 
 def _imputation_result() -> ImputationResult:
-    plan = _imputation_plan()
-    fitted = FittedImputer.compose(plan, [r.fitted for r in _unit_fit_results()])
+    recipe = _imputation_recipe()
+    fitted = FittedImputer.compose(
+        recipe, [r.fitted for r in _unit_fit_results()]
+    )
     return fitted.transform(_sample_frame())
 
 
@@ -318,10 +343,6 @@ def _c2st_report() -> C2STReport:
     )
 
 
-def _evaluation_report() -> EvaluationReport:
-    return EvaluationReport(c2st=_c2st_report())
-
-
 def _column_imputation_record() -> ColumnImputationRecord:
     return next(iter(_imputation_result().records.values()))
 
@@ -349,11 +370,11 @@ REGISTRY: list[ContractEntry] = [
     ContractEntry("SplitResult", _split_result(), "document"),
     ContractEntry("FoldResult", _fold_result(), "document"),
     ContractEntry("HoldoutCVResult", _holdout_cv_result(), "document"),
-    ContractEntry("ImputationDecision", _imputation_plan(), "document"),
-    ContractEntry("ImputationDecision(authored)", _authored_plan(), "document"),
-    ContractEntry(
-        "ColumnImputationDecision", _column_imputation_decision(), "fragment"
-    ),
+    ContractEntry("ImputationRouting", _imputation_routing(), "document"),
+    ContractEntry("ImputationRouting(authored)", _authored_routing(), "document"),
+    ContractEntry("ColumnRouting", _column_routing(), "fragment"),
+    ContractEntry("ImputationRecipe", _imputation_recipe(), "document"),
+    ContractEntry("ColumnEstimates", _column_estimates(), "fragment"),
     ContractEntry("ImputationUnit", _imputation_unit(), "fragment"),
     ContractEntry("ImputationResult", _imputation_result(), "document"),
     ContractEntry(
@@ -366,7 +387,6 @@ REGISTRY: list[ContractEntry] = [
     ContractEntry("ColumnC2STResult", _column_c2st_result(), "fragment"),
     ContractEntry("C2STProvenance", _c2st_provenance(), "fragment"),
     ContractEntry("C2STReport", _c2st_report(), "fragment"),
-    ContractEntry("EvaluationReport", _evaluation_report(), "document"),
 ]
 
 # Empty / default-constructed instances of the same types. A renderer must
@@ -426,19 +446,25 @@ EMPTY_REGISTRY: list[ContractEntry] = [
         "document",
     ),
     ContractEntry(
-        "ImputationDecision",
-        ImputationDecision(column_decisions={}, config_snapshot={}),
+        "ImputationRouting",
+        ImputationRouting(column_routings={}),
         "document",
     ),
     ContractEntry(
-        "ColumnImputationDecision",
-        ColumnImputationDecision(
+        "ColumnRouting",
+        ColumnRouting(
             column="",
             semantic_type=SemanticType.Numeric,
             strategy=ImputationStrategy.Median,
         ),
         "fragment",
     ),
+    ContractEntry(
+        "ImputationRecipe",
+        ImputationRecipe(routing=ImputationRouting(column_routings={})),
+        "document",
+    ),
+    ContractEntry("ColumnEstimates", ColumnEstimates(), "fragment"),
     ContractEntry(
         "ImputationUnit",
         ImputationUnit(unit_id="", strategy=ImputationStrategy.Median, columns=()),
@@ -450,7 +476,7 @@ EMPTY_REGISTRY: list[ContractEntry] = [
     ContractEntry(
         "ColumnImputationRecord",
         ColumnImputationRecord(
-            decision=ColumnImputationDecision(
+            decision=ColumnRouting(
                 column="",
                 semantic_type=SemanticType.Numeric,
                 strategy=ImputationStrategy.Median,
@@ -492,7 +518,6 @@ EMPTY_REGISTRY: list[ContractEntry] = [
         "C2STProvenance", C2STProvenance(classifier_class=""), "fragment"
     ),
     ContractEntry("C2STReport", C2STReport(), "fragment"),
-    ContractEntry("EvaluationReport", EvaluationReport(), "document"),
 ]
 
 # Payload Frame carriers. ``build(n_rows)`` grows only the wrapped frames; the

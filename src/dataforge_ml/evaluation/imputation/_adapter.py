@@ -40,11 +40,11 @@ from ...utils._dtype_floor import _apply_dtype_floor
 from ...utils._null_normalization import _resolve_effective_nulls
 from .._c2st import (
     C2STResult,
+    _c2st,
     _default_c2st_classifier,
     _meets_sample_floor,
-    c2st,
 )
-from .._config import C2STConfig, EvaluationConfig, EvaluationMetric
+from .._config import C2STConfig
 from ._records import (
     C2STAnnotation,
     C2STOutcome,
@@ -52,10 +52,9 @@ from ._records import (
     C2STReport,
     C2STScore,
     ColumnC2STResult,
-    EvaluationReport,
 )
 
-__all__ = ["evaluate_imputation"]
+__all__ = ["imputation_score_c2st"]
 
 # The Pipeline Event ``phase`` this module stamps. A bare string with no
 # ``PipelinePhase`` member behind it: that enum's job is feeding
@@ -64,9 +63,10 @@ __all__ = ["evaluate_imputation"]
 # set (ADR-0087).
 _PHASE: str = "evaluation"
 
-# The stage, named after the metric rather than the module, so a later metric
-# lands as a sibling stage under the same phase.
-_C2ST_STAGE: str = "c2st"
+# The stage, named after the function that owns the loop, so an observer can
+# tell it from a direct c2st call and later metrics land as sibling stages
+# under the same phase (ADR-0087).
+_STAGE: str = "imputation_score_c2st"
 
 # The semantic types that are out as features and as targets alike. Text
 # imputation therefore remains unevaluated by anything (ADR-0087).
@@ -188,20 +188,113 @@ def _annotations(
     return tuple(found)
 
 
-def _c2st_report(
-    original_df: pl.DataFrame,
+def imputation_score_c2st(
+    original: pl.DataFrame,
     imputed_frames: Sequence[pl.DataFrame],
     profile: StructuralProfileResult,
-    config: C2STConfig,
+    *,
     pipeline_config: PipelineConfig,
-    observer: Observer | None,
+    config: C2STConfig | None = None,
+    observer: Observer | None = None,
 ) -> C2STReport:
-    """Run C2ST over every active column and assemble the report."""
-    original = _phase_entry(original_df, profile)
+    """Score an imputed table against the frame it was imputed from.
+
+    The imputation C2ST entry point: stateless, opt-in, and free to be
+    re-run with different dials while poking at results. It grades **the
+    data**, never the imputer (ADR-0087) — the model that produced the table is
+    disposable, and the question is whether the table still carries the
+    distribution and dependence structure of the data behind it.
+
+    For every active column, the Classifier Two-Sample Test trains a classifier
+    to tell the rows where that column was *observed* from the rows where it
+    was *filled*, and reports its held-out accuracy as a standardised ``z``.
+    Every active column gets a record, always: *untestable is a result, never
+    an absence*. A column the test could not run on carries a
+    ``C2STOutcome`` naming why and no ``score`` object at all, so
+    ``record.score.mean_frame_z`` raises ``AttributeError`` rather than
+    reading a stand-in that could collapse into a passing mean.
+
+    Once every column has run, Benjamini-Hochberg turns the tested columns'
+    p-values into three-valued ``C2STVerdict``s controlling the false
+    discovery rate across the report. The raw ``z`` is never corrected: BH
+    moves the shortlist, not the score.
+
+    Expect scalar strategies (Mean/Median/Mode/Constant) to be caught at close
+    to 100% — that is the **baseline** which makes a model-based number
+    interpretable, not forty defects.
+
+    A declared MNAR column comes back ``Unfilled``: the imputer leaves its
+    nulls in place by design (ADR-0098), and a column still null where the
+    original was missing has no fill to score.
+
+    Parameters
+    ----------
+    original : polars.DataFrame
+        The **pre-imputation** frame. It is what identifies the filled cells:
+        the mask is derived from it through effective-null resolution, so rows
+        carrying a declared sentinel land in the filled pile where they belong.
+    imputed_frames : Sequence[polars.DataFrame]
+        The imputed table(s), row-aligned with ``original``. A sequence from
+        day one — length 1 today — so calling code never has to change when
+        multiple imputation arrives. The ``m`` frames are pooled by the mean
+        ``z`` against the single-run null; the null is never shrunk by ``√m``.
+    profile : StructuralProfileResult
+        The profile the imputation was routed on. Needed, not optional: the mask
+        needs its sentinel maps, the type gate needs its ``SemanticType`` values,
+        and the Dtype Floor is driven off it. A table handed over cold, without
+        its profile, cannot be evaluated. There is deliberately no row-count
+        check against a val slice, because semantic types re-inferred on a small
+        slice can flip and silently change the tested column set.
+    pipeline_config : PipelineConfig
+        The run's config, read only for the Phase Active-Columns Contract:
+        evaluation resolves its own column set against
+        ``PipelinePhase.Imputation``. Excluded columns are honoured on
+        governance grounds — an excluded column is absent from the census
+        entirely, so ``report[col]`` raises ``KeyError``.
+    config : C2STConfig, optional
+        Dials for the Classifier Two-Sample Test. ``None``, the default, builds
+        a default ``C2STConfig()``.
+    observer : Callable[[PipelineEvent], None], optional
+        A Progress Observer receiving the event stream. It rides the call and
+        is never a config field, because a live callable would break the
+        config's serialisable contract. Events are progress only:
+        ``phase="evaluation"``, ``stage="imputation_score_c2st"``, one ``item``
+        per active column — refused ones included, so the bar reaches its own
+        total — and one ``substep`` per repeat.
+
+    Returns
+    -------
+    C2STReport
+        The report holding the per-column C2ST census and the run's provenance.
+
+    Raises
+    ------
+    ValueError
+        When ``imputed_frames`` is empty, when a frame's row count differs from
+        ``original``'s, or when an active column is missing from an imputed
+        frame.
+    """
+    if not imputed_frames:
+        raise ValueError(
+            "imputation_score_c2st needs at least one imputed frame; "
+            "imputed_frames was empty."
+        )
+    for index, frame in enumerate(imputed_frames):
+        if frame.height != original.height:
+            raise ValueError(
+                "Each imputed frame must be row-aligned with original: "
+                f"frame {index} has {frame.height} rows against "
+                f"{original.height}."
+            )
+
+    if config is None:
+        config = C2STConfig()
+
+    orig = _phase_entry(original, profile)
     frames = [_phase_entry(frame, profile) for frame in imputed_frames]
 
     active = pipeline_config.resolve_active_columns(
-        PipelinePhase.Imputation, list(original.columns)
+        PipelinePhase.Imputation, list(orig.columns)
     )
     missing = sorted({c for c in active for frame in frames if c not in frame.columns})
     if missing:
@@ -222,11 +315,11 @@ def _c2st_report(
     # a 60%-missing column still carries 40% real data.
     testable = [c for c in active if semantic_types.get(c) not in _UNTESTABLE_TYPES]
     features = [
-        c for c in testable if original.get_column(c).null_count() < original.height
+        c for c in testable if orig.get_column(c).null_count() < orig.height
     ]
 
     classifier, injected = _resolve_classifier(config)
-    emitter = Emitter(_PHASE, _C2ST_STAGE, observer, total=len(active))
+    emitter = Emitter(_PHASE, _STAGE, observer, total=len(active))
     emitter.stage_start()
 
     records: dict[str, ColumnC2STResult] = {}
@@ -236,10 +329,19 @@ def _c2st_report(
         # its own total. The reason lives on the record only — the event stream
         # is progress, never decisions.
         emitter.item(column)
-        mask = original.get_column(column).is_null().to_numpy()
+        mask = orig.get_column(column).is_null().to_numpy()
         n_filled = int(mask.sum())
-        n_observed = int(original.height - n_filled)
+        n_observed = int(orig.height - n_filled)
         outcome = _refusal(semantic_types.get(column), n_observed, n_filled)
+        # A frame still null where the original was missing has no fill to
+        # score: the null alone separates the piles. Refused structurally so a
+        # declared MNAR column, left unfilled by design (ADR-0098), is not
+        # reported as a failed imputation.
+        if outcome is None and any(
+            frame.get_column(column).filter(mask).null_count() > 0
+            for frame in frames
+        ):
+            outcome = C2STOutcome.Unfilled
         piles = (
             []
             if outcome is not None
@@ -270,7 +372,7 @@ def _c2st_report(
             continue
 
         results = [
-            c2st(
+            _c2st(
                 reference,
                 candidate,
                 repeats=config.repeats,
@@ -304,118 +406,3 @@ def _c2st_report(
         columns=records,
         provenance=_provenance(classifier, injected, config),
     )
-
-
-def evaluate_imputation(
-    original_df: pl.DataFrame,
-    imputed_frames: Sequence[pl.DataFrame],
-    profile: StructuralProfileResult,
-    *,
-    config: EvaluationConfig,
-    pipeline_config: PipelineConfig,
-    metrics: Sequence[EvaluationMetric] | None = None,
-    observer: Observer | None = None,
-) -> EvaluationReport:
-    """Score an imputed table against the frame it was imputed from.
-
-    The evaluation module's entry point: stateless, opt-in, and free to be
-    re-run with different dials while poking at results. It grades **the
-    data**, never the imputer — the model that produced the table is
-    disposable, and the question is whether the table still carries the
-    distribution and dependence structure of the data behind it.
-
-    For every active column, the Classifier Two-Sample Test trains a classifier
-    to tell the rows where that column was *observed* from the rows where it
-    was *filled*, and reports its held-out accuracy as a standardised ``z``.
-    Every active column gets a record, always: *untestable is a result, never
-    an absence*. A column the test could not run on carries a
-    ``C2STOutcome`` naming why and no ``score`` object at all, so
-    ``record.score.mean_frame_z`` raises ``AttributeError`` rather than
-    reading a stand-in that could collapse into a passing mean.
-
-    Once every column has run, Benjamini-Hochberg turns the tested columns'
-    p-values into three-valued ``C2STVerdict``s controlling the false
-    discovery rate across the report. The raw ``z`` is never corrected: BH
-    moves the shortlist, not the score.
-
-    Expect scalar strategies (Mean/Median/Mode/Constant) to be caught at close
-    to 100% — that is the **baseline** which makes a model-based number
-    interpretable, not forty defects.
-
-    Parameters
-    ----------
-    original_df : polars.DataFrame
-        The **pre-imputation** frame. It is what identifies the filled cells:
-        the mask is derived from it through effective-null resolution, so rows
-        carrying a declared sentinel land in the filled pile where they belong.
-    imputed_frames : Sequence[polars.DataFrame]
-        The imputed table(s), row-aligned with ``original_df``. A sequence from
-        day one — length 1 today — so calling code never has to change when
-        multiple imputation arrives. The ``m`` frames are pooled by the mean
-        ``z`` against the single-run null; the null is never shrunk by ``√m``.
-    profile : StructuralProfileResult
-        The profile of ``original_df``. Needed, not optional: the mask needs
-        its sentinel maps, the type gate needs its ``SemanticType`` values, and the
-        Dtype Floor is driven off it. A table handed over cold, without its
-        profile, cannot be evaluated.
-    config : EvaluationConfig
-        The evaluation dials, with ``C2STConfig`` nested inside. Stands alone
-        and is never nested on ``PipelineConfig``.
-    pipeline_config : PipelineConfig
-        The run's config, read only for the Phase Active-Columns Contract:
-        evaluation resolves its own column set against
-        ``PipelinePhase.Imputation``. Excluded columns are honoured on
-        governance grounds — an excluded column is absent from the census
-        entirely, so ``report.c2st[col]`` raises ``KeyError``.
-    metrics : Sequence[EvaluationMetric], optional
-        Which metrics to run. ``None``, the default, means *every metric the
-        library has*. A metric not selected comes back as ``None`` on the
-        report, which is deliberately a different state from *ran and refused*.
-    observer : Callable[[PipelineEvent], None], optional
-        A Progress Observer receiving the event stream. It rides the call and
-        is never a config field, because a live callable would break the
-        config's serialisable contract. Events are progress only:
-        ``phase="evaluation"``, ``stage="c2st"``, one ``item`` per active
-        column — refused ones included, so the bar reaches its own total — and
-        one ``substep`` per repeat.
-
-    Returns
-    -------
-    EvaluationReport
-        The umbrella report; ``report.c2st`` holds the per-column C2ST census
-        and the run's provenance.
-
-    Raises
-    ------
-    ValueError
-        When ``imputed_frames`` is empty, when a frame's row count differs from
-        ``original_df``'s, or when an active column is missing from an imputed
-        frame.
-    """
-    if not imputed_frames:
-        raise ValueError(
-            "evaluate_imputation needs at least one imputed frame; "
-            "imputed_frames was empty."
-        )
-    for index, frame in enumerate(imputed_frames):
-        if frame.height != original_df.height:
-            raise ValueError(
-                "Each imputed frame must be row-aligned with original_df: "
-                f"frame {index} has {frame.height} rows against "
-                f"{original_df.height}."
-            )
-
-    selected = (
-        tuple(EvaluationMetric) if metrics is None else tuple(dict.fromkeys(metrics))
-    )
-    c2st_report = None
-    if EvaluationMetric.C2ST in selected:
-        c2st_report = _c2st_report(
-            original_df,
-            imputed_frames,
-            profile,
-            config.c2st,
-            pipeline_config,
-            observer,
-        )
-    return EvaluationReport(c2st=c2st_report)

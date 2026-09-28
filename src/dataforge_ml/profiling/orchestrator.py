@@ -16,7 +16,7 @@ Execution order inside profile(df):
        b. profile_target()    → dataset.target_correlations[target]
                                 (once per declared target column)
   9. Nonlinearity          → if compute_nonlinearity=True:
-       NonlinearityProfiler  → NumericStats.nonlinearity_tag + four signal fields
+       NonlinearityProfiler  → NumericStats.nonlinearity_tag + seven signal fields
        Reuses Pearson/Spearman matrices from step 8 when compute_correlation=True.
 """
 
@@ -372,8 +372,10 @@ class StructuralProfiler(_ObservabilityMixin):
             )
 
             # 8a. Feature-feature matrices — computed ONCE, target-independent.
+            #     Read the phase-entry frame, not the raw input: an unresolved
+            #     NaN or sentinel poisons a pairwise correlation to 0.
             feature_corr = corr_profiler.profile_features(
-                data, numeric_cols, categorical_cols
+                profiling_frame, numeric_cols, categorical_cols
             )
             result.dataset.feature_correlation = feature_corr
 
@@ -390,7 +392,11 @@ class StructuralProfiler(_ObservabilityMixin):
                 )
                 result.dataset.target_correlations[target] = (
                     corr_profiler.profile_target(
-                        data, feature_corr, numeric_cols, categorical_cols, target
+                        profiling_frame,
+                        feature_corr,
+                        numeric_cols,
+                        categorical_cols,
+                        target,
                     )
                 )
             self._emit_stage_end("correlation")
@@ -426,7 +432,9 @@ class StructuralProfiler(_ObservabilityMixin):
                 nl_result = NonlinearityProfiler(
                     numeric_columns=numeric_cols_nl,
                     config=self.config.profiling.nonlinearity,
-                ).profile(data, pearson_matrix=p_mat, spearman_matrix=s_mat)
+                ).profile(
+                    profiling_frame, pearson_matrix=p_mat, spearman_matrix=s_mat
+                )
 
                 from ._numeric_config import NumericStats as _NumericStats
 
@@ -438,7 +446,10 @@ class StructuralProfiler(_ObservabilityMixin):
                             signals.spearman_pearson_discrepancy
                         )
                         cp.stats.mean_mutual_information = signals.mean_mutual_information
+                        cp.stats.max_mutual_information = signals.max_mutual_information
                         cp.stats.r2_gap = signals.r2_gap
+                        cp.stats.r2_linear = signals.r2_linear
+                        cp.stats.r2_rf = signals.r2_rf
                         cp.stats.heteroscedasticity_p_value = (
                             signals.heteroscedasticity_p_value
                         )

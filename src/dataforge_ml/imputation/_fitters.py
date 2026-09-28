@@ -1,18 +1,16 @@
 """
 Unit-shaped fitters — the one training implementation the surface calls.
 
-Every imputation strategy that learns something from the training frame trains
-here, in a function keyed on ``(ImputationUnit, train_df, hyperparameters,
-n_jobs_inner)``. The stateless training surface (``_unit_fit``) dispatches into
-these functions through :func:`_dispatch_unit_fit`.
+Every imputation strategy that learns something from the training frame
+trains here, in a function keyed on ``(ImputationUnit, train_df,
+UnitFitContext)``. The stateless training surface (``_unit_fit``) dispatches
+into these functions through :func:`_dispatch_unit_fit`.
 
-Everything a fitter needs beyond the frame is either on the unit (the
-decision-carried hyperparameters, ADR-0062), on the owning plan's
-``ColumnImputationDecision`` (``model_choice`` and the facts about the data —
-``domain_snap_bounds``, the bimodal centres, ``feature_cols``,
-``grouping_variable``, ``constant_fill``), or on
-:class:`UnitFitContext`. Nothing here reads the Phase 1 profile: a fitter is
-handed a plan and a frame, never the profile the plan was derived from.
+Everything a fitter needs beyond the frame is on :class:`UnitFitContext` —
+built by the training surface from an :class:`~dataforge_ml.imputation.ImputationRecipe`
+and the unit being trained. Nothing here reads the Phase 1 profile directly: a
+fitter is handed a recipe-derived context and a frame, never the profile the
+recipe was resolved from.
 
 Like ``_fitted_units``, this module must not import the training surface; the
 dependency edge runs surface → fitters, never back.
@@ -20,9 +18,9 @@ dependency edge runs surface → fitters, never back.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, Optional
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import polars as pl
@@ -31,18 +29,14 @@ from sklearn.impute import IterativeImputer, KNNImputer
 from sklearn.mixture import GaussianMixture
 from sklearn.pipeline import Pipeline
 
-from ._config import (
-    ColumnImputationDecision,
-    ImputationStrategy,
-    ModelChoice,
-    NumericImputationConfig,
-)
+from ._config import ColumnRouting, ImputationStrategy, ModelChoice
 from ._fit_signals import FitSignals
 from ._fitted_units import (
     FittedClusterConditional,
     FittedGMMSampling,
     FittedScalar,
 )
+from ._recipe import ColumnEstimates
 from ._regression_estimator_factory import (
     RegressionEstimatorFactory,
     _CoreInvariantRandomForest,
@@ -81,38 +75,46 @@ _SCALAR_STRATEGIES: frozenset[ImputationStrategy] = frozenset(
 class UnitFitContext:
     """Everything a unit-shaped fitter needs beyond the unit and the frame.
 
-    Both engines can build this: the legacy path from the plan it already calls
-    :func:`~dataforge_ml.imputation._decision_assembler.decide` to obtain, the
-    executor from the plan it was constructed with.
+    Built by the training surface (:func:`~dataforge_ml.imputation.fit_unit`)
+    from an :class:`~dataforge_ml.imputation.ImputationRecipe`.
 
     Parameters
     ----------
-    column_decisions : Mapping[str, ColumnImputationDecision]
-        The owning plan's per-column decisions. Read for ``model_choice`` and
-        the facts about the data (``domain_snap_bounds``, the bimodal centres,
-        ``feature_cols``, ``grouping_variable``, ``constant_fill``) — the
-        decide-time facts a fitter honours rather than re-derives. No fitter
-        reads ``config`` for any of them (ADR-0083).
-    config : NumericImputationConfig
-        Numeric imputation configuration.
+    column_routings : Mapping[str, ColumnRouting]
+        The owning routing's per-column entries. Read for ``constant_fill``
+        and ``grouping_variable`` — the two config declarations that complete
+        a strategy.
+    column_estimates : Mapping[str, ColumnEstimates]
+        The owning recipe's per-column profile-derived estimates. Read for
+        the bimodal centres, ``feature_cols`` and ``domain_snap_bounds``.
+    unit_hyperparameters : Mapping[str, dict[str, Any]]
+        Per-unit merged hyperparameters (``recipe.hyperparameters(unit_id)``),
+        keyed by unit id.
     feature_columns : tuple[str, ...], optional
-        The numeric column population a model-based unit may predict from. The
-        joint MICE block's predictors are these columns minus its own owned
-        columns (ADR-0079).
+        The active numeric column population MICE and KNN both widen their
+        predictor set into (ADR-0079, ADR-0093) — every active
+        ``SemanticType.Numeric`` column, not just a block's own membership.
+    mice_estimator : Any, optional
+        The owning routing's user-supplied MICE estimator
+        (:attr:`~dataforge_ml.imputation.ImputationRouting.mice_estimator`),
+        held by identity and never cloned. Read only when the block's
+        ``model_choice`` is :attr:`~dataforge_ml.ModelChoice.Custom`.
     random_seed : int, optional
         Seed for the stochastic strategies (GMM sampling).
-    custom_estimators : Mapping[str, Any], optional
-        The owning plan's unit-keyed user-supplied estimators (ADR-0083). Only
-        the MICE fitter reads it, and only for a unit whose ``model_choice`` is
-        :attr:`~dataforge_ml.ModelChoice.Custom`. The instance is the caller's
-        own object, passed through by identity and never cloned here.
+    mice_model_choice : ModelChoice, optional
+        The owning routing's
+        :attr:`~dataforge_ml.imputation.ImputationRouting.mice_model_choice` —
+        the estimator family the MICE block trains with. ``None`` when no
+        column routes to MICE.
     """
 
-    column_decisions: Mapping[str, ColumnImputationDecision]
-    config: NumericImputationConfig
+    column_routings: Mapping[str, ColumnRouting]
+    column_estimates: Mapping[str, ColumnEstimates] = field(default_factory=dict)
+    unit_hyperparameters: Mapping[str, dict[str, Any]] = field(default_factory=dict)
     feature_columns: tuple[str, ...] = ()
-    random_seed: Optional[int] = None
-    custom_estimators: Mapping[str, Any] = field(default_factory=dict)
+    mice_estimator: Any = None
+    random_seed: int | None = None
+    mice_model_choice: ModelChoice | None = None
 
 
 @dataclass(frozen=True)
@@ -136,58 +138,14 @@ class UnitFitOutcome:
         Why ``fitted`` is ``None``; always set when it is.
     """
 
-    fitted: "Optional[FittedUnit]" = None
-    signals: Optional[FitSignals] = None
-    fallback_reason: Optional[str] = None
+    fitted: FittedUnit | None = None
+    signals: FitSignals | None = None
+    fallback_reason: str | None = None
 
 
-def _oversize_warning(
-    unit: "ImputationUnit",
-    train_df: pl.DataFrame,
-    ctx: UnitFitContext,
-) -> Optional[str]:
-    """Detect a strategy forced past its routing threshold (ADR-0074).
-
-    Reconstructed purely from the unit's shape against the config thresholds — the
-    plan stores no flag for it: KNN over ``knn_max_rows`` / ``knn_max_features``.
-    Returns the warning text, or ``None`` when the shape sits within its
-    routing envelope. It warns; it never blocks (ADR-0071).
-    """
-    n_rows = train_df.height
-    cfg = ctx.config
-    if unit.strategy == ImputationStrategy.KNN:
-        n_features = len(unit.columns)
-        if n_rows > cfg.knn_max_rows or n_features > cfg.knn_max_features:
-            return (
-                f"KNN forced past its routing threshold: {n_rows} rows "
-                f"(cap {cfg.knn_max_rows}), {n_features} features "
-                f"(cap {cfg.knn_max_features}); routing would have preferred "
-                f"MICE at this shape"
-            )
-    return None
-
-
-def _hyperparameters(unit: "ImputationUnit") -> dict[str, Any]:
-    """Read a unit's decision-carried hyperparameters as a plain dict."""
-    return dict(unit.hyperparameters) if unit.hyperparameters else {}
-
-
-def _block_model_choice(
-    ctx: UnitFitContext, columns: tuple[str, ...]
-) -> Optional[ModelChoice]:
-    """Return the estimator family the plan stamped on a block of columns.
-
-    The joint blocks train one estimator for the whole block, so every column in
-    the block carries the same choice; the first one that has it answers for all.
-    ``None`` means the block routed to no estimator family (the ``Unpredictable``
-    branch of ``RegressionEstimatorFactory``), which is the caller's cue to
-    degrade.
-    """
-    for col in columns:
-        decision = ctx.column_decisions.get(col)
-        if decision is not None and decision.model_choice is not None:
-            return decision.model_choice
-    return None
+def _hyperparameters(unit: ImputationUnit, ctx: UnitFitContext) -> dict[str, Any]:
+    """Read a unit's recipe-resolved hyperparameters as a plain dict."""
+    return dict(ctx.unit_hyperparameters.get(unit.unit_id, {}))
 
 
 def _estimator_name(estimator: Any) -> str:
@@ -207,12 +165,12 @@ def _estimator_name(estimator: Any) -> str:
 def _domain_snap_bounds(
     ctx: UnitFitContext, columns: tuple[str, ...]
 ) -> dict[str, tuple[float, float]]:
-    """Collect the plan's domain-snap bounds for the columns that carry them."""
+    """Collect the recipe's domain-snap bounds for the columns that carry them."""
     bounds: dict[str, tuple[float, float]] = {}
     for col in columns:
-        decision = ctx.column_decisions.get(col)
-        if decision is not None and decision.domain_snap_bounds is not None:
-            bounds[col] = decision.domain_snap_bounds
+        estimates = ctx.column_estimates.get(col)
+        if estimates is not None and estimates.domain_snap_bounds is not None:
+            bounds[col] = estimates.domain_snap_bounds
     return bounds
 
 
@@ -237,15 +195,16 @@ def _fill_scalar_predictors(
     under each predictor's own decided strategy — never read off a sibling
     ``FittedScalar`` unit's learned state — so ``fit_unit`` calls stay
     independent of one another (ADR-0074). A predictor routed to a
-    model-based strategy (KNN / MICE) is left untouched: it
-    arrives raw at serve time too, so raw is already the matching frame.
+    model-based strategy (KNN / MICE) is left untouched: it arrives raw at
+    serve time too, so raw is already the matching frame.
 
     Parameters
     ----------
     train_df : pl.DataFrame
         Training split.
     ctx : UnitFitContext
-        Plan decisions; each predictor's decided strategy is read from here.
+        Recipe-derived context; each predictor's decided strategy is read off
+        ``ctx.column_routings``.
     extra_cols : list[str]
         Predictor columns outside the block's own membership.
 
@@ -258,10 +217,10 @@ def _fill_scalar_predictors(
     filled_cols = []
     fill_exprs = []
     for c in extra_cols:
-        decision = ctx.column_decisions.get(c)
-        if decision is None:
+        routing = ctx.column_routings.get(c)
+        if routing is None:
             continue
-        tendency = _CENTRAL_TENDENCY.get(str(decision.strategy))
+        tendency = _CENTRAL_TENDENCY.get(str(routing.strategy))
         if tendency is None:
             continue
         fill_exprs.append(pl.col(c).fill_null(tendency(train_df, c)))
@@ -272,30 +231,28 @@ def _fill_scalar_predictors(
 
 
 def _dispatch_unit_fit(
-    unit: "ImputationUnit",
+    unit: ImputationUnit,
     train_df: pl.DataFrame,
     ctx: UnitFitContext,
     n_jobs_inner: int = 1,
 ) -> UnitFitOutcome:
     """Train one unit, dispatching on its strategy.
 
-    The single door the training surface drives: given a plan's unit and the
-    training frame, learn that unit's fitted state. Every strategy that trains
-    something is reachable from here — a strategy with no fitter is a plan the
-    engine should never have produced, and says so rather than silently
-    returning an empty model.
+    The single door the training surface drives: given a routed unit and the
+    training frame, learn that unit's fitted state. Every non-model-based
+    strategy that trains something is reachable from here.
 
     Parameters
     ----------
     unit : ImputationUnit
-        The unit to train. Its ``hyperparameters`` are the resolved dials.
+        The unit to train.
     train_df : pl.DataFrame
         Training split; every learned value comes from here.
     ctx : UnitFitContext
-        Plan decisions and configuration the fitter honours.
+        Recipe-derived context the fitter honours.
     n_jobs_inner : int, default 1
-        Inner estimator ``n_jobs`` (ADR-0056); ``1`` when nested under outer
-        parallelism, ``-1`` for a unit running alone. Never affects results.
+        Unused by every fitter in this module; accepted for a uniform dispatch
+        signature with the (not-yet-implemented) model-based fitters.
 
     Returns
     -------
@@ -305,7 +262,9 @@ def _dispatch_unit_fit(
     Raises
     ------
     ValueError
-        If ``unit.strategy`` is one no fitter handles.
+        If ``unit.strategy`` is one no fitter in this module handles — every
+        structural strategy (Dropped / Passthrough / Indicator), which trains
+        nothing and must not be projected into a unit.
     """
     strategy = unit.strategy
     if strategy in _SCALAR_STRATEGIES:
@@ -320,21 +279,25 @@ def _dispatch_unit_fit(
         return fit_cluster_unit(unit, train_df, ctx)
     raise ValueError(
         f"Unit '{unit.unit_id}' carries strategy '{strategy}', which no fitter "
-        f"handles. Structural strategies (Dropped / Passthrough / Indicator) "
-        f"train nothing and must not be projected into a unit."
+        f"in this module handles. Structural strategies (Dropped / Passthrough "
+        f"/ Indicator) train nothing and must not be projected into a unit."
     )
 
 
 def fit_scalar_unit(
-    unit: "ImputationUnit",
+    unit: ImputationUnit,
     train_df: pl.DataFrame,
     ctx: UnitFitContext,
 ) -> UnitFitOutcome:
     """Learn the scalar fill value for a Mean / Median / Mode / Constant / MNAR unit.
 
     ``Constant`` reads the user's declared value and never touches ``train_df``.
-    ``MNAR`` computes the central tendency the plan chose for it, rounded to a
-    whole number when the column is integer-typed.
+    ``MNAR`` computes the central tendency the recipe chose for it, rounded to a
+    whole number when the column is integer-typed. The value is exposed, not
+    applied: :meth:`FittedImputer.transform` leaves an MNAR column's nulls in
+    place, and the unit's own ``transform`` is how a user opts into the fill
+    (ADR-0098). The signals say so, since nulls in the output are otherwise
+    the only clue.
 
     Parameters
     ----------
@@ -343,7 +306,7 @@ def fit_scalar_unit(
     train_df : pl.DataFrame
         Training split.
     ctx : UnitFitContext
-        Plan decisions and configuration.
+        Recipe-derived context.
 
     Returns
     -------
@@ -357,13 +320,13 @@ def fit_scalar_unit(
         return FitSignals(unit_id=unit.unit_id, strategy=unit.strategy, notes=notes)
 
     if unit.strategy == ImputationStrategy.Constant:
-        decision = ctx.column_decisions.get(col)
-        declared = decision.constant_fill if decision is not None else None
+        routing = ctx.column_routings.get(col)
+        declared = routing.constant_fill if routing is not None else None
         if declared is None:
             return UnitFitOutcome(
                 fallback_reason=(
                     f"constant: column '{col}' is routed to Constant but carries "
-                    f"no constant_fill on the plan"
+                    f"no constant_fill on the routing"
                 )
             )
         return UnitFitOutcome(
@@ -372,17 +335,33 @@ def fit_scalar_unit(
         )
 
     if unit.strategy == ImputationStrategy.MNAR:
-        hyp = _hyperparameters(unit)
+        hyp = _hyperparameters(unit, ctx)
         tendency = hyp["central_tendency"]
-        fill_value = _CENTRAL_TENDENCY[tendency](train_df, col)
+        fill_value = {
+            "mean": _compute_mean,
+            "median": _compute_median,
+            "mode": _compute_mode,
+        }[tendency](train_df, col)
         if train_df[col].dtype.is_integer():
             fill_value = float(round(fill_value))
         return UnitFitOutcome(
             fitted=FittedScalar(target_col=col, fill_value=fill_value),
-            signals=_signals(notes=(f"central_tendency: {tendency}",)),
+            signals=_signals(
+                notes=(
+                    f"central_tendency: {tendency}",
+                    "fill computed, not applied: FittedImputer.transform leaves ",
+                    "this MNAR column's nulls in place; read ",
+                    "ColumnImputationRecord.fill_value or call this unit's ",
+                    "transform to apply it",
+                )
+            ),
         )
 
-    fill_value = _CENTRAL_TENDENCY[str(unit.strategy)](train_df, col)
+    fill_value = {
+        ImputationStrategy.Mean: _compute_mean,
+        ImputationStrategy.Median: _compute_median,
+        ImputationStrategy.Mode: _compute_mode,
+    }[unit.strategy](train_df, col)
     return UnitFitOutcome(
         fitted=FittedScalar(target_col=col, fill_value=fill_value),
         signals=_signals(notes=(f"central_tendency: {unit.strategy}",)),
@@ -390,32 +369,32 @@ def fit_scalar_unit(
 
 
 def fit_mice_unit(
-    unit: "ImputationUnit",
+    unit: ImputationUnit,
     train_df: pl.DataFrame,
     ctx: UnitFitContext,
     n_jobs_inner: int = 1,
 ) -> UnitFitOutcome:
     """Fit the joint MICE block as one ``IterativeImputer`` over the full active-numeric matrix.
 
-    The block trains a single estimator, built from the ``model_choice`` the plan
-    stamped on the block. A block whose columns are all ``Unpredictable`` carries
-    no model choice and cannot train — it reports a reason instead.
-
-    :attr:`~dataforge_ml.ModelChoice.Custom` is the one choice nothing is built
-    for: the user's own estimator is taken off ``ctx.custom_estimators`` and used
-    as-is (ADR-0083). It is not cloned, its ``n_jobs`` is not set, and a
-    pre-fitted one is accepted without a raise or a warning — ``IterativeImputer``
-    clones it per column and refits from scratch, so its prior state is inert. A
-    ``Custom`` block whose slot is empty — every plan reloaded from bytes —
-    reports a reason rather than falling back to a library estimator.
+    The block trains a single estimator, built from ``ctx.mice_model_choice``
+    — the choice :func:`~dataforge_ml.imputation.route` resolved off the
+    Estimator Ladder (ADR-0094), or that ``with_model_choice`` set explicitly.
+    :attr:`~dataforge_ml.ModelChoice.Custom` is the one choice nothing is
+    built for: the user's own estimator is taken off ``ctx.mice_estimator``
+    and used as-is (ADR-0090). It is not cloned, its ``n_jobs`` is not set,
+    and a pre-fitted one is accepted without a raise or a warning —
+    ``IterativeImputer`` clones it per column and refits from scratch, so its
+    prior state is inert. A ``Custom`` block whose slot is empty — every
+    routing reloaded from bytes — reports a reason rather than falling back
+    to a library estimator.
 
     The predictor set is widened past the block's own membership to every
-    column in ``ctx.feature_columns`` — every active ``SemanticType.Numeric``
-    column in the plan (ADR-0079), the same full feature set the former
-    per-column regression fitter already read. The block still writes back only
-    its own columns; :class:`~dataforge_ml.imputation._fitted_imputer.FittedMICE`
-    carries the ``all_cols`` / ``columns`` split that generalizes the former
-    per-column regression unit's single-target write-back restriction block-wide.
+    column in ``ctx.feature_columns`` — every active
+    ``SemanticType.Numeric`` column (ADR-0079), the block's own columns
+    included. The block still writes back only its own columns:
+    :class:`~dataforge_ml.imputation._fitted_imputer.FittedMICE` carries the
+    ``all_cols`` / ``columns`` split that generalizes the former per-column
+    regression unit's single-target write-back restriction block-wide.
 
     A widened predictor routed to a scalar strategy (Mean / Median / Mode) is
     filled with its own decided central tendency before this block fits
@@ -431,8 +410,9 @@ def fit_mice_unit(
     train_df : pl.DataFrame
         Training split.
     ctx : UnitFitContext
-        Plan decisions and configuration. ``feature_columns`` supplies the
-        widened predictor set.
+        Recipe-derived context. ``feature_columns`` supplies the widened
+        predictor set; ``mice_model_choice`` and ``mice_estimator`` the
+        estimator to build.
     n_jobs_inner : int, default 1
         Inner estimator ``n_jobs`` (ADR-0056).
 
@@ -440,38 +420,44 @@ def fit_mice_unit(
     -------
     UnitFitOutcome
         A :class:`~dataforge_ml.imputation._fitted_imputer.FittedMICE` plus the
-        estimator / initial-strategy / predictor / convergence signals, or no fit
-        when the block has no estimator family.
+        estimator / initial-strategy / predictor / convergence signals, or no
+        fit when the routing carries no ``mice_model_choice`` at all (a bare
+        ``author()`` declaration with no ``with_model_choice`` edit), or is
+        planned ``Custom`` with no estimator carried.
     """
     from ._fitted_imputer import FittedMICE
 
     cols = tuple(unit.columns)
-    model_choice = _block_model_choice(ctx, cols)
+    model_choice = ctx.mice_model_choice
     if model_choice is None:
         return UnitFitOutcome(
-            fallback_reason="mice: all MICE columns Unpredictable; regression unsuitable"
+            fallback_reason=(
+                f"mice: unit '{unit.unit_id}' carries no mice_model_choice. "
+                f"route() resolves one off the Estimator Ladder whenever the "
+                f"block is non-empty; a hand-authored routing needs "
+                f"routing.with_model_choice(choice) before this block can train."
+            )
         )
 
-    hyp = _hyperparameters(unit)
+    hyp = _hyperparameters(unit, ctx)
     max_iter = hyp["max_iter"]
     tol = hyp["tol"]
     initial_strategy = hyp["initial_strategy"]
     n_nearest_features = hyp["n_nearest_features"]
 
     # Widen the predictor set past the block's own membership: every active
-    # numeric column is a candidate predictor (ADR-0079), mirroring the feat_cols
-    # the former per-column regression fitter read. The block still owns and
-    # writes back only its own columns (cols), not all_cols.
-    # A predictor whose frame dtype is not numeric cannot enter the joint matrix.
-    # Only the frame can answer that: the plan's semantic types are decide-time
-    # claims, and the manual door stamps ``Numeric`` on every column it plans
-    # (ADR-0083), so a Passthrough string column would otherwise be widened into.
+    # numeric column is a candidate predictor (ADR-0079), mirroring the
+    # feat_cols the former per-column regression fitter read. The block
+    # still owns and writes back only its own columns (cols), not all_cols.
+    # A predictor whose frame dtype is not numeric cannot enter the joint
+    # matrix. Only the frame can answer that: a routing's semantic types are
+    # route-time claims, and the manual door stamps Numeric on every column
+    # it routes (ADR-0083), so a Passthrough string column would otherwise
+    # be widened into.
     extra_cols = [
         c
         for c in ctx.feature_columns
-        if c not in cols
-        and c in train_df.columns
-        and train_df.schema[c].is_numeric()
+        if c not in cols and c in train_df.columns and train_df.schema[c].is_numeric()
     ]
     all_cols = list(cols) + extra_cols
 
@@ -480,20 +466,21 @@ def fit_mice_unit(
     fit_df, scalar_filled_cols = _fill_scalar_predictors(train_df, ctx, extra_cols)
 
     if model_choice == ModelChoice.Custom:
-        # The label says "look elsewhere": the instance rides on the plan's
-        # unit-keyed map and is used as-is, never cloned and never reconfigured
-        # (ADR-0083). An empty slot means this plan was reloaded from bytes,
-        # which never carry the estimator — that cannot train, and saying so is
-        # the whole point of the label being a value rather than None.
-        estimator = ctx.custom_estimators.get(unit.unit_id)
+        # The label says "look elsewhere": the instance rides on the
+        # routing's mice_estimator slot and is used as-is, never cloned and
+        # never reconfigured (ADR-0090). An empty slot means this routing
+        # was reloaded from bytes, which never carries the estimator — that
+        # cannot train, and saying so is the whole point of the label being
+        # a value rather than None.
+        estimator = ctx.mice_estimator
         if estimator is None:
             return UnitFitOutcome(
                 fallback_reason=(
-                    f"mice: the block is planned with ModelChoice.Custom but no "
+                    f"mice: the block is routed with ModelChoice.Custom but no "
                     f"estimator is carried for unit '{unit.unit_id}'. A "
-                    f"user-supplied estimator is never serialized, so a reloaded "
-                    f"plan must be re-authored with "
-                    f"estimators={{'{unit.unit_id}': estimator}}."
+                    f"user-supplied estimator is never serialized, so a "
+                    f"reloaded routing must be re-supplied with "
+                    f"routing.with_model_choice(estimator)."
                 )
             )
     else:
@@ -511,10 +498,7 @@ def fit_mice_unit(
     model.fit(_df_to_numpy(fit_df, all_cols))
 
     if n_nearest_features is None:
-        n_nearest_note = (
-            f"n_nearest_features: all predictors used (block size "
-            f"{len(cols)} <= {ctx.config.mice_n_nearest_features_min_cols})"
-        )
+        n_nearest_note = "n_nearest_features: all predictors used"
     else:
         n_nearest_note = f"n_nearest_features: {n_nearest_features}"
 
@@ -527,8 +511,8 @@ def fit_mice_unit(
     warnings_: tuple[str, ...] = ()
     if not converged:
         warnings_ = (
-            f"MICE hit its iteration cap without converging: max_iter={max_iter} "
-            f"reached; consider increasing base_max_iter",
+            f"MICE hit its iteration cap without converging: max_iter={max_iter} ",
+            "reached; consider increasing base_max_iter",
         )
 
     return UnitFitOutcome(
@@ -548,25 +532,38 @@ def fit_mice_unit(
             notes=(
                 initial_strategy_note,
                 n_nearest_note,
-                f"predictors: block owns {len(cols)} columns, fit widened to "
+                f"predictors: block owns {len(cols)} columns, fit widened to ",
                 f"{len(all_cols)} active numeric columns",
-                f"scalar_predictor_fill: {len(scalar_filled_cols)} widened "
-                f"predictor(s) filled to their own decided central tendency "
-                f"before fit (train/serve parity, #418)",
+                f"scalar_predictor_fill: {len(scalar_filled_cols)} widened ",
+                "predictor(s) filled to their own decided central tendency ",
+                "before fit (train/serve parity, #418)",
             ),
         ),
     )
 
 
 def fit_knn_unit(
-    unit: "ImputationUnit",
+    unit: ImputationUnit,
     train_df: pl.DataFrame,
     ctx: UnitFitContext,
 ) -> UnitFitOutcome:
-    """Fit the joint KNN block as one ``KNNImputer`` over a standardized matrix.
+    """Fit the joint KNN block as one ``KNNImputer`` over the full active-numeric matrix.
 
-    The scaling params are learned here and stay learned fitted-state inside the
-    unit — the plan carries nothing about them (ADR-0062).
+    The distance space is widened past the block's own membership to every
+    column in ``ctx.feature_columns`` (ADR-0093) — a block-only distance
+    made a one-column KNN block a silent training-mean fill, since
+    ``KNNImputer`` falls back to the column mean when a receiver shares no
+    observed coordinate with any donor. The block still writes back only its
+    own columns; :class:`~dataforge_ml.imputation._fitted_imputer._FittedKNN`
+    carries the ``all_cols`` / ``columns`` split, matching
+    :class:`~dataforge_ml.imputation._fitted_imputer.FittedMICE`. A widened
+    predictor routed to a scalar strategy is filled to its own decided
+    central tendency before the fit, exactly as the MICE block does
+    (:func:`_fill_scalar_predictors`), so the training matrix's donor pool
+    matches the frame it will serve on.
+
+    The scaling params are learned here and stay learned fitted-state inside
+    the unit — the recipe carries nothing about them (ADR-0062).
 
     Parameters
     ----------
@@ -576,7 +573,8 @@ def fit_knn_unit(
     train_df : pl.DataFrame
         Training split.
     ctx : UnitFitContext
-        Plan decisions and configuration.
+        Recipe-derived context. ``feature_columns`` supplies the widened
+        distance space.
 
     Returns
     -------
@@ -586,15 +584,20 @@ def fit_knn_unit(
     from ._fitted_imputer import _FittedKNN
 
     cols = tuple(unit.columns)
-    hyp = _hyperparameters(unit)
+    hyp = _hyperparameters(unit, ctx)
     n_neighbors = hyp["n_neighbors"]
     weights = hyp["weights"]
 
-    arr = _df_to_numpy(train_df, list(cols))
+    extra_cols = [
+        c
+        for c in ctx.feature_columns
+        if c not in cols and c in train_df.columns and train_df.schema[c].is_numeric()
+    ]
+    all_cols = list(cols) + extra_cols
 
-    # The plan's adaptive neighbour count is capped at ``n_rows - 1``; record
-    # whether that ceiling — rather than the formula — chose ``n_neighbors``.
-    k_capped = n_neighbors == max(1, train_df.height - 1)
+    fit_df, scalar_filled_cols = _fill_scalar_predictors(train_df, ctx, extra_cols)
+
+    arr = _df_to_numpy(fit_df, all_cols)
 
     # NaN-safe StandardScaler: missing cells stay NaN for KNNImputer to fill.
     col_means = np.nanmean(arr, axis=0)
@@ -605,69 +608,71 @@ def fit_knn_unit(
     model = KNNImputer(n_neighbors=n_neighbors, weights=weights)
     model.fit(arr_scaled)
 
-    warnings_: tuple[str, ...] = ()
-    oversize = _oversize_warning(unit, train_df, ctx)
-    if oversize is not None:
-        warnings_ = (oversize,)
-
     return UnitFitOutcome(
         fitted=_FittedKNN(
             model=model,
             col_means=col_means,
             col_stds=col_stds,
             columns=list(cols),
+            all_cols=all_cols,
             domain_snap_bounds=_domain_snap_bounds(ctx, cols),
         ),
         signals=FitSignals(
             unit_id=unit.unit_id,
             strategy=unit.strategy,
             estimator="KNNImputer",
-            warnings=warnings_,
             notes=(
-                (f"knn_params: n_neighbors={n_neighbors}, weights={weights} | "
-                f"n_features={len(cols)} | k_capped={k_capped}"),
-                (f"knn_scaling: applied StandardScaler (nanmean/nanstd) "
-                f"across {len(cols)} feature columns"),
+                f"knn_params: n_neighbors={n_neighbors}, weights={weights} | ",
+                f"distance space widened to {len(all_cols)} active numeric ",
+                f"columns (block owns {len(cols)})",
+                "knn_scaling: applied StandardScaler (nanmean/nanstd) across ",
+                f"{len(all_cols)} feature columns",
+                f"scalar_predictor_fill: {len(scalar_filled_cols)} widened ",
+                "predictor(s) filled to their own decided central tendency ",
+                "before fit (train/serve parity)",
             ),
         ),
     )
 
 
 def fit_gmm_unit(
-    unit: "ImputationUnit",
+    unit: ImputationUnit,
     train_df: pl.DataFrame,
     ctx: UnitFitContext,
 ) -> UnitFitOutcome:
     """Fit a two-component ``GaussianMixture`` for a bimodal column.
 
-    The plan's decide-time bimodal centres seed the mixture, so the fit refines
-    the modes Phase 1 already found rather than searching for them again.
+    The recipe's resolve-time bimodal centres seed the mixture, so the fit
+    refines the modes Phase 1 already found rather than searching for them
+    again.
 
     Parameters
     ----------
     unit : ImputationUnit
         The ``"gmm_sampling:{column}"`` unit. Its ``center1`` and ``center2``
-        are read off the column's decision.
+        are read off the recipe's column estimates.
     train_df : pl.DataFrame
         Training split.
     ctx : UnitFitContext
-        Plan decisions and configuration.
+        Recipe-derived context.
 
     Returns
     -------
     UnitFitOutcome
         A :class:`~dataforge_ml.imputation._fitted_units.FittedGMMSampling`, or
-        no fit when the plan carries no bimodal centres or the column has fewer
-        than two observed values.
+        no fit when the recipe carries no bimodal centres for the column, or the
+        column has fewer than two observed values.
     """
     col = unit.columns[0]
-    decision = ctx.column_decisions.get(col)
-    center1 = decision.center1 if decision is not None else None
-    center2 = decision.center2 if decision is not None else None
+    estimates = ctx.column_estimates.get(col)
+    center1 = estimates.center1 if estimates is not None else None
+    center2 = estimates.center2 if estimates is not None else None
     if center1 is None or center2 is None:
         return UnitFitOutcome(
             fallback_reason=(
-                f"gmm_sampling: column '{col}' carries no bimodal centres on the plan"
+                f"gmm_sampling: column '{col}' carries no bimodal centres on "
+                f"the recipe. Set them with "
+                f"ImputationRecipe.with_estimates('{col}', center1=..., center2=...)."
             )
         )
 
@@ -696,7 +701,7 @@ def fit_gmm_unit(
             weight2=gmm.weights_[1],
             target_col=col,
             domain_snap_bounds=(
-                decision.domain_snap_bounds if decision is not None else None
+                estimates.domain_snap_bounds if estimates is not None else None
             ),
             random_seed=ctx.random_seed,
         ),
@@ -704,56 +709,59 @@ def fit_gmm_unit(
             unit_id=unit.unit_id,
             strategy=unit.strategy,
             estimator="GaussianMixture",
-            notes=("components: 2 (bimodal centres seeded from the plan)",),
+            notes=("components: 2 (bimodal centres seeded from the recipe)",),
         ),
     )
 
 
 def fit_cluster_unit(
-    unit: "ImputationUnit",
+    unit: ImputationUnit,
     train_df: pl.DataFrame,
     ctx: UnitFitContext,
 ) -> UnitFitOutcome:
     """Learn per-cluster fill values for a bimodal column.
 
-    Two branches, chosen by whether the user declared a grouping variable for the
-    column: group-wise central tendency over that variable, or centre-assignment
-    against the plan's two bimodal centres with a feature centroid per cluster so
-    inference can assign an unseen row to one of them.
+    Two branches, chosen by whether the user declared a grouping variable for
+    the column: group-wise central tendency over that variable, or
+    centre-assignment against the recipe's two bimodal centres with a feature
+    centroid per cluster so inference can assign an unseen row to one of them.
 
     Parameters
     ----------
     unit : ImputationUnit
         The ``"cluster_conditional:{column}"`` unit. ``central_tendency`` is
-        read from its hyperparameters; ``center1`` / ``center2`` /
-        ``feature_cols`` / ``grouping_variable`` off the column's decision.
+        read from the recipe's merged hyperparameters; ``center1`` /
+        ``center2`` / ``feature_cols`` from the recipe's column estimates;
+        ``grouping_variable`` off the routing.
     train_df : pl.DataFrame
         Training split.
     ctx : UnitFitContext
-        Plan decisions and configuration.
+        Recipe-derived context.
 
     Returns
     -------
     UnitFitOutcome
         A :class:`~dataforge_ml.imputation._fitted_units.FittedClusterConditional`,
-        or no fit when the plan carries no bimodal centres or the column has no
-        observed values.
+        or no fit when the recipe carries no bimodal centres for the column, or
+        the column has no observed values.
     """
     col = unit.columns[0]
-    decision = ctx.column_decisions.get(col)
-    center1 = decision.center1 if decision is not None else None
-    center2 = decision.center2 if decision is not None else None
+    estimates = ctx.column_estimates.get(col)
+    center1 = estimates.center1 if estimates is not None else None
+    center2 = estimates.center2 if estimates is not None else None
     if center1 is None or center2 is None:
         return UnitFitOutcome(
             fallback_reason=(
-                f"cluster_conditional: column '{col}' carries no bimodal centres "
-                f"on the plan"
+                f"cluster_conditional: column '{col}' carries no bimodal "
+                f"centres on the recipe. Set them with "
+                f"ImputationRecipe.with_estimates('{col}', center1=..., center2=...)."
             )
         )
 
-    use_mean = _hyperparameters(unit)["central_tendency"] == "mean"
-    snap = decision.domain_snap_bounds
-    grouping_var = decision.grouping_variable
+    use_mean = _hyperparameters(unit, ctx)["central_tendency"] == "mean"
+    snap = estimates.domain_snap_bounds if estimates is not None else None
+    routing = ctx.column_routings.get(col)
+    grouping_var = routing.grouping_variable if routing is not None else None
 
     if grouping_var and grouping_var in train_df.columns:
         df_valid = train_df.select([col, grouping_var]).drop_nulls()
@@ -792,7 +800,7 @@ def fit_cluster_unit(
             ),
         )
 
-    feat_cols = [c for c in (decision.feature_cols or ()) if c in train_df.columns]
+    feat_cols = [c for c in (estimates.feature_cols or ()) if c in train_df.columns]
     df_valid = train_df.select([col] + feat_cols).drop_nulls(subset=[col])
     if len(df_valid) == 0:
         return UnitFitOutcome(
@@ -839,7 +847,7 @@ def fit_cluster_unit(
             unit_id=unit.unit_id,
             strategy=unit.strategy,
             notes=(
-                "branch: centre-assignment against the plan's bimodal centres",
+                "branch: centre-assignment against the recipe's bimodal centres",
                 f"central_tendency: {'mean' if use_mean else 'median'}",
             ),
         ),
