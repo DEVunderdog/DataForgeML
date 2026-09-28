@@ -20,24 +20,26 @@ them — that edge is what keeps the fitted types free of a cycle.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any
 
 import numpy as np
 import polars as pl
 from sklearn.experimental import enable_iterative_imputer  # noqa: F401
 
-if TYPE_CHECKING:
-    from ._fitted_imputer import FittedUnit
-
 
 class FittedScalar:
-    """Standalone unit for scalar imputation (Mean, Median, Mode, Constant).
+    """Standalone unit for scalar imputation (Mean, Median, Mode, Constant, MNAR).
+
+    An ``MNAR`` unit is the one scalar :meth:`FittedImputer.transform` does not
+    apply: the composed imputer leaves the column's nulls beside its indicator
+    and exposes the fill instead. Calling this unit's ``transform`` directly is
+    how a user opts into that fill (ADR-0098).
 
     A scalar is only ever reached one way now — a plan that routed the column to
     a scalar strategy in the first place — since a model-based unit that cannot
     train raises rather than degrading to one (single-track failure, ADR-0071).
     The unit therefore carries only its fitted state: the column and the learned
-    fill value. Which scalar strategy produced it is a decide-time fact the plan
+    fill value. Which scalar strategy produced it is a route-time fact the routing
     holds under the same ``unit_id``, and its fit-time observability rides on the
     :class:`~dataforge_ml.imputation.FitSignals` the fit returned (ADR-0074), not
     on the persisted unit.
@@ -99,7 +101,7 @@ class FittedScalar:
         dtype = df.schema[self.target_col]
         fill_val = self.fill_value
         if dtype in _INT_DTYPES:
-            fill_val = int(round(float(fill_val)))
+            fill_val = int(fill_val)
         elif dtype in _FLOAT_DTYPES:
             fill_val = float(fill_val)
         return df.with_columns(pl.col(self.target_col).fill_null(fill_val))
@@ -130,17 +132,18 @@ class FittedClusterConditional:
     center2 : float
         Mean of cluster 2 from the univariate bimodal fit.
     """
-    grouping_variable: Optional[str]
-    group_fills: Optional[dict[Any, float]]
-    fill_1: Optional[float]
-    fill_2: Optional[float]
-    feature_centroid_1: Optional[np.ndarray]
-    feature_centroid_2: Optional[np.ndarray]
-    feature_cols: Optional[list[str]]
+
+    grouping_variable: str | None
+    group_fills: dict[Any, float] | None
+    fill_1: float | None
+    fill_2: float | None
+    feature_centroid_1: np.ndarray | None
+    feature_centroid_2: np.ndarray | None
+    feature_cols: list[str] | None
     center1: float
     center2: float
     target_col: str = ""
-    domain_snap_bounds: Optional[tuple[float, float]] = None
+    domain_snap_bounds: tuple[float, float] | None = None
 
     @property
     def target_columns(self) -> list[str]:
@@ -186,6 +189,7 @@ class FittedClusterConditional:
             return df
 
         import pandas as pd
+
         s_arr = s.to_numpy().copy()
         null_idx = np.where(null_mask.to_numpy())[0]
 
@@ -202,23 +206,25 @@ class FittedClusterConditional:
                     s_arr[idx] = fill_val
         else:
             if self.feature_cols:
-                feat_arr = df.select([c for c in self.feature_cols if c in df.columns]).to_numpy()
+                feat_arr = df.select(
+                    [c for c in self.feature_cols if c in df.columns]
+                ).to_numpy()
                 for idx in null_idx:
                     row_feats = feat_arr[idx]
                     row_feats = np.nan_to_num(row_feats)
-                    
-                    dist1 = float('inf')
-                    dist2 = float('inf')
+
+                    dist1 = float("inf")
+                    dist2 = float("inf")
                     if self.feature_centroid_1 is not None:
                         dist1 = np.linalg.norm(row_feats - self.feature_centroid_1)
                     if self.feature_centroid_2 is not None:
                         dist2 = np.linalg.norm(row_feats - self.feature_centroid_2)
-                        
+
                     if dist1 <= dist2 and self.fill_1 is not None:
                         s_arr[idx] = self.fill_1
                     elif self.fill_2 is not None:
                         s_arr[idx] = self.fill_2
-                        
+
         if self.domain_snap_bounds is not None:
             lo, hi = self.domain_snap_bounds
             # Deliberately snaps the whole column; _preserve_observed below
@@ -235,7 +241,6 @@ class FittedClusterConditional:
             # so the integer cast in _preserve_observed holds.
             out = out.fill_nan(None)
         return _preserve_observed(df, df.with_columns(out), [col])
-
 
 
 @dataclass
@@ -257,6 +262,7 @@ class FittedGMMSampling:
     weight2 : float
         Mixing weight of the second GMM component.
     """
+
     center1: float
     center2: float
     std1: float
@@ -264,8 +270,8 @@ class FittedGMMSampling:
     weight1: float
     weight2: float
     target_col: str = ""
-    domain_snap_bounds: Optional[tuple[float, float]] = None
-    random_seed: Optional[int] = None
+    domain_snap_bounds: tuple[float, float] | None = None
+    random_seed: int | None = None
 
     @property
     def target_columns(self) -> list[str]:
@@ -310,14 +316,14 @@ class FittedGMMSampling:
             return df
 
         rng = np.random.default_rng(self.random_seed)
-        
+
         choices = rng.choice([0, 1], p=[self.weight1, self.weight2], size=n_missing)
         samples = np.where(
             choices == 0,
             rng.normal(self.center1, self.std1, size=n_missing),
-            rng.normal(self.center2, self.std2, size=n_missing)
+            rng.normal(self.center2, self.std2, size=n_missing),
         )
-        
+
         if self.domain_snap_bounds is not None:
             lo, hi = self.domain_snap_bounds
             # Deliberately snaps the samples destined for the whole column's
@@ -330,4 +336,3 @@ class FittedGMMSampling:
         s_arr = s.to_numpy().copy()
         s_arr[null_mask.to_numpy()] = samples
         return _preserve_observed(df, df.with_columns(pl.Series(col, s_arr)), [col])
-

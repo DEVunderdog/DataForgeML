@@ -7,21 +7,18 @@ evaluation module's list need a test rather than a reading.
 The three outcome enums are a **stated exception** (ADR-0087): they classify
 output and are never user-supplied — the exact test that keeps ``TypeFlag``
 internal — but reading the report *is* branching on them, so the handling half
-of the rule reaches them. The generic seam ``c2st`` is the mirror case: it is
-importable machinery, and it stays unexported because the user drives
-evaluation through ``evaluate_imputation``.
+of the rule reaches them. The generic seam ``c2st`` is Public as of ADR-0087's
+amendment (#537): the umbrella that justified its privacy is gone, so it lands
+at the package root alongside the two errors it raises (spec #563).
 """
 
 import dataforge_ml
 from dataforge_ml import evaluation
 
 EXPECTED = [
-    "evaluate_imputation",
-    "EvaluationConfig",
+    "imputation_score_c2st",
     "C2STConfig",
-    "EvaluationMetric",
     "C2STScheme",
-    "EvaluationReport",
     "C2STReport",
     "ColumnC2STResult",
     "C2STScore",
@@ -30,6 +27,9 @@ EXPECTED = [
     "C2STOutcome",
     "C2STAnnotation",
     "C2STVerdict",
+    "c2st",
+    "C2STDtypeError",
+    "C2STSampleFloorError",
 ]
 
 
@@ -50,10 +50,10 @@ def test_the_three_outcome_enums_are_the_stated_adr_0050_exception():
         assert name in dataforge_ml.__all__
 
 
-def test_the_generic_seam_stays_private():
-    assert "c2st" not in dataforge_ml.__all__
-    assert not hasattr(dataforge_ml, "c2st")
-    assert "c2st" not in evaluation.__all__
+def test_the_generic_seam_and_its_errors_are_public_at_the_root():
+    assert callable(dataforge_ml.c2st)
+    for err in ("C2STSampleFloorError", "C2STDtypeError"):
+        assert issubclass(getattr(dataforge_ml, err), Exception)
 
 
 def test_the_root_export_list_is_wholly_reachable():

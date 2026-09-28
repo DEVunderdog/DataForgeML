@@ -9,8 +9,8 @@ import pytest
 
 from dataforge_ml.config import PipelineConfig, PipelinePhase, SemanticType
 from dataforge_ml.imputation import (
-    ColumnImputationDecision,
     ColumnImputationRecord,
+    ColumnRouting,
     ImputationConfig,
     ImputationResult,
     ImputationStrategy,
@@ -60,24 +60,14 @@ def test_numeric_imputation_config_default_knn_max_rows():
     assert cfg.knn_max_rows == 50_000
 
 
-def test_numeric_imputation_config_default_knn_max_features():
+def test_numeric_imputation_config_default_mice_min_rows_per_predictor():
     cfg = NumericImputationConfig()
-    assert cfg.knn_max_features == 50
-
-
-def test_numeric_imputation_config_default_mice_min_rows():
-    cfg = NumericImputationConfig()
-    assert cfg.mice_min_rows == 500
+    assert cfg.mice_min_rows_per_predictor == 2
 
 
 def test_numeric_imputation_config_mnar_constant_fill_removed():
     with pytest.raises(TypeError):
         NumericImputationConfig(mnar_constant_fill=-1)
-
-
-def test_numeric_imputation_config_default_gradient_boost_min_rows():
-    cfg = NumericImputationConfig()
-    assert cfg.gradient_boost_min_rows == 10_000
 
 
 # ---------------------------------------------------------------------------
@@ -90,9 +80,7 @@ def test_numeric_config_to_dict_contains_all_keys():
     d = cfg.to_dict()
     assert set(d.keys()) == {
         "knn_max_rows",
-        "knn_max_features",
-        "mice_min_rows",
-        "gradient_boost_min_rows",
+        "mice_min_rows_per_predictor",
         "base_max_iter",
         "knn_min_neighbors",
         "knn_max_neighbors",
@@ -101,7 +89,10 @@ def test_numeric_config_to_dict_contains_all_keys():
         "mice_n_nearest_features_min_cols",
         "mice_max_nearest_features",
         "mice_correlation_threshold",
-        "mcar_feature_predictability_threshold",
+        "signal_score_breadth_weight",
+        "signal_score_latent_weight",
+        "signal_score_middle_tier_min",
+        "signal_score_top_tier_min",
         "per_column_strategy",
         "per_column_constant_fill",
         "bimodal_grouping_variables",
@@ -115,34 +106,26 @@ def test_numeric_config_round_trip_default_values():
     original = NumericImputationConfig()
     restored = NumericImputationConfig.from_dict(original.to_dict())
     assert restored.knn_max_rows == original.knn_max_rows
-    assert restored.knn_max_features == original.knn_max_features
-    assert restored.mice_min_rows == original.mice_min_rows
-    assert restored.gradient_boost_min_rows == original.gradient_boost_min_rows
+    assert restored.mice_min_rows_per_predictor == original.mice_min_rows_per_predictor
     assert restored.base_max_iter == original.base_max_iter
 
 
 def test_numeric_config_round_trip_non_default_values():
     original = NumericImputationConfig(
         knn_max_rows=10_000,
-        knn_max_features=20,
-        mice_min_rows=1_000,
-        gradient_boost_min_rows=25_000,
+        mice_min_rows_per_predictor=5,
         base_max_iter=20,
     )
     restored = NumericImputationConfig.from_dict(original.to_dict())
     assert restored.knn_max_rows == 10_000
-    assert restored.knn_max_features == 20
-    assert restored.mice_min_rows == 1_000
-    assert restored.gradient_boost_min_rows == 25_000
+    assert restored.mice_min_rows_per_predictor == 5
     assert restored.base_max_iter == 20
 
 
 def test_numeric_config_from_dict_empty_uses_defaults():
     cfg = NumericImputationConfig.from_dict({})
     assert cfg.knn_max_rows == 50_000
-    assert cfg.knn_max_features == 50
-    assert cfg.mice_min_rows == 500
-    assert cfg.gradient_boost_min_rows == 10_000
+    assert cfg.mice_min_rows_per_predictor == 2
     assert cfg.base_max_iter == 10
     assert cfg.bimodal_correlation_threshold == 0.2
 
@@ -331,30 +314,88 @@ def test_numeric_config_mice_fields_from_dict_empty_uses_defaults():
 
 
 # ---------------------------------------------------------------------------
-# NumericImputationConfig — mcar_feature_predictability_threshold
+# NumericImputationConfig — Signal Score dials (ADR-0092)
 # ---------------------------------------------------------------------------
 
 
-def test_numeric_config_default_mcar_feature_predictability_threshold():
+def test_numeric_config_default_signal_score_dials():
     cfg = NumericImputationConfig()
-    assert cfg.mcar_feature_predictability_threshold == 0.2
+    assert cfg.signal_score_breadth_weight == 0.1
+    assert cfg.signal_score_latent_weight == 0.3
+    assert cfg.signal_score_middle_tier_min == 0.3
+    assert cfg.signal_score_top_tier_min == 0.6
 
 
-def test_numeric_config_mcar_feature_predictability_threshold_in_to_dict():
+def test_numeric_config_signal_score_dials_in_to_dict():
     cfg = NumericImputationConfig()
     d = cfg.to_dict()
-    assert d["mcar_feature_predictability_threshold"] == 0.2
+    assert d["signal_score_breadth_weight"] == 0.1
+    assert d["signal_score_latent_weight"] == 0.3
+    assert d["signal_score_middle_tier_min"] == 0.3
+    assert d["signal_score_top_tier_min"] == 0.6
 
 
-def test_numeric_config_mcar_feature_predictability_threshold_round_trip_non_default():
-    original = NumericImputationConfig(mcar_feature_predictability_threshold=0.35)
+def test_numeric_config_signal_score_dials_round_trip_non_default():
+    original = NumericImputationConfig(
+        signal_score_breadth_weight=0.2,
+        signal_score_latent_weight=0.4,
+        signal_score_middle_tier_min=0.25,
+        signal_score_top_tier_min=0.55,
+    )
     restored = NumericImputationConfig.from_dict(original.to_dict())
-    assert restored.mcar_feature_predictability_threshold == 0.35
+    assert restored.signal_score_breadth_weight == 0.2
+    assert restored.signal_score_latent_weight == 0.4
+    assert restored.signal_score_middle_tier_min == 0.25
+    assert restored.signal_score_top_tier_min == 0.55
 
 
-def test_numeric_config_mcar_feature_predictability_threshold_from_dict_empty_uses_default():
+def test_numeric_config_signal_score_dials_from_dict_empty_uses_default():
     cfg = NumericImputationConfig.from_dict({})
-    assert cfg.mcar_feature_predictability_threshold == 0.2
+    assert cfg.signal_score_breadth_weight == 0.1
+    assert cfg.signal_score_latent_weight == 0.3
+    assert cfg.signal_score_middle_tier_min == 0.3
+    assert cfg.signal_score_top_tier_min == 0.6
+
+
+@pytest.mark.parametrize(
+    ("retired", "replacement"),
+    [
+        ("mice_min_rows", "mice_min_rows_per_predictor"),
+        ("knn_max_features", "knn_max_rows"),
+        ("gradient_boost_min_rows", "with_model_choice"),
+        ("mcar_feature_predictability_threshold", "signal_score_"),
+    ],
+)
+def test_numeric_config_from_dict_rejects_deleted_keys_naming_the_replacement(
+    retired, replacement
+):
+    with pytest.raises(ValueError, match=retired) as exc:
+        NumericImputationConfig.from_dict({retired: 1})
+    assert replacement in str(exc.value)
+
+
+@pytest.mark.parametrize(
+    "deleted",
+    [
+        "mice_min_rows",
+        "knn_max_features",
+        "gradient_boost_min_rows",
+        "mcar_feature_predictability_threshold",
+    ],
+)
+def test_numeric_config_has_no_deleted_field(deleted):
+    assert not hasattr(NumericImputationConfig(), deleted)
+    assert deleted not in NumericImputationConfig().to_dict()
+
+
+def test_numeric_config_floor_and_ceiling_surface_is_exactly_two_fields():
+    """Only mice_min_rows_per_predictor and knn_max_rows gate model candidates
+    on size (ADR-0097); the never-realized floor dials never became fields."""
+    names = set(NumericImputationConfig().to_dict())
+    size_gates = {
+        n for n in names if "min_rows" in n or "max_rows" in n or "usable_rows" in n
+    }
+    assert size_gates == {"mice_min_rows_per_predictor", "knn_max_rows"}
 
 
 # ---------------------------------------------------------------------------
@@ -372,11 +413,6 @@ def test_imputation_config_default_mnar_columns_empty():
     assert cfg.mnar_columns == ()
 
 
-def test_imputation_config_default_add_indicator_columns_empty():
-    cfg = ImputationConfig()
-    assert cfg.add_indicator_columns == ()
-
-
 # ---------------------------------------------------------------------------
 # ImputationConfig — to_dict / from_dict round-trip
 # ---------------------------------------------------------------------------
@@ -388,7 +424,6 @@ def test_imputation_config_to_dict_contains_expected_keys():
     assert set(d.keys()) == {
         "numeric",
         "mnar_columns",
-        "add_indicator_columns",
     }
 
 
@@ -403,28 +438,26 @@ def test_imputation_config_round_trip_default_values():
     original = ImputationConfig()
     restored = ImputationConfig.from_dict(original.to_dict())
     assert restored.mnar_columns == ()
-    assert restored.add_indicator_columns == ()
     assert restored.numeric.knn_max_rows == 50_000
 
 
 def test_imputation_config_round_trip_non_default_values():
     original = ImputationConfig(
-        numeric=NumericImputationConfig(knn_max_rows=5_000, mice_min_rows=200),
+        numeric=NumericImputationConfig(
+            knn_max_rows=5_000, mice_min_rows_per_predictor=4
+        ),
     )
     original.add_mnar_column(["income", "age"])
-    original.add_indicator_column(["score"])
     restored = ImputationConfig.from_dict(original.to_dict())
     assert restored.mnar_columns == ("income", "age")
-    assert restored.add_indicator_columns == ("score",)
     assert restored.numeric.knn_max_rows == 5_000
-    assert restored.numeric.mice_min_rows == 200
+    assert restored.numeric.mice_min_rows_per_predictor == 4
 
 
 def test_imputation_config_from_dict_empty_uses_defaults():
     cfg = ImputationConfig.from_dict({})
     assert isinstance(cfg.numeric, NumericImputationConfig)
     assert cfg.mnar_columns == ()
-    assert cfg.add_indicator_columns == ()
 
 
 def test_imputation_config_mnar_columns_are_independent_copies():
@@ -461,8 +494,7 @@ def test_pipeline_config_imputation_default_is_imputation_config():
 def test_pipeline_config_imputation_default_has_correct_thresholds():
     cfg = PipelineConfig()
     assert cfg.imputation.numeric.knn_max_rows == 50_000
-    assert cfg.imputation.numeric.knn_max_features == 50
-    assert cfg.imputation.numeric.mice_min_rows == 500
+    assert cfg.imputation.numeric.mice_min_rows_per_predictor == 2
 
 
 def test_pipeline_config_two_instances_have_independent_imputation_configs():
@@ -510,15 +542,14 @@ def test_pipeline_config_from_dict_reconstructs_imputation_config():
         "column_overrides": {},
         "profiling": {},
         "imputation": {
-            "numeric": {"knn_max_rows": 20_000, "knn_max_features": 30},
+            "numeric": {"knn_max_rows": 20_000, "mice_min_rows_per_predictor": 3},
             "mnar_columns": ["revenue"],
-            "add_indicator_columns": [],
         },
     }
     cfg = PipelineConfig.from_dict(d)
     assert isinstance(cfg.imputation, ImputationConfig)
     assert cfg.imputation.numeric.knn_max_rows == 20_000
-    assert cfg.imputation.numeric.knn_max_features == 30
+    assert cfg.imputation.numeric.mice_min_rows_per_predictor == 3
     assert cfg.imputation.mnar_columns == ("revenue",)
 
 
@@ -545,21 +576,17 @@ def test_pipeline_config_round_trip_includes_imputation():
     original.imputation = ImputationConfig(
         numeric=NumericImputationConfig(
             knn_max_rows=15_000,
-            knn_max_features=25,
-            mice_min_rows=300,
+            mice_min_rows_per_predictor=6,
         ),
     )
     original.imputation.add_mnar_column(["salary", "age"])
-    original.imputation.add_indicator_column(["credit_score"])
     restored = PipelineConfig.from_json(original.to_json())
 
     assert restored.exclude_columns == ("id",)
     assert isinstance(restored.imputation, ImputationConfig)
     assert restored.imputation.numeric.knn_max_rows == 15_000
-    assert restored.imputation.numeric.knn_max_features == 25
-    assert restored.imputation.numeric.mice_min_rows == 300
+    assert restored.imputation.numeric.mice_min_rows_per_predictor == 6
     assert restored.imputation.mnar_columns == ("salary", "age")
-    assert restored.imputation.add_indicator_columns == ("credit_score",)
 
 
 def test_pipeline_config_round_trip_empty_config_imputation_defaults():
@@ -567,31 +594,30 @@ def test_pipeline_config_round_trip_empty_config_imputation_defaults():
     restored = PipelineConfig.from_json(original.to_json())
 
     assert restored.imputation.mnar_columns == ()
-    assert restored.imputation.add_indicator_columns == ()
     assert restored.imputation.numeric.knn_max_rows == 50_000
 
 
 # ---------------------------------------------------------------------------
-# ColumnImputationRecord — domain_snap_bounds round-trip
+# ColumnImputationRecord — round trip via ColumnRouting
 # ---------------------------------------------------------------------------
 
 
-def test_column_imputation_record_domain_snap_bounds_round_trips(round_trip):
+def test_column_imputation_record_round_trips(round_trip):
     from dataforge_ml.imputation._fitted_imputer import FittedImputer
 
-    record = ColumnImputationRecord(decision=ColumnImputationDecision(column="rating", semantic_type=SemanticType.Numeric, strategy=ImputationStrategy.MICE, domain_snap_bounds=(1.0, 5.0)))
+    record = ColumnImputationRecord(
+        decision=ColumnRouting(
+            column="age", semantic_type=SemanticType.Numeric, strategy=ImputationStrategy.Mean
+        ),
+        fill_value=30.0,
+    )
     d = record.to_dict()
-    assert d["domain_snap_bounds"] == [1.0, 5.0]
+    assert d["fill_value"] == 30.0
 
-    fi = FittedImputer(records={"rating": record})
+    fi = FittedImputer(records={"age": record})
     restored = round_trip(fi)
-    assert restored.records["rating"].decision.domain_snap_bounds == (1.0, 5.0)
-
-
-def test_column_imputation_record_domain_snap_bounds_none_by_default():
-    record = ColumnImputationRecord(decision=ColumnImputationDecision(column="age", semantic_type=SemanticType.Numeric, strategy=ImputationStrategy.Mean))
-    d = record.to_dict()
-    assert d["domain_snap_bounds"] is None
+    assert restored.records["age"].fill_value == 30.0
+    assert restored.records["age"].decision.strategy == ImputationStrategy.Mean
 
 
 # ---------------------------------------------------------------------------
@@ -750,7 +776,7 @@ def test_imputation_config_mnar_conflict_no_error_when_both_empty():
 # ---------------------------------------------------------------------------
 
 
-def test_column_imputation_record_missing_domain_snap_bounds_deserialises_to_none():
+def test_column_imputation_record_from_dict_round_trips():
     record = ColumnImputationRecord.from_dict({
         "column": "age",
         "semantic_type": "Numeric",
@@ -758,19 +784,19 @@ def test_column_imputation_record_missing_domain_snap_bounds_deserialises_to_non
         "fill_value": 30.0,
         "indicator_added": False,
         "signals": [],
-        # no domain_snap_bounds key — a record serialised before the field existed
     })
-    assert record.decision.domain_snap_bounds is None
+    assert record.decision.column == "age"
+    assert record.fill_value == 30.0
 
 
 def test_column_imputation_record_carries_no_diagnostic_field():
     """Diagnostics moved to the Evaluation reports; records dropped the field (ADR-0058)."""
-    record = ColumnImputationRecord(decision=ColumnImputationDecision(column="age", semantic_type=SemanticType.Numeric, strategy=ImputationStrategy.Mean), fill_value=30.0)
+    record = ColumnImputationRecord(decision=ColumnRouting(column="age", semantic_type=SemanticType.Numeric, strategy=ImputationStrategy.Mean), fill_value=30.0)
     assert not hasattr(record, "diagnostic")
 
 
 def test_column_imputation_record_to_dict_excludes_diagnostic_key():
-    record = ColumnImputationRecord(decision=ColumnImputationDecision(column="age", semantic_type=SemanticType.Numeric, strategy=ImputationStrategy.Mean), fill_value=30.0)
+    record = ColumnImputationRecord(decision=ColumnRouting(column="age", semantic_type=SemanticType.Numeric, strategy=ImputationStrategy.Mean), fill_value=30.0)
     assert "diagnostic" not in record.to_dict()
 
 
@@ -922,8 +948,106 @@ def test_numeric_config_setters_accept_lists():
     cfg = NumericImputationConfig()
     cfg.set_per_column_constant_fill(["c1", "c2"], 0.0)
     cfg.set_per_column_strategy(["c1", "c2"], ImputationStrategy.Constant)
-    cfg.set_bimodal_grouping_variable(["c1", "c2"], "group")
+    cfg.set_bimodal_grouping_variable(["b1", "b2"], "group")
 
     assert cfg.per_column_constant_fill == {"c1": 0.0, "c2": 0.0}
     assert cfg.per_column_strategy == {"c1": ImputationStrategy.Constant, "c2": ImputationStrategy.Constant}
-    assert cfg.bimodal_grouping_variables == {"c1": "group", "c2": "group"}
+    assert cfg.bimodal_grouping_variables == {"b1": "group", "b2": "group"}
+
+
+def test_numeric_config_accepts_cluster_conditional_and_gmm_sampling():
+    cfg = NumericImputationConfig()
+    cfg.set_per_column_strategy("c1", ImputationStrategy.ClusterConditional)
+    cfg.set_per_column_strategy("c2", ImputationStrategy.GMMSampling)
+    assert cfg.per_column_strategy["c1"] == ImputationStrategy.ClusterConditional
+    assert cfg.per_column_strategy["c2"] == ImputationStrategy.GMMSampling
+
+
+def test_grouping_variable_contradiction_raises_when_strategy_set_after():
+    cfg = NumericImputationConfig()
+    cfg.set_bimodal_grouping_variable("age", "group")
+
+    with pytest.raises(ValueError, match="contradicts any forced strategy other than ClusterConditional"):
+        cfg.set_per_column_strategy("age", ImputationStrategy.Mean)
+
+    with pytest.raises(ValueError, match="contradicts any forced strategy other than ClusterConditional"):
+        cfg.set_per_column_strategy("age", ImputationStrategy.GMMSampling)
+
+    # ClusterConditional is permitted alongside grouping variable
+    cfg.set_per_column_strategy("age", ImputationStrategy.ClusterConditional)
+    assert cfg.per_column_strategy["age"] == ImputationStrategy.ClusterConditional
+
+
+def test_grouping_variable_contradiction_raises_when_grouping_set_after():
+    cfg = NumericImputationConfig()
+    cfg.set_per_column_strategy("age", ImputationStrategy.Mean)
+    with pytest.raises(ValueError, match="contradicts any forced strategy other than ClusterConditional"):
+        cfg.set_bimodal_grouping_variable("age", "group")
+
+    cfg2 = NumericImputationConfig()
+    cfg2.set_per_column_strategy("age", ImputationStrategy.GMMSampling)
+    with pytest.raises(ValueError, match="contradicts any forced strategy other than ClusterConditional"):
+        cfg2.set_bimodal_grouping_variable("age", "group")
+
+    cfg3 = NumericImputationConfig()
+    cfg3.set_per_column_strategy("age", ImputationStrategy.ClusterConditional)
+    cfg3.set_bimodal_grouping_variable("age", "group")
+    assert cfg3.bimodal_grouping_variables["age"] == "group"
+
+
+def test_grouping_variable_contradiction_in_validate():
+    cfg = NumericImputationConfig()
+    cfg._bimodal_grouping_variables["age"] = "group"
+    cfg._per_column_strategy["age"] = ImputationStrategy.Median
+    with pytest.raises(ValueError, match="contradicts any forced strategy other than ClusterConditional"):
+        cfg.validate()
+
+    from dataforge_ml.imputation import ImputationConfig
+    imp_cfg = ImputationConfig(numeric=cfg)
+    with pytest.raises(ValueError, match="contradicts any forced strategy other than ClusterConditional"):
+        imp_cfg.validate()
+
+
+def test_grouping_variable_contradiction_from_dict():
+    with pytest.raises(ValueError, match="contradicts any forced strategy other than ClusterConditional"):
+        NumericImputationConfig.from_dict({
+            "per_column_strategy": {"age": "mean"},
+            "bimodal_grouping_variables": {"age": "grp"},
+        })
+
+    with pytest.raises(ValueError, match="contradicts any forced strategy other than ClusterConditional"):
+        NumericImputationConfig.from_dict({
+            "bimodal_grouping_variables": {"age": "grp"},
+            "per_column_strategy": {"age": "gmm_sampling"},
+        })
+
+
+def test_unforced_column_with_grouping_variable_does_not_raise():
+    cfg = NumericImputationConfig()
+    cfg.set_bimodal_grouping_variable("age", "group")
+    cfg.validate()
+    assert cfg.bimodal_grouping_variables["age"] == "group"
+
+
+def test_column_routing_excluded_round_trips():
+    routing = ColumnRouting(
+        column="age",
+        semantic_type=SemanticType.Numeric,
+        strategy=ImputationStrategy.Passthrough,
+        excluded=True,
+    )
+    assert ColumnRouting.from_dict(routing.to_dict()) == routing
+
+
+def test_column_routing_saved_before_excluded_existed_infers_it_from_the_signal():
+    """A pre-flag payload recorded a soft exclusion only as its signal."""
+    from dataforge_ml.imputation._config import _EXCLUSION_SIGNAL
+
+    legacy = ColumnRouting(
+        column="age",
+        semantic_type=SemanticType.Numeric,
+        strategy=ImputationStrategy.Passthrough,
+        signals=(_EXCLUSION_SIGNAL,),
+    ).to_dict()
+    del legacy["excluded"]
+    assert ColumnRouting.from_dict(legacy).excluded is True

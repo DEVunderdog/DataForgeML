@@ -22,7 +22,6 @@ from dataforge_ml.evaluation import (
     C2STScore,
     C2STVerdict,
     ColumnC2STResult,
-    EvaluationReport,
 )
 from dataforge_ml.evaluation.imputation._records import (
     _BASELINE_FRAMING,
@@ -188,14 +187,5 @@ def test_no_dial_suppresses_the_mar_caveat(field_name):
     assert _MAR_CAVEAT in report.to_markdown()
 
 
-def test_the_caveat_survives_the_umbrella_report(flagged_report):
-    markdown = EvaluationReport(c2st=flagged_report).to_markdown()
-    assert _MAR_CAVEAT in markdown
-    assert _BASELINE_FRAMING in markdown
-    assert CENSUS_HEADING in markdown
-
-
 def test_print_and_to_markdown_agree_on_the_new_content(flagged_report):
-    report = EvaluationReport(c2st=flagged_report)
-    assert str(report) == report.to_markdown()
     assert str(flagged_report) == flagged_report.to_markdown()

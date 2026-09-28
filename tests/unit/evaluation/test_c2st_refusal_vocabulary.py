@@ -3,7 +3,7 @@
 Record-level tests, driven by hand-built records rather than by a classifier:
 BH is arithmetic over a set of p-values, and a verdict is a property of that
 set, so neither needs a fit to be pinned. What the classifier actually does is
-asserted in ``tests/integration/test_evaluate_imputation.py``.
+asserted in ``tests/integration/test_imputation_score_c2st.py``.
 
 The structural claim under test throughout is that **refusal is structural, not
 a sentinel number**: a refused column has no :class:`C2STScore` at all, so a
@@ -60,12 +60,13 @@ def _report(*records: ColumnC2STResult, alpha: float = ALPHA) -> C2STReport:
 # ---------------------------------------------------------------------------
 
 
-def test_the_outcome_vocabulary_is_closed_at_six():
-    # A seventh member is a breaking change, so the list is pinned here.
+def test_the_outcome_vocabulary_is_closed_at_seven():
+    # A further member is a breaking change, so the list is pinned here.
     assert [m.value for m in C2STOutcome] == [
         "tested",
         "no_filled_cells",
         "no_observed_cells",
+        "unfilled",
         "type_not_testable",
         "below_sample_floor",
         "uninformative",
@@ -101,6 +102,7 @@ def test_the_annotation_vocabulary_names_all_four_facts():
     [
         C2STOutcome.NoFilledCells,
         C2STOutcome.NoObservedCells,
+        C2STOutcome.Unfilled,
         C2STOutcome.TypeNotTestable,
         C2STOutcome.BelowSampleFloor,
         C2STOutcome.Uninformative,

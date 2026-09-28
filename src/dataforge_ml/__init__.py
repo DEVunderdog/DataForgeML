@@ -17,38 +17,40 @@ from ._serialization import (
 )
 from .config import Modality, PipelineConfig, PipelinePhase, SemanticType
 
-# --- Evaluation: the opt-in scoring module (ADR-0087) ----------------------
+# --- Evaluation: c2st is public; the umbrella is gone (ADR-0087 amended) ---
 from .evaluation import (
     C2STAnnotation,
     C2STConfig,
+    C2STDtypeError,
     C2STOutcome,
     C2STProvenance,
     C2STReport,
     C2STResult,
+    C2STSampleFloorError,
     C2STScheme,
     C2STScore,
     C2STVerdict,
     ColumnC2STResult,
-    EvaluationConfig,
-    EvaluationMetric,
-    EvaluationReport,
-    evaluate_imputation,
+    c2st,
+    imputation_score_c2st,
 )
 
-# --- Exceptions the user catches -------------------------------------------
+# --- The layered imputation door (ADR-0088/0089/0090) ----------------------
 from .imputation import (
     AuthoredColumn,
-    ColumnImputationDecision,
+    ColumnEstimates,
     ColumnImputationRecord,
+    ColumnRouting,
     DroppedColumnAbsentWarning,
     FitSignals,
     FittedColumnAbsentError,
     FittedImputer,
     FittedUnit,
     ImputationConfig,
-    ImputationDecision,
     ImputationFitWarning,
+    ImputationRecipe,
     ImputationResult,
+    ImputationRouting,
     ImputationStrategy,
     ImputationUnit,
     ModelChoice,
@@ -57,9 +59,10 @@ from .imputation import (
     UnitNotTrainableError,
     UnseenColumnError,
     author,
-    core_budget,
-    decide,
+    derive_units,
     fit_unit,
+    resolve_recipe,
+    route,
 )
 
 # --- Observability: Pipeline Event stream + observers ----------------------
@@ -103,13 +106,18 @@ __all__ = [
 
     "StructuralProfiler",
     "FittedImputer",
-    
-    "decide",
+
+    "route",
     "author",
     "AuthoredColumn",
+    "resolve_recipe",
+    "ImputationRouting",
+    "ImputationRecipe",
+    "ColumnRouting",
+    "ColumnEstimates",
+    "derive_units",
     "fit_unit",
     "ImputationUnit",
-    "core_budget",
     "UnitFitResult",
     "FitSignals",
     "UnitNotTrainableError",
@@ -138,8 +146,6 @@ __all__ = [
     "DatasetStats",
     "ImputationResult",
     "ColumnImputationRecord",
-    "ColumnImputationDecision",
-    "ImputationDecision",
     "SplitResult",
     "FoldResult",
     "HoldoutCVResult",
@@ -159,13 +165,12 @@ __all__ = [
     # ``C2STOutcome`` / ``C2STAnnotation`` / ``C2STVerdict`` classify output and
     # are never user-supplied, a stated exception to ADR-0050 (ADR-0087):
     # reading the report *is* branching on them, so the handling half of the
-    # export rule reaches them. The generic seam ``c2st`` stays unexported.
-    "evaluate_imputation",
-    "EvaluationConfig",
+    # export rule reaches them. ``c2st`` is public as of ADR-0087's amendment
+    # (#537): the umbrella that justified privacy is gone.
+    "imputation_score_c2st",
+    "c2st",
     "C2STConfig",
-    "EvaluationMetric",
     "C2STScheme",
-    "EvaluationReport",
     "C2STReport",
     "ColumnC2STResult",
     "C2STScore",
@@ -174,4 +179,6 @@ __all__ = [
     "C2STOutcome",
     "C2STAnnotation",
     "C2STVerdict",
+    "C2STDtypeError",
+    "C2STSampleFloorError",
 ]

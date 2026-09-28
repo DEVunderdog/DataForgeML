@@ -1,5 +1,7 @@
 # ADR 0011: MICE estimator selection uses the most complex NonlinearityTag across the block
 
+> **Amended by [Whether the two quantities govern the estimator pick and ADR-0062's hyperparameters](https://github.com/DEVunderdog/DataForgeML/issues/526) (map #528, ADR-0094).** The most complex tag sets the block's *top* rung on the Estimator Ladder; failed Estimator Bounds on the thinnest column step it down. The corollary is withdrawn: `Unpredictable` maps to BayesianRidge and the block is never skipped.
+
 **Status:** Accepted
 
 `IterativeImputer` accepts a single `estimator` parameter applied uniformly across every column in every round. MICE columns may each carry a different `NonlinearityTag` (computed by `NonlinearityProfiler` in Phase 1). Three aggregation strategies were considered:

@@ -23,7 +23,9 @@ from sklearn.ensemble import HistGradientBoostingClassifier
 from dataforge_ml.evaluation._c2st import (
     MIN_SAMPLE_FLOOR,
     C2STDtypeError,
+    C2STSampleFloorError,
     C2STScheme,
+    _c2st,
     _default_c2st_classifier,
     _meets_sample_floor,
     c2st,
@@ -238,7 +240,7 @@ def test_the_floor_predicate_is_pure_and_needs_no_test_run() -> None:
 def test_the_floor_is_asserted_internally_so_it_cannot_be_bypassed() -> None:
     frame, _ = _table(400, np.random.default_rng(15))
 
-    with pytest.raises(ValueError, match="size floor"):
+    with pytest.raises(C2STSampleFloorError, match="size floor"):
         c2st(
             frame[200:],
             frame[: MIN_SAMPLE_FLOOR - 1],
@@ -246,6 +248,11 @@ def test_the_floor_is_asserted_internally_so_it_cannot_be_bypassed() -> None:
             scheme=C2STScheme.Split,
             random_state=0,
         )
+
+
+def test_the_sample_floor_error_is_a_value_error_subclass() -> None:
+    """A caller can still catch it as a bare ``ValueError`` if it wants to."""
+    assert issubclass(C2STSampleFloorError, ValueError)
 
 
 # ---------------------------------------------------------------------------
@@ -367,6 +374,37 @@ def test_an_injected_classifier_is_used_verbatim() -> None:
     assert injected.get_params() == before
 
 
+def test_min_samples_leaf_with_an_injected_classifier_is_refused() -> None:
+    """``min_samples_leaf`` only tunes the *default* classifier; setting both is unrepresentable."""
+    reference, candidate = _one_world(120, 29)
+    injected = HistGradientBoostingClassifier(
+        min_samples_leaf=9, early_stopping=False, random_state=3
+    )
+
+    with pytest.raises(ValueError, match="min_samples_leaf"):
+        c2st(
+            reference,
+            candidate,
+            repeats=1,
+            scheme=C2STScheme.Split,
+            classifier=injected,
+            min_samples_leaf=7,
+            random_state=0,
+        )
+
+
+def test_min_samples_leaf_overrides_the_default_classifier_pin() -> None:
+    result = c2st(
+        *_one_world(120, 30),
+        repeats=1,
+        scheme=C2STScheme.Split,
+        min_samples_leaf=11,
+        random_state=0,
+    )
+
+    assert result.repeat_z
+
+
 def test_the_default_factory_carries_exactly_the_two_pins() -> None:
     """``c2st(classifier=None)`` never builds a bare sklearn-default HGB."""
     params = _default_c2st_classifier(random_state=5).get_params()
@@ -463,11 +501,64 @@ def test_an_outlier_clipping_check_is_served_with_no_adapter() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_one_substep_is_emitted_per_repeat() -> None:
+def test_a_direct_call_reports_the_repeat_as_an_item() -> None:
+    """The call owns the loop, so a direct ``c2st`` reports each repeat as ``item``."""
+    seen: list[PipelineEvent] = []
+
+    c2st(
+        *_one_world(80, 28),
+        repeats=4,
+        scheme=C2STScheme.Split,
+        random_state=0,
+        observer=seen.append,
+    )
+
+    items = [e for e in seen if e.event_type is EventType.item]
+    assert len(items) == 4
+    assert [e.index for e in items] == [1, 2, 3, 4]
+    assert {e.total for e in items} == {4}
+    assert not [e for e in seen if e.event_type is EventType.substep]
+    assert not [e for e in seen if e.event_type is EventType.decision]
+    assert {EventType.stage_start, EventType.stage_end} <= {
+        e.event_type for e in seen
+    }
+
+
+def test_evaluation_c2st_public_direct_call_with_five_repeats_emits_items() -> None:
+    """``dataforge_ml.evaluation.c2st(ref_df, cand_df, repeats=5, scheme=C2STScheme.Split)`` runs as a direct call."""
+    import dataforge_ml.evaluation
+
+    ref_df, cand_df = _one_world(80, 28)
+    seen: list[PipelineEvent] = []
+
+    result = dataforge_ml.evaluation.c2st(
+        ref_df,
+        cand_df,
+        repeats=5,
+        scheme=dataforge_ml.evaluation.C2STScheme.Split,
+        random_state=0,
+        observer=seen.append,
+    )
+
+    assert isinstance(result, dataforge_ml.evaluation.C2STResult)
+    assert len(result.repeat_z) == 5
+    items = [e for e in seen if e.event_type is EventType.item]
+    assert len(items) == 5
+    assert [e.index for e in items] == [1, 2, 3, 4, 5]
+    assert {e.total for e in items} == {5}
+    assert not [e for e in seen if e.event_type is EventType.substep]
+    assert not [e for e in seen if e.event_type is EventType.decision]
+    assert {EventType.stage_start, EventType.stage_end} <= {
+        e.event_type for e in seen
+    }
+
+
+def test_the_adapters_nested_call_still_reports_the_repeat_as_a_substep() -> None:
+    """The private inner seam the adapter calls is unchanged: one ``substep`` per repeat."""
     seen: list[PipelineEvent] = []
     emitter = Emitter("evaluation", "c2st", seen.append, total=1)
 
-    c2st(
+    _c2st(
         *_one_world(80, 28),
         repeats=4,
         scheme=C2STScheme.Split,
@@ -480,6 +571,7 @@ def test_one_substep_is_emitted_per_repeat() -> None:
     assert [e.index for e in substeps] == [1, 2, 3, 4]
     assert {e.total for e in substeps} == {4}
     assert {(e.phase, e.stage) for e in substeps} == {("evaluation", "c2st")}
+    assert not [e for e in seen if e.event_type is EventType.item]
     assert not [e for e in seen if e.event_type is EventType.decision]
 
 

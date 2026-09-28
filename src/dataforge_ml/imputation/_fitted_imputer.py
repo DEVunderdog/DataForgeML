@@ -3,7 +3,7 @@ FittedImputer — stateless object assembled by FittedImputer.compose().
 
 transform(df) applies train-time fill parameters and fitted models to any
 DataFrame. The imputer has no aggregate serialize format of its own (ADR-0072):
-a whole imputer is persisted as its decision plus its fitted units — each a
+a whole imputer is persisted as its recipe plus its fitted units — each a
 single ``dataforge_ml.serialize`` blob — and rehydrated through
 :meth:`FittedImputer.compose`, whose exact-coverage check guarantees the
 reconstructed imputer is structurally complete.
@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import polars as pl
@@ -28,18 +28,20 @@ from ._config import (
     ImputationStrategy,
 )
 from ._fitted_units import FittedScalar
+from ._units import derive_units
 
 
-def _normalize_results(decision: Any, results: Any) -> dict[str, Any]:
+def _normalize_results(recipe: Any, results: Any) -> dict[str, Any]:
     """Reduce ``compose``'s tolerant input to a ``{unit_id: fitted_unit}`` map.
 
     Accepts a mapping or an iterable, and within it either raw fitted units or
     ``UnitFitResult`` bundles. A ``UnitFitResult`` names its own unit id; a raw
-    fitted unit is matched to its plan unit by the columns it owns.
+    fitted unit is matched to its routing's unit by the columns it owns.
     """
-    by_columns = {frozenset(u.columns): u.unit_id for u in decision.units}
+    units = derive_units(recipe.routing)
+    by_columns = {frozenset(u.columns): u.unit_id for u in units}
 
-    def _resolve(unit_id: Optional[str], item: Any) -> tuple[str, Any]:
+    def _resolve(unit_id: str | None, item: Any) -> tuple[str, Any]:
         fitted = getattr(item, "fitted", None)
         if fitted is not None and hasattr(item, "unit_id"):
             # A UnitFitResult bundle.
@@ -52,7 +54,7 @@ def _normalize_results(decision: Any, results: Any) -> dict[str, Any]:
         if matched is None:
             raise ValueError(
                 f"A supplied fitted unit owns columns {sorted(item.target_columns)}, "
-                f"which match no unit in the plan; it cannot be composed."
+                f"which match no unit in the routing; it cannot be composed."
             )
         return matched, item
 
@@ -121,7 +123,7 @@ class FittedUnit(Protocol):
     A trained unit always executed the strategy the plan asked for: a unit that
     cannot train raises :class:`~dataforge_ml.imputation.UnitNotTrainableError`
     rather than becoming a divergent artifact (single-track failure, ADR-0071).
-    The strategy the unit executed is a decide-time fact the plan holds under the
+    The strategy the unit executed is a route-time fact the routing holds under the
     same ``unit_id``, so a fitted unit carries only its fitted state (ADR-0074)
     and does not restate it; a fit's runtime observability rides on the
     :class:`~dataforge_ml.imputation.FitSignals` the fit returned.
@@ -137,7 +139,7 @@ class FittedUnit(Protocol):
     **On the stateless door, the caller owns sentinel normalisation.** A bare
     unit resolves float ``NaN``/``Inf`` as missing with no configuration, but
     it cannot resolve sentinel-encoded Effective Nulls (e.g. ``-999``): the
-    declared sentinel maps live on the ``ImputationDecision`` (ADR-0068), and
+    declared sentinel maps live on the ``ImputationRecipe`` (ADR-0068), and
     a bare unit does not hold them. Normalise sentinels before calling a bare
     unit's ``transform``, or transform through the composed
     :meth:`FittedImputer.transform`, which normalises off the plan's maps.
@@ -215,7 +217,7 @@ class FittedMICE:
     """
     model: Any
     columns: list[str]
-    all_cols: Optional[list[str]] = None
+    all_cols: list[str] | None = None
     domain_snap_bounds: dict[str, tuple[float, float]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -298,31 +300,56 @@ class _FittedKNN:
     that ``_apply_knn`` can inverse-scale the imputed output back to original
     units.
 
+    The block's inputs and its targets are no longer the same set (ADR-0093):
+    it measures distance over ``all_cols`` — every active numeric column, not
+    just the block's own — but writes back only ``columns``, the columns it
+    owns. This mirrors :class:`FittedMICE`'s ``all_cols`` / ``columns`` split;
+    a block-only distance made a one-column KNN block degenerate to a
+    training-mean fill, since ``KNNImputer`` falls back to the column mean
+    when a receiver shares no observed coordinate with any donor.
+
     Parameters
     ----------
     model : Any
         Fitted ``KNNImputer`` trained on the NaN-safe scaled training matrix.
     col_means : np.ndarray
         Per-column means computed with ``nanmean`` from the KNN training
-        matrix.  Shape ``(n_knn_features,)``.
+        matrix, over ``all_cols``.  Shape ``(n_all_cols,)``.
     col_stds : np.ndarray
         Per-column standard deviations computed with ``nanstd`` from the KNN
-        training matrix, with zero values replaced by ``1.0``.
-        Shape ``(n_knn_features,)``.
+        training matrix, over ``all_cols``, with zero values replaced by
+        ``1.0``.  Shape ``(n_all_cols,)``.
+    columns : list[str]
+        The columns this block owns and writes back. A strict subset of
+        ``all_cols`` in the widened shape; equal to it when ``all_cols`` is
+        left unset.
+    all_cols : list[str], optional
+        Full column list, in joint-array order, the block reads at fit and
+        transform time. Defaults to ``columns`` when omitted — the
+        pre-widening shape, where the block's inputs and targets coincided.
+        A KNN unit saved before ADR-0093 does not load: there is no
+        compatibility shim for a pre-widening artifact.
+    domain_snap_bounds : dict[str, tuple[float, float]]
+        Per-owned-column domain-snap bounds, keyed by column name.
     """
 
     model: Any
     col_means: np.ndarray
     col_stds: np.ndarray
     columns: list[str] = field(default_factory=list)
+    all_cols: list[str] | None = None
     domain_snap_bounds: dict[str, tuple[float, float]] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.all_cols is None:
+            self.all_cols = list(self.columns)
 
     @property
     def target_columns(self) -> list[str]:
-        """The block's columns, which are both its inputs and its targets.
+        """The block's owned columns — the ones its ``transform`` may fill.
 
-        The block trains one solver over exactly these columns and fills all of
-        them, so it reads no column it does not own.
+        A strict subset of :attr:`all_cols`, the full set the block reads as
+        the distance space (ADR-0093).
 
         Returns
         -------
@@ -334,21 +361,26 @@ class _FittedKNN:
     def transform(self, df: pl.DataFrame) -> pl.DataFrame:
         """Fill the block's missing cells, preserving observed cells.
 
-        The scale/inverse-scale round trip and the per-column domain snaps
-        rewrite whole columns; observed-value preservation is applied as the
-        final step, so every cell that was not an Effective Null in ``df``
-        comes back bit-for-bit with its original dtype (ADR-0078).
+        Reads every column in :attr:`all_cols` present in ``df`` for the
+        distance space (a column absent from ``df`` contributes an
+        all-missing coordinate, same as a column that was never observed),
+        but writes back only :attr:`columns` — the block never overwrites a
+        column it merely read for distance. The scale/inverse-scale round
+        trip and the per-column domain snaps rewrite whole columns;
+        observed-value preservation is applied as the final step, so every
+        cell that was not an Effective Null in ``df`` comes back bit-for-bit
+        with its original dtype (ADR-0078).
 
         Parameters
         ----------
         df : pl.DataFrame
             Frame to impute. Returned unchanged when none of the block's
-            columns are present.
+            owned columns are present.
 
         Returns
         -------
         pl.DataFrame
-            ``df`` with the block's missing cells filled.
+            ``df`` with the block's owned columns' missing cells filled.
         """
         cols = [c for c in self.columns if c in df.columns]
         if not cols:
@@ -356,11 +388,18 @@ class _FittedKNN:
         import polars as pl
 
         from ._utils import _df_to_numpy, _numpy_to_df, _preserve_observed
-        arr = _df_to_numpy(df, cols)
+
+        n_df_rows = len(df)
+        arr = np.full((n_df_rows, len(self.all_cols)), np.nan, dtype=np.float64)
+        for j, c in enumerate(self.all_cols):
+            if c in df.columns:
+                arr[:, j] = _df_to_numpy(df, [c]).ravel()
+
         arr_scaled = (arr - self.col_means) / self.col_stds
         arr_imputed = self.model.transform(arr_scaled)
         arr_unscaled = arr_imputed * self.col_stds + self.col_means
-        out_df = _numpy_to_df(df, cols, arr_unscaled)
+        owned_idx = [self.all_cols.index(c) for c in cols]
+        out_df = _numpy_to_df(df, cols, arr_unscaled[:, owned_idx])
 
         snap_exprs = []
         for col in cols:
@@ -389,7 +428,8 @@ class FittedImputer:
         the whole-frame concerns a single unit has no standing to own — the
         schema guards, the Dropped / Passthrough / Indicator projection — and
         carries each scalar column's learned ``fill_value``, which ``transform``
-        applies directly.
+        applies directly — except an ``MNAR`` column's, which is exposed there
+        and never applied (ADR-0098).
     units : list[FittedUnit]
         The trained model-based units (KNN, MICE, and the bimodal
         strategies) in the plan's application order (ADR-0067), never
@@ -421,55 +461,57 @@ class FittedImputer:
     units: list[Any] = field(default_factory=list)
     numeric_sentinels: dict[str, list[float]] = field(default_factory=dict)
     string_sentinels: dict[str, list[str]] = field(default_factory=dict)
-    random_seed: Optional[int] = None
+    random_seed: int | None = None
 
     @classmethod
     def compose(
         cls,
-        decision: Any,
+        recipe: Any,
         results: Any,
-    ) -> "FittedImputer":
+    ) -> FittedImputer:
         """Assemble trained units into a whole-frame imputer (ADR-0071).
 
-        The named constructor of the user-orchestrated flow: given the plan and
-        the units the caller's :func:`~dataforge_ml.imputation.fit_unit` loop
-        trained (batch scheduling is user-owned, ADR-0075), build the aggregate
-        that holds the whole frame. ``compose`` owns exactly the concerns a
-        single unit cannot — the full-schema manifest every column is looked up
-        in (and with it the whole-frame safety guards), and the structural
-        projection of the Dropped / Passthrough / Indicator columns, which have
-        no unit precisely because they learn nothing.
+        The named constructor of the user-orchestrated flow: given the recipe
+        and the units the caller's :func:`~dataforge_ml.imputation.fit_unit`
+        loop trained (batch scheduling is user-owned, ADR-0075), build the
+        aggregate that holds the whole frame. ``compose`` owns exactly the
+        concerns a single unit cannot — the full-schema manifest every column
+        is looked up in (and with it the whole-frame safety guards), and the
+        structural projection of the Dropped / Passthrough / Indicator
+        columns, which have no unit precisely because they learn nothing.
 
-        Coverage must be exact: the supplied units must cover the plan's units
-        one-for-one — no missing unit (which would leave a column unfilled) and
-        no extra one (which describes no column the plan planned).
+        Coverage must be exact: the supplied units must cover
+        :func:`~dataforge_ml.imputation.derive_units`'s units one-for-one — no
+        missing unit (which would leave a column unfilled) and no extra one
+        (which describes no column the routing routed).
 
         Parameters
         ----------
-        decision : ImputationDecision
-            The plan the units were trained against. Supplies the column
-            decisions, the unit order, and the sentinel maps.
+        recipe : ImputationRecipe
+            The recipe the units were trained against. Supplies the routing's
+            column entries, the unit order, and the sentinel maps.
         results : Mapping or Iterable
             The trained units, tolerant of either raw fitted units or
             :class:`~dataforge_ml.imputation.UnitFitResult` bundles, given as a
             mapping keyed by unit id or as a plain iterable. A raw fitted unit is
-            matched to its plan unit by the columns it owns.
+            matched to its unit by the columns it owns.
 
         Returns
         -------
         FittedImputer
-            The aggregate: the structural manifest, the trained units in plan
-            order, and the plan's sentinel maps.
+            The aggregate: the structural manifest, the trained units in
+            routing order, and the recipe's sentinel maps.
 
         Raises
         ------
         ValueError
-            If the supplied units do not exactly cover the plan's units, or a
-            raw fitted unit matches no plan unit.
+            If the supplied units do not exactly cover the routing's units, or a
+            raw fitted unit matches no unit.
         """
-        fitted_by_id = _normalize_results(decision, results)
+        fitted_by_id = _normalize_results(recipe, results)
+        units_derived = derive_units(recipe.routing)
 
-        expected = {u.unit_id for u in decision.units}
+        expected = {u.unit_id for u in units_derived}
         supplied = set(fitted_by_id)
         missing = expected - supplied
         extra = supplied - expected
@@ -480,9 +522,9 @@ class FittedImputer:
             if extra:
                 parts.append(f"unexpected units {sorted(extra)}")
             raise ValueError(
-                "compose() requires the supplied units to cover the plan's units "
-                f"exactly: {'; '.join(parts)}. Train every planned unit (and only "
-                "those) before composing."
+                "compose() requires the supplied units to cover the routing's "
+                f"units exactly: {'; '.join(parts)}. Train every routed unit "
+                "(and only those) before composing."
             )
 
         # A scalar unit's learned fill lands on the structural manifest, which is
@@ -491,28 +533,28 @@ class FittedImputer:
         # strategy, so a scalar fill and a model unit never collide on a column.
         scalar_fill: dict[str, Any] = {}
         units: list[Any] = []
-        for unit in decision.units:
+        for unit in units_derived:
             fitted = fitted_by_id[unit.unit_id]
             if isinstance(fitted, FittedScalar):
                 scalar_fill[fitted.target_col] = fitted.fill_value
             else:
-                # Application order is the plan's unit order, never the order the
-                # units were trained in (ADR-0067).
+                # Application order is the routing's unit order, never the
+                # order the units were trained in (ADR-0067).
                 units.append(fitted)
 
         records: dict[str, ColumnImputationRecord] = {}
-        for col, col_decision in decision.column_decisions.items():
+        for col, col_routing in recipe.routing.column_routings.items():
             records[col] = ColumnImputationRecord(
-                decision=col_decision,
+                decision=col_routing,
                 fill_value=scalar_fill.get(col),
-                indicator_added=col_decision.indicator_flag,
+                indicator_added=col_routing.indicator_flag,
             )
 
         return cls(
             records=records,
             units=units,
-            numeric_sentinels=dict(decision.numeric_sentinels),
-            string_sentinels=dict(decision.string_sentinels),
+            numeric_sentinels=dict(recipe.numeric_sentinels),
+            string_sentinels=dict(recipe.string_sentinels),
         )
 
     def apply_exclusions(self, config: PipelineConfig) -> None:
@@ -573,7 +615,10 @@ class FittedImputer:
         declared maps before any fill (ADR-0068), and each model-based unit's
         Observed-Value Preservation (ADR-0078) guarantees that only cells
         missing in the normalised frame receive fill values. A ``Passthrough``
-        column is left completely alone, nulls included (ADR-0083).
+        column is left completely alone, nulls included (ADR-0083). An ``MNAR``
+        column gains its ``{col}_missing`` indicator but keeps its nulls: its
+        fill is exposed on ``ColumnImputationRecord.fill_value``, never
+        applied (ADR-0098).
 
         The **Dtype Floor** is enforced on the working copy immediately after
         that normalisation (ADR-0085), so every consumer inside this call reads
@@ -696,7 +741,10 @@ class FittedImputer:
         # Scalar fills come off the structural manifest: a model-based unit reads
         # whatever features it needs off a single pre-model snapshot, and that
         # snapshot must already carry the scalar fills so a regression predicting
-        # from a Median-filled feature sees the filled value.
+        # from a Median-filled feature sees the filled value. An MNAR column's
+        # fill is computed and carried on its record but never applied: the gap
+        # is informative, so the column keeps its nulls beside its indicator
+        # and applying the fill is the user's choice (ADR-0098).
         fill_exprs = []
         for col, rec in self.records.items():
             if rec.decision.strategy in (
@@ -704,6 +752,7 @@ class FittedImputer:
                 ImputationStrategy.Passthrough,
                 ImputationStrategy.KNN,
                 ImputationStrategy.MICE,
+                ImputationStrategy.MNAR,
             ):
                 continue
             if col not in result_df.columns:

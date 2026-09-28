@@ -12,14 +12,16 @@ takes two frames and returns a
 adapt a phase's artefacts to that layer; ``evaluation/imputation/`` is the
 first of them.
 
-Public exports land with the entry point ``evaluate_imputation``; the generic
-seam stays private under ADR-0050.
+Public exports land with the entry point ``imputation_score_c2st``. The generic
+seam ``c2st`` is public too (ADR-0087's amendment, #537): the umbrella that
+justified keeping it private under ADR-0050 is deleted, and a user can run it
+directly as an ad hoc distributional check on any two frames.
 """
 
 from __future__ import annotations
 
-from ._c2st import C2STResult, C2STScheme
-from ._config import C2STConfig, EvaluationConfig, EvaluationMetric
+from ._c2st import C2STDtypeError, C2STResult, C2STSampleFloorError, C2STScheme, c2st
+from ._config import C2STConfig
 from .imputation import (
     C2STAnnotation,
     C2STOutcome,
@@ -28,23 +30,22 @@ from .imputation import (
     C2STScore,
     C2STVerdict,
     ColumnC2STResult,
-    EvaluationReport,
-    evaluate_imputation,
+    imputation_score_c2st,
 )
 
 __all__ = [
     "C2STAnnotation",
     "C2STConfig",
+    "C2STDtypeError",
     "C2STOutcome",
     "C2STProvenance",
     "C2STReport",
     "C2STResult",
+    "C2STSampleFloorError",
     "C2STScheme",
     "C2STScore",
     "C2STVerdict",
     "ColumnC2STResult",
-    "EvaluationConfig",
-    "EvaluationMetric",
-    "EvaluationReport",
-    "evaluate_imputation",
+    "c2st",
+    "imputation_score_c2st",
 ]

@@ -293,17 +293,23 @@ def test_genuine_joblib_load_failure_propagates() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# The whole imputer: no aggregate format — decision + units re-composed
+# The whole imputer: no aggregate format — routing + units re-composed
 #
 # There is no aggregate serialize format (ADR-0072). A whole imputer persists as
-# its decision plus its units, each a single serialize blob, and rehydrates
-# through FittedImputer.compose.
+# its routing plus its units, each a single serialize blob, and rehydrates
+# through resolve_recipe + FittedImputer.compose.
 # --------------------------------------------------------------------------- #
 
 
-def test_whole_imputer_round_trips_via_decision_plus_units() -> None:
+def test_whole_imputer_round_trips_via_routing_plus_units() -> None:
     from dataforge_ml import PipelineConfig, StructuralProfiler
-    from dataforge_ml.imputation import FittedImputer, decide, fit_unit
+    from dataforge_ml.imputation import (
+        FittedImputer,
+        derive_units,
+        fit_unit,
+        resolve_recipe,
+        route,
+    )
 
     df = pl.DataFrame(
         {
@@ -313,19 +319,23 @@ def test_whole_imputer_round_trips_via_decision_plus_units() -> None:
     )
     cfg = PipelineConfig()
     profile = StructuralProfiler(cfg).profile(df)
-    plan = decide(profile, len(df), cfg)
+    routing = route(profile, cfg)
+    recipe = resolve_recipe(routing, profile, cfg)
+    units = derive_units(routing)
     results = {
-        unit.unit_id: fit_unit(plan, unit, df, random_seed=7)
-        for unit in plan.units
+        unit.unit_id: fit_unit(recipe, unit, df, random_seed=7)
+        for unit in units
     }
 
-    original = FittedImputer.compose(plan, results)
+    original = FittedImputer.compose(recipe, results)
 
-    # Persist the plan and each unit as bytes, then rehydrate through compose.
-    plan_bytes = serialize(plan)
+    # Persist the routing and each unit as bytes, then rehydrate through
+    # resolve_recipe + compose.
+    routing_bytes = serialize(routing)
     unit_bytes = {uid: serialize(r.fitted) for uid, r in results.items()}
-    restored_plan = deserialize(plan_bytes)
+    restored_routing = deserialize(routing_bytes)
+    restored_recipe = resolve_recipe(restored_routing, profile, cfg)
     restored_units = {uid: deserialize(b) for uid, b in unit_bytes.items()}
-    restored = FittedImputer.compose(restored_plan, restored_units)
+    restored = FittedImputer.compose(restored_recipe, restored_units)
 
     assert original.transform(df).dataframe.equals(restored.transform(df).dataframe)

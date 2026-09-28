@@ -1,8 +1,11 @@
 """
-Configuration and result dataclasses for the imputation phase — Phase 2.
+Configuration and data-model dataclasses for the imputation phase — Phase 2.
 
-ImputationConfig controls strategy thresholds and MNAR declarations.
-Result dataclasses carry per-column audit records and the imputed DataFrame.
+``ImputationConfig`` controls strategy thresholds and MNAR declarations.
+``ColumnRouting`` / ``ImputationRouting`` are the routing half of the layered
+door (ADR-0088); ``ColumnImputationRecord`` / ``ImputationResult`` carry the
+per-column audit trail and the imputed DataFrame produced by
+``FittedImputer.transform``.
 """
 
 from __future__ import annotations
@@ -10,7 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum, StrEnum
 from types import MappingProxyType
-from typing import Any, Optional
+from typing import Any
 
 import polars as pl
 
@@ -18,16 +21,16 @@ from ..config import SemanticType
 
 
 class ImputationStrategy(StrEnum):
-    """Imputation strategy assigned to a column after Phase 2 fitting.
+    """Imputation strategy assigned to a column after Phase 2 routing.
 
     Members fall into two categories:
 
     **Input strategies** — may be declared in ``per_column_strategy`` to
     override automatic routing: ``Mean``, ``Median``, ``Mode``, ``KNN``,
-    ``MICE``.
+    ``MICE``, ``ClusterConditional``, ``GMMSampling``.
 
-    **Output-only labels** — assigned by the engine after ``fit()`` and
-    recorded in ``ColumnImputationRecord.strategy``; declaring them in
+    **Output-only labels** — assigned by the engine after ``route()`` and
+    recorded in ``ColumnRouting.strategy``; declaring them in
     ``per_column_strategy`` raises ``ValueError`` at construction time:
     ``Constant``, ``MNAR``, ``Dropped``, ``Passthrough``, ``Indicator``.
     ``Constant`` is produced when a column appears in
@@ -69,22 +72,12 @@ _STRATEGY_DIALS: dict[ImputationStrategy, dict[str, Any]] = {
 }
 """Every dial a strategy has, and the value it takes at neutral inputs.
 
-The single definition of the decide-time hyperparameter base, read by both
-authors: :func:`~dataforge_ml.imputation._decision_assembler.decide` starts from
-a row and overwrites what it computed, and the manual door writes the row as-is.
-Adding a fifth dial to a strategy is therefore the same act as giving it a
-default, and the two authors' key sets cannot drift.
-
-The values are not a second set of opinions: every one of ``decide``'s formulas
-degenerates to exactly these numbers at neutral inputs, and each is also the
-sklearn default of the estimator it reaches (``IterativeImputer.max_iter`` = 10,
-``KNNImputer.n_neighbors`` = 5, and so on).
-
-A strategy with no row has no dials at all — ``GMMSampling`` and ``Constant``
-are driven entirely by profile facts and declared values, so
-:meth:`ImputationDecision.with_hyperparameters` refuses every key on them. The
-invariant is "every unit that has dials carries all of them", not "every unit id
-appears in the map".
+The single definition of the resolve-time hyperparameter base, read by
+:func:`~dataforge_ml.imputation._recipe.resolve_recipe` for both a routed and a
+hand-authored :class:`ImputationRouting`. A strategy with no row has no dials at
+all — ``GMMSampling`` and ``Constant`` are driven entirely by profile facts and
+declared values, so ``ImputationRecipe.with_hyperparameters`` refuses every key
+on them.
 """
 
 
@@ -94,34 +87,18 @@ def _dial_defaults(strategy: ImputationStrategy) -> dict[str, Any]:
 
 
 class ModelChoice(StrEnum):
-    """Concrete estimator family selected for a model-based imputation column.
+    """Concrete estimator family for a model-based imputation column.
 
-    A value-free *name* for the sklearn estimator family resolved at
-    decide-time from ``(NonlinearityTag, n_rows, config)`` — the Recipe half of
-    the Recipe/Learned split (ADR-0059) pulled one layer earlier so the plan is
-    inspectable and overridable before anything trains. It is a label, never a
-    live or fitted estimator object; the execution layer constructs and fits the
-    actual estimator from this choice.
+    A value-free *name* for the sklearn estimator family a block trains with.
+    It is a label, never a live or fitted estimator object. ``Custom`` marks a
+    unit whose estimator the user supplied; the instance itself is held
+    elsewhere, by identity, so this enum stays a label.
 
-    Members map onto the branches of ``RegressionEstimatorFactory``:
-    ``BayesianRidge`` for the ``Linear`` branch (wrapped in a scaling pipeline
-    at fit-time), ``RandomForestRegressor`` for ``MonotonicNonlinear`` and the
-    small-sample ``ComplexNonlinear`` branch, and ``GradientBoostingRegressor``
-    for the large-sample ``ComplexNonlinear`` branch. An ``Unpredictable``
-    column resolves to no model choice (``None``) and routes to a scalar
-    fallback instead.
-
-    ``Custom`` is the one member no branch of that factory builds: it marks a
-    unit whose estimator the *user* supplied, through
-    :func:`~dataforge_ml.imputation.author`'s ``estimators=`` channel (ADR-0083).
-    The instance itself lives in
-    :attr:`ImputationDecision.custom_estimators`, keyed by unit id, so this
-    enum stays a label. It is a value rather than ``None`` because ``None``
-    already carries the load-bearing "no estimator family, cannot train"
-    meaning on the fit path; as a value, every existing reader of a
-    ``ModelChoice`` stays correct without learning anything. Given up: the enum
-    stops being a closed list of families the library can build — one member
-    means "look elsewhere".
+    :func:`~dataforge_ml.imputation.route` resolves the ``MICE`` block's
+    choice off the Estimator Ladder (ADR-0094) — the most complex
+    ``NonlinearityTag`` across the block's columns — whenever the block has
+    any; :func:`~dataforge_ml.imputation.author` leaves it ``None`` unless the
+    door's ``with_model_choice`` sets one explicitly (ADR-0090).
     """
 
     BayesianRidge = "bayesian_ridge"
@@ -148,16 +125,35 @@ _OUTPUT_ONLY_STRATEGIES: frozenset[ImputationStrategy] = frozenset(
         ImputationStrategy.Indicator,
         ImputationStrategy.Dropped,
         ImputationStrategy.MNAR,
-        ImputationStrategy.ClusterConditional,
-        ImputationStrategy.GMMSampling,
     }
 )
 
-# Signal recorded on the Passthrough decision of an Imputation-soft-excluded
-# column. Written by the decision assembler; matched by transform to tell
-# "excluded by declaration" (missing values ride through untouched) apart from
-# "passed through because fit saw no missingness" (missing values raise).
+# Human-readable signal recorded on the Passthrough routing of an
+# Imputation-soft-excluded column. Rationale only — code reads
+# ``ColumnRouting.excluded``; the one exception is ``ColumnRouting.from_dict``
+# inferring the flag for a payload saved before the flag existed.
 _EXCLUSION_SIGNAL = "soft-excluded for Imputation phase"
+
+# Shipped NumericImputationConfig keys the escalation point deleted outright,
+# mapped to what replaced each one. ``from_dict`` rejects them rather than
+# ignoring them: each was a user-set threshold, so dropping it silently would
+# change routing without notice.
+_DELETED_NUMERIC_KEYS: dict[str, str] = {
+    "mice_min_rows": (
+        "The Feasibility Floor replaced it; set mice_min_rows_per_predictor "
+    ),
+    "knn_max_features": (
+        "A KNN block now measures distance over every active numeric column "
+        "knn_max_rows is the only KNN Resource Ceiling."
+    ),
+    "gradient_boost_min_rows": (
+        "The booster is off the Estimator Ladder (ADR-0097); choose it "
+        "explicitly with ImputationRouting.with_model_choice."
+    ),
+    "mcar_feature_predictability_threshold": (
+        "The Signal Score replaced it; tune the signal_score_* dials instead "
+    ),
+}
 
 
 def _output_only_redirect(column: str, strategy: ImputationStrategy) -> str:
@@ -194,18 +190,15 @@ class NumericImputationConfig:
     Parameters
     ----------
     knn_max_rows : int
-        Maximum number of rows before KNN is skipped in favour of MICE.
-    knn_max_features : int
-        Maximum number of features before KNN is skipped in favour of MICE.
-    mice_min_rows : int
-        Minimum number of rows required to fit a stable MICE (chained-equations)
-        model. Applied as a uniform floor to every routing path that can enter
-        the joint MICE block; a column below this floor diverts to KNN, then
-        Median, instead (ADR-0079). Renamed from ``regression_min_rows``.
-    gradient_boost_min_rows : int
-        Row count threshold above which ``GradientBoostingRegressor`` is preferred
-        over ``RandomForestRegressor`` for ``ComplexNonlinear`` columns. Below this
-        threshold the cheaper ``RandomForestRegressor`` is used instead.
+        KNN's Resource Ceiling: the raw row count above which KNN is refused
+        in favour of MICE. Reads ``row_count`` directly, unlike the
+        Feasibility Floor's Usable Rows, because memory scales with the whole
+        matrix (ADR-0091).
+    mice_min_rows_per_predictor : int
+        The Feasibility Floor's sole bound (ADR-0091, ADR-0097): the minimum
+        Rows per Predictor (Usable Rows ÷ predictor count) a target column
+        must clear for the MICE candidate to be feasible. KNN carries no
+        floor bound — only ``knn_max_rows``.
     base_max_iter : int
         Base number of ``IterativeImputer`` iterations before dynamic signal
         adjustments are applied.  Increase this value for columns that exhibit
@@ -238,20 +231,33 @@ class NumericImputationConfig:
         column to be counted as an informative predictor when computing
         ``n_nearest_features``. Columns below this threshold are excluded from
         the count.
-    mcar_feature_predictability_threshold : float
-        Maximum absolute Pearson correlation ``|r|`` below which MCAR
-        model-based routing is skipped in favour of Median. When no numeric
-        predictor exceeds this threshold against the target column, KNN and
-        MICE are not attempted because the feature set contains no useful
-        predictive signal. Applies only to MCAR paths; MAR paths are not
-        affected. Default of ``0.2`` preserves existing behaviour (no check
-        applied today).
+    signal_score_breadth_weight : float
+        The Signal Score's ``w_breadth`` weight (ADR-0092): how much Signal
+        Breadth (the saturating count of predictors above
+        ``mice_correlation_threshold``) may add to the base Explainable
+        Variance reading. Argued, not measured (#519 measures only the
+        shape's weights, not the shape itself).
+    signal_score_latent_weight : float
+        The Signal Score's ``w_latent`` weight (ADR-0092): the floor the
+        Latent Structure component (mapped mutual information) sets under the
+        score — evidence the R²/correlation probe was too weak for the
+        structure present. Argued, not measured.
+    signal_score_middle_tier_min : float
+        The Signal Score value at or above which a column enters the middle
+        Signal Tier (the lowest feasible candidate on the Capability Ladder)
+        rather than the bottom tier (a scalar fill, regardless of
+        feasibility). Argued, not measured (ADR-0092).
+    signal_score_top_tier_min : float
+        The Signal Score value at or above which a column enters the top
+        Signal Tier (the richest feasible candidate on the Capability
+        Ladder) rather than the middle tier. Argued, not measured (ADR-0092).
     per_column_strategy : dict[str, ImputationStrategy]
         Explicit per-column strategy overrides that fire at Priority 1.5 in the
         routing chain — after ``DropCandidate`` but before MNAR routing.  A
         column listed here bypasses all routing priorities 2–7.  Defaults to
         empty dict (no overrides).  Allowed values: ``Mean``, ``Median``,
-        ``Mode``, ``KNN``, ``MICE``.  To route a column to a
+        ``Mode``, ``KNN``, ``MICE``, ``ClusterConditional``, ``GMMSampling``.
+        To route a column to a
         constant fill, use ``per_column_constant_fill``
     per_column_constant_fill : dict[str, float]
         Self-sufficient constant fill declarations.  Each column listed here
@@ -264,7 +270,7 @@ class NumericImputationConfig:
         explains the bimodal split (e.g. ``{"age": "employment_status"}``).
     bimodal_min_correlated_features : int
         Minimum number of numeric features with ``|r| > 0.2`` required to
-        qualify the Bimodal Imputation Framework for branch 2 (MICE/KNN);
+        qualify the Bimodal Imputation Framework for branch 2 (model-based);
         columns with fewer correlated features fall to branch 3 (Cluster-Conditional).
     bimodal_correlation_threshold : float
         Minimum absolute Pearson correlation ``|r|`` a feature must have against
@@ -272,13 +278,12 @@ class NumericImputationConfig:
         the Bimodal Imputation Framework.
     max_workers : int, optional
         Degree of thread parallelism for the numeric fit (ADR-0056).  The
-        mutually-independent strategy blocks (MICE, KNN, GMM, cluster) and the
-        independent columns within a per-column strategy are fitted
-        concurrently on threads, capped at this many workers.
-        ``None`` (the default) auto-sizes to the available CPU count; ``1``
-        forces a fully sequential fit.  Concurrency never changes a result:
-        the same ``random_seed`` yields a byte-identical ``FittedImputer``
-        regardless of this value.
+        mutually-independent strategy blocks and the independent columns
+        within a per-column strategy are fitted concurrently on threads,
+        capped at this many workers. ``None`` (the default) auto-sizes to the
+        available CPU count; ``1`` forces a fully sequential fit.  Concurrency
+        never changes a result: the same ``random_seed`` yields a
+        byte-identical ``FittedImputer`` regardless of this value.
 
     Raises
     ------
@@ -289,12 +294,12 @@ class NumericImputationConfig:
         should use ``PipelineConfig.exclude_columns``; ``MNAR`` columns should
         use ``mnar_columns``; ``Passthrough`` and ``Indicator`` are
         internal-only.
+        If a column in ``bimodal_grouping_variables`` is forced to a strategy
+        other than ``ClusterConditional``.
     """
 
     knn_max_rows: int = 50_000
-    knn_max_features: int = 50
-    mice_min_rows: int = 500
-    gradient_boost_min_rows: int = 10_000
+    mice_min_rows_per_predictor: int = 2
     base_max_iter: int = 10
     knn_min_neighbors: int = 5
     knn_max_neighbors: int = 25
@@ -303,7 +308,10 @@ class NumericImputationConfig:
     mice_n_nearest_features_min_cols: int = 10
     mice_max_nearest_features: int = 20
     mice_correlation_threshold: float = 0.1
-    mcar_feature_predictability_threshold: float = 0.2
+    signal_score_breadth_weight: float = 0.1
+    signal_score_latent_weight: float = 0.3
+    signal_score_middle_tier_min: float = 0.3
+    signal_score_top_tier_min: float = 0.6
     _per_column_strategy: dict[str, ImputationStrategy] = field(default_factory=dict)
     _per_column_constant_fill: dict[str, float] = field(default_factory=dict)
     _bimodal_grouping_variables: dict[str, str] = field(default_factory=dict)
@@ -368,6 +376,8 @@ class NumericImputationConfig:
             If the strategy is an output-only label (e.g. 'MNAR', 'Dropped').
             If 'Constant' is set but no corresponding fill value exists in
             ``per_column_constant_fill``.
+            If a strategy other than 'ClusterConditional' is set for a column
+            that has an entry in ``bimodal_grouping_variables``.
         """
         if isinstance(column, str):
             column = [column]
@@ -382,6 +392,18 @@ class NumericImputationConfig:
             for col in column:
                 if col not in self._per_column_constant_fill:
                     raise ValueError(_constant_without_fill_redirect(col))
+
+        if strategy != ImputationStrategy.ClusterConditional:
+            conflicts = sorted(
+                set(column) & set(self._bimodal_grouping_variables.keys())
+            )
+            if conflicts:
+                names = ", ".join(f"'{c}'" for c in conflicts)
+                raise ValueError(
+                    f"Columns have a bimodal grouping variable declared but are forced to "
+                    f"strategy '{strategy}' (not 'ClusterConditional'): {names}. "
+                    f"A grouping variable contradicts any forced strategy other than ClusterConditional."
+                )
 
         for col in column:
             self._per_column_strategy[col] = strategy
@@ -432,6 +454,8 @@ class NumericImputationConfig:
         ------
         ValueError
             If the grouping variable is empty or purely whitespace.
+            If any column is already forced to a strategy other than
+            'ClusterConditional' in ``per_column_strategy``.
         """
         if not grouping_variable or not grouping_variable.strip():
             raise ValueError("Grouping variable cannot be empty or purely whitespace.")
@@ -439,8 +463,51 @@ class NumericImputationConfig:
         if isinstance(column, str):
             column = [column]
 
+        conflicts = sorted(
+            col
+            for col in column
+            if col in self._per_column_strategy
+            and self._per_column_strategy[col] != ImputationStrategy.ClusterConditional
+        )
+        if conflicts:
+            details = ", ".join(
+                f"'{c}' ({self._per_column_strategy[c]})" for c in conflicts
+            )
+            raise ValueError(
+                f"Columns are forced to a strategy other than ClusterConditional: {details}. "
+                f"A grouping variable contradicts any forced strategy other than ClusterConditional."
+            )
+
         for col in column:
             self._bimodal_grouping_variables[col] = grouping_variable
+
+    def validate(self) -> None:
+        """
+        Validate numeric imputation configuration for cross-field conflicts.
+
+        Raises
+        ------
+        ValueError
+            If any column has a bimodal grouping variable declared while being
+            forced to a strategy other than ``ClusterConditional``.
+        """
+        conflicts = sorted(
+            col
+            for col in self._bimodal_grouping_variables
+            if col in self._per_column_strategy
+            and self._per_column_strategy[col] != ImputationStrategy.ClusterConditional
+        )
+        if conflicts:
+            details = ", ".join(
+                f"'{col}' (strategy={self._per_column_strategy[col]}, "
+                f"grouping_variable='{self._bimodal_grouping_variables[col]}')"
+                for col in conflicts
+            )
+            raise ValueError(
+                f"Columns have both a bimodal grouping variable and a forced strategy "
+                f"other than ClusterConditional: {details}. "
+                f"A grouping variable contradicts any forced strategy other than ClusterConditional."
+            )
 
     def __post_init__(self) -> None:
         if self.max_workers is not None and self.max_workers < 1:
@@ -452,8 +519,6 @@ class NumericImputationConfig:
             ImputationStrategy.Indicator,
             ImputationStrategy.Dropped,
             ImputationStrategy.MNAR,
-            ImputationStrategy.ClusterConditional,
-            ImputationStrategy.GMMSampling,
         }
         for col, strategy in self._per_column_strategy.items():
             if strategy in _BLOCKED:
@@ -479,6 +544,7 @@ class NumericImputationConfig:
                     f"Column '{col}': strategy is 'Constant' but no fill value was provided. "
                     f"Add an entry to per_column_constant_fill."
                 )
+        self.validate()
 
     def to_dict(self) -> dict:
         """
@@ -491,9 +557,7 @@ class NumericImputationConfig:
         """
         return {
             "knn_max_rows": self.knn_max_rows,
-            "knn_max_features": self.knn_max_features,
-            "mice_min_rows": self.mice_min_rows,
-            "gradient_boost_min_rows": self.gradient_boost_min_rows,
+            "mice_min_rows_per_predictor": self.mice_min_rows_per_predictor,
             "base_max_iter": self.base_max_iter,
             "knn_min_neighbors": self.knn_min_neighbors,
             "knn_max_neighbors": self.knn_max_neighbors,
@@ -502,7 +566,10 @@ class NumericImputationConfig:
             "mice_n_nearest_features_min_cols": self.mice_n_nearest_features_min_cols,
             "mice_max_nearest_features": self.mice_max_nearest_features,
             "mice_correlation_threshold": self.mice_correlation_threshold,
-            "mcar_feature_predictability_threshold": self.mcar_feature_predictability_threshold,
+            "signal_score_breadth_weight": self.signal_score_breadth_weight,
+            "signal_score_latent_weight": self.signal_score_latent_weight,
+            "signal_score_middle_tier_min": self.signal_score_middle_tier_min,
+            "signal_score_top_tier_min": self.signal_score_top_tier_min,
             "per_column_strategy": {
                 k: str(v) for k, v in self._per_column_strategy.items()
             },
@@ -532,22 +599,33 @@ class NumericImputationConfig:
         Raises
         ------
         ValueError
-            If ``data`` carries the retired ``mice_max_iter`` or
-            ``knn_n_neighbors`` key (ADR-0083).
+            If ``data`` carries a retired key. ``mice_max_iter`` and
+            ``knn_n_neighbors`` moved to the recipe (ADR-0083).
+            ``mice_min_rows``, ``knn_max_features``,
+            ``gradient_boost_min_rows`` and
+            ``mcar_feature_predictability_threshold`` were deleted by the
+            escalation point (ADR-0091, ADR-0092, ADR-0093, ADR-0097). The
+            message names what replaced each one.
         """
         for retired in ("mice_max_iter", "knn_n_neighbors"):
             if retired in data:
                 raise ValueError(
-                    f"'{retired}' was removed from NumericImputationConfig "
-                    "Set this dial on the plan instead, via "
-                    "ImputationDecision.with_hyperparameters(unit_id, hyperparameters)."
+                    f"'{retired}' was removed from NumericImputationConfig. "
+                    "Set this dial on the recipe instead, via "
+                    "ImputationRecipe.with_hyperparameters(unit_id, hyperparameters)."
+                )
+        for retired, replacement in _DELETED_NUMERIC_KEYS.items():
+            if retired in data:
+                raise ValueError(
+                    f"'{retired}' was removed from NumericImputationConfig. "
+                    f"{replacement}"
                 )
 
         config = cls(
             knn_max_rows=int(data.get("knn_max_rows", 50_000)),
-            knn_max_features=int(data.get("knn_max_features", 50)),
-            mice_min_rows=int(data.get("mice_min_rows", 500)),
-            gradient_boost_min_rows=int(data.get("gradient_boost_min_rows", 10_000)),
+            mice_min_rows_per_predictor=int(
+                data.get("mice_min_rows_per_predictor", 2)
+            ),
             base_max_iter=int(data.get("base_max_iter", 10)),
             knn_min_neighbors=int(data.get("knn_min_neighbors", 5)),
             knn_max_neighbors=int(data.get("knn_max_neighbors", 25)),
@@ -564,8 +642,17 @@ class NumericImputationConfig:
             mice_correlation_threshold=float(
                 data.get("mice_correlation_threshold", 0.1)
             ),
-            mcar_feature_predictability_threshold=float(
-                data.get("mcar_feature_predictability_threshold", 0.2)
+            signal_score_breadth_weight=float(
+                data.get("signal_score_breadth_weight", 0.1)
+            ),
+            signal_score_latent_weight=float(
+                data.get("signal_score_latent_weight", 0.3)
+            ),
+            signal_score_middle_tier_min=float(
+                data.get("signal_score_middle_tier_min", 0.3)
+            ),
+            signal_score_top_tier_min=float(
+                data.get("signal_score_top_tier_min", 0.6)
             ),
             _per_column_strategy={},
             _per_column_constant_fill={},
@@ -604,19 +691,18 @@ class ImputationConfig:
         Thresholds and fill values for numeric imputation.
     mnar_columns : list[str]
         Columns declared by the user as Missing Not At Random.
-        These receive a data-derived fill (observed mean or median, skew-driven)
-        plus a binary missingness indicator, regardless of Phase 1 signals.
-    add_indicator_columns : list[str]
-        Columns for which a binary missingness indicator should be added
-        even when they are not MNAR.
+        These receive a binary missingness indicator and keep their nulls,
+        regardless of Phase 1 signals. A data-derived fill (observed mean or
+        median, skew-driven) is computed and exposed on
+        ``ColumnImputationRecord.fill_value`` but not applied (ADR-0098).
 
     Raises
     ------
     ValueError
         If any column appears in both ``mnar_columns`` and
         ``numeric.per_column_strategy``.  These declarations are mutually
-        exclusive: ``mnar_columns`` applies a data-derived fill plus an
-        indicator; ``per_column_strategy`` directs the routing engine to a
+        exclusive: ``mnar_columns`` adds an indicator and exposes a
+        data-derived fill without applying it; ``per_column_strategy`` directs the routing engine to a
         user-specified strategy.  Declaring the same column in both is
         contradictory and is caught at construction time before any data is
         touched.
@@ -624,7 +710,6 @@ class ImputationConfig:
 
     numeric: NumericImputationConfig = field(default_factory=NumericImputationConfig)
     _mnar_columns: list[str] = field(default_factory=list, init=False)
-    _add_indicator_columns: list[str] = field(default_factory=list, init=False)
 
     @property
     def mnar_columns(self) -> tuple[str, ...]:
@@ -637,18 +722,6 @@ class ImputationConfig:
             Columns declared by the user as MNAR.
         """
         return tuple(self._mnar_columns)
-
-    @property
-    def add_indicator_columns(self) -> tuple[str, ...]:
-        """
-        Get the columns for which a binary missingness indicator should be added.
-
-        Returns
-        -------
-        tuple[str, ...]
-            Columns for which a binary missingness indicator is forced.
-        """
-        return tuple(self._add_indicator_columns)
 
     def add_mnar_column(self, column: str | list[str]) -> None:
         """
@@ -673,28 +746,13 @@ class ImputationConfig:
             raise ValueError(
                 f"Columns appear in both mnar_columns and numeric.per_column_strategy, "
                 f"which are mutually exclusive: {names}. "
-                f"Use mnar_columns for MNAR semantics (data-derived fill + indicator) "
+                f"Use mnar_columns for MNAR semantics (indicator + exposed fill) "
                 f"or per_column_strategy for a user-specified strategy, not both."
             )
 
         for c in column:
             if c not in self._mnar_columns:
                 self._mnar_columns.append(c)
-
-    def add_indicator_column(self, column: str | list[str]) -> None:
-        """
-        Force a binary missingness indicator for one or more columns.
-
-        Parameters
-        ----------
-        column : str | list[str]
-            Column name or list of column names.
-        """
-        if isinstance(column, str):
-            column = [column]
-        for c in column:
-            if c not in self._add_indicator_columns:
-                self._add_indicator_columns.append(c)
 
     def validate(self) -> None:
         """
@@ -705,7 +763,10 @@ class ImputationConfig:
         ValueError
             If any column appears in both ``mnar_columns`` and
             ``numeric.per_column_strategy``.
+            If any column in ``numeric.bimodal_grouping_variables`` is forced to
+            a strategy other than ``ClusterConditional``.
         """
+        self.numeric.validate()
         conflicts = sorted(
             set(self._mnar_columns) & set(self.numeric.per_column_strategy.keys())
         )
@@ -714,7 +775,7 @@ class ImputationConfig:
             raise ValueError(
                 f"Columns appear in both mnar_columns and numeric.per_column_strategy, "
                 f"which are mutually exclusive: {names}. "
-                f"Use mnar_columns for MNAR semantics (data-derived fill + indicator) "
+                f"Use mnar_columns for MNAR semantics (indicator + exposed fill) "
                 f"or per_column_strategy for a user-specified strategy, not both."
             )
 
@@ -730,7 +791,6 @@ class ImputationConfig:
         return {
             "numeric": self.numeric.to_dict(),
             "mnar_columns": list(self._mnar_columns),
-            "add_indicator_columns": list(self._add_indicator_columns),
         }
 
     @classmethod
@@ -754,12 +814,10 @@ class ImputationConfig:
         )
         if "mnar_columns" in data:
             config.add_mnar_column(data["mnar_columns"])
-        if "add_indicator_columns" in data:
-            config.add_indicator_column(data["add_indicator_columns"])
         return config
 
 
-def _md_cell(value: "Any") -> str:
+def _md_cell(value: Any) -> str:
     """Render one value as a Markdown table cell.
 
     Absence is stated rather than left as a bare ``None``, enums render by
@@ -798,7 +856,7 @@ def _frame_lines(frame: pl.DataFrame) -> list[str]:
     return lines
 
 
-def _flatten_snapshot(value: "Any", prefix: str = "") -> "list[tuple[str, Any]]":
+def _flatten_snapshot(value: Any, prefix: str = "") -> list[tuple[str, Any]]:
     """Flatten a nested config snapshot into dotted-key / value rows."""
     rows: list[tuple[str, Any]] = []
     if isinstance(value, dict):
@@ -811,92 +869,64 @@ def _flatten_snapshot(value: "Any", prefix: str = "") -> "list[tuple[str, Any]]"
 
 
 @dataclass(frozen=True)
-class ColumnImputationDecision:
-    """Pure, value-free per-column imputation plan entry.
+class ColumnRouting:
+    """One column's routed imputation strategy, and nothing computed from it.
 
-    The decided half of the Decision/Execution split (ADR-0060): a complete,
-    inspectable description of *what will happen* to one column and *why*,
-    derived purely from ``(profile, shape, config)``. It structurally cannot
-    hold anything the execution layer learns from training data — no fill value,
-    no fitted model, no convergence/``n_iter`` — so "what was decided" is
-    un-blurrably separate from "what was learned". ``ColumnImputationRecord``
-    composes this decision with those learned values.
+    The routing half of the layered imputation door (ADR-0088): a complete,
+    inspectable description of *which approach* a column takes, and the two
+    config declarations that complete that approach — ``constant_fill`` and
+    ``grouping_variable``. Everything computed *from* that choice (dials,
+    profile-derived estimates such as bimodal centres, execution units) belongs
+    to later layers: :class:`~dataforge_ml.imputation.ImputationRecipe` and
+    :func:`~dataforge_ml.imputation.derive_units`.
 
-    The dataclass is frozen and every field holds an immutable value (enums,
-    ``str``, ``bool``, or hashable tuples), so a decision is safe to share and
-    edits produce new objects rather than mutating in place.
+    The dataclass is frozen and every field holds an immutable value, so a
+    routing is safe to share.
 
     Parameters
     ----------
     column : str
-        Column name this decision applies to.
+        Column name this routing applies to.
     semantic_type : SemanticType
         Detected semantic type of the column, carried from the profile.
     strategy : ImputationStrategy
         Strategy routed for this column.
     signals : tuple[str, ...], optional
         Human-readable routing rationale — the reasons that drove ``strategy``.
-        A tuple so the decision stays immutable.
-    model_choice : ModelChoice, optional
-        Concrete estimator family resolved at decide-time for model-based
-        strategies. ``None`` for scalar strategies and for columns whose
-        nonlinearity is ``Unpredictable``. A value-free label, never a live or
-        fitted estimator.
-    domain_snap_bounds : tuple[float, float], optional
-        ``(min, max)`` bounds used to snap model-based predictions for
-        BoundedDiscrete columns. ``None`` for all other columns. Sourced from
-        the profile, not learned from training data.
-    center1 : float, optional
-        First of the two bimodal cluster centres the GMM-Sampling and
-        Cluster-Conditional strategies split on. Measured by Phase 1, not
-        learned from training data. ``None`` for non-bimodal columns.
-    center2 : float, optional
-        Second bimodal cluster centre. See ``center1``.
-    feature_cols : tuple[str, ...], optional
-        Columns the Cluster-Conditional centroid branch measures its per-cluster
-        centroids over — the features correlated with this column at decide-time.
-        ``None`` for every other strategy.
-    grouping_variable : str, optional
-        Column whose groups the Cluster-Conditional group-wise branch aggregates
-        within, when one was declared. ``None`` selects the centroid branch.
     constant_fill : float, optional
         The declared fill value for a ``Constant`` column. ``None`` for every
         other strategy. A declared value, never a learned one.
+    grouping_variable : str, optional
+        Column whose groups a ``ClusterConditional`` group-wise unit aggregates
+        within, when one was declared. ``None`` selects the centroid branch.
     indicator_flag : bool
         Whether a binary missingness indicator column will be appended.
     mnar : bool
         Whether the column is routed as Missing-Not-At-Random.
     drop : bool
         Whether the column will be dropped for exceeding the drop threshold.
-
-    Notes
-    -----
-    Fill values, fitted coefficients, convergence counts, and any other
-    training-derived state deliberately have no home on this type; they live on
-    the execution layer's fitted units (ADR-0060).
+    excluded : bool
+        Whether the column is Imputation-soft-excluded: carried as
+        ``Passthrough``, its missing values ride through untouched, and it is
+        never counted as an MICE or KNN predictor.
     """
 
     column: str
     semantic_type: SemanticType
     strategy: ImputationStrategy
     signals: tuple[str, ...] = ()
-    model_choice: Optional[ModelChoice] = None
-    domain_snap_bounds: Optional[tuple[float, float]] = None
-    center1: Optional[float] = None
-    center2: Optional[float] = None
-    feature_cols: Optional[tuple[str, ...]] = None
-    grouping_variable: Optional[str] = None
-    constant_fill: Optional[float] = None
+    constant_fill: float | None = None
+    grouping_variable: str | None = None
     indicator_flag: bool = False
     mnar: bool = False
     drop: bool = False
+    excluded: bool = False
 
     def to_dict(self) -> dict:
-        """Serialise the decision to a plain dictionary.
+        """Serialise the routing to a plain dictionary.
 
-        Enums are rendered by member *name* (per ADR-0063, so reordering an
-        enum later cannot silently corrupt a saved plan) and tuples as lists,
-        so the result is JSON-friendly and structurally round-trippable.
+        Enums are rendered by member *name* and tuples as lists, so the result
+        is JSON-friendly and structurally round-trippable.
 
         Returns
         -------
@@ -908,33 +938,207 @@ class ColumnImputationDecision:
             "semantic_type": self.semantic_type.name,
             "strategy": self.strategy.name,
             "signals": list(self.signals),
-            "model_choice": (
-                self.model_choice.name if self.model_choice is not None else None
-            ),
-            "domain_snap_bounds": (
-                list(self.domain_snap_bounds)
-                if self.domain_snap_bounds is not None
-                else None
-            ),
-            "center1": self.center1,
-            "center2": self.center2,
-            "feature_cols": (
-                list(self.feature_cols) if self.feature_cols is not None else None
-            ),
-            "grouping_variable": self.grouping_variable,
             "constant_fill": self.constant_fill,
+            "grouping_variable": self.grouping_variable,
             "indicator_flag": self.indicator_flag,
             "mnar": self.mnar,
             "drop": self.drop,
+            "excluded": self.excluded,
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "ColumnImputationDecision":
-        """Reconstruct a ``ColumnImputationDecision`` from a plain dictionary.
+    def from_dict(cls, data: dict) -> ColumnRouting:
+        """Reconstruct a ``ColumnRouting`` from a plain dictionary.
 
-        The inverse of :meth:`to_dict`: enums are rebuilt by member name and
-        list fields are restored to their immutable tuple form so the
-        reconstructed decision is structurally equal to the original.
+        Parameters
+        ----------
+        data : dict
+            Mapping produced by :meth:`to_dict`.
+
+        A payload saved before ``excluded`` existed recorded the exclusion only
+        as a signal, so the flag falls back to that signal when absent.
+
+        Returns
+        -------
+        ColumnRouting
+            Reconstructed routing instance.
+        """
+        signals = tuple(data.get("signals", ()))
+        return cls(
+            column=data["column"],
+            semantic_type=SemanticType[data["semantic_type"]],
+            strategy=ImputationStrategy[data["strategy"]],
+            signals=signals,
+            constant_fill=data.get("constant_fill"),
+            grouping_variable=data.get("grouping_variable"),
+            indicator_flag=bool(data.get("indicator_flag", False)),
+            mnar=bool(data.get("mnar", False)),
+            drop=bool(data.get("drop", False)),
+            excluded=bool(data.get("excluded", _EXCLUSION_SIGNAL in signals)),
+        )
+
+    def to_markdown(self) -> str:
+        """Render the column routing as a ``###``-rooted Markdown fragment.
+
+        A fragment per rule 5 of the Rendering Contract (ADR-0086): it carries
+        no ``#`` or ``##`` heading, so the owning document composes it without
+        a heading collision.
+
+        Returns
+        -------
+        str
+            Markdown subsection headed by ``### `<column>``` and a field table.
+        """
+        lines = [
+            f"### `{self.column}`\n",
+            "| Field | Value |",
+            "|---|---|",
+            f"| semantic_type | {_md_cell(self.semantic_type)} |",
+            f"| strategy | {_md_cell(self.strategy)} |",
+            f"| signals | {_md_cell(self.signals)} |",
+            f"| constant_fill | {_md_cell(self.constant_fill)} |",
+            f"| grouping_variable | {_md_cell(self.grouping_variable)} |",
+            f"| indicator_flag | {_md_cell(self.indicator_flag)} |",
+            f"| mnar | {_md_cell(self.mnar)} |",
+            f"| drop | {_md_cell(self.drop)} |",
+            f"| excluded | {_md_cell(self.excluded)} |",
+        ]
+        return "\n".join(lines)
+
+    def __str__(self) -> str:
+        """Return the fragment, per rule 2 of the Rendering Contract.
+
+        Returns
+        -------
+        str
+            The output of :meth:`to_markdown`.
+        """
+        return self.to_markdown()
+
+
+@dataclass(frozen=True)
+class ImputationRouting:
+    """The routed, immutable choice-of-approach for every column (ADR-0088).
+
+    Produced by :func:`~dataforge_ml.imputation.route` or
+    :func:`~dataforge_ml.imputation.author`: a complete, inspectable mapping of
+    *which strategy* every column takes, plus the block-level MICE estimator
+    choice. Everything computed *from* that choice — dials, profile-derived
+    estimates, execution units — belongs to
+    :func:`~dataforge_ml.imputation.resolve_recipe` and
+    :func:`~dataforge_ml.imputation.derive_units`, not here.
+
+    Parameters
+    ----------
+    column_routings : dict[str, ColumnRouting]
+        Per-column routing entries keyed by column name, in routing order.
+        Held as an internal copy so the constructed routing is independent of
+        the caller's mapping.
+    mice_model_choice : ModelChoice, optional
+        The estimator family the MICE block trains with. ``None`` when no
+        column is routed to MICE. :func:`~dataforge_ml.imputation.route`
+        resolves it off the Estimator Ladder (ADR-0094) whenever the block is
+        non-empty; :func:`~dataforge_ml.imputation.author` leaves it ``None``
+        unless ``with_model_choice`` sets one.
+    mice_estimator : Any, optional
+        A user-supplied estimator instance for the MICE block, held by
+        identity and never cloned. ``None`` unless the block trains with a
+        foreign estimator.
+    """
+
+    column_routings: dict[str, ColumnRouting]
+    mice_model_choice: ModelChoice | None = None
+    mice_estimator: Any = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "column_routings", dict(self.column_routings)
+        )
+
+    def with_model_choice(self, choice: ModelChoice | Any) -> ImputationRouting:
+        """Return a new routing with the MICE block's estimator set (ADR-0090).
+
+        The one door for the MICE block's estimator, whether it is a library
+        family or a foreign one: pass a :class:`ModelChoice` member to pick a
+        family the factory builds, or a live sklearn-compatible estimator
+        instance to use as-is. An instance sets ``mice_model_choice`` to
+        :attr:`~dataforge_ml.ModelChoice.Custom` and holds the instance by
+        identity, never cloned — this is the only way
+        ``GradientBoostingRegressor`` is reachable, since it is off the
+        Estimator Ladder (ADR-0094).
+
+        Parameters
+        ----------
+        choice : ModelChoice or estimator instance
+            A :class:`ModelChoice` member naming a library estimator family
+            (every member except :attr:`~dataforge_ml.ModelChoice.Custom`),
+            or a live, unfitted sklearn-compatible estimator instance.
+
+        Returns
+        -------
+        ImputationRouting
+            A new routing with ``mice_model_choice`` (and, for an instance,
+            ``mice_estimator``) set. Every other field is carried over
+            unchanged.
+
+        Raises
+        ------
+        ValueError
+            If ``choice`` is the bare :attr:`~dataforge_ml.ModelChoice.Custom`
+            label with no estimator instance, or if this routing has no MICE
+            block to set an estimator on.
+        """
+        import dataclasses
+
+        mice_present = any(
+            r.strategy == ImputationStrategy.MICE
+            for r in self.column_routings.values()
+        )
+        if not mice_present:
+            raise ValueError(
+                "with_model_choice() requires a MICE block: this routing "
+                "carries no column routed to ImputationStrategy.MICE."
+            )
+        if isinstance(choice, ModelChoice):
+            if choice == ModelChoice.Custom:
+                raise ValueError(
+                    "ModelChoice.Custom is a label, not an estimator: pass "
+                    "the estimator instance itself to with_model_choice() "
+                    "instead of the bare Custom member."
+                )
+            return dataclasses.replace(
+                self, mice_model_choice=choice, mice_estimator=None
+            )
+        return dataclasses.replace(
+            self, mice_model_choice=ModelChoice.Custom, mice_estimator=choice
+        )
+
+    def to_dict(self) -> dict:
+        """Serialise the routing to a plain, JSON-friendly dictionary.
+
+        ``mice_estimator`` is **omitted**: a user-supplied estimator is a live
+        object, not data. The reloaded routing keeps ``mice_model_choice`` as
+        recorded and an empty ``mice_estimator`` slot.
+
+        Returns
+        -------
+        dict
+            The routing's fields with nested objects serialised to dicts.
+        """
+        return {
+            "column_routings": {
+                col: r.to_dict() for col, r in self.column_routings.items()
+            },
+            "mice_model_choice": (
+                self.mice_model_choice.name
+                if self.mice_model_choice is not None
+                else None
+            ),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> ImputationRouting:
+        """Reconstruct an ``ImputationRouting`` from a plain dictionary.
 
         Parameters
         ----------
@@ -943,69 +1147,190 @@ class ColumnImputationDecision:
 
         Returns
         -------
-        ColumnImputationDecision
-            Reconstructed decision instance.
+        ImputationRouting
+            Reconstructed routing instance. ``mice_estimator`` is never
+            carried by the wire format and comes back ``None``.
         """
-        raw_bounds = data.get("domain_snap_bounds")
-        raw_model_choice = data.get("model_choice")
-        raw_feature_cols = data.get("feature_cols")
+        raw_choice = data.get("mice_model_choice")
         return cls(
-            column=data["column"],
-            semantic_type=SemanticType[data["semantic_type"]],
-            strategy=ImputationStrategy[data["strategy"]],
-            signals=tuple(data.get("signals", ())),
-            model_choice=(
-                ModelChoice[raw_model_choice] if raw_model_choice is not None else None
+            column_routings={
+                col: ColumnRouting.from_dict(raw)
+                for col, raw in data.get("column_routings", {}).items()
+            },
+            mice_model_choice=(
+                ModelChoice[raw_choice] if raw_choice is not None else None
             ),
-            domain_snap_bounds=(tuple(raw_bounds) if raw_bounds is not None else None),
-            center1=data.get("center1"),
-            center2=data.get("center2"),
-            feature_cols=(
-                tuple(raw_feature_cols) if raw_feature_cols is not None else None
-            ),
-            grouping_variable=data.get("grouping_variable"),
-            constant_fill=data.get("constant_fill"),
-            indicator_flag=bool(data.get("indicator_flag", False)),
-            mnar=bool(data.get("mnar", False)),
-            drop=bool(data.get("drop", False)),
         )
 
     def to_markdown(self) -> str:
-        """Render the column decision as a ``###``-rooted Markdown fragment.
+        """Render the whole routing as a Markdown document.
 
-        A fragment per rule 5 of the Rendering Contract (ADR-0086): it carries
-        no ``#`` or ``##`` heading, so the owning plan document composes it
-        without a heading collision. Every field is covered; absent values are
-        stated rather than left as a bare ``None``, and enums render by their
-        string form.
+        A document per rule 5 of the Rendering Contract (ADR-0086): it owns
+        the ``#`` and ``##`` heading levels and delegates to the
+        :class:`ColumnRouting` fragments beneath them.
 
         Returns
         -------
         str
-            Markdown subsection headed by ``### `<column>``` and a field table.
+            Markdown document with a summary and the per-column routings.
         """
-        bounds = (
-            f"{self.domain_snap_bounds[0]}, {self.domain_snap_bounds[1]}"
-            if self.domain_snap_bounds is not None
-            else "none"
+        lines = ["# Imputation Routing\n"]
+
+        lines.append("## Summary\n")
+        lines.append("| Field | Value |")
+        lines.append("|---|---|")
+        lines.append(f"| columns | {len(self.column_routings)} |")
+        lines.append(f"| mice_model_choice | {_md_cell(self.mice_model_choice)} |")
+        lines.append(
+            f"| mice_estimator | "
+            f"{_md_cell(type(self.mice_estimator).__name__ if self.mice_estimator is not None else None)} |"
         )
+        lines.append("")
+
+        lines.append("## Column Routings\n")
+        lines.append("| Column | Semantic type | Strategy | Indicator | MNAR | Drop |")
+        lines.append("|---|---|---|---|---|---|")
+        if self.column_routings:
+            for routing in self.column_routings.values():
+                lines.append(
+                    f"| `{routing.column}` | {_md_cell(routing.semantic_type)} "
+                    f"| {_md_cell(routing.strategy)} "
+                    f"| {_md_cell(routing.indicator_flag)} "
+                    f"| {_md_cell(routing.mnar)} | {_md_cell(routing.drop)} |"
+                )
+        else:
+            lines.append("| none | | | | | |")
+        lines.append("")
+        if self.column_routings:
+            for routing in self.column_routings.values():
+                lines.append(routing.to_markdown())
+                lines.append("")
+
+        return "\n".join(lines).strip() + "\n"
+
+    def __str__(self) -> str:
+        """Return the Imputation Routing document, per rule 2 of the contract.
+
+        Returns
+        -------
+        str
+            The output of :meth:`to_markdown`.
+        """
+        return self.to_markdown()
+
+
+# ---------------------------------------------------------------------------
+# ImputationUnit — the plan's execution units (ADR-0084)
+# ---------------------------------------------------------------------------
+
+# Strategies whose execution is one joint block over several columns; each
+# collapses to a single unit keyed by the block id rather than one unit per
+# column.
+_JOINT_BLOCK_STRATEGIES: frozenset[ImputationStrategy] = frozenset(
+    {ImputationStrategy.MICE, ImputationStrategy.KNN}
+)
+
+# Structural strategies carry no learned value and train nothing, so the
+# routing projects their records straight through without materialising a unit.
+_STRUCTURAL_STRATEGIES: frozenset[ImputationStrategy] = frozenset(
+    {
+        ImputationStrategy.Dropped,
+        ImputationStrategy.Passthrough,
+        ImputationStrategy.Indicator,
+    }
+)
+
+
+@dataclass(frozen=True)
+class ImputationUnit:
+    """One executable unit of an imputation routing (ADR-0084).
+
+    A value-free projection of *what execution trains together*: the joint
+    ``MICE`` block, the joint ``KNN`` block, and one unit per independent
+    column (GMM-Sampling / Cluster-Conditional / scalar / Constant / MNAR).
+    Structural strategies (Dropped / Passthrough / Indicator) train nothing
+    and produce no unit. Built by
+    :func:`~dataforge_ml.imputation.derive_units`, never by hand.
+
+    Parameters
+    ----------
+    unit_id : str
+        Stable identifier: ``"mice"`` / ``"knn"`` for the joint blocks (exactly
+        one of each when present), ``"{strategy}:{column}"`` for a per-column
+        unit.
+    strategy : ImputationStrategy
+        Strategy the unit executes.
+    columns : tuple[str, ...]
+        Columns trained by this unit — every column in the block for the joint
+        units, a single-element tuple for a per-column unit.
+    is_block : bool, default False
+        Whether the unit's columns train together in one joint model call.
+        Derived from ``strategy``, so a caller never supplies it.
+    """
+
+    unit_id: str
+    strategy: ImputationStrategy
+    columns: tuple[str, ...]
+    is_block: bool = False
+
+    def to_dict(self) -> dict:
+        """Serialise the unit to a plain dictionary.
+
+        Returns
+        -------
+        dict
+            All field values keyed by field name, the strategy enum rendered by
+            member name and ``columns`` as a list.
+        """
+        return {
+            "unit_id": self.unit_id,
+            "strategy": self.strategy.name,
+            "columns": list(self.columns),
+            "is_block": self.is_block,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> ImputationUnit:
+        """Reconstruct an ``ImputationUnit`` from a plain dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            Mapping produced by :meth:`to_dict`.
+
+        Returns
+        -------
+        ImputationUnit
+            Reconstructed unit instance. ``is_block`` is re-derived from
+            ``strategy``, so whatever the payload carries for it is ignored.
+        """
+        strategy = ImputationStrategy[data["strategy"]]
+        return cls(
+            unit_id=data["unit_id"],
+            strategy=strategy,
+            columns=tuple(data.get("columns", ())),
+            is_block=strategy in _JOINT_BLOCK_STRATEGIES,
+        )
+
+    def to_markdown(self) -> str:
+        """Render the execution unit as a ``###``-rooted Markdown fragment.
+
+        A fragment per rule 5 of the Rendering Contract (ADR-0086): it carries
+        no ``#`` or ``##`` heading, so the owning document composes it without
+        a heading collision.
+
+        Returns
+        -------
+        str
+            Markdown subsection headed by ``### `<unit_id>``` and a field table.
+        """
         lines = [
-            f"### `{self.column}`\n",
+            f"### `{self.unit_id}`\n",
             "| Field | Value |",
             "|---|---|",
-            f"| semantic_type | {_md_cell(self.semantic_type)} |",
             f"| strategy | {_md_cell(self.strategy)} |",
-            f"| model_choice | {_md_cell(self.model_choice)} |",
-            f"| signals | {_md_cell(self.signals)} |",
-            f"| domain_snap_bounds | {_md_cell(bounds)} |",
-            f"| center1 | {_md_cell(self.center1)} |",
-            f"| center2 | {_md_cell(self.center2)} |",
-            f"| feature_cols | {_md_cell(self.feature_cols)} |",
-            f"| grouping_variable | {_md_cell(self.grouping_variable)} |",
-            f"| constant_fill | {_md_cell(self.constant_fill)} |",
-            f"| indicator_flag | {_md_cell(self.indicator_flag)} |",
-            f"| mnar | {_md_cell(self.mnar)} |",
-            f"| drop | {_md_cell(self.drop)} |",
+            f"| columns | {_md_cell(self.columns)} |",
+            f"| is_block | {_md_cell(self.is_block)} |",
         ]
         return "\n".join(lines)
 
@@ -1023,49 +1348,47 @@ class ColumnImputationDecision:
 @dataclass
 class ColumnImputationRecord:
     """
-    Per-column audit entry produced after fit().
+    Per-column audit entry produced after ``FittedImputer.transform``.
 
-    Composes the pure, value-free :class:`ColumnImputationDecision` (*what was
-    decided*, reachable via ``record.decision``) with the values ``fit()``
-    learned from the training data (*what was learned*): the scalar
-    ``fill_value`` and the ``indicator_added`` fit-metadata flag (ADR-0060).
-    Plan fields — ``column``, ``strategy``, ``signals``, ``domain_snap_bounds``
-    and the rest — are read through ``record.decision.*``.
+    Composes the pure, value-free :class:`ColumnRouting` (*what was routed*,
+    reachable via ``record.decision``) with the values fitting learned (*what
+    was learned*): the scalar ``fill_value`` and the ``indicator_added``
+    fit-metadata flag.
 
     Parameters
     ----------
-    decision : ColumnImputationDecision
-        The decided, value-free per-column plan entry.
+    decision : ColumnRouting
+        The routed, value-free per-column entry.
     fill_value : Any, optional
         Scalar fill value learned from training data (None for model-based
         strategies).
     indicator_added : bool
         Whether a binary missingness indicator column was appended — a
-        fit-time fact distinct from the decided ``decision.indicator_flag``.
+        fit-time fact distinct from the routed ``decision.indicator_flag``.
 
     Notes
     -----
-    Fit-quality metrics are no longer carried here.  ``fit()`` only learns
-    fill values and models; quality measurement is a deliberate second step
-    via the opt-in Evaluation phase (ADR-0058).
+    Fit-quality metrics are not carried here. Fitting only learns fill values
+    and models; quality measurement is a deliberate second step via the
+    opt-in Evaluation phase.
     """
 
-    decision: ColumnImputationDecision
-    fill_value: Optional[Any] = None
+    decision: ColumnRouting
+    fill_value: Any | None = None
     indicator_added: bool = False
 
     def to_dict(self) -> dict:
         """
         Serialise the audit record to a plain dictionary.
 
-        Flattens the decision's serialised fields alongside the learned
+        Flattens the routing's serialised fields alongside the learned
         ``fill_value`` and ``indicator_added`` so the whole record round-trips
         through :meth:`from_dict`.
 
         Returns
         -------
         dict
-            The decision's fields plus ``fill_value`` and ``indicator_added``.
+            The routing's fields plus ``fill_value`` and ``indicator_added``.
         """
         return {
             **self.decision.to_dict(),
@@ -1074,11 +1397,11 @@ class ColumnImputationRecord:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "ColumnImputationRecord":
+    def from_dict(cls, data: dict) -> ColumnImputationRecord:
         """
         Reconstruct a ``ColumnImputationRecord`` from a plain dictionary.
 
-        The inverse of :meth:`to_dict`: the decision is rebuilt from the same
+        The inverse of :meth:`to_dict`: the routing is rebuilt from the same
         flat mapping, then paired with the learned ``fill_value`` and
         ``indicator_added``.
 
@@ -1093,7 +1416,7 @@ class ColumnImputationRecord:
             Reconstructed audit record.
         """
         return cls(
-            decision=ColumnImputationDecision.from_dict(data),
+            decision=ColumnRouting.from_dict(data),
             fill_value=data.get("fill_value"),
             indicator_added=bool(data.get("indicator_added", False)),
         )
@@ -1103,17 +1426,15 @@ class ColumnImputationRecord:
 
         A fragment per rule 5 of the Rendering Contract (ADR-0086): it carries
         no ``#`` or ``##`` heading, so the owning result document composes it
-        without a heading collision. The composed
-        :class:`ColumnImputationDecision` renders its own table — *what was
-        decided* — and the learned ``fill_value`` and ``indicator_added``
-        continue it, so decided and learned fields sit side by side in one
-        table without being confusable.
+        without a heading collision. The composed :class:`ColumnRouting`
+        renders its own table — *what was routed* — and the learned
+        ``fill_value`` and ``indicator_added`` continue it.
 
         Returns
         -------
         str
             Markdown subsection headed by ``### `<column>``` and a field table
-            covering the decision's fields plus the learned ones.
+            covering the routing's fields plus the learned ones.
         """
         lines = [
             self.decision.to_markdown(),
@@ -1124,793 +1445,6 @@ class ColumnImputationRecord:
 
     def __str__(self) -> str:
         """Return the fragment, per rule 2 of the Rendering Contract.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()
-
-
-# ---------------------------------------------------------------------------
-# ImputationDecision — the pure, immutable plan (ADR-0060, issue #345)
-# ---------------------------------------------------------------------------
-
-# Strategies whose execution is one joint block over several columns; each
-# collapses to a single unit keyed by the block id rather than one unit per
-# column.
-_JOINT_BLOCK_STRATEGIES: frozenset[ImputationStrategy] = frozenset(
-    {ImputationStrategy.MICE, ImputationStrategy.KNN}
-)
-
-# Structural strategies carry no learned value and train nothing, so the plan
-# projects their records straight through without materialising a unit.
-_STRUCTURAL_STRATEGIES: frozenset[ImputationStrategy] = frozenset(
-    {
-        ImputationStrategy.Dropped,
-        ImputationStrategy.Passthrough,
-        ImputationStrategy.Indicator,
-    }
-)
-
-
-def _hyperparameters_from_dict(
-    hyperparameters: "dict[str, Any]",
-) -> "tuple[tuple[str, Any], ...]":
-    """Restore a hyperparameter mapping read off the wire to its in-memory form.
-
-    JSON has no tuple, so a sequence-valued dial (e.g. a Cluster-Conditional
-    unit's ``feature_cols``) arrives as a list. Restoring it to a tuple is what
-    keeps ``load(save(plan)) == plan`` (ADR-0063) and keeps every dial hashable.
-    """
-    return tuple(
-        (k, tuple(v) if isinstance(v, list) else v) for k, v in hyperparameters.items()
-    )
-
-
-@dataclass(frozen=True)
-class ImputationUnit:
-    """One executable unit of an imputation plan.
-
-    The plan's materialised, re-derived projection of *what execution trains
-    together* (ADR-0060): the joint ``MICE`` block, the joint ``KNN`` block, and
-    one unit per independent column (GMM-Sampling /
-    Cluster-Conditional / scalar). Structural strategies (Dropped / Passthrough /
-    Indicator) train nothing and produce no unit. A unit is a value-free
-    projection — it names the columns and the estimator family, never a fitted
-    model; the execution layer keys its checkpoints against ``unit_id``.
-
-    Parameters
-    ----------
-    unit_id : str
-        Stable identifier: ``"mice"`` / ``"knn"`` for the joint blocks (exactly
-        one of each when present), ``"{strategy}:{column}"`` for a per-column
-        unit.
-    strategy : ImputationStrategy
-        Strategy the unit executes.
-    columns : tuple[str, ...]
-        Columns trained by this unit — every column in the block for the joint
-        units, a single-element tuple for a per-column unit.
-    is_block : bool, default False
-        Whether the unit's columns train together in one joint model call —
-        ``True`` for the ``MICE`` and ``KNN`` blocks, ``False`` for every
-        per-column unit. Structural only: it says nothing about how expensive
-        the unit is, nor whether it can absorb inner parallelism (that follows
-        from ``model_choice``, which stays on
-        :class:`ColumnImputationDecision`). Derived from ``strategy``, so a
-        caller never supplies it.
-
-    Notes
-    -----
-    The unit is value-free and estimator-agnostic: the concrete estimator
-    family a model-based column trains with lives on its
-    :class:`ColumnImputationDecision` (``model_choice``), reachable through the
-    owning plan's ``column_decisions``, so it is never duplicated here.
-    """
-
-    unit_id: str
-    strategy: ImputationStrategy
-    columns: tuple[str, ...]
-    hyperparameters: Optional[tuple[tuple[str, Any], ...]] = None
-    is_block: bool = False
-
-    def to_dict(self) -> dict:
-        """Serialise the unit to a plain dictionary.
-
-        Returns
-        -------
-        dict
-            All field values keyed by field name, the strategy enum rendered by
-            member name and ``columns`` as a list.
-        """
-        return {
-            "unit_id": self.unit_id,
-            "strategy": self.strategy.name,
-            "columns": list(self.columns),
-            "hyperparameters": (
-                {k: v for k, v in self.hyperparameters}
-                if self.hyperparameters is not None
-                else None
-            ),
-            "is_block": self.is_block,
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "ImputationUnit":
-        """Reconstruct an ``ImputationUnit`` from a plain dictionary.
-
-        Parameters
-        ----------
-        data : dict
-            Mapping produced by :meth:`to_dict`.
-
-        Returns
-        -------
-        ImputationUnit
-            Reconstructed unit instance. ``is_block`` is re-derived from
-            ``strategy``, so whatever the payload carries for it — a stale
-            value, a wrong value, or nothing at all — is ignored.
-        """
-        strategy = ImputationStrategy[data["strategy"]]
-        return cls(
-            unit_id=data["unit_id"],
-            strategy=strategy,
-            columns=tuple(data.get("columns", ())),
-            hyperparameters=(
-                _hyperparameters_from_dict(data["hyperparameters"])
-                if data.get("hyperparameters") is not None
-                else None
-            ),
-            is_block=strategy in _JOINT_BLOCK_STRATEGIES,
-        )
-
-    def to_markdown(self) -> str:
-        """Render the execution unit as a ``###``-rooted Markdown fragment.
-
-        A fragment per rule 5 of the Rendering Contract (ADR-0086): it carries
-        no ``#`` or ``##`` heading, so the owning plan document composes it
-        without a heading collision. Every field is covered, including the
-        merged hyperparameters stamped onto the unit at plan construction.
-
-        Returns
-        -------
-        str
-            Markdown subsection headed by ``### `<unit_id>``` and a field table.
-        """
-        hyperparameters = (
-            dict(self.hyperparameters) if self.hyperparameters is not None else None
-        )
-        lines = [
-            f"### `{self.unit_id}`\n",
-            "| Field | Value |",
-            "|---|---|",
-            f"| strategy | {_md_cell(self.strategy)} |",
-            f"| columns | {_md_cell(self.columns)} |",
-            f"| is_block | {_md_cell(self.is_block)} |",
-            f"| hyperparameters | {_md_cell(hyperparameters)} |",
-        ]
-        return "\n".join(lines)
-
-    def __str__(self) -> str:
-        """Return the fragment, per rule 2 of the Rendering Contract.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()
-
-
-def _merge_unit_hyperparameters(
-    decided_hyperparameters: "dict[str, tuple[tuple[str, Any], ...]]",
-    override_hyperparameters: "dict[str, tuple[tuple[str, Any], ...]]",
-    unit_id: str,
-) -> "Optional[tuple[tuple[str, Any], ...]]":
-    """Stamp ``merged = decided ⊕ delta`` for one unit (delta wins per key).
-
-    The decided base is complete for the unit's strategy and the override delta
-    is sparse (ADR-0073); merging them per key is what lets a fitter read one
-    complete dict while the two-map split stays invisible below the plan surface.
-    Returns ``None`` when neither map carries the unit — an empty hyperparameter
-    set, matching a unit no strategy resolved dials for.
-    """
-    base = dict(decided_hyperparameters.get(unit_id, ()))
-    base.update(dict(override_hyperparameters.get(unit_id, ())))
-    return tuple(base.items()) if base else None
-
-
-def _derive_units(
-    column_decisions: "dict[str, ColumnImputationDecision]",
-    decided_hyperparameters: "Optional[dict[str, tuple[tuple[str, Any], ...]]]" = None,
-    override_hyperparameters: "Optional[dict[str, tuple[tuple[str, Any], ...]]]" = None,
-) -> tuple[ImputationUnit, ...]:
-    """Project the per-column decision map into its execution units.
-
-    Called at every :class:`ImputationDecision` construction so the unit list
-    can never drift from the map it describes (ADR-0060). Each unit is stamped
-    with the per-key merge of the decided base and the override delta (ADR-0073).
-    """
-    mice_cols = tuple(
-        c for c, d in column_decisions.items() if d.strategy == ImputationStrategy.MICE
-    )
-    knn_cols = tuple(
-        c for c, d in column_decisions.items() if d.strategy == ImputationStrategy.KNN
-    )
-
-    decided_hyperparameters = decided_hyperparameters or {}
-    override_hyperparameters = override_hyperparameters or {}
-    units: list[ImputationUnit] = []
-    mice_emitted = False
-    knn_emitted = False
-    for column, decision in column_decisions.items():
-        strategy = decision.strategy
-        if strategy == ImputationStrategy.MICE:
-            if not mice_emitted:
-                units.append(
-                    ImputationUnit(
-                        unit_id="mice",
-                        strategy=ImputationStrategy.MICE,
-                        columns=mice_cols,
-                        hyperparameters=_merge_unit_hyperparameters(
-                            decided_hyperparameters, override_hyperparameters, "mice"
-                        ),
-                        is_block=True,
-                    )
-                )
-                mice_emitted = True
-        elif strategy == ImputationStrategy.KNN:
-            if not knn_emitted:
-                units.append(
-                    ImputationUnit(
-                        unit_id="knn",
-                        strategy=ImputationStrategy.KNN,
-                        columns=knn_cols,
-                        hyperparameters=_merge_unit_hyperparameters(
-                            decided_hyperparameters, override_hyperparameters, "knn"
-                        ),
-                        is_block=True,
-                    )
-                )
-                knn_emitted = True
-        elif strategy in _STRUCTURAL_STRATEGIES:
-            continue
-        else:
-            unit_id = f"{strategy}:{column}"
-            units.append(
-                ImputationUnit(
-                    unit_id=unit_id,
-                    strategy=strategy,
-                    columns=(column,),
-                    hyperparameters=_merge_unit_hyperparameters(
-                        decided_hyperparameters, override_hyperparameters, unit_id
-                    ),
-                    is_block=False,
-                )
-            )
-    return tuple(units)
-
-
-@dataclass(frozen=True)
-class ImputationDecision:
-    """The pure, immutable imputation plan produced by :func:`decide`.
-
-    The keystone of the Decision/Execution split (ADR-0060): a complete,
-    inspectable, editable description of *what will happen* to every column,
-    derived purely from ``(profile, shape, config)`` and holding no value the
-    execution layer learns from training data. The execution layer consumes it,
-    persistence serialises it, and the user can inspect and edit it before
-    anything trains.
-
-    The plan is immutable: :meth:`with_model_choice` and
-    :meth:`with_hyperparameters` return a *new* ``ImputationDecision`` rather
-    than mutating in place, and ``units`` is re-derived from
-    ``column_decisions`` at every construction, so a stale unit list is
-    structurally impossible and every plan that exists is valid by construction.
-
-    Those edits are *dial* edits: they change how a unit trains, never which
-    units exist, so they cannot invalidate the decided hyperparameter base.
-    Changing which strategy a column takes is a *structural* edit and belongs to
-    :func:`~dataforge_ml.imputation.decide` alone, declared through
-    ``per_column_strategy`` (ADR-0082).
-
-    Parameters
-    ----------
-    column_decisions : dict[str, ColumnImputationDecision]
-        Per-column plan entries keyed by column name, in decision order. Held as
-        an internal copy so the constructed plan is independent of the caller's
-        mapping.
-    config_snapshot : dict
-        Serialised :class:`~dataforge_ml.PipelineConfig` (``config.to_dict()``)
-        the plan was decided under.
-    decided_hyperparameters : dict[str, tuple[tuple[str, Any], ...]]
-        The decide-time hyperparameter base per unit id, written by the authoring
-        function and never by an edit (ADR-0073). Complete for each unit's
-        strategy: it carries every dial the strategy has in ``_STRATEGY_DIALS``,
-        an invariant :meth:`from_dict` re-establishes on load, plus any profile
-        facts the unit's fitter reads.
-    override_hyperparameters : dict[str, tuple[tuple[str, Any], ...]]
-        The sparse per-unit override delta, written only by
-        :meth:`with_hyperparameters`. ``_derive_units`` stamps the per-key merge
-        ``decided ⊕ delta`` onto each unit, so the two-map split is invisible
-        below the plan surface (ADR-0073).
-    custom_estimators : dict[str, Any]
-        User-supplied estimator instances keyed by unit id, filled by
-        :func:`~dataforge_ml.imputation.author`'s ``estimators=`` channel and
-        paired with :attr:`ModelChoice.Custom` on the unit's columns (ADR-0083).
-        The **caller's own object**, never a clone, here and on every derived
-        copy: cloning would break identity, make ``get_params`` a
-        construction-time requirement stricter than sklearn's own, and silently
-        strip fitted state. Executing a plan cannot mutate it —
-        ``IterativeImputer`` clones per column — so the only live hazard is
-        deliberate post-authoring mutation, which is closed by this paragraph
-        rather than by a guard. Unit-keyed and not per-column: MICE is the only
-        strategy with an estimator slot, so a per-column spelling would let two
-        estimators be named for one block. **Not serialised** —
-        :meth:`to_dict` drops it and the plan reloads as ``Custom`` with the
-        slot empty. It stays in ``==``, so a ``Custom`` plan compares unequal to
-        its own round trip; that is the truth, since the restored plan cannot
-        fit. Nothing learned is lost: the estimator is a line of the user's own
-        code.
-    numeric_sentinels : dict[str, list[float]]
-        Declared numeric sentinel values per column, carried from the source
-        profile so the execution layer can normalise effective nulls without it
-        (ADR-0068).
-    string_sentinels : dict[str, list[str]]
-        Declared string sentinel values per column, carried from the source
-        profile for the same reason as ``numeric_sentinels`` (ADR-0068).
-    units : tuple[ImputationUnit, ...]
-        Materialised execution units, re-derived from ``column_decisions`` at
-        construction. Not an init argument.
-    dropped_columns : tuple[str, ...]
-        Convenience projection of the columns routed to ``Dropped``. Not an init
-        argument.
-
-    Notes
-    -----
-    ``column_decisions`` is the single source of truth; ``units`` and
-    ``dropped_columns`` are always projections of it and are never set directly.
-
-    A plan carrying ``custom_estimators`` may hold a *pre-fitted* estimator: the
-    library tolerates it and never reads its state (sklearn refits from
-    scratch), and no guard refuses it, because any check would recognise only
-    sklearn's trailing-underscore spelling and would read as a guarantee it is
-    not. ADR-0060's value-free claim therefore narrows from a structural
-    guarantee to a statement about the library: **the library never writes
-    learned state onto a plan.**
-    """
-
-    column_decisions: "dict[str, ColumnImputationDecision]"
-    config_snapshot: dict
-    decided_hyperparameters: "dict[str, tuple[tuple[str, Any], ...]]" = field(
-        default_factory=dict
-    )
-    override_hyperparameters: "dict[str, tuple[tuple[str, Any], ...]]" = field(
-        default_factory=dict
-    )
-    custom_estimators: "dict[str, Any]" = field(default_factory=dict)
-    numeric_sentinels: "dict[str, list[float]]" = field(default_factory=dict)
-    string_sentinels: "dict[str, list[str]]" = field(default_factory=dict)
-    units: tuple = field(init=False, default=())
-    dropped_columns: tuple = field(init=False, default=())
-
-    def __post_init__(self) -> None:
-        decisions = dict(self.column_decisions)
-        decided_hyp = dict(self.decided_hyperparameters)
-        override_hyp = dict(self.override_hyperparameters)
-        object.__setattr__(self, "column_decisions", decisions)
-        object.__setattr__(self, "decided_hyperparameters", decided_hyp)
-        object.__setattr__(self, "override_hyperparameters", override_hyp)
-        # A shallow copy: the mapping is the plan's own, the estimator instances
-        # inside it are the caller's by identity (ADR-0083).
-        object.__setattr__(self, "custom_estimators", dict(self.custom_estimators))
-        object.__setattr__(
-            self,
-            "numeric_sentinels",
-            {k: list(v) for k, v in self.numeric_sentinels.items()},
-        )
-        object.__setattr__(
-            self,
-            "string_sentinels",
-            {k: list(v) for k, v in self.string_sentinels.items()},
-        )
-        object.__setattr__(
-            self, "units", _derive_units(decisions, decided_hyp, override_hyp)
-        )
-        object.__setattr__(
-            self,
-            "dropped_columns",
-            tuple(c for c, d in decisions.items() if d.drop),
-        )
-
-    def units_for(self, strategy: ImputationStrategy) -> tuple[ImputationUnit, ...]:
-        """Return the plan's units that execute ``strategy``.
-
-        The selection surface for a caller driving their own fit loop: it
-        replaces scanning ``units`` against a hand-typed ``unit_id`` literal,
-        so the id stays an internal name the caller never spells.
-
-        Always returns a tuple — empty when the plan routed nothing to
-        ``strategy``, which is an ordinary outcome rather than an error. A
-        strategy that is structural, or that no column reached, therefore needs
-        no guard at the call site: the loop simply runs zero times. ``MICE`` and
-        ``KNN`` yield at most one unit each, being joint blocks.
-
-        Parameters
-        ----------
-        strategy : ImputationStrategy
-            The strategy to select on.
-
-        Returns
-        -------
-        tuple[ImputationUnit, ...]
-            The matching units, in plan order. Empty if there are none.
-        """
-
-        if strategy == _STRUCTURAL_STRATEGIES:
-            raise ValueError(
-                f"{strategy} is an incorrect strategy being provided, "
-                f"Dropped, Passthrough and Indicator strategies are not allowed."
-            )
-
-        return tuple(u for u in self.units if u.strategy == strategy)
-
-    def with_model_choice(
-        self, column: str, model_choice: "Optional[str | ModelChoice]"
-    ) -> "ImputationDecision":
-        """Return a new plan overriding ``column``'s estimator family.
-
-        The plan is immutable; this builds a fresh :class:`ImputationDecision`
-        with the one column's ``model_choice`` replaced and every unit
-        re-derived so the change is visible on the affected unit.
-
-        Parameters
-        ----------
-        column : str
-            Column whose estimator family to override. Must already be present
-            in the plan.
-        model_choice : str or ModelChoice or None
-            The replacement estimator family, or ``None`` to clear it.
-
-        Returns
-        -------
-        ImputationDecision
-            A new plan with the edit applied.
-
-        Raises
-        ------
-        KeyError
-            If ``column`` is not part of the plan.
-        """
-        if column not in self.column_decisions:
-            raise KeyError(f"Column '{column}' is not part of this plan.")
-        resolved = ModelChoice(model_choice) if model_choice is not None else None
-        from dataclasses import replace
-
-        new_decisions = dict(self.column_decisions)
-        new_decisions[column] = replace(new_decisions[column], model_choice=resolved)
-        return ImputationDecision(
-            column_decisions=new_decisions,
-            config_snapshot=self.config_snapshot,
-            decided_hyperparameters=self.decided_hyperparameters,
-            override_hyperparameters=self.override_hyperparameters,
-            custom_estimators=self.custom_estimators,
-            numeric_sentinels=self.numeric_sentinels,
-            string_sentinels=self.string_sentinels,
-        )
-
-    def with_hyperparameters(
-        self, unit_id: str, hyperparameters: "Optional[dict[str, Any]]"
-    ) -> "ImputationDecision":
-        """Return a new plan overriding named hyperparameters on one unit.
-
-        A per-key merge onto the unit's always-complete decided base (ADR-0073):
-        the named keys are overridden and every other decided dial is kept, so
-        the plan the user inspects is exactly the plan that fits. The override is
-        stored as a sparse delta; ``units`` re-derives the merge at construction.
-        Successive edits to the same unit accumulate per key. Passing ``None``
-        resets the unit to its decided values by clearing its delta. Per-unit
-        only: a joint unit shares one estimator, so per-column overrides on it
-        would be meaningless.
-
-        Every key must be one of the unit's strategy's dials (``_STRATEGY_DIALS``)
-        — the same table both authors build the decided base from, so what is
-        dialable is one fact rather than a per-author allowlist. A strategy with
-        no row has no dials, and every key is rejected for it. The decided base
-        may carry more than the dials (profile facts a fitter reads, such as a
-        bimodal unit's centres); those are not dialable. Values are not
-        type-checked: sklearn rejects an ill-typed value at fit time.
-
-        Parameters
-        ----------
-        unit_id : str
-            ID of the unit to override (e.g. ``"mice"``, ``"knn"``, or
-            ``"median:age"``). Must already be present in the plan.
-        hyperparameters : dict[str, Any] or None
-            The keys to override and their replacement values, or ``None`` to
-            reset the unit to its decided base.
-
-        Returns
-        -------
-        ImputationDecision
-            A new plan with the override applied.
-
-        Raises
-        ------
-        KeyError
-            If ``unit_id`` is not part of the plan's derived units.
-        ValueError
-            If ``hyperparameters`` names a key that is not one of the unit's
-            strategy's dials, identifying the unit and the offending key.
-        """
-        unit = next((u for u in self.units if u.unit_id == unit_id), None)
-        if unit is None:
-            raise KeyError(f"Unit '{unit_id}' is not part of this plan.")
-
-        new_override_hyperparameters = dict(self.override_hyperparameters)
-        if hyperparameters is None:
-            new_override_hyperparameters.pop(unit_id, None)
-        else:
-            dial_keys = set(_dial_defaults(unit.strategy))
-            for key in hyperparameters:
-                if key not in dial_keys:
-                    raise ValueError(
-                        f"Unit '{unit_id}' ({unit.strategy}) has no dial '{key}' "
-                        f"to override."
-                    )
-            merged_delta = dict(new_override_hyperparameters.get(unit_id, ()))
-            merged_delta.update(hyperparameters)
-            new_override_hyperparameters[unit_id] = tuple(merged_delta.items())
-
-        return ImputationDecision(
-            column_decisions=self.column_decisions,
-            config_snapshot=self.config_snapshot,
-            decided_hyperparameters=self.decided_hyperparameters,
-            override_hyperparameters=new_override_hyperparameters,
-            custom_estimators=self.custom_estimators,
-            numeric_sentinels=self.numeric_sentinels,
-            string_sentinels=self.string_sentinels,
-        )
-
-    def to_dict(self) -> dict:
-        """Serialise the plan to a plain, JSON-friendly dictionary.
-
-        ``units`` and ``dropped_columns`` are emitted for readability but are
-        re-derived — not consumed — on :meth:`from_dict`, so a hand-edited unit
-        list can never desynchronise a reloaded plan.
-
-        ``custom_estimators`` is **omitted**: a user-supplied estimator is a
-        live object, not data, and the payload stays JSON-native (ADR-0083). The
-        reloaded plan keeps :attr:`ModelChoice.Custom` with an empty slot, and
-        fitting it raises rather than falling back to a library estimator.
-        Rejected alternatives: refusing to serialize such a plan at all, and
-        pickling the estimator into the envelope.
-
-        Returns
-        -------
-        dict
-            The plan's fields with nested objects serialised to dicts.
-        """
-        return {
-            "column_decisions": {
-                col: d.to_dict() for col, d in self.column_decisions.items()
-            },
-            "config_snapshot": self.config_snapshot,
-            "decided_hyperparameters": {
-                unit_id: {k: v for k, v in hyp}
-                for unit_id, hyp in self.decided_hyperparameters.items()
-            },
-            "override_hyperparameters": {
-                unit_id: {k: v for k, v in hyp}
-                for unit_id, hyp in self.override_hyperparameters.items()
-            },
-            "numeric_sentinels": {
-                col: list(v) for col, v in self.numeric_sentinels.items()
-            },
-            "string_sentinels": {
-                col: list(v) for col, v in self.string_sentinels.items()
-            },
-            "units": [u.to_dict() for u in self.units],
-            "dropped_columns": list(self.dropped_columns),
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "ImputationDecision":
-        """Reconstruct an ``ImputationDecision`` from a plain dictionary.
-
-        The inverse of :meth:`to_dict`. ``column_decisions`` is the single
-        source of truth: ``units`` and ``dropped_columns`` are re-derived, never
-        read from ``data``, so ``from_dict(plan.to_dict())`` is structurally
-        equal to ``plan`` even if the serialised unit list was tampered with.
-
-        The decided base is gap-filled against ``_STRATEGY_DIALS`` on the way
-        in — a dial the payload is missing takes the table's neutral value, and
-        a dial the payload carries is never overwritten. "Complete for the
-        unit's strategy" is thereby true of the type rather than of the two
-        authoring functions, which is what lets a fitter subscript a dial
-        outright. Cost taken knowingly: an artifact saved before a dial existed
-        silently gains it rather than dying on a bare ``KeyError``.
-
-        Parameters
-        ----------
-        data : dict
-            Mapping produced by :meth:`to_dict`.
-
-        Returns
-        -------
-        ImputationDecision
-            Reconstructed plan instance.
-        """
-        decided_hyperparameters = {
-            unit_id: _hyperparameters_from_dict(hyp)
-            for unit_id, hyp in data.get("decided_hyperparameters", {}).items()
-        }
-        override_hyperparameters = {
-            unit_id: _hyperparameters_from_dict(hyp)
-            for unit_id, hyp in data.get("override_hyperparameters", {}).items()
-        }
-        column_decisions = {
-            col: ColumnImputationDecision.from_dict(raw)
-            for col, raw in data.get("column_decisions", {}).items()
-        }
-        for unit in _derive_units(column_decisions):
-            base = dict(decided_hyperparameters.get(unit.unit_id, ()))
-            missing = {
-                key: value
-                for key, value in _dial_defaults(unit.strategy).items()
-                if key not in base
-            }
-            if missing:
-                base.update(missing)
-                decided_hyperparameters[unit.unit_id] = tuple(base.items())
-        return cls(
-            column_decisions=column_decisions,
-            config_snapshot=data.get("config_snapshot", {}),
-            decided_hyperparameters=decided_hyperparameters,
-            override_hyperparameters=override_hyperparameters,
-            numeric_sentinels={
-                col: list(v) for col, v in data.get("numeric_sentinels", {}).items()
-            },
-            string_sentinels={
-                col: list(v) for col, v in data.get("string_sentinels", {}).items()
-            },
-        )
-
-    def to_markdown(self) -> str:
-        """Render the whole plan as a Markdown document.
-
-        A document per rule 5 of the Rendering Contract (ADR-0086): it owns the
-        ``#`` and ``##`` heading levels and delegates to the
-        :class:`ColumnImputationDecision` and :class:`ImputationUnit` fragments
-        beneath them. Every field of the plan is covered, so a plan from
-        :func:`~dataforge_ml.imputation.decide` and one built by hand through
-        :func:`~dataforge_ml.imputation.author` render identically in shape and
-        are comparable by eye.
-
-        ``custom_estimators`` holds live user objects rather than data, so it is
-        reported by unit id and estimator class name only.
-
-        Returns
-        -------
-        str
-            Markdown document with a summary, the per-column decisions, the
-            execution units, the declared sentinels, and the config snapshot the
-            plan was decided under.
-        """
-        lines = ["# Imputation Plan\n"]
-
-        lines.append("## Summary\n")
-        lines.append("| Field | Value |")
-        lines.append("|---|---|")
-        lines.append(f"| columns | {len(self.column_decisions)} |")
-        lines.append(f"| units | {len(self.units)} |")
-        lines.append(f"| dropped_columns | {_md_cell(self.dropped_columns)} |")
-        lines.append(
-            "| custom_estimators | "
-            + _md_cell(
-                {
-                    unit_id: type(estimator).__name__
-                    for unit_id, estimator in self.custom_estimators.items()
-                }
-            )
-            + " |"
-        )
-        lines.append("")
-
-        lines.append("## Column Decisions\n")
-        lines.append(
-            "| Column | Semantic type | Strategy | Model choice | Indicator "
-            "| MNAR | Drop |"
-        )
-        lines.append("|---|---|---|---|---|---|---|")
-        if self.column_decisions:
-            for decision in self.column_decisions.values():
-                lines.append(
-                    f"| `{decision.column}` | {_md_cell(decision.semantic_type)} "
-                    f"| {_md_cell(decision.strategy)} "
-                    f"| {_md_cell(decision.model_choice)} "
-                    f"| {_md_cell(decision.indicator_flag)} "
-                    f"| {_md_cell(decision.mnar)} | {_md_cell(decision.drop)} |"
-                )
-        else:
-            lines.append("| none | | | | | | |")
-        lines.append("")
-        if self.column_decisions:
-            for decision in self.column_decisions.values():
-                lines.append(decision.to_markdown())
-                lines.append("")
-
-        lines.append("## Execution Units\n")
-        if self.units:
-            lines.append("| Unit | Strategy | Columns | Block |")
-            lines.append("|---|---|---|---|")
-            for unit in self.units:
-                lines.append(
-                    f"| `{unit.unit_id}` | {_md_cell(unit.strategy)} "
-                    f"| {_md_cell(unit.columns)} | {_md_cell(unit.is_block)} |"
-                )
-            lines.append("")
-            for unit in self.units:
-                lines.append(unit.to_markdown())
-                lines.append("")
-        else:
-            lines.append("none")
-            lines.append("")
-
-        lines.append("## Hyperparameters\n")
-        lines.append("| Unit | Decided base | Override delta |")
-        lines.append("|---|---|---|")
-        unit_ids = list(
-            dict.fromkeys(
-                [u.unit_id for u in self.units]
-                + list(self.decided_hyperparameters)
-                + list(self.override_hyperparameters)
-            )
-        )
-        if unit_ids:
-            for unit_id in unit_ids:
-                decided = dict(self.decided_hyperparameters.get(unit_id, ()))
-                override = dict(self.override_hyperparameters.get(unit_id, ()))
-                lines.append(
-                    f"| `{unit_id}` | {_md_cell(decided)} | {_md_cell(override)} |"
-                )
-        else:
-            lines.append("| none | | |")
-        lines.append("")
-
-        lines.append("## Declared Sentinels\n")
-        lines.append("| Column | Numeric | String |")
-        lines.append("|---|---|---|")
-        sentinel_cols = list(
-            dict.fromkeys(list(self.numeric_sentinels) + list(self.string_sentinels))
-        )
-        if sentinel_cols:
-            for column in sentinel_cols:
-                lines.append(
-                    f"| `{column}` "
-                    f"| {_md_cell(self.numeric_sentinels.get(column))} "
-                    f"| {_md_cell(self.string_sentinels.get(column))} |"
-                )
-        else:
-            lines.append("| none | | |")
-        lines.append("")
-
-        lines.append("## Config Snapshot\n")
-        rows = _flatten_snapshot(self.config_snapshot)
-        if rows:
-            lines.append("| Setting | Value |")
-            lines.append("|---|---|")
-            for key, value in rows:
-                lines.append(f"| {_md_cell(key)} | {_md_cell(value)} |")
-        else:
-            lines.append("not recorded")
-        lines.append("")
-
-        return "\n".join(lines).strip() + "\n"
-
-    def __str__(self) -> str:
-        """Return the Imputation Plan document, per rule 2 of the contract.
 
         Returns
         -------

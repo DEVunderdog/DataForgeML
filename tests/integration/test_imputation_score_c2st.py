@@ -1,14 +1,14 @@
-"""Integration tests for ``evaluate_imputation`` — the happy path end to end.
+"""Integration tests for ``imputation_score_c2st`` — the happy path end to end.
 
 Asserts the entry point's user-facing behaviour: the census covers every active
 column, an excluded column is absent from it entirely, the feature matrix holds
 what it should, sentinel rows land in the filled pile, the ``m`` axis pools by
-the mean ``z``, ``metrics=`` selects, and the event stream is progress only.
+the mean ``z``, and the event stream is progress only.
 
 The samples are built synthetically wherever the property under test allows it
 — C2ST is one classifier fit and is cheap, whereas producing imputed frames is
 what melts the machine — with one test driving the real
-``decide`` -> ``fit_unit`` -> ``compose`` path so the surface is proved against
+``route`` -> ``fit_unit`` -> ``compose`` path so the surface is proved against
 a genuinely imputed table.
 """
 
@@ -27,11 +27,9 @@ from dataforge_ml.evaluation import (
     C2STAnnotation,
     C2STConfig,
     C2STOutcome,
+    C2STReport,
     C2STVerdict,
-    EvaluationConfig,
-    EvaluationMetric,
-    EvaluationReport,
-    evaluate_imputation,
+    imputation_score_c2st,
 )
 from dataforge_ml.evaluation.imputation import _adapter
 from dataforge_ml.observability import EventType
@@ -132,27 +130,29 @@ def imputed_frame(eval_df):
             continue
         observed = series.filter(series.is_not_null() & (series != -999.0))
         fill = observed.median() if observed.len() else 0.0
-        filled[name] = (
-            series.map_elements(
-                lambda v, fill=fill: fill if v is None or v == -999.0 else v,
-                return_dtype=pl.Float64,
-            )
-        )
+        # ``map_elements`` skips nulls, so the fill is written with a
+        # vectorised select: every null and sentinel cell takes the median.
+        filled[name] = pl.select(
+            pl.when(series.is_null() | (series == -999.0))
+            .then(pl.lit(fill, dtype=pl.Float64))
+            .otherwise(series)
+            .alias(name)
+        ).to_series()
     return pl.DataFrame(filled)
 
 
 @pytest.fixture
 def eval_config():
-    return EvaluationConfig(c2st=C2STConfig(repeats=3, random_state=0))
+    return C2STConfig(repeats=3, random_state=0)
 
 
 @pytest.fixture(scope="module")
 def report(eval_df, imputed_frame, eval_profile, eval_pipeline_config):
-    return evaluate_imputation(
+    return imputation_score_c2st(
         eval_df,
         [imputed_frame],
         eval_profile,
-        config=EvaluationConfig(c2st=C2STConfig(repeats=3, random_state=0)),
+        config=C2STConfig(repeats=3, random_state=0),
         pipeline_config=eval_pipeline_config,
     )
 
@@ -161,14 +161,14 @@ def report(eval_df, imputed_frame, eval_profile, eval_pipeline_config):
 def feature_spy(monkeypatch):
     """Capture the frames the adapter hands the generic seam, per column."""
     seen: dict[str, list[str]] = {}
-    real = _adapter.c2st
+    real = _adapter._c2st
     columns: list[str] = []
 
     def spy(reference, candidate, **kwargs):
         seen[columns[-1]] = list(reference.columns)
         return real(reference, candidate, **kwargs)
 
-    monkeypatch.setattr(_adapter, "c2st", spy)
+    monkeypatch.setattr(_adapter, "_c2st", spy)
 
     class _Emitter(_adapter.Emitter):
         def item(self, column, message=None):
@@ -193,53 +193,122 @@ def test_the_fixture_carries_the_semantic_types_the_gates_read(eval_profile):
 
 
 def test_evaluation_returns_a_report_with_a_z_per_tested_column(report):
-    assert isinstance(report, EvaluationReport)
+    assert isinstance(report, C2STReport)
     tested = {
         name
-        for name, record in report.c2st.columns.items()
+        for name, record in report.columns.items()
         if record.outcome is C2STOutcome.Tested
     }
     assert tested == {"score", "revenue", "age", "grade"}
     for name in tested:
-        assert isinstance(report.c2st[name].score.mean_frame_z, float)
+        assert isinstance(report[name].score.mean_frame_z, float)
 
 
 def test_every_active_column_gets_a_record(report, eval_df, eval_pipeline_config):
     active = eval_pipeline_config.resolve_active_columns(
         PipelinePhase.Imputation, list(eval_df.columns)
     )
-    assert list(report.c2st.columns) == active
+    assert list(report.columns) == active
 
 
 def test_lookup_and_membership_work_on_the_report(report):
-    assert "score" in report.c2st
-    assert report.c2st["score"].column == "score"
+    assert "score" in report
+    assert report["score"].column == "score"
 
 
 @pytest.mark.parametrize("column", ["excluded_hard", "excluded_soft"])
 def test_an_excluded_column_is_absent_from_the_census(report, column):
-    assert column not in report.c2st
+    assert column not in report
     with pytest.raises(KeyError):
-        report.c2st[column]
+        report[column]
 
 
 def test_a_column_with_no_filled_cells_is_not_tested(report):
-    assert report.c2st["complete"].outcome is C2STOutcome.NoFilledCells
-    assert report.c2st["complete"].score is None
+    assert report["complete"].outcome is C2STOutcome.NoFilledCells
+    assert report["complete"].score is None
 
 
 def test_a_fully_null_column_is_not_tested(report):
-    assert report.c2st["empty"].outcome is C2STOutcome.NoObservedCells
+    assert report["empty"].outcome is C2STOutcome.NoObservedCells
 
 
 def test_a_column_below_the_sample_floor_is_refused(report):
-    assert report.c2st["tiny"].outcome is C2STOutcome.BelowSampleFloor
-    assert report.c2st["tiny"].n_filled == TINY_NULLS
+    assert report["tiny"].outcome is C2STOutcome.BelowSampleFloor
+    assert report["tiny"].n_filled == TINY_NULLS
 
 
 @pytest.mark.parametrize("column", ["note", "user_id"])
 def test_text_and_identifier_columns_are_not_testable(report, column):
-    assert report.c2st[column].outcome is C2STOutcome.TypeNotTestable
+    assert report[column].outcome is C2STOutcome.TypeNotTestable
+
+
+def _unfill(imputed, original, column):
+    """Put ``column``'s original nulls back into an imputed frame."""
+    return imputed.with_columns(original.get_column(column))
+
+
+def test_a_column_still_null_where_it_was_missing_is_unfilled(
+    eval_df, imputed_frame, eval_profile, eval_pipeline_config
+):
+    report = imputation_score_c2st(
+        eval_df,
+        [_unfill(imputed_frame, eval_df, "score")],
+        eval_profile,
+        config=C2STConfig(repeats=2, random_state=0),
+        pipeline_config=eval_pipeline_config,
+    )
+
+    record = report["score"]
+    assert record.outcome is C2STOutcome.Unfilled
+    assert record.score is None
+    assert record.verdict is C2STVerdict.NoVerdict
+    assert record.n_filled == eval_df.get_column("score").null_count()
+    # The other columns are still tested.
+    assert report["revenue"].outcome is C2STOutcome.Tested
+
+
+def test_one_unfilled_frame_among_several_refuses_the_column(
+    eval_df, imputed_frame, eval_profile, eval_pipeline_config
+):
+    report = imputation_score_c2st(
+        eval_df,
+        [imputed_frame, _unfill(imputed_frame, eval_df, "score")],
+        eval_profile,
+        config=C2STConfig(repeats=2, random_state=0),
+        pipeline_config=eval_pipeline_config,
+    )
+
+    assert report["score"].outcome is C2STOutcome.Unfilled
+
+
+def test_a_declared_mnar_column_is_unfilled_not_failed():
+    rng = np.random.default_rng(3)
+    n = 400
+    income = rng.normal(60_000.0, 8_000.0, n)
+    df = pl.DataFrame(
+        {
+            "income": pl.Series(
+                [None if i % 4 == 0 else float(v) for i, v in enumerate(income)],
+                dtype=pl.Float64,
+            ),
+            "age": pl.Series(rng.normal(40.0, 10.0, n).tolist(), dtype=pl.Float64),
+        }
+    )
+    config = PipelineConfig()
+    config.imputation.add_mnar_column("income")
+    profile = StructuralProfiler(config).profile(df)
+    imputed = fit_imputer(df, profile, config).transform(df).dataframe
+
+    report = imputation_score_c2st(
+        df,
+        [imputed],
+        profile,
+        config=C2STConfig(repeats=2, random_state=0),
+        pipeline_config=config,
+    )
+
+    assert report["income"].outcome is C2STOutcome.Unfilled
+    assert report["income"].verdict is C2STVerdict.NoVerdict
 
 
 # ---------------------------------------------------------------------------
@@ -250,7 +319,7 @@ def test_text_and_identifier_columns_are_not_testable(report, column):
 def test_text_and_identifier_columns_appear_in_no_feature_matrix(
     feature_spy, eval_df, imputed_frame, eval_profile, eval_pipeline_config, eval_config
 ):
-    evaluate_imputation(
+    imputation_score_c2st(
         eval_df,
         [imputed_frame],
         eval_profile,
@@ -267,7 +336,7 @@ def test_text_and_identifier_columns_appear_in_no_feature_matrix(
 def test_a_fully_null_column_is_dropped_as_a_feature_and_a_partial_one_is_kept(
     feature_spy, eval_df, imputed_frame, eval_profile, eval_pipeline_config, eval_config
 ):
-    evaluate_imputation(
+    imputation_score_c2st(
         eval_df,
         [imputed_frame],
         eval_profile,
@@ -287,7 +356,7 @@ def test_a_fully_null_column_is_dropped_as_a_feature_and_a_partial_one_is_kept(
 def test_an_excluded_column_is_never_a_feature(
     feature_spy, eval_df, imputed_frame, eval_profile, eval_pipeline_config, eval_config
 ):
-    evaluate_imputation(
+    imputation_score_c2st(
         eval_df,
         [imputed_frame],
         eval_profile,
@@ -306,13 +375,13 @@ def test_an_excluded_column_is_never_a_feature(
 
 
 def test_sentinel_rows_land_in_the_filled_pile(report):
-    record = report.c2st["age"]
+    record = report["age"]
     assert record.n_filled == SENTINEL_ROWS
     assert record.n_observed == N_ROWS - SENTINEL_ROWS
 
 
 def test_the_two_pile_sizes_account_for_every_row(report):
-    for record in report.c2st.columns.values():
+    for record in report.columns.values():
         assert record.n_observed + record.n_filled == N_ROWS
 
 
@@ -328,7 +397,7 @@ def test_more_than_one_frame_pools_by_the_mean_z_and_does_not_shrink_the_null(
         (pl.col("score") + 0.5).alias("score")
     )
 
-    pooled = evaluate_imputation(
+    pooled = imputation_score_c2st(
         eval_df,
         [imputed_frame, shifted],
         eval_profile,
@@ -336,7 +405,7 @@ def test_more_than_one_frame_pools_by_the_mean_z_and_does_not_shrink_the_null(
         pipeline_config=eval_pipeline_config,
     )
 
-    score = pooled.c2st["score"].score
+    score = pooled["score"].score
     assert len(score.frames) == 2
     per_frame = [frame.mean_repeat_z for frame in score.frames]
     assert score.mean_frame_z == pytest.approx(float(np.mean(per_frame)))
@@ -353,7 +422,7 @@ def test_more_than_one_frame_pools_by_the_mean_z_and_does_not_shrink_the_null(
 def test_the_mask_derived_facts_are_stated_once_for_every_frame(
     eval_df, imputed_frame, eval_profile, eval_pipeline_config, eval_config
 ):
-    pooled = evaluate_imputation(
+    pooled = imputation_score_c2st(
         eval_df,
         [imputed_frame, imputed_frame],
         eval_profile,
@@ -361,7 +430,7 @@ def test_the_mask_derived_facts_are_stated_once_for_every_frame(
         pipeline_config=eval_pipeline_config,
     )
 
-    record = pooled.c2st["score"]
+    record = pooled["score"]
     # Pile sizes live on the column record, not per frame, so they cannot
     # disagree with themselves.
     assert not hasattr(record.score.frames[0], "n_observed")
@@ -372,7 +441,7 @@ def test_a_frame_of_the_wrong_height_is_refused(
     eval_df, imputed_frame, eval_profile, eval_pipeline_config, eval_config
 ):
     with pytest.raises(ValueError, match="row-aligned"):
-        evaluate_imputation(
+        imputation_score_c2st(
             eval_df,
             [imputed_frame.head(10)],
             eval_profile,
@@ -385,7 +454,7 @@ def test_no_frames_at_all_is_refused(
     eval_df, eval_profile, eval_pipeline_config, eval_config
 ):
     with pytest.raises(ValueError, match="at least one imputed frame"):
-        evaluate_imputation(
+        imputation_score_c2st(
             eval_df,
             [],
             eval_profile,
@@ -395,42 +464,22 @@ def test_no_frames_at_all_is_refused(
 
 
 # ---------------------------------------------------------------------------
-# metrics=
+# Default config
 # ---------------------------------------------------------------------------
 
 
-def test_a_metric_that_was_not_requested_comes_back_as_none(
-    eval_df, imputed_frame, eval_profile, eval_pipeline_config, eval_config
+def test_default_config_builds_a_default_c2st_config(
+    eval_df, imputed_frame, eval_profile, eval_pipeline_config
 ):
-    empty = evaluate_imputation(
+    """config=None builds a default C2STConfig()."""
+    report = imputation_score_c2st(
         eval_df,
         [imputed_frame],
         eval_profile,
-        config=eval_config,
         pipeline_config=eval_pipeline_config,
-        metrics=[],
     )
-
-    assert empty.c2st is None
-
-
-def test_selecting_c2st_explicitly_runs_it(
-    eval_df, imputed_frame, eval_profile, eval_pipeline_config, eval_config
-):
-    selected = evaluate_imputation(
-        eval_df,
-        [imputed_frame],
-        eval_profile,
-        config=eval_config,
-        pipeline_config=eval_pipeline_config,
-        metrics=[EvaluationMetric.C2ST],
-    )
-
-    assert selected.c2st is not None
-
-
-def test_the_default_runs_every_metric_the_library_has(report):
-    assert report.c2st is not None
+    assert isinstance(report, C2STReport)
+    assert report.provenance.config == C2STConfig()
 
 
 # ---------------------------------------------------------------------------
@@ -441,7 +490,7 @@ def test_the_default_runs_every_metric_the_library_has(report):
 @pytest.fixture
 def events(eval_df, imputed_frame, eval_profile, eval_pipeline_config, eval_config):
     captured = []
-    evaluate_imputation(
+    imputation_score_c2st(
         eval_df,
         [imputed_frame],
         eval_profile,
@@ -452,9 +501,9 @@ def events(eval_df, imputed_frame, eval_profile, eval_pipeline_config, eval_conf
     return captured
 
 
-def test_the_stream_is_stamped_evaluation_and_c2st(events):
+def test_the_stream_is_stamped_evaluation_and_imputation_score_c2st(events):
     assert {e.phase for e in events} == {"evaluation"}
-    assert {e.stage for e in events} == {"c2st"}
+    assert {e.stage for e in events} == {"imputation_score_c2st"}
 
 
 def test_the_stage_boundaries_are_present(events):
@@ -478,8 +527,11 @@ def test_one_substep_is_emitted_per_repeat(events, eval_config):
     substeps = [e for e in events if e.event_type is EventType.substep]
     tested = 4  # score, revenue, age, grade
 
-    assert len(substeps) == tested * eval_config.c2st.repeats
-    assert {e.total for e in substeps} == {eval_config.c2st.repeats}
+    assert len(substeps) == tested * eval_config.repeats
+    assert {e.total for e in substeps} == {eval_config.repeats}
+    assert {(e.phase, e.stage) for e in substeps} == {
+        ("evaluation", "imputation_score_c2st")
+    }
 
 
 def test_the_event_stream_carries_no_decision_events(events):
@@ -516,21 +568,21 @@ def test_evaluation_runs_end_to_end_on_a_real_imputed_table(real_df):
     imputer = fit_imputer(real_df, profile)
     imputed = imputer.transform(real_df).dataframe
 
-    report = evaluate_imputation(
+    report = imputation_score_c2st(
         real_df,
         [imputed],
         profile,
-        config=EvaluationConfig(c2st=C2STConfig(repeats=3, random_state=0)),
+        config=C2STConfig(repeats=3, random_state=0),
         pipeline_config=pipeline_config,
     )
 
-    record = report.c2st["target"]
+    record = report["target"]
     assert record.outcome is C2STOutcome.Tested
     assert record.score is not None
     assert record.score.frames[0].n_test > 0
     assert 0.0 <= record.score.p_value <= 1.0
-    assert report.c2st.provenance.sklearn_version
-    assert report.c2st.provenance.classifier_injected is False
+    assert report.provenance.sklearn_version
+    assert report.provenance.classifier_injected is False
 
 
 # ---------------------------------------------------------------------------
@@ -541,13 +593,11 @@ def test_evaluation_runs_end_to_end_on_a_real_imputed_table(real_df):
 def test_lowering_the_floor_dial_tests_a_column_the_default_refuses(
     eval_df, imputed_frame, eval_profile, eval_pipeline_config
 ):
-    lowered = evaluate_imputation(
+    lowered = imputation_score_c2st(
         eval_df,
         [imputed_frame],
         eval_profile,
-        config=EvaluationConfig(
-            c2st=C2STConfig(repeats=2, random_state=0, min_filled_cells=TINY_NULLS)
-        ),
+        config=C2STConfig(repeats=2, random_state=0, min_filled_cells=TINY_NULLS),
         pipeline_config=eval_pipeline_config,
     )
 
@@ -556,25 +606,23 @@ def test_lowering_the_floor_dial_tests_a_column_the_default_refuses(
     # Five filled cells is not, however, enough for the classifier to split on,
     # so the runtime degeneracy net catches what the lowered floor let through
     # — which is the point of having both: the net is not the floor.
-    assert lowered.c2st["tiny"].outcome is not C2STOutcome.BelowSampleFloor
-    assert lowered.c2st["tiny"].outcome is C2STOutcome.Uninformative
+    assert lowered["tiny"].outcome is not C2STOutcome.BelowSampleFloor
+    assert lowered["tiny"].outcome is C2STOutcome.Uninformative
 
 
 def test_raising_the_floor_dial_refuses_a_column_the_default_tests(
     eval_df, imputed_frame, eval_profile, eval_pipeline_config
 ):
-    raised = evaluate_imputation(
+    raised = imputation_score_c2st(
         eval_df,
         [imputed_frame],
         eval_profile,
-        config=EvaluationConfig(
-            c2st=C2STConfig(repeats=2, random_state=0, min_filled_cells=200)
-        ),
+        config=C2STConfig(repeats=2, random_state=0, min_filled_cells=200),
         pipeline_config=eval_pipeline_config,
     )
 
-    assert raised.c2st["score"].outcome is C2STOutcome.BelowSampleFloor
-    assert raised.c2st["score"].score is None
+    assert raised["score"].outcome is C2STOutcome.BelowSampleFloor
+    assert raised["score"].score is None
 
 
 # ---------------------------------------------------------------------------
@@ -585,7 +633,7 @@ def test_raising_the_floor_dial_refuses_a_column_the_default_tests(
 def test_a_thin_pile_is_annotated_low_power_and_still_tested(report):
     # 100 filled against 300 observed: honest, and far under the 250 rows per
     # pile at which the degenerate imputer is caught every time.
-    record = report.c2st["score"]
+    record = report["score"]
 
     assert record.outcome is C2STOutcome.Tested
     assert C2STAnnotation.LowPower in record.annotations
@@ -597,18 +645,16 @@ def test_low_power_annotates_and_never_refuses(
 ):
     # A band wide enough to swallow every column: not one of them is refused
     # for it, which is the whole difference between this tier and the floor.
-    annotated = evaluate_imputation(
+    annotated = imputation_score_c2st(
         eval_df,
         [imputed_frame],
         eval_profile,
-        config=EvaluationConfig(
-            c2st=C2STConfig(repeats=2, random_state=0, low_power_below=10_000)
-        ),
+        config=C2STConfig(repeats=2, random_state=0, low_power_below=10_000),
         pipeline_config=eval_pipeline_config,
     )
 
     tested = [
-        r for r in annotated.c2st.columns.values()
+        r for r in annotated.columns.values()
         if r.outcome is C2STOutcome.Tested
     ]
     assert tested
@@ -619,7 +665,7 @@ def test_low_power_annotates_and_never_refuses(
 
 def test_imbalanced_piles_are_annotated_without_suppressing_the_z(report):
     # 100 against 300 is a ratio of 0.33, under the 0.5 dial.
-    record = report.c2st["score"]
+    record = report["score"]
 
     assert C2STAnnotation.ImbalancedPiles in record.annotations
     assert isinstance(record.score.mean_frame_z, float)
@@ -629,28 +675,24 @@ def test_a_balanced_column_carries_no_imbalance_annotation(report):
     # 240 filled against 160 observed is a ratio of 0.67.
     assert (
         C2STAnnotation.ImbalancedPiles
-        not in report.c2st["revenue"].annotations
+        not in report["revenue"].annotations
     )
 
 
 def test_the_imbalance_dial_moves_the_annotation(
     eval_df, imputed_frame, eval_profile, eval_pipeline_config
 ):
-    strict = evaluate_imputation(
+    strict = imputation_score_c2st(
         eval_df,
         [imputed_frame],
         eval_profile,
-        config=EvaluationConfig(
-            c2st=C2STConfig(
-                repeats=2, random_state=0, imbalance_warn_ratio=0.9
-            )
-        ),
+        config=C2STConfig(repeats=2, random_state=0, imbalance_warn_ratio=0.9),
         pipeline_config=eval_pipeline_config,
     )
 
     assert (
         C2STAnnotation.ImbalancedPiles
-        in strict.c2st["revenue"].annotations
+        in strict["revenue"].annotations
     )
 
 
@@ -673,15 +715,15 @@ def unseen_category_frames(eval_df):
 def test_an_unseen_category_is_annotated_and_the_z_is_still_reported(
     eval_df, unseen_category_frames, eval_profile, eval_pipeline_config
 ):
-    invented = evaluate_imputation(
+    invented = imputation_score_c2st(
         eval_df,
         [unseen_category_frames],
         eval_profile,
-        config=EvaluationConfig(c2st=C2STConfig(repeats=2, random_state=0)),
+        config=C2STConfig(repeats=2, random_state=0),
         pipeline_config=eval_pipeline_config,
     )
 
-    record = invented.c2st["grade"]
+    record = invented["grade"]
     assert C2STAnnotation.UnseenCategory in record.annotations
     # Inventing a category is always wrong, but the flag names the cause
     # rather than replacing the number.
@@ -691,7 +733,7 @@ def test_an_unseen_category_is_annotated_and_the_z_is_still_reported(
 
 def test_a_fill_reusing_observed_levels_carries_no_unseen_flag(report):
     assert (
-        C2STAnnotation.UnseenCategory not in report.c2st["grade"].annotations
+        C2STAnnotation.UnseenCategory not in report["grade"].annotations
     )
 
 
@@ -706,21 +748,19 @@ def test_a_classifier_predicting_one_class_every_repeat_is_uninformative(
     # The safety net for an injected classifier: a constant predictor scores
     # exactly 0.5 against a balanced test set and would otherwise report
     # z = 0.000 — a median fill returned as a perfect pass.
-    degenerate = evaluate_imputation(
+    degenerate = imputation_score_c2st(
         eval_df,
         [imputed_frame],
         eval_profile,
-        config=EvaluationConfig(
-            c2st=C2STConfig(
-                repeats=3,
-                random_state=0,
-                classifier=DummyClassifier(strategy="constant", constant=0),
-            )
+        config=C2STConfig(
+            repeats=3,
+            random_state=0,
+            classifier=DummyClassifier(strategy="constant", constant=0),
         ),
         pipeline_config=eval_pipeline_config,
     )
 
-    record = degenerate.c2st["score"]
+    record = degenerate["score"]
     assert record.outcome is C2STOutcome.Uninformative
     assert record.score is None
     assert record.verdict is C2STVerdict.NoVerdict
@@ -733,34 +773,40 @@ def test_the_degeneracy_net_is_not_the_floor(
 ):
     # The same column, the same pile sizes, the library's own classifier: it is
     # the classifier that made the difference, not the sample size.
-    honest = evaluate_imputation(
+    honest = imputation_score_c2st(
         eval_df,
         [imputed_frame],
         eval_profile,
-        config=EvaluationConfig(c2st=C2STConfig(repeats=3, random_state=0)),
+        config=C2STConfig(repeats=3, random_state=0),
         pipeline_config=eval_pipeline_config,
     )
 
-    assert honest.c2st["score"].outcome is C2STOutcome.Tested
+    assert honest["score"].outcome is C2STOutcome.Tested
 
 
-def test_all_six_outcomes_are_reachable(report, eval_df, imputed_frame,
-                                        eval_profile, eval_pipeline_config):
-    seen = {record.outcome for record in report.c2st.columns.values()}
-    degenerate = evaluate_imputation(
+def test_all_seven_outcomes_are_reachable(report, eval_df, imputed_frame,
+                                          eval_profile, eval_pipeline_config):
+    seen = {record.outcome for record in report.columns.values()}
+    unfilled = imputation_score_c2st(
+        eval_df,
+        [_unfill(imputed_frame, eval_df, "score")],
+        eval_profile,
+        config=C2STConfig(repeats=2, random_state=0),
+        pipeline_config=eval_pipeline_config,
+    )
+    seen |= {r.outcome for r in unfilled.columns.values()}
+    degenerate = imputation_score_c2st(
         eval_df,
         [imputed_frame],
         eval_profile,
-        config=EvaluationConfig(
-            c2st=C2STConfig(
-                repeats=2,
-                random_state=0,
-                classifier=DummyClassifier(strategy="constant", constant=0),
-            )
+        config=C2STConfig(
+            repeats=2,
+            random_state=0,
+            classifier=DummyClassifier(strategy="constant", constant=0),
         ),
         pipeline_config=eval_pipeline_config,
     )
-    seen |= {r.outcome for r in degenerate.c2st.columns.values()}
+    seen |= {r.outcome for r in degenerate.columns.values()}
 
     assert seen == set(C2STOutcome)
 
@@ -771,7 +817,7 @@ def test_all_six_outcomes_are_reachable(report, eval_df, imputed_frame,
 
 
 def test_every_tested_column_carries_a_two_valued_verdict(report):
-    for record in report.c2st.columns.values():
+    for record in report.columns.values():
         if record.outcome is C2STOutcome.Tested:
             assert record.verdict in (
                 C2STVerdict.Flagged,
@@ -785,7 +831,7 @@ def test_every_tested_column_carries_a_two_valued_verdict(report):
 
 def test_bh_runs_across_the_tested_columns_of_one_report(report):
     tested = [
-        r for r in report.c2st.columns.values()
+        r for r in report.columns.values()
         if r.outcome is C2STOutcome.Tested
     ]
     k = len(tested)
@@ -809,27 +855,27 @@ def test_the_raw_z_is_left_uncorrected(
         if name != "score":
             alone_config.add_phase_exclusion(PipelinePhase.Imputation, name)
 
-    together = evaluate_imputation(
+    together = imputation_score_c2st(
         eval_df, [imputed_frame], eval_profile,
         config=eval_config, pipeline_config=eval_pipeline_config,
     )
-    alone = evaluate_imputation(
+    alone = imputation_score_c2st(
         eval_df, [imputed_frame], eval_profile,
         config=eval_config, pipeline_config=alone_config,
     )
 
-    assert len(alone.c2st) == 1
+    assert len(alone) == 1
     # k = 1 leaves the adjusted p equal to the raw one; k = 4 raises it.
-    assert alone.c2st["score"].score.p_adjusted == pytest.approx(
-        alone.c2st["score"].score.p_value
+    assert alone["score"].score.p_adjusted == pytest.approx(
+        alone["score"].score.p_value
     )
     assert (
-        together.c2st["score"].score.p_adjusted
-        > together.c2st["score"].score.p_value
+        together["score"].score.p_adjusted
+        > together["score"].score.p_value
     )
     # And the score itself did not move by a hair between the two sets.
-    assert together.c2st["score"].score.mean_frame_z == pytest.approx(
-        alone.c2st["score"].score.mean_frame_z
+    assert together["score"].score.mean_frame_z == pytest.approx(
+        alone["score"].score.mean_frame_z
     )
 
 
@@ -874,16 +920,16 @@ def test_a_median_filled_column_is_flagged_and_an_unimputed_control_is_not(
     original, median_filled, oracle_filled = baseline_frames
     pipeline_config = PipelineConfig()
     profile = StructuralProfiler(pipeline_config).profile(original)
-    config = EvaluationConfig(c2st=C2STConfig(repeats=5, random_state=0))
+    config = C2STConfig(repeats=5, random_state=0)
 
-    caught = evaluate_imputation(
+    caught = imputation_score_c2st(
         original, [median_filled], profile,
         config=config, pipeline_config=pipeline_config,
-    ).c2st["c"]
-    control = evaluate_imputation(
+    )["c"]
+    control = imputation_score_c2st(
         original, [oracle_filled], profile,
         config=config, pipeline_config=pipeline_config,
-    ).c2st["c"]
+    )["c"]
 
     # Scalar strategies failing at ~100% is the design: it is the baseline that
     # makes a model-based number interpretable.
@@ -901,11 +947,11 @@ def test_train_accuracy_is_reported_beside_test_accuracy(baseline_frames):
     pipeline_config = PipelineConfig()
     profile = StructuralProfiler(pipeline_config).profile(original)
 
-    score = evaluate_imputation(
+    score = imputation_score_c2st(
         original, [median_filled], profile,
-        config=EvaluationConfig(c2st=C2STConfig(repeats=3, random_state=0)),
+        config=C2STConfig(repeats=3, random_state=0),
         pipeline_config=pipeline_config,
-    ).c2st["c"].score
+    )["c"].score
 
     frame = score.frames[0]
     assert 0.0 <= frame.train_accuracy <= 1.0
@@ -925,21 +971,19 @@ def test_train_accuracy_is_reported_beside_test_accuracy(baseline_frames):
 def test_an_injected_classifier_flips_the_provenance_flag(
     eval_df, imputed_frame, eval_profile, eval_pipeline_config
 ):
-    injected = evaluate_imputation(
+    injected = imputation_score_c2st(
         eval_df,
         [imputed_frame],
         eval_profile,
-        config=EvaluationConfig(
-            c2st=C2STConfig(
-                repeats=2,
-                random_state=0,
-                classifier=HistGradientBoostingClassifier(min_samples_leaf=5),
-            )
+        config=C2STConfig(
+            repeats=2,
+            random_state=0,
+            classifier=HistGradientBoostingClassifier(min_samples_leaf=5),
         ),
         pipeline_config=eval_pipeline_config,
     )
 
-    provenance = injected.c2st.provenance
+    provenance = injected.provenance
     assert provenance.classifier_injected is True
     assert provenance.classifier_class.endswith(
         "HistGradientBoostingClassifier"
@@ -947,7 +991,7 @@ def test_an_injected_classifier_flips_the_provenance_flag(
 
 
 def test_provenance_params_come_from_get_params_not_repr(report):
-    provenance = report.c2st.provenance
+    provenance = report.provenance
 
     classifier = HistGradientBoostingClassifier(
         min_samples_leaf=5, early_stopping=False
@@ -960,7 +1004,7 @@ def test_provenance_params_come_from_get_params_not_repr(report):
 
 
 def test_provenance_stamps_the_sklearn_version_and_the_resolved_dials(report):
-    provenance = report.c2st.provenance
+    provenance = report.provenance
 
     assert provenance.sklearn_version == sklearn.__version__
     assert provenance.config.fdr_alpha == 0.05

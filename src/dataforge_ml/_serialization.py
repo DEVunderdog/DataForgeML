@@ -1,11 +1,11 @@
-"""Bare-bytes persistence: ``serialize`` / ``deserialize`` / ``inspect`` (ADR-0072).
+"""Bare-bytes persistence: ``serialize`` / ``deserialize`` / ``inspect`` (ADR-0072, ADR-0096).
 
 Persistence is the user's plain business — "give me bytes, take bytes back". A
-persistable object (a fitted unit, an imputation decision, or a structural
-profile) crosses the boundary as a single opaque ``bytes`` value the user stores
-wherever they like; there is no store framework, no content-addressed key, and
-no data-fingerprint validation (all retired with cross-process resume, ADR-0071
-/ ADR-0072).
+persistable object (a fitted unit, an imputation routing, an imputation recipe,
+or a structural profile) crosses the boundary as a single opaque ``bytes`` value
+the user stores wherever they like; there is no store framework, no
+content-addressed key, and no data-fingerprint validation (all retired with
+cross-process resume, ADR-0071 / ADR-0072).
 
 Wire format
 -----------
@@ -13,7 +13,7 @@ Every serialized object is a **JSON header line** — a compact, newline-free JS
 object carrying a ``kind`` tag, the format-schema version, and the installed
 ``library_version`` — optionally followed by ``b"\\n"`` and an **opaque joblib
 payload**. Only the :class:`~dataforge_ml.FittedUnit` has a payload (its learned
-state); a decision and a profile are pure data structures whose whole
+state); a routing, a recipe, and a profile are pure data structures whose whole
 ``to_dict()`` rides inside the header under ``"data"``. Because ``json.dumps``
 escapes newlines inside strings, the first raw ``b"\\n"`` byte unambiguously ends
 the header, which is what lets :func:`inspect` read provenance and compatibility
@@ -42,17 +42,18 @@ from typing import Any
 
 import joblib
 
-from .imputation import ImputationDecision
+from .imputation import ImputationRecipe, ImputationRouting
 from .profiling import StructuralProfileResult
 
 # Bumped only when the JSON layout of a stamped document changes in a way
 # that breaks reading older documents.
-FORMAT_SCHEMA_VERSION = 1
+FORMAT_SCHEMA_VERSION = 2
 
 # The ``kind`` tags a serialized envelope carries so :func:`deserialize`
 # dispatches to the right object type without the caller declaring it.
 KIND_FITTED_UNIT = "fitted_unit"
-KIND_DECISION = "decision"
+KIND_ROUTING = "routing"
+KIND_RECIPE = "recipe"
 KIND_PROFILE = "profile"
 
 
@@ -159,6 +160,12 @@ def check_reconstructable(stamp_block: dict) -> None:
         one.
     """
     saved_schema = stamp_block.get("format_schema_version", 0)
+    if saved_schema < FORMAT_SCHEMA_VERSION:
+        raise IncompatibleArtifactError(
+            f"Artifact format-schema version {saved_schema} is obsolete "
+            f"(version {FORMAT_SCHEMA_VERSION} is required); profile, route, "
+            f"resolve, or fit again."
+        )
     if saved_schema > FORMAT_SCHEMA_VERSION:
         raise IncompatibleArtifactError(
             f"Artifact format-schema version {saved_schema} is newer than the "
@@ -267,18 +274,16 @@ def _decode_fitted_unit(header: dict, payload: bytes) -> Any:
 
 
 def serialize(obj: Any) -> bytes:
-    """Serialize a fitted unit, an imputation decision, or a profile to bytes.
+    """Serialize a fitted unit, an imputation routing, a recipe, or a profile to bytes.
 
-    The single write door of the persistence boundary (ADR-0072). It dispatches
+    The single write door of the persistence boundary (ADR-0072, ADR-0096). It dispatches
     on the object's type and produces a self-describing JSON-header envelope the
     user stores anywhere; a fitted unit additionally carries an opaque joblib
-    payload holding its learned state. A decision's hyperparameter-override delta
-    rides inside its envelope, so a round-tripped plan re-stamps the same merged
-    units.
+    payload holding its learned state.
 
     Parameters
     ----------
-    obj : FittedUnit or ImputationDecision or StructuralProfileResult
+    obj : FittedUnit or ImputationRouting or ImputationRecipe or StructuralProfileResult
         The object to persist. Any object satisfying the fitted-unit contract
         (a ``target_columns`` property) is serialized through the unit path.
 
@@ -288,10 +293,19 @@ def serialize(obj: Any) -> bytes:
         The serialized envelope, consumed by :func:`deserialize` and
         :func:`inspect`.
     """
-    if isinstance(obj, ImputationDecision):
+    if isinstance(obj, ImputationRouting):
         return _encode_envelope(
             {
-                "kind": KIND_DECISION,
+                "kind": KIND_ROUTING,
+                "format_schema_version": FORMAT_SCHEMA_VERSION,
+                "library_version": library_version(),
+                "data": obj.to_dict(),
+            }
+        )
+    if isinstance(obj, ImputationRecipe):
+        return _encode_envelope(
+            {
+                "kind": KIND_RECIPE,
                 "format_schema_version": FORMAT_SCHEMA_VERSION,
                 "library_version": library_version(),
                 "data": obj.to_dict(),
@@ -313,13 +327,13 @@ def serialize(obj: Any) -> bytes:
 def deserialize(obj: bytes) -> Any:
     """Reconstruct the original object from bytes produced by :func:`serialize`.
 
-    Polymorphic (ADR-0072): the envelope's ``kind`` tag selects the object type,
-    so the caller never declares what it is deserializing. A decision and a
-    profile rebuild from their JSON ``data``; a fitted unit runs the
-    reconstruction gates — the ``produced_with`` version check and the payload
-    SHA-256 — **before** its joblib payload is unpickled, so a unit produced
-    under an incompatible library/estimator version refuses here rather than
-    transforming to subtly wrong numbers later.
+    Polymorphic (ADR-0072, ADR-0096): the envelope's ``kind`` tag selects the
+    object type, so the caller never declares what it is deserializing. A
+    routing, a recipe, and a profile rebuild from their JSON ``data``; a fitted
+    unit runs the reconstruction gates — the ``produced_with`` version check and
+    the payload SHA-256 — **before** its joblib payload is unpickled, so a unit
+    produced under an incompatible library/estimator version refuses here rather
+    than transforming to subtly wrong numbers later.
 
     Parameters
     ----------
@@ -328,16 +342,21 @@ def deserialize(obj: bytes) -> Any:
 
     Returns
     -------
-    FittedUnit or ImputationDecision or StructuralProfileResult
+    FittedUnit or ImputationRouting or ImputationRecipe or StructuralProfileResult
         The reconstructed object; a fitted unit's ``transform`` is bit-identical
         to the original's on equal input.
 
     Raises
     ------
     IncompatibleArtifactError
-        If the envelope's ``kind`` is unrecognised, or a fitted unit's format
-        schema or reconstruction-critical dependency version is incompatible,
-        or its payload checksum does not match.
+        If the envelope's ``kind`` is unrecognised, or a v1-schema / obsolete
+        decision payload is encountered, or a fitted unit's format schema or
+        reconstruction-critical dependency version is incompatible, or its
+        payload checksum does not match.
+    ValueError
+        If a recipe payload fails the strict load: a missing or unknown dial
+        row or key, or decided-base unit ids that mismatch
+        ``derive_units(routing)``.
 
     Warnings
     --------
@@ -348,8 +367,18 @@ def deserialize(obj: bytes) -> Any:
     header, payload = _decode_envelope(obj)
     kind = header.get("kind")
 
-    if kind == KIND_DECISION:
-        return ImputationDecision.from_dict(header["data"])
+    if kind == "decision":
+        raise IncompatibleArtifactError(
+            "Artifact kind 'decision' is obsolete (schema v1); profile, route, "
+            "resolve, or fit again."
+        )
+
+    check_reconstructable(header)
+
+    if kind == KIND_ROUTING:
+        return ImputationRouting.from_dict(header["data"])
+    if kind == KIND_RECIPE:
+        return ImputationRecipe.from_dict(header["data"])
     if kind == KIND_PROFILE:
         return StructuralProfileResult.from_dict(header["data"])
     if kind == KIND_FITTED_UNIT:
@@ -368,7 +397,7 @@ def inspect(obj: bytes) -> dict:
     caller can check an artifact's ``kind``, format-schema/library versions, and
     — for a fitted unit — its ``produced_with`` provenance stamp *before*
     trusting untrusted-transport bytes into an unpickling :func:`deserialize`.
-    The bulky ``data`` payload of a decision or profile envelope is omitted; the
+    The bulky ``data`` payload of a routing or profile envelope is omitted; the
     fitted unit's opaque joblib tail is never touched.
 
     Parameters

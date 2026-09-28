@@ -33,7 +33,6 @@ All four signals are always computed for every eligible column — none are stag
 from __future__ import annotations
 
 import warnings
-from typing import Optional
 
 import numpy as np
 import polars as pl
@@ -78,7 +77,7 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
     def __init__(
         self,
         numeric_columns: list[str],
-        config: Optional[NonlinearityProfileConfig] = None,
+        config: NonlinearityProfileConfig | None = None,
     ) -> None:
         super().__init__()
         self._columns = numeric_columns
@@ -91,8 +90,8 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
     def profile(
         self,
         data: pl.DataFrame,
-        pearson_matrix: Optional[dict[str, dict[str, float]]] = None,
-        spearman_matrix: Optional[dict[str, dict[str, float]]] = None,
+        pearson_matrix: dict[str, dict[str, float]] | None = None,
+        spearman_matrix: dict[str, dict[str, float]] | None = None,
         **kwargs,
     ) -> NonlinearityProfileResult:
         """
@@ -155,7 +154,7 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
             disc = self._spearman_pearson_discrepancy(
                 col, predictors, pearson_matrix, spearman_matrix
             )
-            raw_mi, excess_mi = self._mutual_information_signals(
+            raw_mi, max_mi, excess_mi = self._mutual_information_signals(
                 X, y, predictors, col, pearson_matrix
             )
 
@@ -164,17 +163,27 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
             X_s, y_s = X[idx], y[idx]
 
             r2_linear, r2_rf = self._r2_scores(X_s, y_s)
+            # A probe that throws is a refusal, never a 0.0 reading (ADR-0092):
+            # the column is left unanalysed, exactly as a thin one is, and the
+            # Signal Score degrades to (max|r|)² for it.
+            if r2_linear is None or r2_rf is None:
+                continue
             gap = r2_rf - r2_linear
 
             bp_pvalue = self._breusch_pagan_pvalue(X, y)
 
-            tag = self._assign_tag(r2_rf, disc, bp_pvalue, gap, excess_mi)
+            tag = self._assign_tag(
+                r2_rf, disc, bp_pvalue, gap, excess_mi if excess_mi is not None else 0.0
+            )
 
             result.columns[col] = NonlinearitySignals(
                 tag=tag,
                 spearman_pearson_discrepancy=disc,
                 mean_mutual_information=raw_mi,
+                max_mutual_information=max_mi,
                 r2_gap=gap,
+                r2_linear=r2_linear,
+                r2_rf=r2_rf,
                 heteroscedasticity_p_value=bp_pvalue,
             )
             result.analysed_columns.append(col)
@@ -206,8 +215,7 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
             p_r = pearson_matrix.get(col, {}).get(pred, 0.0)
             s_r = spearman_matrix.get(col, {}).get(pred, 0.0)
             disc = abs(s_r - p_r)
-            if disc > max_disc:
-                max_disc = disc
+            max_disc = max(max_disc, disc)
         return max_disc
 
     @staticmethod
@@ -217,11 +225,14 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
         predictors: list[str],
         col: str,
         pearson_matrix: dict[str, dict[str, float]],
-    ) -> tuple[float, float]:
+    ) -> tuple[float | None, float | None, float | None]:
         """
-        Compute raw mean MI and excess mean MI for all predictors.
+        Compute raw mean MI, raw max MI, and excess mean MI for all predictors.
 
-        Raw mean MI is stored in ``NonlinearitySignals.mean_mutual_information``.
+        Raw mean MI is stored in ``NonlinearitySignals.mean_mutual_information``;
+        raw max MI (the strongest single predictor, not averaged away by weak
+        ones) is stored in ``NonlinearitySignals.max_mutual_information`` and
+        read by the Signal Score's Latent Structure component (ADR-0092).
         Excess MI subtracts the Gaussian linear-implied MI
         ``−0.5 ln(1 − r²)`` for each predictor, isolating non-linear
         information content.  Excess MI is used in ``_assign_tag`` to avoid
@@ -229,8 +240,10 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
 
         Returns
         -------
-        tuple[float, float]
-            ``(raw_mean_mi, excess_mean_mi)``
+        tuple[float or None, float or None, float or None]
+            ``(raw_mean_mi, raw_max_mi, excess_mean_mi)``, all ``None`` when the
+            MI fit cannot run or throws — a refusal, never a ``0.0`` reading
+            (ADR-0092).
         """
         try:
             from sklearn.feature_selection import mutual_info_regression
@@ -240,10 +253,10 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
                 "NonlinearityProfiler.  Install: pip install scikit-learn",
                 stacklevel=4,
             )
-            return 0.0, 0.0
+            return None, None, None 
 
         if X.shape[0] < _MI_N_NEIGHBORS + 1:
-            return 0.0, 0.0
+            return None, None, None
 
         try:
             scores = mutual_info_regression(
@@ -251,9 +264,10 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
             )
         except Exception as exc:
             warnings.warn(f"MI computation failed: {exc}", stacklevel=4)
-            return 0.0, 0.0
+            return None, None, None
 
         raw_mean = float(np.mean(scores))
+        raw_max = float(np.max(scores))
 
         excess_vals: list[float] = []
         for i, pred in enumerate(predictors):
@@ -264,17 +278,21 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
             excess_vals.append(max(0.0, mi - linear_mi))
 
         excess_mean = float(np.mean(excess_vals)) if excess_vals else 0.0
-        return raw_mean, excess_mean
+        return raw_mean, raw_max, excess_mean
 
     @staticmethod
-    def _r2_scores(X: np.ndarray, y: np.ndarray) -> tuple[float, float]:
+    def _r2_scores(
+        X: np.ndarray, y: np.ndarray
+    ) -> tuple[float | None, float | None]:
         """
         Return ``(r2_linear, r2_rf)`` using 3-fold cross-validated R².
 
         Returns
         -------
-        tuple[float, float]
+        tuple[float or None, float or None]
             Cross-validated R² for LinearRegression and RandomForestRegressor.
+            Each is ``None`` when its fit cannot run or throws — a refusal,
+            never a ``0.0`` reading (ADR-0092).
         """
         try:
             from sklearn.ensemble import RandomForestRegressor
@@ -286,12 +304,12 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
                 "Install: pip install scikit-learn",
                 stacklevel=4,
             )
-            return 0.0, 0.0
+            return None, None
 
         n = len(y)
         cv = min(_CV_FOLDS, n)
         if cv < 2:
-            return 0.0, 0.0
+            return None, None
 
         try:
             r2_linear = float(
@@ -302,7 +320,7 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
                 )
             )
         except Exception:
-            r2_linear = 0.0
+            r2_linear = None
 
         try:
             r2_rf = float(
@@ -321,7 +339,7 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
                 )
             )
         except Exception:
-            r2_rf = 0.0
+            r2_rf = None
 
         return r2_linear, r2_rf
 

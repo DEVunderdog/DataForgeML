@@ -19,7 +19,6 @@ the surface import from it, never the reverse.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
 
 from ._config import ImputationStrategy, _md_cell
 
@@ -93,9 +92,9 @@ class FitSignals:
 
     unit_id: str
     strategy: ImputationStrategy
-    estimator: Optional[str] = None
-    converged: Optional[bool] = None
-    n_iter: Optional[int] = None
+    estimator: str | None = None
+    converged: bool | None = None
+    n_iter: int | None = None
     duration_s: float = 0.0
     warnings: tuple[str, ...] = field(default_factory=tuple)
     notes: tuple[str, ...] = field(default_factory=tuple)

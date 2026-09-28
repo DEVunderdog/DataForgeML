@@ -2,7 +2,9 @@
 Integration test: Phase 1 → DataSplitter → Phase 2 imputation.
 
 Verifies the full fit/transform contract on real DataFrames using actual
-StructuralProfiler and the layered decide -> execute -> build path (no stubs).
+StructuralProfiler and the layered route -> resolve_recipe -> fit_unit ->
+compose path (no stubs). Model-based strategies (KNN, MICE) are the
+escalation-point ticket's concern.
 """
 
 import polars as pl
@@ -13,8 +15,10 @@ from dataforge_ml.imputation import (
     FittedImputer,
     ImputationStrategy,
     author,
-    decide,
+    derive_units,
     fit_unit,
+    resolve_recipe,
+    route,
 )
 from dataforge_ml.profiling._config import ProfileConfig
 from dataforge_ml.profiling.orchestrator import StructuralProfiler
@@ -135,8 +139,9 @@ def test_fitted_imputer_serialisation_round_trip(fitted_imputer, imputation_spli
     assert r1.dataframe.equals(r2.dataframe)
 
 
-def test_mnar_column_receives_data_derived_fill_and_indicator():
-    """Dedicated test: MNAR-declared column gets constant fill + indicator column."""
+def test_mnar_column_keeps_its_nulls_and_exposes_its_fill():
+    """An MNAR column gains its indicator, keeps its nulls, and carries the
+    computed fill on its record rather than applying it (ADR-0098)."""
     from dataforge_ml.imputation import ImputationConfig, NumericImputationConfig
 
     n = 200
@@ -152,16 +157,18 @@ def test_mnar_column_receives_data_derived_fill_and_indicator():
     profile = StructuralProfiler(PipelineConfig()).profile(data)
     result = fit_imputer(data, profile, config).transform(data)
 
-    assert result.dataframe["salary"].null_count() == 0
-    assert "salary_missing" in result.dataframe.columns
+    assert result.dataframe["salary"].equals(data["salary"])
+    assert result.dataframe["salary_missing"].sum() == data["salary"].null_count()
+    observed = data["salary"].drop_nulls()
+    assert result.records["salary"].fill_value in (observed.mean(), observed.median())
 
 
 def test_repeated_fits_are_independent(imputation_df, imputation_profile):
     """Two drives must not share state — each produces its own FittedImputer.
 
-    ``decide()`` is a pure function and each ``ImputationExecutor`` owns its units,
-    so independence is structural on the layered path rather than a property of a
-    reused orchestrator; this pins that it stays so.
+    ``route()`` is a pure function and each fit owns its own units, so
+    independence is structural on the layered path rather than a property of
+    a reused orchestrator; this pins that it stays so.
     """
     splitter = DataSplitter(imputation_df, random_seed=1)
     split1 = splitter.random_split(test_size=0.5, stratify=False)
@@ -226,391 +233,6 @@ def test_drop_candidate_resolve_active_columns_excludes_dropped(drop_candidate_d
 
 
 # ---------------------------------------------------------------------------
-# Scope 143: MICE imputation with partially missing features (formerly Regression,
-# collapsed by ADR-0079 — the MCAR-High/KNN-size-guard-failed branch now emits MICE)
-# ---------------------------------------------------------------------------
-
-
-def test_mice_imputation_with_partially_missing_features(round_trip):
-    """Integration test: exercises MICE imputation with partially missing features.
-
-    Verifies the complete pipeline contract from profiling to imputation fitting
-    and transformation, ensuring zero nulls, correct signals, and round-trip identity.
-    """
-    import numpy as np
-
-    from dataforge_ml.config import PipelineConfig
-    from dataforge_ml.imputation import (
-        ImputationConfig,
-        ImputationStrategy,
-        NumericImputationConfig,
-    )
-    from dataforge_ml.profiling._numeric_config import NonlinearityTag
-    from dataforge_ml.profiling.orchestrator import StructuralProfiler
-
-    rng = np.random.default_rng(42)
-    n = 600
-
-    # Generate linear relationship: target = 2 * feat + 5 + noise
-    feat_clean = rng.normal(10.0, 2.0, n)
-    target_clean = 2.0 * feat_clean + 5.0 + rng.normal(0.0, 0.5, n)
-
-    # Introduce missingness (~10% for target, ~8% for feat)
-    null_mask_target = rng.random(n) < 0.10
-    null_mask_feat = rng.random(n) < 0.08
-
-    target_vals = [None if null_mask_target[i] else float(target_clean[i]) for i in range(n)]
-    feat_vals = [None if null_mask_feat[i] else float(feat_clean[i]) for i in range(n)]
-
-    df = pl.DataFrame({
-        "target": pl.Series(target_vals, dtype=pl.Float64),
-        "feat": pl.Series(feat_vals, dtype=pl.Float64),
-    })
-
-    # Configure pipeline: force MCAR High columns past the KNN size guard into MICE
-    config = PipelineConfig(
-        profiling=ProfileConfig(
-            compute_nonlinearity=True,
-            compute_correlation=True,
-        ),
-        imputation=ImputationConfig(
-            numeric=NumericImputationConfig(
-                knn_max_rows=10,
-                mice_min_rows=100,
-            )
-        )
-    )
-
-    # 1. Verify Phase 1 profile contains a valid NonlinearityTag
-    profile = StructuralProfiler(config).profile(df)
-    assert "target" in profile.columns
-    target_profile = profile.columns["target"]
-    assert target_profile.stats is not None
-    assert target_profile.stats.nonlinearity_tag in list(NonlinearityTag)
-
-    # 2. Fit the imputer
-    plan = decide(profile, len(df), config)
-    fi = fit_imputer(df, profile, config)
-
-    # Verify strategy routed to MICE
-    assert "target" in fi.records
-    target_rec = fi.records["target"]
-    assert target_rec.decision.strategy == ImputationStrategy.MICE
-
-    # 3. The estimator family is resolved at decide-time and carried on the plan
-    # (ADR-0060), so it is read off the decision rather than a fit-time signal.
-    assert target_rec.decision.model_choice is not None, (
-        "a MICE column must carry the estimator family it will train"
-    )
-    assert plan.column_decisions["target"].model_choice == target_rec.decision.model_choice
-    assert len(target_rec.decision.signals) > 0
-
-    # 4. Transform and assert zero nulls
-    res = fi.transform(df)
-    assert res.dataframe["target"].null_count() == 0
-    assert res.dataframe["feat"].null_count() == 0
-
-    # 5. Serialise / deserialise round-trip
-    restored = round_trip(fi)
-    res_restored = restored.transform(df)
-    assert res.dataframe.equals(res_restored.dataframe)
-
-
-# ---------------------------------------------------------------------------
-# Issue #152 — KNN imputation with mixed-scale columns (integration)
-# ---------------------------------------------------------------------------
-
-
-def test_knn_mixed_scale_imputation_integration():
-    """Integration test: KNN columns with 1000:1 magnitude ratio.
-
-    Verifies:
-    - No nulls in imputed output.
-    - knn_params and knn_scaling signals present for each KNN column.
-    - Imputed small-scale values remain in the small column's original range
-      (demonstrating scale-insensitive imputation).
-    """
-    import numpy as np
-
-    from dataforge_ml.config import PipelineConfig
-    from dataforge_ml.imputation import (
-        ImputationConfig,
-        ImputationStrategy,
-        NumericImputationConfig,
-    )
-    from dataforge_ml.profiling._config import ProfileConfig
-    from dataforge_ml.profiling.orchestrator import StructuralProfiler
-
-    rng = np.random.default_rng(999)
-    n = 500
-
-    # Two KNN columns: `small` in [0, 1], `large` in [0, 1000] — perfect correlation
-    small_clean = rng.uniform(0.0, 1.0, n)
-    large_clean = small_clean * 1000.0 + rng.normal(0, 0.01, n)
-
-    # Introduce ~15% missingness in both columns
-    null_mask_small = rng.random(n) < 0.15
-    null_mask_large = rng.random(n) < 0.12
-
-    small_vals = [None if null_mask_small[i] else float(small_clean[i]) for i in range(n)]
-    large_vals = [None if null_mask_large[i] else float(large_clean[i]) for i in range(n)]
-
-    df = pl.DataFrame({
-        "small": pl.Series(small_vals, dtype=pl.Float64),
-        "large": pl.Series(large_vals, dtype=pl.Float64),
-    })
-
-    # Force KNN routing by keeping dataset within KNN size guards
-    config = PipelineConfig(
-        profiling=ProfileConfig(),
-        imputation=ImputationConfig(
-            numeric=NumericImputationConfig(
-                knn_max_rows=50_000,
-                knn_max_features=50,
-            )
-        )
-    )
-
-    profile = StructuralProfiler(config).profile(df)
-    plan = decide(profile, len(df), config)
-    fi = fit_imputer(df, profile, config)
-
-    # Verify at least one column routes to KNN
-    knn_cols = [col for col, rec in fi.records.items() if rec.decision.strategy == ImputationStrategy.KNN]
-    if not knn_cols:
-        pytest.skip("No columns routed to KNN under current profile; check size guards.")
-
-    # The resolved KNN dials are decision-carried on the plan's unit (ADR-0062),
-    # not a fit-time signal appended to the record: the assembler resolves them
-    # from profile statistics, so the number on the plan is the number that runs.
-    knn_unit = next(u for u in plan.units if u.strategy == ImputationStrategy.KNN)
-    dials = dict(knn_unit.hyperparameters or ())
-    assert "n_neighbors" in dials, f"KNN unit carries no n_neighbors; got: {dials}"
-    assert "weights" in dials, f"KNN unit carries no weights; got: {dials}"
-
-    # Transform: zero nulls in imputed output
-    result = fi.transform(df)
-    for col in knn_cols:
-        assert result.dataframe[col].null_count() == 0, (
-            f"Column '{col}' still has nulls after KNN imputation"
-        )
-
-    # Scale-sensitivity check: imputed `small` values must stay in [0, 1]
-    if "small" in knn_cols:
-        small_imputed = result.dataframe["small"].to_list()
-        out_of_range = [v for v in small_imputed if v is not None and not (0.0 - 0.5 <= v <= 1.0 + 0.5)]
-        assert not out_of_range, (
-            f"Imputed 'small' values dominated by large-scale column: {out_of_range[:5]}"
-        )
-
-
-# ---------------------------------------------------------------------------
-# Issue #155 — Integration: adaptive KNN end-to-end with mixed-scale columns
-# ---------------------------------------------------------------------------
-
-
-def test_knn_adaptive_end_to_end_mixed_scale():
-    """End-to-end adaptive KNN with mixed-scale columns and adaptive k > 5.
-
-    Exercises all three problems fixed in Scope 1:
-    - Adaptive k (6 KNN features → base_k = max(5, sqrt(6)) = 5, k > 5 after
-      missingness/completeness scaling)
-    - Reliability-based weights
-    - NaN-safe scaling with correct inverse-scale (large-column values must not
-      collapse to small-column magnitudes)
-
-    Assertions:
-    1. No nulls in any KNN-routed column after transform.
-    2. knn_params signal present on every KNN column.
-    3. knn_scaling signal present on every KNN column.
-    4. Imputed large-scale column values are in a plausible range (~[0, 1000]),
-       not collapsed to small-scale magnitudes (~[0, 1]).
-    """
-    import numpy as np
-
-    from dataforge_ml.config import PipelineConfig
-    from dataforge_ml.imputation import (
-        ImputationConfig,
-        ImputationStrategy,
-        NumericImputationConfig,
-    )
-    from dataforge_ml.profiling._config import ProfileConfig
-    from dataforge_ml.profiling.orchestrator import StructuralProfiler
-
-    rng = np.random.default_rng(155)
-    n = 600
-
-    # Anchor signal: drives all other columns to create correlated structure.
-    anchor = rng.uniform(0.0, 1.0, n)
-
-    # 5 small-scale columns in [0, 1] and 1 large-scale column in [0, 1000].
-    # All are linearly related to `anchor` to make KNN meaningful.
-    small_cols = {f"s{i}": anchor + rng.normal(0, 0.05, n) for i in range(5)}
-    large_col = anchor * 1000.0 + rng.normal(0, 1.0, n)
-
-    # Introduce ~15% missingness in the large column and ~10% in two small cols.
-    null_large = rng.random(n) < 0.15
-    null_s0 = rng.random(n) < 0.10
-    null_s1 = rng.random(n) < 0.10
-
-    data = {}
-    for i, (name, vals) in enumerate(small_cols.items()):
-        col_vals = vals.tolist()
-        if i == 0:
-            col_vals = [None if null_s0[j] else v for j, v in enumerate(col_vals)]
-        elif i == 1:
-            col_vals = [None if null_s1[j] else v for j, v in enumerate(col_vals)]
-        data[name] = pl.Series(col_vals, dtype=pl.Float64)
-    data["large"] = pl.Series(
-        [None if null_large[j] else float(large_col[j]) for j in range(n)],
-        dtype=pl.Float64,
-    )
-
-    df = pl.DataFrame(data)
-
-    config = PipelineConfig(
-        profiling=ProfileConfig(),
-        imputation=ImputationConfig(
-            numeric=NumericImputationConfig(
-                knn_max_rows=50_000,
-                knn_max_features=50,
-            )
-        ),
-    )
-
-    profile = StructuralProfiler(config).profile(df)
-    plan = decide(profile, len(df), config)
-    fi = fit_imputer(df, profile, config)
-
-    knn_cols = [col for col, rec in fi.records.items() if rec.decision.strategy == ImputationStrategy.KNN]
-    if not knn_cols:
-        pytest.skip("No columns routed to KNN under current profile; check size guards.")
-
-    # 1. The resolved dials are decision-carried on the plan's unit (ADR-0062).
-    knn_unit = next(u for u in plan.units if u.strategy == ImputationStrategy.KNN)
-    dials = dict(knn_unit.hyperparameters or ())
-    assert "n_neighbors" in dials, f"KNN unit carries no n_neighbors; got: {dials}"
-    assert "weights" in dials, f"KNN unit carries no weights; got: {dials}"
-
-    # 2. No nulls after transform.
-    result = fi.transform(df)
-    for col in knn_cols:
-        assert result.dataframe[col].null_count() == 0, (
-            f"Column '{col}' still has nulls after KNN imputation"
-        )
-
-    # 3. Large-scale column imputed values must be in a plausible range.
-    #    If inverse-scaling is broken, all imputed values collapse to the
-    #    standardised range (~[-3, 3]) instead of [0, 1000].  The max of a
-    #    600-row column whose true range is [0, 1000] must comfortably exceed
-    #    100 in correctly inverse-scaled output.
-    if "large" in knn_cols:
-        large_vals = result.dataframe["large"].drop_nulls().to_list()
-        max_large = max(large_vals)
-        assert max_large > 100.0, (
-            f"Max imputed 'large' value is {max_large:.2f} — appears collapsed to "
-            f"small-scale magnitudes (expected > 100 for a [0, 1000] column)"
-        )
-
-
-# ---------------------------------------------------------------------------
-# Issue #162 — adaptive MICE end-to-end with non-linear MAR-suspect dataset
-# ---------------------------------------------------------------------------
-
-
-def test_mice_adaptive_end_to_end_nonlinear_dataset():
-    """End-to-end adaptive MICE with a non-linear MAR-suspect dataset.
-
-    Creates three correlated columns (quadratic, linear, cubic relationships to
-    a shared base signal) with a shared missingness mask to trigger multi-MAR
-    detection and MICE routing.  Asserts:
-    - Final imputed output contains no nulls.
-    - Every MICE column's ``ColumnImputationRecord.signals`` contains a
-      ``mice_estimator:`` entry.
-    - Every MICE column's ``ColumnImputationRecord.signals`` contains a
-      convergence-status entry (either ``mice_convergence_warning:`` or
-      ``mice_converged:``).
-    """
-    import numpy as np
-
-    from dataforge_ml.config import PipelineConfig
-    from dataforge_ml.imputation import (
-        ImputationConfig,
-        ImputationStrategy,
-        NumericImputationConfig,
-    )
-    from dataforge_ml.profiling._config import ProfileConfig
-    from dataforge_ml.profiling.orchestrator import StructuralProfiler
-
-    rng = np.random.default_rng(162)
-    n = 600
-
-    base = rng.uniform(0.0, 3.0, n)
-    col_a = base ** 2 + rng.normal(0, 0.1, n)      # quadratic — non-linear
-    col_b = base + rng.normal(0, 0.2, n)             # linear
-    col_c = base ** 3 + rng.normal(0, 0.2, n)       # cubic — non-linear
-
-    # Shared missingness mask: same ~15% of rows missing in all three columns
-    # → Pearson correlation between null indicators ≈ 1.0 → MARSuspect on all
-    shared_mask = rng.random(n) < 0.15
-
-    data = {
-        "a": pl.Series(
-            [None if shared_mask[i] else float(col_a[i]) for i in range(n)],
-            dtype=pl.Float64,
-        ),
-        "b": pl.Series(
-            [None if shared_mask[i] else float(col_b[i]) for i in range(n)],
-            dtype=pl.Float64,
-        ),
-        "c": pl.Series(
-            [None if shared_mask[i] else float(col_c[i]) for i in range(n)],
-            dtype=pl.Float64,
-        ),
-    }
-    df = pl.DataFrame(data)
-
-    config = PipelineConfig(
-        profiling=ProfileConfig(
-            compute_nonlinearity=True,
-            compute_correlation=True,
-        ),
-        imputation=ImputationConfig(
-            numeric=NumericImputationConfig(
-                knn_max_rows=0,  # force MICE routing (disable KNN size guard)
-            )
-        ),
-    )
-
-    profile = StructuralProfiler(config).profile(df)
-    plan = decide(profile, len(df), config)
-    fi = fit_imputer(df, profile, config)
-
-    mice_cols = [col for col, rec in fi.records.items() if rec.decision.strategy == ImputationStrategy.MICE]
-    if not mice_cols:
-        pytest.skip("No columns routed to MICE under current profile; check missingness thresholds.")
-
-    # 1. No nulls in the final imputed output.
-    result = fi.transform(df)
-    for col in mice_cols:
-        assert result.dataframe[col].null_count() == 0, (
-            f"Column '{col}' still has nulls after adaptive MICE imputation"
-        )
-
-    # 2. Every MICE column carries its estimator family, resolved at decide-time
-    # and read off the decision rather than a fit-time signal (ADR-0060).
-    for col in mice_cols:
-        assert fi.records[col].decision.model_choice is not None, (
-            f"Column '{col}' carries no model_choice"
-        )
-
-    # 3. The MICE dials are decision-carried on the block unit (ADR-0062).
-    mice_unit = next(u for u in plan.units if u.strategy == ImputationStrategy.MICE)
-    dials = dict(mice_unit.hyperparameters or ())
-    assert "max_iter" in dials, f"MICE unit carries no max_iter; got: {dials}"
-
-
-# ---------------------------------------------------------------------------
 # Issue #394 — end-to-end exclusion flow through the imputation door
 # ---------------------------------------------------------------------------
 
@@ -655,7 +277,7 @@ def exclusion_df(rng):
 @pytest.fixture(scope="module")
 def exclusion_profile(exclusion_df):
     # Profiled with no exclusions declared: both exclusions are added after
-    # profiling, exercising the decide()-time enforcement path on its own.
+    # profiling, exercising the route()-time enforcement path on its own.
     return StructuralProfiler(PipelineConfig()).profile(exclusion_df)
 
 
@@ -678,10 +300,11 @@ def test_exclusion_plan_shape(exclusion_df, exclusion_profile, exclusion_config)
     """Soft-excluded column is Passthrough with the exclusion signal; hard-excluded column is absent."""
     from dataforge_ml.imputation import ImputationStrategy
 
-    plan = decide(exclusion_profile, len(exclusion_df), exclusion_config)
-    assert "hard_out" not in plan.column_decisions
-    soft = plan.column_decisions["soft_out"]
+    routing = route(exclusion_profile, exclusion_config)
+    assert "hard_out" not in routing.column_routings
+    soft = routing.column_routings["soft_out"]
     assert soft.strategy == ImputationStrategy.Passthrough
+    assert soft.excluded is True
     assert any("soft-excluded" in s for s in soft.signals)
 
 
@@ -800,12 +423,14 @@ def test_numeric_sentinel_end_to_end_fit_transform(round_trip):
 
 
 def test_hand_authored_plan_drives_column_names_to_an_imputed_frame():
-    """author → fit_unit → compose → transform, with no profile anywhere.
+    """author → resolve_recipe → fit_unit → compose → transform.
 
-    The door's whole claim is that a hand-authored plan is indistinguishable
-    downstream from a decided one, so this drives the same three steps the
-    automatic path drives and puts every fitted unit through the real
-    ``serialize`` / ``deserialize`` boundary (ADR-0072).
+    The door's whole claim is that a hand-authored routing is indistinguishable
+    downstream from a routed one, so this drives the same steps the automatic
+    path drives — for every non-model-based strategy — and puts every fitted
+    unit through the real ``serialize`` / ``deserialize`` boundary (ADR-0072).
+    Model-based strategies (KNN, MICE) are the escalation-point ticket's
+    concern, so none is declared here.
     """
     import numpy as np
 
@@ -814,7 +439,9 @@ def test_hand_authored_plan_drives_column_names_to_an_imputed_frame():
         ImputationStrategy,
         author,
         deserialize,
+        derive_units,
         fit_unit,
+        resolve_recipe,
         serialize,
     )
 
@@ -830,7 +457,9 @@ def test_hand_authored_plan_drives_column_names_to_an_imputed_frame():
             "score": pl.Series(score, dtype=pl.Float64),
             "revenue": pl.Series(revenue, dtype=pl.Float64),
             "rating": pl.Series(rating, dtype=pl.Float64),
-            "tenure": pl.Series(rng.integers(0, 40, n), dtype=pl.Int64),
+            "tenure": pl.Series(
+                rng.integers(0, 40, n).astype(float), dtype=pl.Float64
+            ),
             "label": pl.Series(["A" if i % 2 else "B" for i in range(n)]),
         }
     ).with_columns(
@@ -840,33 +469,41 @@ def test_hand_authored_plan_drives_column_names_to_an_imputed_frame():
         pl.when(idx % 13 == 0).then(None).otherwise(pl.col("tenure")).alias("tenure"),
     )
 
-    # Column names alone — the frame is not consulted until fit_unit.
-    plan = author(
+    config = PipelineConfig(profiling=ProfileConfig())
+    profile = StructuralProfiler(config).profile(df)
+
+    routing = author(
         {
-            "score": ImputationStrategy.MICE,
-            "revenue": ImputationStrategy.MICE,
+            "score": ImputationStrategy.Median,
+            "revenue": ImputationStrategy.Mean,
             "rating": AuthoredColumn(
                 ImputationStrategy.Constant, constant_fill=3.0
             ),
             "tenure": ImputationStrategy.MNAR,
         },
-        columns=["score", "revenue", "rating", "tenure", "label"],
+        profile=profile,
     )
-    assert {u.unit_id for u in plan.units} == {
-        "mice",
+    recipe = resolve_recipe(routing, profile, config)
+    units = derive_units(routing)
+    assert {u.unit_id for u in units} == {
+        "median:score",
+        "mean:revenue",
         "constant:rating",
         "mnar:tenure",
     }
 
     results = {
-        unit.unit_id: fit_unit(plan, unit, df, random_seed=42)
-        for unit in plan.units
+        unit.unit_id: fit_unit(recipe, unit, df, random_seed=42)
+        for unit in units
     }
-    imputer = FittedImputer.compose(plan, results)
+    imputer = FittedImputer.compose(recipe, results)
     result = imputer.transform(df)
 
-    for col in ("score", "revenue", "rating", "tenure"):
+    for col in ("score", "revenue", "rating"):
         assert result.dataframe[col].null_count() == 0, f"'{col}' still has nulls"
+    # MNAR keeps its nulls beside its indicator; the fill is exposed (ADR-0098).
+    assert result.dataframe["tenure"].equals(df["tenure"])
+    assert result.records["tenure"].fill_value is not None
     assert result.dataframe["tenure_missing"].sum() == df["tenure"].null_count()
     # The Passthrough string column rode through untouched.
     assert result.dataframe["label"].equals(df["label"])
@@ -877,41 +514,44 @@ def test_hand_authored_plan_drives_column_names_to_an_imputed_frame():
         unit_id: deserialize(serialize(res.fitted))
         for unit_id, res in results.items()
     }
-    restored = FittedImputer.compose(plan, restored_units)
+    restored = FittedImputer.compose(recipe, restored_units)
     assert restored.transform(df).dataframe.equals(result.dataframe)
 
 
 # ---------------------------------------------------------------------------
-# Re-authoring a decided plan end to end (#470)
+# Re-authoring a routed plan end to end (#470)
 # ---------------------------------------------------------------------------
 
 
-def test_re_authored_decided_plan_drives_to_an_imputed_frame(
+def test_re_authored_routed_plan_drives_to_an_imputed_frame(
     imputation_split, imputation_profile
 ):
-    """decide → author(base=) → fit_unit → compose → transform.
+    """route → author(base=) → resolve_recipe → fit_unit → compose → transform.
 
     The re-authoring user disagrees with one column and keeps the rest. The
-    result must be a plan in every sense the fit path cares about: the edited
-    column takes the new strategy, the untouched ones keep the router's own
-    decisions and dials, and the whole thing still fills every numeric null.
+    result must be a routing in every sense the fit path cares about: the
+    edited column takes the new strategy, the untouched ones keep the
+    router's own routings, and the whole thing still fills every numeric
+    null.
     """
     train = imputation_split.train
-    decided = decide(imputation_profile, len(train), PipelineConfig())
+    config = PipelineConfig()
+    routed = route(imputation_profile, config)
 
-    edited = author({"rating": ImputationStrategy.Median}, base=decided)
+    edited = author({"rating": ImputationStrategy.Median}, base=routed)
 
-    assert edited.column_decisions["rating"].strategy == ImputationStrategy.Median
-    assert "median:rating" in {u.unit_id for u in edited.units}
+    assert edited.column_routings["rating"].strategy == ImputationStrategy.Median
+    assert "median:rating" in {u.unit_id for u in derive_units(edited)}
     for col in ("score", "revenue", "label"):
-        assert edited.column_decisions[col] == decided.column_decisions[col]
-    assert edited.config_snapshot == decided.config_snapshot
+        assert edited.column_routings[col] == routed.column_routings[col]
 
+    recipe = resolve_recipe(edited, imputation_profile, config)
+    units = derive_units(edited)
     results = {
-        unit.unit_id: fit_unit(edited, unit, train, random_seed=42)
-        for unit in edited.units
+        unit.unit_id: fit_unit(recipe, unit, train, random_seed=42)
+        for unit in units
     }
-    result = FittedImputer.compose(edited, results).transform(imputation_split.test)
+    result = FittedImputer.compose(recipe, results).transform(imputation_split.test)
 
     for col in ("score", "revenue", "rating"):
         assert result.dataframe[col].null_count() == 0, f"'{col}' still has nulls"
@@ -978,3 +618,44 @@ def test_fit_event_stream_has_no_diagnostics_fold_substeps(purity_df, purity_pro
         if e.event_type == EventType.substep and "diagnostics fold" in (e.message or "")
     ]
     assert not fold_msgs, "the fit path must not run diagnostics folds"
+
+
+def test_forced_gmm_sampling_end_to_end_on_bounded_discrete_snaps_output():
+    """config.numeric.set_per_column_strategy("age", ImputationStrategy.GMMSampling)
+    routes and fits successfully end to end, including on a BoundedDiscrete column
+    with snapped output (ADR-0095).
+    """
+    import numpy as np
+    from dataforge_ml.profiling._config import NumericKind
+
+    rng = np.random.default_rng(42)
+    n = 1000
+    c1 = rng.choice([1, 2], p=[0.85, 0.15], size=450).tolist()
+    mid = [3] * 100
+    c2 = rng.choice([4, 5], p=[0.15, 0.85], size=450).tolist()
+    vals = c1 + mid + c2
+    rng.shuffle(vals)
+
+    missing_idx = rng.choice(n, int(n * 0.2), replace=False)
+    vals_masked = [
+        None if i in set(missing_idx.tolist()) else float(v)
+        for i, v in enumerate(vals)
+    ]
+    df = pl.DataFrame({"age": pl.Series(vals_masked, dtype=pl.Float64)})
+
+    cfg = PipelineConfig()
+    cfg.imputation.numeric.set_per_column_strategy("age", ImputationStrategy.GMMSampling)
+
+    profile = StructuralProfiler(cfg).profile(df)
+    assert profile.columns["age"].numeric_kind == NumericKind.BoundedDiscrete
+
+    imputer = fit_imputer(df, profile, cfg)
+    res = imputer.transform(df)
+
+    out = res.dataframe["age"].to_numpy()
+    imputed_vals = out[missing_idx]
+    assert res.dataframe["age"].null_count() == 0
+    assert np.all(imputed_vals >= 1.0) and np.all(imputed_vals <= 5.0)
+    assert np.all(imputed_vals == np.round(imputed_vals))
+    assert res.records["age"].decision.strategy == ImputationStrategy.GMMSampling
+

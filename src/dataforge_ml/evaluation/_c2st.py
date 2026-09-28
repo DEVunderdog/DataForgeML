@@ -6,11 +6,17 @@ nothing else. It trains a classifier to tell a ``reference`` sample from a
 against the closed-form ``Binomial(n_test, 1/2)`` null: if nothing can tell the
 two samples apart, they are distributionally indistinguishable.
 
+Public and importable from :mod:`dataforge_ml.evaluation` (ADR-0087's
+amendment, #537): a user can run :func:`c2st` directly on any two frames for an
+ad hoc distributional check, and the imputation adapter reaches the same
+arithmetic through a private inner seam.
+
 **What this layer owns, exhaustively:** balancing by repeated subsampling, the
 ``R`` repeat loop, the size floor (a pure predicate the caller may ask first,
 asserted internally so a direct caller cannot bypass it), the default
-classifier factory and its two pins, the pooling rule, and the repeat Substep
-emit.
+classifier factory and its two pins, the pooling rule, and the repeat
+progress emit — ``item`` for a direct call, since the call owns the loop, and
+``substep`` for the adapter's nested call.
 
 **What it does not know:** ``m``, masks, column semantics, imputation. There is
 no column-type argument either — **dtype is the whole type contract**. A
@@ -19,15 +25,15 @@ int-coded categorical sitting as ``pl.Int64`` is treated as an ordered numeric,
 a stated and unenforceable precondition on the caller's typing.
 
 The one imported dependency beyond the numeric stack is
-:mod:`dataforge_ml.observability`, because the repeat Substep can only be
-emitted from here (ADR-0087). ``Emitter`` takes ``phase`` and ``stage`` as plain
-strings and is phase-agnostic infrastructure, so the seam's rule bans
-*imputation*-shaped knowledge, not observability.
+:mod:`dataforge_ml.observability`, because the repeat progress can only be
+emitted from here (ADR-0087). ``Observer``/``Emitter`` are phase-agnostic
+infrastructure, so the seam's rule bans *imputation*-shaped knowledge, not
+observability.
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from enum import Enum, StrEnum
 from typing import Any
@@ -36,12 +42,14 @@ import numpy as np
 import polars as pl
 from sklearn.ensemble import HistGradientBoostingClassifier
 
-from ..observability import Emitter
+from ..observability import Emitter, Observer
 
 __all__ = [
     "C2STDtypeError",
     "C2STResult",
+    "C2STSampleFloorError",
     "C2STScheme",
+    "c2st",
 ]
 
 # ---------------------------------------------------------------------------
@@ -81,6 +89,18 @@ class C2STDtypeError(TypeError):
     string, and ``Text``/``Identifier`` columns are dropped by the imputation
     adapter before it ever calls here, so this is a diagnosis for a direct
     caller of the generic seam rather than a path the adapter can trip.
+    """
+
+
+class C2STSampleFloorError(ValueError):
+    """A sample pair falls below C2ST's size floor.
+
+    Raised by :func:`c2st` in place of a bare ``ValueError`` so a caller can
+    catch the size-floor refusal specifically, without also swallowing the
+    other ``ValueError``s :func:`c2st` raises (a repeat count below 1, or
+    mismatched columns). :func:`_meets_sample_floor` answers the same question
+    as a pure predicate, for a caller that wants to describe the refusal
+    rather than catch it.
     """
 
 
@@ -341,97 +361,37 @@ def _fit_predict(
     return predictions, train_accuracy
 
 
-def c2st(
+# The Emitter phase/stage a direct call stamps on its own progress events. A
+# direct call owns its loop, unlike the adapter's nested call, which threads
+# its own ``Emitter`` in from an outer stage.
+_DIRECT_PHASE: str = "c2st"
+_DIRECT_STAGE: str = "c2st"
+
+
+def _run_c2st(
     reference: pl.DataFrame,
     candidate: pl.DataFrame,
     *,
     repeats: int,
     scheme: C2STScheme,
-    classifier: Any | None = None,
-    random_state: int | None = None,
-    min_rows: int = MIN_SAMPLE_FLOOR,
-    emitter: Emitter | None = None,
+    classifier: Any | None,
+    random_state: int | None,
+    min_rows: int,
+    min_samples_leaf: int,
+    on_repeat: Callable[[int, int], None] | None,
 ) -> C2STResult:
-    """Run a Classifier Two-Sample Test on two samples.
+    """Run the repeat loop shared by the public and adapter-facing seams.
 
-    Two frames in, one result out — never a frame plus a label vector, so a
-    mislabelled or misaligned ``y`` is unrepresentable. The larger sample is
-    subsampled to the smaller sample's size, ``repeats`` times with different
-    draws; each repeat fits a classifier under ``scheme`` and scores its
-    held-out accuracy as ``z = (accuracy − ½) · 2 · √n_test`` against the
-    ``Binomial(n_test, ½)`` null. **Balancing is mandatory and not a dial**:
-    unequal samples break that null outright, since at 850 against 150 a
-    classifier that always answers "reference" scores 85% having learned
-    nothing.
-
-    The repeats are pooled by the **mean ``z`` against the single-run null**;
-    the null's SD is never divided by ``√repeats`` (ADR-0087).
-
-    The samples must carry the same columns in the same order, and dtype is the
-    whole type contract: ``pl.Categorical`` is read natively, nulls are handled
-    natively, and ``pl.String`` raises. An int-coded categorical sitting as
-    ``pl.Int64`` is treated as an ordered numeric — a stated and unenforceable
-    precondition on the caller's typing.
-
-    Nothing here knows about masks, ``m``, column semantics or imputation. A
-    train/test drift check (reference = training rows, candidate = holdout) and
-    an outlier-clipping check (reference = rows left alone, candidate = rows
-    clipped) are served by this call as-is.
-
-    Parameters
-    ----------
-    reference : polars.DataFrame
-        The reference sample. Which sample is which is a naming convenience:
-        accuracy does not care.
-    candidate : polars.DataFrame
-        The candidate sample, carrying the same columns in the same order.
-    repeats : int
-        The number of balanced subsampling repeats, ``R``. At least 1.
-    scheme : C2STScheme
-        ``Split`` for one fit per repeat, ``CrossValidation`` for five.
-    classifier : Any, optional
-        An unfitted classifier to use **verbatim** — no ``set_params``, no
-        clone, so its parameters are exactly what the caller set. ``None``
-        builds the library's default through
-        :func:`_default_c2st_classifier`. Stated hole (ADR-0087): an injected
-        *bare* ``HistGradientBoostingClassifier`` reintroduces the
-        constant-predictor pathology at 30–60 rows per pile.
-    random_state : int, optional
-        Seed for the subsampling, the train/test carve and the default
-        classifier. The same seed on the same samples gives the same result.
-    min_rows : int, optional
-        The size floor asserted internally, applied to the **smaller** sample
-        before balancing; defaults to :data:`MIN_SAMPLE_FLOOR`. Mechanism
-        rather than configuration, and the same number
-        :func:`_meets_sample_floor` takes, so a consumer whose own dial has
-        moved the floor states it once and the assertion cannot then refuse
-        what the consumer deliberately allowed.
-    emitter : Emitter, optional
-        Observability sink; one ``substep`` heartbeat is emitted per repeat.
-
-    Returns
-    -------
-    C2STResult
-        The pooled result of the ``repeats`` repeats.
-
-    Raises
-    ------
-    C2STDtypeError
-        When either sample carries a ``pl.String`` column; the message names the
-        column.
-    ValueError
-        When ``repeats`` is below 1, when the two samples do not carry the same
-        columns in the same order, or when the smaller sample falls below
-        ``min_rows`` — the internal assertion of the floor
-        :func:`_meets_sample_floor` exposes, so a direct caller cannot bypass
-        it.
+    Owns every piece of arithmetic ``c2st`` documents; the two public-facing
+    wrappers differ only in how they resolve the classifier's default leaf
+    size and how they report ``on_repeat``.
     """
     if repeats < 1:
         raise ValueError(f"C2ST needs at least 1 repeat, got {repeats}.")
     _check_dtypes(reference, "reference")
     _check_dtypes(candidate, "candidate")
     if not _meets_sample_floor(reference, candidate, min_rows=min_rows):
-        raise ValueError(
+        raise C2STSampleFloorError(
             "C2ST refuses samples below the size floor: the smaller of "
             f"{reference.height} reference and {candidate.height} candidate "
             f"rows is under {min_rows}. Ask _meets_sample_floor "
@@ -450,7 +410,9 @@ def c2st(
     unseen_category = _has_unseen_category(reference, candidate)
 
     model = (
-        _default_c2st_classifier(random_state=random_state)
+        _default_c2st_classifier(
+            min_samples_leaf=min_samples_leaf, random_state=random_state
+        )
         if classifier is None
         else classifier
     )
@@ -482,8 +444,8 @@ def c2st(
         train_accuracies.append(float(np.mean(fold_train_accuracies)))
         if np.unique(predictions).size == 1:
             degenerate_repeats += 1
-        if emitter is not None:
-            emitter.substep("c2st repeat", index=repeat, total=repeats)
+        if on_repeat is not None:
+            on_repeat(repeat, repeats)
 
     return C2STResult(
         mean_repeat_z=float(np.mean(repeat_z)),
@@ -495,6 +457,171 @@ def c2st(
         degenerate=degenerate_repeats == repeats,
         unseen_category=unseen_category,
     )
+
+
+def _c2st(
+    reference: pl.DataFrame,
+    candidate: pl.DataFrame,
+    *,
+    repeats: int,
+    scheme: C2STScheme,
+    classifier: Any | None = None,
+    random_state: int | None = None,
+    min_rows: int = MIN_SAMPLE_FLOOR,
+    emitter: Emitter | None = None,
+) -> C2STResult:
+    """The adapter-facing seam: the imputation adapter's nested call.
+
+    Identical arithmetic to :func:`c2st`, but takes the caller's own
+    ``Emitter`` and reports each repeat as a ``substep`` on it — the adapter
+    already owns an outer ``item`` loop over columns, so the repeat is nested
+    work beneath one ``item`` rather than a loop of its own (ADR-0087's
+    amendment, #537).
+    """
+    return _run_c2st(
+        reference,
+        candidate,
+        repeats=repeats,
+        scheme=scheme,
+        classifier=classifier,
+        random_state=random_state,
+        min_rows=min_rows,
+        min_samples_leaf=DEFAULT_MIN_SAMPLES_LEAF,
+        on_repeat=(
+            None
+            if emitter is None
+            else lambda index, total: emitter.substep(
+                "c2st repeat", index=index, total=total
+            )
+        ),
+    )
+
+
+def c2st(
+    reference: pl.DataFrame,
+    candidate: pl.DataFrame,
+    *,
+    repeats: int,
+    scheme: C2STScheme,
+    classifier: Any | None = None,
+    random_state: int | None = None,
+    min_rows: int = MIN_SAMPLE_FLOOR,
+    min_samples_leaf: int | None = None,
+    observer: Observer | None = None,
+) -> C2STResult:
+    """Run a Classifier Two-Sample Test on two samples.
+
+    Two frames in, one result out — never a frame plus a label vector, so a
+    mislabelled or misaligned ``y`` is unrepresentable. The larger sample is
+    subsampled to the smaller sample's size, ``repeats`` times with different
+    draws; each repeat fits a classifier under ``scheme`` and scores its
+    held-out accuracy as ``z = (accuracy − ½) · 2 · √n_test`` against the
+    ``Binomial(n_test, ½)`` null. **Balancing is mandatory and not a dial**:
+    unequal samples break that null outright, since at 850 against 150 a
+    classifier that always answers "reference" scores 85% having learned
+    nothing.
+
+    The repeats are pooled by the **mean ``z`` against the single-run null**;
+    the null's SD is never divided by ``√repeats`` (ADR-0087).
+
+    The samples must carry the same columns in the same order, and dtype is the
+    whole type contract: ``pl.Categorical`` is read natively, nulls are handled
+    natively, and ``pl.String`` raises. An int-coded categorical sitting as
+    ``pl.Int64`` is treated as an ordered numeric — a stated and unenforceable
+    precondition on the caller's typing.
+
+    Nothing here knows about masks, ``m``, column semantics or imputation. A
+    train/test drift check (reference = training rows, candidate = holdout) and
+    an outlier-clipping check (reference = rows left alone, candidate = rows
+    clipped) are served by this call as-is. This is the public entry point,
+    importable from :mod:`dataforge_ml.evaluation` (ADR-0087's amendment,
+    #537): a direct call is its own loop, so each repeat is reported as an
+    ``item`` on ``observer`` — the imputation adapter reaches the same
+    arithmetic through a private inner seam that reports each repeat as a
+    ``substep`` instead, nested beneath its own per-column ``item`` loop.
+
+    Parameters
+    ----------
+    reference : polars.DataFrame
+        The reference sample. Which sample is which is a naming convenience:
+        accuracy does not care.
+    candidate : polars.DataFrame
+        The candidate sample, carrying the same columns in the same order.
+    repeats : int
+        The number of balanced subsampling repeats, ``R``. At least 1.
+    scheme : C2STScheme
+        ``Split`` for one fit per repeat, ``CrossValidation`` for five.
+    classifier : Any, optional
+        An unfitted classifier to use **verbatim** — no ``set_params``, no
+        clone, so its parameters are exactly what the caller set. ``None``
+        builds the library's default through
+        :func:`_default_c2st_classifier`. Stated hole (ADR-0087): an injected
+        *bare* ``HistGradientBoostingClassifier`` reintroduces the
+        constant-predictor pathology at 30–60 rows per pile. Mutually
+        exclusive with ``min_samples_leaf``.
+    random_state : int, optional
+        Seed for the subsampling, the train/test carve and the default
+        classifier. The same seed on the same samples gives the same result.
+    min_rows : int, optional
+        The size floor asserted internally, applied to the **smaller** sample
+        before balancing; defaults to :data:`MIN_SAMPLE_FLOOR`. Mechanism
+        rather than configuration, and the same number
+        :func:`_meets_sample_floor` takes, so a consumer whose own dial has
+        moved the floor states it once and the assertion cannot then refuse
+        what the consumer deliberately allowed.
+    min_samples_leaf : int, optional
+        The leaf-size floor of the library's default classifier, forwarded to
+        :func:`_default_c2st_classifier`. ``None`` — the default — means the
+        pin :data:`DEFAULT_MIN_SAMPLES_LEAF`. Only tunes the *default*
+        classifier: since ``classifier`` is used verbatim, setting both is
+        unrepresentable and raises.
+    observer : Callable[[PipelineEvent], None], optional
+        A Progress Observer receiving one ``item`` event per repeat, since a
+        direct call owns its own loop.
+
+    Returns
+    -------
+    C2STResult
+        The pooled result of the ``repeats`` repeats.
+
+    Raises
+    ------
+    C2STDtypeError
+        When either sample carries a ``pl.String`` column; the message names the
+        column.
+    C2STSampleFloorError
+        When the smaller sample falls below ``min_rows`` — the internal
+        assertion of the floor :func:`_meets_sample_floor` exposes, so a
+        direct caller cannot bypass it.
+    ValueError
+        When ``repeats`` is below 1, when the two samples do not carry the same
+        columns in the same order, or when both ``min_samples_leaf`` and
+        ``classifier`` are supplied.
+    """
+    if min_samples_leaf is not None and classifier is not None:
+        raise ValueError(
+            "c2st cannot take both min_samples_leaf and classifier: "
+            "min_samples_leaf only tunes the leaf size of the library's "
+            "default classifier, and an injected classifier is used "
+            "verbatim, so the two are unrepresentable together."
+        )
+    emitter = Emitter(_DIRECT_PHASE, _DIRECT_STAGE, observer, total=repeats)
+    emitter.stage_start()
+    result = _run_c2st(
+        reference,
+        candidate,
+        repeats=repeats,
+        scheme=scheme,
+        classifier=classifier,
+        random_state=random_state,
+        min_rows=min_rows,
+        min_samples_leaf=(
+            DEFAULT_MIN_SAMPLES_LEAF if min_samples_leaf is None else min_samples_leaf
+        ),
+        on_repeat=lambda index, total: emitter.item("repeat"),
+    )
+    emitter.stage_end()
+    return result
 
 
 def _run_repeat(
