@@ -18,7 +18,7 @@ Locked decisions:
 
 accepted
 
-Supersedes ADR-0064. Narrows ADR-0063 (reconstruction gate survives on the `FittedUnit`; the wire form moves to a JSON envelope + single joblib tail; the aggregate manifest and base64 nesting are removed). Consumes the charting leans of #381.
+Supersedes ADR-0064. Narrows ADR-0063 (reconstruction gate survives on the `FittedUnit`; the wire form moves to a JSON envelope + single joblib tail; the aggregate manifest and base64 nesting are removed). Consumes the charting leans of #381. Amended by ADR-0096: the kinds become profile, routing, recipe and fitted unit (the decision is gone), and the format-schema version is checked on every kind.
 
 ## Considered Options
 

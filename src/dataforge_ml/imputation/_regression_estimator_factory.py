@@ -1,13 +1,17 @@
 """
-RegressionEstimatorFactory — maps (NonlinearityTag, n_rows) to a fitted-ready
-sklearn estimator for regression-based imputation.
+RegressionEstimatorFactory — maps a ``NonlinearityTag`` to a fitted-ready
+sklearn estimator for the MICE block, via the Estimator Ladder (ADR-0094).
 
-Routing table:
-  Linear              → Pipeline([StandardScaler, BayesianRidge(fit_intercept=True)])
-  MonotonicNonlinear  → RandomForest
-  ComplexNonlinear    → GradientBoostingRegressor (n_rows >= gradient_boost_min_rows)
-                        RandomForest              (n_rows <  gradient_boost_min_rows)
-  Unpredictable       → None  (caller routes to Median fallback)
+Estimator Ladder — a flat map, no bounds, no downgrade:
+  Linear / Unpredictable                  → BayesianRidge
+  MonotonicNonlinear / ComplexNonlinear   → RandomForest
+
+``GradientBoostingRegressor`` is off the ladder entirely; it is reachable only
+through :meth:`~dataforge_ml.imputation.ImputationRouting.with_model_choice`
+(an explicit user choice, ADR-0090). ``resolve_choice`` is total: every
+``NonlinearityTag`` — including ``Unpredictable`` — resolves to a
+:class:`~dataforge_ml.ModelChoice`, never ``None`` (ADR-0094 deleted the
+``None``/skip branch the ``Unpredictable`` tag used to take).
 
 The RandomForest branch is built as a ``_CoreInvariantRandomForest`` rather than
 a bare ``RandomForestRegressor``, so ``n_jobs`` buys inner parallelism without
@@ -18,7 +22,7 @@ The factory has no state and no side effects.
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
@@ -27,7 +31,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from ..profiling._numeric_config import NonlinearityTag
-from ._config import ModelChoice, NumericImputationConfig
+from ._config import ModelChoice
 
 
 class _CoreInvariantRandomForest(BaseEstimator, RegressorMixin):
@@ -72,75 +76,66 @@ class _CoreInvariantRandomForest(BaseEstimator, RegressorMixin):
 class RegressionEstimatorFactory:
     """
     Stateless factory that returns a fitted-ready sklearn estimator based on
-    a ``NonlinearityTag`` and row count.
+    a ``NonlinearityTag``, via the Estimator Ladder (ADR-0094).
 
-    The factory has no instance state.  All public surface is a single static
-    method so the caller can obtain the correct estimator with one call and
-    proceed directly to ``fit``.
+    The factory has no instance state.  Its surface is two static methods:
+    :meth:`resolve_choice` picks the family at route-time, and
+    :meth:`build_from_choice` constructs it at fit-time.
     """
 
     @staticmethod
-    def resolve_choice(
-        tag: NonlinearityTag,
-        n_rows: int,
-        config: NumericImputationConfig,
-    ) -> Optional[ModelChoice]:
+    def resolve_choice(tag: NonlinearityTag) -> ModelChoice:
         """
         Resolve the concrete estimator family as a value-free ``ModelChoice`` label.
 
-        The decide-time half of :meth:`build`: it selects the estimator family
-        from ``(tag, n_rows, config)`` without constructing an estimator, so the
-        assembler can stamp the choice on the plan (ADR-0060) and :meth:`build`
-        can reuse the same mapping at fit-time.
+        The route-time half of the factory: it selects the estimator family
+        from the tag without constructing an estimator, so the router
+        can stamp the choice on the routing (ADR-0088) and
+        :meth:`build_from_choice` can construct it at fit-time. Total over ``NonlinearityTag``
+        (ADR-0094): every tag, including ``Unpredictable``, resolves to a
+        ``ModelChoice`` — a column only reaches MICE with that tag when the
+        Signal Score found a signal the probe missed, so ``BayesianRidge`` is
+        the honest, cheapest match.
 
         Parameters
         ----------
         tag : NonlinearityTag
             Nonlinearity classification for the target column.
-        n_rows : int
-            Number of rows the decision is made for.  Selects between
-            ``GradientBoostingRegressor`` and ``RandomForestRegressor`` for the
-            ``ComplexNonlinear`` branch via ``config.gradient_boost_min_rows``.
-        config : NumericImputationConfig
-            Imputation config supplying the ``gradient_boost_min_rows`` threshold.
 
         Returns
         -------
-        ModelChoice or None
-            The estimator family label, or ``None`` when ``tag`` is
-            ``Unpredictable`` (the caller routes to a scalar fallback instead).
+        ModelChoice
+            The estimator family label: ``BayesianRidge`` for ``Linear`` and
+            ``Unpredictable``; ``RandomForestRegressor`` for
+            ``MonotonicNonlinear`` and ``ComplexNonlinear``.
+            ``GradientBoostingRegressor`` is never returned — it is off the
+            ladder, reachable only through ``with_model_choice``.
         """
-        if tag == NonlinearityTag.Linear:
-            return ModelChoice.BayesianRidge
-        if tag == NonlinearityTag.MonotonicNonlinear:
+        if tag in (NonlinearityTag.MonotonicNonlinear, NonlinearityTag.ComplexNonlinear):
             return ModelChoice.RandomForestRegressor
-        if tag == NonlinearityTag.ComplexNonlinear:
-            if n_rows >= config.gradient_boost_min_rows:
-                return ModelChoice.GradientBoostingRegressor
-            return ModelChoice.RandomForestRegressor
-        return None
+        return ModelChoice.BayesianRidge
 
     @staticmethod
-    def build(
-        tag: NonlinearityTag,
-        n_rows: int,
-        config: NumericImputationConfig,
+    def build_from_choice(
+        choice: ModelChoice,
         n_jobs: int = 1,
-    ) -> Optional[Any]:
+    ) -> Any:
         """
-        Return a fitted-ready sklearn estimator for the given tag and dataset size.
+        Return a fitted-ready sklearn estimator for an already-resolved choice.
+
+        The fit-time counterpart of :meth:`resolve_choice`, and the factory's
+        sole fit-time entry.  It takes the ``ModelChoice`` the router already
+        stamped on the routing (ADR-0088) rather than re-deriving the family
+        from the tag, so the estimator that trains is the one the
+        user inspected and could override (``with_model_choice``), rather than
+        a second, independent resolution.
 
         Parameters
         ----------
-        tag : NonlinearityTag
-            Nonlinearity classification for the target column, produced by
-            ``NonlinearityProfiler``.
-        n_rows : int
-            Number of rows in the training dataset.  Used to choose between
-            ``GradientBoostingRegressor`` and ``RandomForestRegressor`` for the
-            ``ComplexNonlinear`` branch.
-        config : NumericImputationConfig
-            Imputation config supplying the ``gradient_boost_min_rows`` threshold.
+        choice : ModelChoice
+            Estimator family carried on the routing. Never ``None``:
+            :meth:`resolve_choice` is total over every ``NonlinearityTag``
+            (ADR-0094).
         n_jobs : int, default 1
             ``n_jobs`` for estimators that support inner parallelism (the
             RandomForest branch).  Pinned to ``1`` when this fit is nested under
@@ -154,62 +149,27 @@ class RegressionEstimatorFactory:
 
         Returns
         -------
-        sklearn estimator or None
-            A freshly constructed, unfitted sklearn-compatible estimator, or
-            ``None`` when ``tag`` is ``Unpredictable`` (signals the caller to
-            route the column to a Median fallback instead).
-        """
-        choice = RegressionEstimatorFactory.resolve_choice(tag, n_rows, config)
-        return RegressionEstimatorFactory.build_from_choice(choice, n_jobs=n_jobs)
-
-    @staticmethod
-    def build_from_choice(
-        choice: Optional[ModelChoice],
-        n_jobs: int = 1,
-    ) -> Optional[Any]:
-        """
-        Return a fitted-ready sklearn estimator for an already-resolved choice.
-
-        The fit-time counterpart of :meth:`resolve_choice`.  Where :meth:`build`
-        re-derives the family from ``(tag, n_rows, config)``, this takes the
-        ``ModelChoice`` the decision layer already stamped on the plan
-        (ADR-0060), so the estimator that trains is the one the user inspected
-        and could override, rather than a second, independent resolution.
-
-        Parameters
-        ----------
-        choice : ModelChoice or None
-            Estimator family carried on the plan.  ``None`` mirrors the
-            ``Unpredictable`` branch of :meth:`resolve_choice`.
-        n_jobs : int, default 1
-            ``n_jobs`` for estimators that support inner parallelism
-            (``RandomForestRegressor``); see :meth:`build`.
-
-        Returns
-        -------
-        sklearn estimator or None
-            A freshly constructed, unfitted sklearn-compatible estimator, or
-            ``None`` when ``choice`` is ``None`` (signals the caller to route the
-            column to a scalar fallback instead).
+        sklearn estimator
+            A freshly constructed, unfitted sklearn-compatible estimator.
 
         Raises
         ------
         ValueError
             If ``choice`` is :attr:`~dataforge_ml.ModelChoice.Custom`.  That
             member names an estimator the library did not build, so there is
-            nothing here to construct; the instance travels on the plan's
-            ``custom_estimators`` map and the caller reads it from there
-            (ADR-0083).  A plan reloaded from bytes has the slot empty — the
+            nothing here to construct; the instance travels on the routing's
+            ``mice_estimator`` slot and the caller reads it from there
+            (ADR-0090).  A routing reloaded from bytes has the slot empty — the
             estimator is never serialized — and this raise is what stops such a
-            plan silently imputing with a library default instead.
+            routing silently imputing with a library default instead.
         """
         if choice == ModelChoice.Custom:
             raise ValueError(
                 "ModelChoice.Custom names a user-supplied estimator, which this "
                 "factory did not build and cannot reconstruct. The instance is "
-                "not serialized, so a plan reloaded from bytes carries the label "
-                "with an empty slot; re-supply it with "
-                "author(..., estimators={unit_id: estimator})."
+                "not serialized, so a routing reloaded from bytes carries the "
+                "label with an empty slot; re-supply it with "
+                "routing.with_model_choice(estimator)."
             )
         if choice == ModelChoice.BayesianRidge:
             return Pipeline([
@@ -218,8 +178,4 @@ class RegressionEstimatorFactory:
             ])
         if choice == ModelChoice.RandomForestRegressor:
             return _CoreInvariantRandomForest(random_state=0, n_jobs=n_jobs)
-        if choice == ModelChoice.GradientBoostingRegressor:
-            return GradientBoostingRegressor(random_state=0)
-
-        # NonlinearityTag.Unpredictable → no model choice → scalar fallback
-        return None
+        return GradientBoostingRegressor(random_state=0)

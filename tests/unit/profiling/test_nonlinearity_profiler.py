@@ -252,3 +252,53 @@ def test_structural_profiler_populates_numericstats(complex_nonlinear_df):
     assert stats.mean_mutual_information is not None
     assert stats.r2_gap is not None
     assert stats.heteroscedasticity_p_value is not None
+
+
+def test_structural_profiler_reads_nan_as_missing_for_signals():
+    """NaN-encoded missing values are resolved at phase entry, so the
+    correlation and nonlinearity signals match a null-encoded copy of the same
+    frame instead of collapsing to r = 0 and an Unpredictable tag."""
+    from dataforge_ml import PipelineConfig, StructuralProfiler
+    from dataforge_ml.profiling._config import ProfileConfig
+
+    rng = np.random.default_rng(0)
+    n = 400
+    p = rng.normal(0, 10, n)
+    t = p * 2.0 + rng.normal(0, 0.5, n)
+    t[rng.choice(n, 120, replace=False)] = np.nan
+    q = rng.normal(0, 1, n)
+
+    def _profile(t_series):
+        pc = ProfileConfig(compute_correlation=True, compute_nonlinearity=True)
+        frame = pl.DataFrame({"p": p, "q": q, "t": t_series})
+        return StructuralProfiler(config=PipelineConfig(profiling=pc)).profile(frame)
+
+    nan_result = _profile(pl.Series(t))
+    null_result = _profile(pl.Series(t).fill_nan(None))
+
+    nan_r = nan_result.dataset.feature_correlation.pearson_matrix["t"]["p"]
+    null_r = null_result.dataset.feature_correlation.pearson_matrix["t"]["p"]
+    assert nan_r == pytest.approx(null_r)
+    assert nan_r > 0.99
+
+    nan_stats = nan_result.columns["t"].stats
+    assert nan_stats.nonlinearity_tag == NonlinearityTag.Linear
+    assert nan_stats.r2_linear > 0.99
+    assert nan_stats.max_mutual_information > 1.0
+
+
+def test_r2_probe_that_throws_is_none_not_zero():
+    """A failing fit is a refusal, never a 0.0 reading (ADR-0092)."""
+    X = np.arange(40, dtype=float).reshape(-1, 1)
+    y = np.array([np.nan, 1.0, 2.0, 3.0] * 10)
+    assert NonlinearityProfiler._r2_scores(X, y) == (None, None)
+
+
+def test_mi_probe_that_throws_is_none_not_zero():
+    X = np.array([[np.nan], [1.0], [2.0], [3.0]] * 10)
+    y = np.arange(40, dtype=float)
+    with pytest.warns(UserWarning, match="MI computation failed"):
+        signals = NonlinearityProfiler._mutual_information_signals(
+            X, y, ["x"], "y", {}
+        )
+    assert signals == (None, None, None)

@@ -1,47 +1,39 @@
-"""The stateless user-orchestrated execution surface (#385 / ADR-0071).
+"""The stateless user-orchestrated execution surface (#385 / ADR-0071, ADR-0084).
 
-Covers ``fit_unit`` and ``FittedImputer.compose`` as the drive the user actually
-holds: plan with ``decide``, train each unit through the user's own loop
-(batch scheduling is user-owned, ADR-0075), and compose the result. The
-single-track failure contract, the forced-oversize allowance, and exact
-coverage are all asserted here.
-
-``core_budget`` (#432 / ADR-0081) joins the same seam: it is the arithmetic the
-user calls once before that loop, so it belongs beside the loop it prices.
+Covers ``fit_unit`` and ``FittedImputer.compose`` as the drive the user
+actually holds: route + resolve a recipe, train each unit through the user's
+own loop (batch scheduling is user-owned, ADR-0075), and compose the result.
+The single-track failure contract and exact coverage are asserted here, for
+every non-model-based strategy (KNN/MICE are the escalation-point ticket's
+concern).
 """
 
 from __future__ import annotations
 
 import inspect
-import warnings
 
-import joblib
 import numpy as np
 import polars as pl
 import pytest
 
 from dataforge_ml import (
     FittedImputer,
-    ModelChoice,
     PipelineConfig,
     StructuralProfiler,
-    core_budget,
-    decide,
+    derive_units,
     fit_unit,
+    resolve_recipe,
+    route,
 )
-from dataforge_ml.config import SemanticType
 from dataforge_ml.imputation import (
-    ColumnImputationDecision,
     FitSignals,
-    ImputationDecision,
-    ImputationFitWarning,
+    ImputationFitWarning,  # noqa: F401 — re-exported, importability check
     ImputationStrategy,
     ImputationUnit,
     UnitFitResult,
     UnitNotTrainableError,
 )
 from dataforge_ml.imputation._fitted_units import FittedScalar
-from dataforge_ml.profiling._config import ProfileConfig
 
 
 def _holey_frame(n=250, seed=0):
@@ -57,15 +49,31 @@ def _holey_frame(n=250, seed=0):
     return pl.DataFrame(data)
 
 
-def _plan(df, config=None):
+def _routing_and_recipe(df, config=None):
     config = config or PipelineConfig()
-    profile = StructuralProfiler().profile(df)
-    return decide(profile, len(df), config)
+    profile = StructuralProfiler(config=config).profile(df)
+    routing = route(profile, config)
+    recipe = resolve_recipe(routing, profile, config)
+    return profile, routing, recipe
 
 
-def _fit_all(plan, df):
-    """The user-owned drive: one ``fit_unit`` call per planned unit."""
-    return {u.unit_id: fit_unit(plan, u, df) for u in plan.units}
+def _fit_all(recipe, units, df):
+    """The user-owned drive: one ``fit_unit`` call per derived unit."""
+    return {u.unit_id: fit_unit(recipe, u, df) for u in units}
+
+
+def _bimodal_frame(n=400, seed=3, grouped=False):
+    """One column that routes to ClusterConditional or GMMSampling."""
+    rng = np.random.default_rng(seed)
+    lo = rng.random(n) < 0.5
+    bi = np.where(lo, rng.normal(5.0, 1.0, n), rng.normal(40.0, 1.0, n)).tolist()
+    for i in range(n):
+        if rng.random() < 0.1:
+            bi[i] = None
+    data = {"bi": pl.Series(bi, dtype=pl.Float64)}
+    if grouped:
+        data["grp"] = pl.Series(np.where(lo, "lo", "hi"))
+    return pl.DataFrame(data)
 
 
 def test_fit_many_is_absent_from_both_public_namespaces():
@@ -80,148 +88,114 @@ def test_fit_many_is_absent_from_both_public_namespaces():
 
 def test_full_flow_fit_unit_loop_compose_transform_imputes_the_frame():
     df = _holey_frame()
-    plan = _plan(df)
-    results = _fit_all(plan, df)
-    assert set(results) == {u.unit_id for u in plan.units}
-    imputer = FittedImputer.compose(plan, results)
+    _, routing, recipe = _routing_and_recipe(df)
+    units = derive_units(routing)
+    results = _fit_all(recipe, units, df)
+    assert set(results) == {u.unit_id for u in units}
+    imputer = FittedImputer.compose(recipe, results)
     out = imputer.transform(df).dataframe
     for col in ("a", "b", "c"):
         assert out[col].null_count() == 0
 
 
-def test_fit_unit_returns_a_bundle_for_one_planned_unit():
+def test_fit_unit_returns_a_bundle_for_one_derived_unit():
     df = _holey_frame()
-    plan = _plan(df)
-    unit = plan.units[0]
-    result = fit_unit(plan, unit, df)
+    _, routing, recipe = _routing_and_recipe(df)
+    units = derive_units(routing)
+    unit = units[0]
+    result = fit_unit(recipe, unit, df)
     assert isinstance(result, UnitFitResult)
     assert result.unit_id == unit.unit_id
-    assert result.strategy == plan.units[0].strategy
+    assert result.strategy == unit.strategy
     assert result.fitted is not None
 
 
 def test_compose_accepts_raw_fitted_units_and_unit_fit_results():
     df = _holey_frame()
-    plan = _plan(df)
-    results = _fit_all(plan, df)
+    _, routing, recipe = _routing_and_recipe(df)
+    units = derive_units(routing)
+    results = _fit_all(recipe, units, df)
 
-    from_bundles = FittedImputer.compose(plan, results)
-    from_raw = FittedImputer.compose(plan, [r.fitted for r in results.values()])
+    from_bundles = FittedImputer.compose(recipe, results)
+    from_raw = FittedImputer.compose(recipe, [r.fitted for r in results.values()])
 
     a = from_bundles.transform(df).dataframe
     b = from_raw.transform(df).dataframe
     assert a.equals(b)
 
 
-def test_compose_rejects_a_set_that_does_not_cover_the_plan():
+def test_compose_rejects_a_set_that_does_not_cover_the_routing():
     df = _holey_frame()
-    plan = _plan(df)
-    results = _fit_all(plan, df)
+    _, routing, recipe = _routing_and_recipe(df)
+    units = derive_units(routing)
+    results = _fit_all(recipe, units, df)
 
     dropped = dict(results)
     dropped.pop(next(iter(dropped)))
-    with pytest.raises(ValueError, match="cover the plan"):
-        FittedImputer.compose(plan, dropped)
+    with pytest.raises(ValueError, match="cover the routing"):
+        FittedImputer.compose(recipe, dropped)
 
 
-def test_application_order_is_plan_order():
-    # Force columns onto distinct model-based blocks so the composed imputer
-    # carries more than one unit, then assert the ordered ``units`` list tracks
-    # the plan's model-unit order rather than any training/completion order.
-    df = _holey_frame(seed=3)
+def test_application_order_is_routing_order():
+    # Two independent bimodal columns — one grouped (ClusterConditional), one
+    # not (GMMSampling) — so the composed imputer carries more than one
+    # non-scalar unit, then assert the ordered ``units`` list tracks the
+    # routing's unit order rather than any training/completion order.
+    grouped = _bimodal_frame(seed=3, grouped=True).rename({"bi": "bi_grouped"})
+    ungrouped = _bimodal_frame(seed=11, grouped=False).rename({"bi": "bi_free"})
+    df = pl.concat([grouped, ungrouped], how="horizontal_extend")
+
     config = PipelineConfig()
-    config.imputation.numeric.set_per_column_strategy(["a", "b"], "mice")
-    config.imputation.numeric.set_per_column_strategy("c", "knn")
-    plan = _plan(df, config)
-    results = _fit_all(plan, df)
-    imputer = FittedImputer.compose(plan, results)
+    config.imputation.numeric.set_bimodal_grouping_variable("bi_grouped", "grp")
+    profile, routing, recipe = _routing_and_recipe(df, config)
+    units = derive_units(routing)
+    results = _fit_all(recipe, units, df)
+    imputer = FittedImputer.compose(recipe, results)
 
-    plan_model_unit_ids = [
+    routing_model_unit_ids = [
         u.unit_id
-        for u in plan.units
-        if u.strategy.value not in ("mean", "median", "mode", "constant", "mnar")
+        for u in units
+        if u.strategy
+        not in (
+            ImputationStrategy.Mean,
+            ImputationStrategy.Median,
+            ImputationStrategy.Mode,
+            ImputationStrategy.Constant,
+            ImputationStrategy.MNAR,
+        )
     ]
-    assert len(plan_model_unit_ids) >= 2
-    expected = [results[unit_id].fitted for unit_id in plan_model_unit_ids]
+    assert len(routing_model_unit_ids) >= 2
+    expected = [results[unit_id].fitted for unit_id in routing_model_unit_ids]
     assert len(imputer.units) == len(expected)
     assert all(a is b for a, b in zip(imputer.units, expected))
 
 
-def _unpredictable_mice_plan():
-    # A MICE column whose values are white noise, uncorrelated with every
-    # other numeric column, profiles Unpredictable (near-zero R²_RF) — the
-    # block resolves no model choice and its fitter reports it cannot train.
-    # Nonlinearity profiling must be explicitly enabled (off by default) and
-    # driven straight into StructuralProfiler, bypassing ``_plan``'s
-    # default-config profile.
-    rng = np.random.default_rng(1)
-    n = 500
-    x1 = rng.normal(0.0, 1.0, n)
-    x2 = rng.normal(0.0, 1.0, n)
-    y = np.random.default_rng(99).normal(0.0, 1.0, n)
-    holes = rng.choice(n, int(n * 0.12), replace=False)
-    y[holes] = np.nan
-    df = pl.DataFrame({"x1": x1, "x2": x2, "y": y})
-    config = PipelineConfig(profiling=ProfileConfig(compute_nonlinearity=True))
-    config.imputation.numeric.set_per_column_strategy("y", "mice")
-    profile = StructuralProfiler(config=config).profile(df)
-    plan = decide(profile, len(df), config)
-    return df, plan
-
-
 def test_untrainable_unit_raises_with_structured_payload():
-    df, plan = _unpredictable_mice_plan()
-    (unit,) = plan.units_for(ImputationStrategy.MICE)
-    assert plan.column_decisions["y"].model_choice is None
+    # A hand-authored ClusterConditional column with no grouping variable and
+    # no profile-measured bimodal centres cannot train: resolve_recipe never
+    # raises over the missing estimate, so the failure surfaces at fit_unit.
+    from dataforge_ml import author
+
+    df = pl.DataFrame({"x": [1.0, None, 3.0, None, 5.0]})
+    profile, _, _ = _routing_and_recipe(df)
+    routing = author({"x": ImputationStrategy.ClusterConditional}, profile=profile)
+    recipe = resolve_recipe(routing, profile, PipelineConfig())
+    (unit,) = derive_units(routing)
+    assert recipe.column_estimates["x"].center1 is None
 
     with pytest.raises(UnitNotTrainableError) as exc:
-        fit_unit(plan, unit, df)
+        fit_unit(recipe, unit, df)
     err = exc.value
     assert err.unit_id == unit.unit_id
-    assert err.columns == ("y",)
-    assert err.reason
-
-
-def test_forcing_a_strategy_past_its_routing_threshold_succeeds():
-    df = _holey_frame(n=200)
-    config = PipelineConfig()
-    config.imputation.numeric.set_per_column_strategy("a", "knn")
-    config.imputation.numeric.knn_max_rows = 10  # 200 rows is far past the guard
-    plan = _plan(df, config)
-    # No block: the forced KNN trains and composes cleanly.
-    imputer = FittedImputer.compose(plan, _fit_all(plan, df))
-    assert imputer.transform(df).dataframe["a"].null_count() == 0
-
-
-def test_forced_oversize_warns_structurally_and_records_it():
-    """A forced-oversize fit warns on the standard channel AND records it (ADR-0074)."""
-    df = _holey_frame(n=200)
-    config = PipelineConfig()
-    config.imputation.numeric.set_per_column_strategy("a", "knn")
-    config.imputation.numeric.knn_max_rows = 10  # 200 rows is far past the cap
-    plan = _plan(df, config)
-    (unit,) = plan.units_for(ImputationStrategy.KNN)
-
-    with pytest.warns(ImputationFitWarning, match="forced past its routing threshold"):
-        result = fit_unit(plan, unit, df)
-
-    # Dual-channelled: the same warning is also recorded on the structured record.
-    assert result.signals.warnings
-    assert any("forced past" in w for w in result.signals.warnings)
-
-
-def test_genuine_failure_still_raises_not_warns():
-    """A forced but untrainable unit raises; it does not degrade to a warning."""
-    df, plan = _unpredictable_mice_plan()
-    (unit,) = plan.units_for(ImputationStrategy.MICE)
-    with pytest.raises(UnitNotTrainableError):
-        fit_unit(plan, unit, df)
+    assert err.columns == ("x",)
+    assert "with_estimates" in err.reason
 
 
 def test_fit_result_carries_a_populated_fit_signals_record():
     df = _holey_frame()
-    plan = _plan(df)
-    results = _fit_all(plan, df)
+    _, routing, recipe = _routing_and_recipe(df)
+    units = derive_units(routing)
+    results = _fit_all(recipe, units, df)
 
     for result in results.values():
         signals = result.signals
@@ -234,186 +208,30 @@ def test_fit_result_carries_a_populated_fit_signals_record():
         assert isinstance(signals.notes, tuple)
 
 
-def test_fit_signals_reports_estimator_and_convergence_for_a_model_unit():
-    df = _holey_frame(n=600)
-    config = PipelineConfig()
-    config.imputation.numeric.set_per_column_strategy("a", "mice")
-    plan = _plan(df, config)
-    (unit,) = plan.units_for(ImputationStrategy.MICE)
+def test_fit_signals_reports_the_estimator_for_a_gmm_unit():
+    df = _bimodal_frame(grouped=False)
+    profile, routing, recipe = _routing_and_recipe(df)
+    (unit,) = derive_units(routing, strategy=ImputationStrategy.GMMSampling)
 
-    signals = fit_unit(plan, unit, df).signals
-    assert signals.estimator is not None
-    assert signals.converged is not None
-    assert signals.n_iter is not None
+    signals = fit_unit(recipe, unit, df, random_seed=3).signals
+    assert signals.estimator == "GaussianMixture"
 
 
-def test_scalar_units_land_on_records_and_model_units_on_the_list():
-    df = _holey_frame()
-    plan = _plan(df)
-    results = _fit_all(plan, df)
-    imputer = FittedImputer.compose(plan, results)
+def test_scalar_units_land_on_records_and_bimodal_units_on_the_list():
+    df = _bimodal_frame(grouped=False)
+    _, routing, recipe = _routing_and_recipe(df)
+    units = derive_units(routing)
+    results = _fit_all(recipe, units, df)
+    imputer = FittedImputer.compose(recipe, results)
     # No FittedScalar leaks into the ordered unit list; scalar fills are on
     # records.
     assert not any(isinstance(u, FittedScalar) for u in imputer.units)
 
 
-# ---------------------------------------------------------------------------
-# core_budget — the whole-plan inner-parallelism arithmetic (#432 / ADR-0081)
-#
-# Plans are built straight from ``ColumnImputationDecision`` entries so the
-# arithmetic is under test rather than the router: the budget reads only
-# ``units`` and ``column_decisions``, and an explicit ``total_cores`` keeps every
-# expected value an exact integer with no monkeypatching of core detection.
-# ---------------------------------------------------------------------------
-
-
-def _synthetic_plan(*decisions: ColumnImputationDecision) -> ImputationDecision:
-    return ImputationDecision(
-        column_decisions={d.column: d for d in decisions},
-        config_snapshot={},
-    )
-
-
-def _numeric(column, strategy, **kw) -> ColumnImputationDecision:
-    return ColumnImputationDecision(
-        column=column, semantic_type=SemanticType.Numeric, strategy=strategy, **kw
-    )
-
-
-def _mice_col(column, choice=ModelChoice.RandomForestRegressor):
-    return _numeric(column, ImputationStrategy.MICE, model_choice=choice)
-
-
-def _budget_plan(choice=ModelChoice.RandomForestRegressor, knn=True, scalar=True):
-    """A plan shaped like a real one: a MICE block, optionally KNN, optionally dust."""
-    decisions = [_mice_col("m1", choice), _mice_col("m2", choice)]
-    if knn:
-        decisions.append(_numeric("k1", ImputationStrategy.KNN))
-    if scalar:
-        decisions.append(_numeric("s1", ImputationStrategy.Median))
-    return _synthetic_plan(*decisions)
-
-
-def test_core_budget_is_exported_from_both_public_namespaces():
-    import dataforge_ml
-    import dataforge_ml.imputation
-
-    for namespace in (dataforge_ml, dataforge_ml.imputation):
-        assert "core_budget" in namespace.__all__
-        assert namespace.core_budget is core_budget
-
-
-def test_core_budget_keys_are_exactly_the_plans_unit_ids():
-    df = _holey_frame()
-    plan = _plan(df)
-    budget = core_budget(plan, max_workers=4, total_cores=8)
-    assert set(budget) == {u.unit_id for u in plan.units}
-
-
-def test_parallel_drive_reserves_one_core_for_the_knn_block():
-    plan = _budget_plan()
-    assert core_budget(plan, max_workers=8, total_cores=12) == {
-        "mice": 11,
-        "knn": 1,
-        "median:s1": 1,
-    }
-
-
-def test_parallel_drive_without_a_knn_block_gives_mice_every_core():
-    plan = _budget_plan(knn=False)
-    assert core_budget(plan, max_workers=8, total_cores=12) == {
-        "mice": 12,
-        "median:s1": 1,
-    }
-
-
-def test_max_workers_one_is_a_sequential_drive_and_gives_mice_minus_one():
-    """Outer degree one: the inner layer takes the whole machine (ADR-0069)."""
-    plan = _budget_plan()
-    assert core_budget(plan, max_workers=1, total_cores=12) == {
-        "mice": -1,
-        "knn": 1,
-        "median:s1": 1,
-    }
-
-
-def test_max_workers_none_is_a_pool_of_unknown_degree_not_a_sequential_drive():
-    """``ThreadPoolExecutor(max_workers=None)`` is legal, common, and not sequential."""
-    plan = _budget_plan()
-    parallel = core_budget(plan, max_workers=8, total_cores=12)
-    assert core_budget(plan, max_workers=None, total_cores=12) == parallel
-
-
-def test_one_core_box_with_a_knn_block_still_floors_mice_at_one():
-    plan = _budget_plan()
-    assert core_budget(plan, max_workers=8, total_cores=1)["mice"] == 1
-
-
-@pytest.mark.parametrize(
-    "choice",
-    [ModelChoice.GradientBoostingRegressor, ModelChoice.BayesianRidge],
-)
-def test_a_mice_block_with_no_inner_parallelism_to_spend_is_priced_at_one(choice):
-    """Neither estimator has an ``n_jobs``, so ``1`` is the truthful answer."""
-    plan = _budget_plan(choice=choice)
-    assert core_budget(plan, max_workers=8, total_cores=12) == {
-        "mice": 1,
-        "knn": 1,
-        "median:s1": 1,
-    }
-
-
-def test_no_warning_is_emitted_for_a_block_that_cannot_spend_a_budget():
-    """A warning here would fire on a correct plan; the returned ``1`` is the answer."""
-    plan = _budget_plan(choice=ModelChoice.GradientBoostingRegressor)
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        assert core_budget(plan, max_workers=8, total_cores=12)["mice"] == 1
-
-
-@pytest.mark.parametrize("max_workers", [1, 4, 8, None])
-def test_a_custom_estimator_is_priced_at_one_in_every_branch(max_workers):
-    """The library spends no cores on an estimator it did not build (ADR-0083).
-
-    Including the sequential ``max_workers=1`` branch, which hands a
-    library-built MICE block ``-1``: there is nothing here to open up, since the
-    library never sets a foreign estimator's parameters.
-    """
-    plan = _budget_plan(choice=ModelChoice.Custom)
-    assert core_budget(plan, max_workers=max_workers, total_cores=12) == {
-        "mice": 1,
-        "knn": 1,
-        "median:s1": 1,
-    }
-
-
-def test_a_plan_with_no_mice_unit_is_all_ones():
-    plan = _synthetic_plan(
-        _numeric("k1", ImputationStrategy.KNN),
-        _numeric("s1", ImputationStrategy.Median),
-    )
-    budget = core_budget(plan, max_workers=8, total_cores=12)
-    assert budget == {"knn": 1, "median:s1": 1}
-
-
-def test_total_cores_overrides_detection():
-    plan = _budget_plan(knn=False)
-    assert core_budget(plan, max_workers=8, total_cores=4)["mice"] == 4
-    assert core_budget(plan, max_workers=8, total_cores=64)["mice"] == 64
-
-
-def test_the_default_path_detects_cores_with_joblib_cpu_count():
-    """Detection is ``joblib.cpu_count()`` — cgroup-aware, and what sklearn uses."""
-    plan = _budget_plan(knn=False)
-    detected = core_budget(plan, max_workers=8)
-    assert detected == core_budget(plan, max_workers=8, total_cores=joblib.cpu_count())
-
-
-def test_fit_unit_signature_is_unchanged_and_n_jobs_inner_still_defaults_to_minus_one():
-    """``core_budget`` is purely additive: the sequential loop reads the same -1."""
+def test_fit_unit_signature_takes_a_recipe_and_defaults_n_jobs_inner_to_minus_one():
     params = inspect.signature(fit_unit).parameters
     assert list(params) == [
-        "decision",
+        "recipe",
         "unit",
         "df",
         "random_seed",
@@ -422,86 +240,137 @@ def test_fit_unit_signature_is_unchanged_and_n_jobs_inner_still_defaults_to_minu
     assert params["n_jobs_inner"].default == -1
 
 
-def test_units_for_selects_by_strategy_without_naming_a_unit_id():
+def test_derive_units_selects_by_strategy_without_naming_a_unit_id():
     """The selection surface: an enum the checker sees, not a typed literal."""
-    df = _holey_frame()
+    df = _bimodal_frame(grouped=True)
     config = PipelineConfig()
-    config.imputation.numeric.set_per_column_strategy(["a", "b"], "mice")
-    plan = _plan(df, config)
+    config.imputation.numeric.set_bimodal_grouping_variable("bi", "grp")
+    _, routing, _ = _routing_and_recipe(df, config)
 
-    (unit,) = plan.units_for(ImputationStrategy.MICE)
-    assert unit.strategy == ImputationStrategy.MICE
-    assert unit.is_block
-    assert set(unit.columns) == {"a", "b"}
+    (unit,) = derive_units(routing, strategy=ImputationStrategy.ClusterConditional)
+    assert unit.strategy == ImputationStrategy.ClusterConditional
+    assert not unit.is_block
+    assert set(unit.columns) == {"bi"}
 
 
-def test_units_for_returns_empty_when_nothing_routed_to_the_strategy():
-    """The empty case is ordinary, so it is a zero-length tuple — never None, never a raise.
-
-    This is what lets a caller loop over the result with no guard.
-    """
+def test_derive_units_returns_empty_when_nothing_routed_to_the_strategy():
+    """The empty case is ordinary, so it is a zero-length tuple — never None, never a raise."""
     df = _holey_frame()
     config = PipelineConfig()
     config.imputation.numeric.set_per_column_strategy(["a", "b", "c"], "median")
-    plan = _plan(df, config)
+    _, routing, _ = _routing_and_recipe(df, config)
 
-    assert plan.units_for(ImputationStrategy.MICE) == ()
-    assert plan.units_for(ImputationStrategy.Dropped) == ()
-    assert [u.unit_id for u in plan.units_for(ImputationStrategy.MICE)] == []
+    assert derive_units(routing, strategy=ImputationStrategy.MICE) == ()
+    assert derive_units(routing, strategy=ImputationStrategy.Dropped) == ()
 
 
-def test_fit_unit_resolves_the_passed_unit_against_the_plan_not_its_own_recipe():
-    """The plan wins: a unit held from before an edit trains the edited recipe.
+def test_fit_unit_always_reads_the_recipes_current_hyperparameters():
+    """A unit carries no dials, so it cannot go stale (ADR-0084 amendment).
 
-    ``fit_unit`` reads only the id off the passed unit, so a stale object cannot
-    become a second source of truth for the hyperparameters.
+    Editing the recipe with ``with_hyperparameters`` and re-fitting the exact
+    same unit object picks up the edit — there is nothing on the unit for a
+    prior edit to leave behind.
     """
-    df = _holey_frame()
+    df = pl.DataFrame(
+        {"x": [1.0, 2.0, None, None, 3.0, 4.0, 5.0, None, 6.0, 7.0] * 5}
+    )
     config = PipelineConfig()
-    config.imputation.numeric.set_per_column_strategy(["a", "b"], "mice")
-    plan = _plan(df, config)
+    config.imputation.add_mnar_column("x")
+    _, routing, recipe = _routing_and_recipe(df, config)
+    (unit,) = derive_units(routing, strategy=ImputationStrategy.MNAR)
 
-    (stale,) = plan.units_for(ImputationStrategy.MICE)
-    edited = plan.with_hyperparameters(stale.unit_id, {"max_iter": 3})
-    # The stale object still carries the pre-edit dials.
-    assert dict(stale.hyperparameters or ())["max_iter"] != 3
+    original_tendency = recipe.hyperparameters(unit.unit_id)["central_tendency"]
+    other = "mean" if original_tendency != "mean" else "median"
+    edited = recipe.with_hyperparameters(unit.unit_id, {"central_tendency": other})
 
-    fitted = fit_unit(edited, stale, df).fitted
-    assert fitted.model.max_iter == 3
+    original_fill = fit_unit(recipe, unit, df).fitted.fill_value
+    edited_fill = fit_unit(edited, unit, df).fitted.fill_value
+    assert original_fill != edited_fill
+
+
+def test_mnar_signals_say_the_fill_is_computed_not_applied():
+    """Nulls in the output are otherwise the only clue (ADR-0098)."""
+    df = pl.DataFrame(
+        {"x": [1.0, 2.0, None, None, 3.0, 4.0, 5.0, None, 6.0, 7.0] * 5}
+    )
+    config = PipelineConfig()
+    config.imputation.add_mnar_column("x")
+    _, routing, recipe = _routing_and_recipe(df, config)
+    (unit,) = derive_units(routing, strategy=ImputationStrategy.MNAR)
+
+    notes = fit_unit(recipe, unit, df).signals.notes
+
+    assert any("fill computed, not applied" in note for note in notes)
+
+
+def test_an_mnar_units_own_transform_is_the_opt_in_fill():
+    """The composed imputer leaves MNAR nulls; the bare unit applies the fill."""
+    df = pl.DataFrame(
+        {"x": [1.0, 2.0, None, None, 3.0, 4.0, 5.0, None, 6.0, 7.0] * 5}
+    )
+    config = PipelineConfig()
+    config.imputation.add_mnar_column("x")
+    _, routing, recipe = _routing_and_recipe(df, config)
+    (unit,) = derive_units(routing, strategy=ImputationStrategy.MNAR)
+    fitted = fit_unit(recipe, unit, df).fitted
+
+    composed = FittedImputer.compose(recipe, {unit.unit_id: fitted}).transform(df)
+    assert composed.dataframe["x"].null_count() == df["x"].null_count()
+
+    opted_in = fitted.transform(df)
+    assert opted_in["x"].null_count() == 0
+    assert opted_in["x"].filter(df["x"].is_null()).unique().to_list() == [
+        fitted.fill_value
+    ]
 
 
 def test_passing_a_unit_id_string_raises_a_pointed_type_error():
     """The pre-4.x call shape fails loudly, naming the replacement."""
     df = _holey_frame()
-    plan = _plan(df)
+    _, routing, recipe = _routing_and_recipe(df)
+    units = derive_units(routing)
 
     with pytest.raises(TypeError, match="takes an ImputationUnit, not the id"):
-        fit_unit(plan, plan.units[0].unit_id, df)
+        fit_unit(recipe, units[0].unit_id, df)
 
 
-def test_fit_unit_raises_key_error_for_a_unit_from_a_foreign_plan():
-    """Resolution is by id against this plan, so an unknown unit still raises."""
+def test_fit_unit_raises_key_error_for_a_unit_unknown_to_the_recipe():
     df = _holey_frame()
-    plan = _plan(df)
+    _, routing, recipe = _routing_and_recipe(df)
     foreign = ImputationUnit(
         unit_id="mice",
         strategy=ImputationStrategy.MICE,
         columns=("a",),
         is_block=True,
     )
-    assert not plan.units_for(ImputationStrategy.MICE)
+    assert derive_units(routing, strategy=ImputationStrategy.MICE) == ()
 
-    with pytest.raises(KeyError, match="Plan carries no unit 'mice'"):
-        fit_unit(plan, foreign, df)
+    with pytest.raises(KeyError, match="carries no unit 'mice'"):
+        fit_unit(recipe, foreign, df)
 
 
-def test_a_reloaded_plan_fits_identically_with_no_config_in_hand():
-    """Every fact the fitters need rides on the plan itself (#466 / ADR-0083).
+def test_fit_unit_raises_value_error_for_a_unit_from_a_different_routing():
+    df = _holey_frame()
+    _, routing, recipe = _routing_and_recipe(df)
+    real_unit = derive_units(routing)[0]
+    mismatched = ImputationUnit(
+        unit_id=real_unit.unit_id,
+        strategy=ImputationStrategy.Mean,
+        columns=("does-not-exist",),
+    )
+    with pytest.raises(ValueError, match="does not match the recipe's routing"):
+        fit_unit(recipe, mismatched, df)
 
-    The saved plan is stripped of its config snapshot before reloading, so the
-    only thing left to fit from is ``column_decisions`` — the whole point of
-    lowering the grouping variable and the constant fill onto the column.
+
+def test_a_reloaded_routing_resolves_and_fits_identically():
+    """Every fact the fitters need rides on the routing + recipe.
+
+    The routing round-trips through bare-bytes persistence; resolving a fresh
+    recipe against the same profile and fitting from that reproduces the
+    in-process fit exactly.
     """
+    from dataforge_ml import deserialize, serialize
+
     rng = np.random.default_rng(3)
     n = 300
     lo = rng.random(n) < 0.5
@@ -525,15 +394,17 @@ def test_a_reloaded_plan_fits_identically_with_no_config_in_hand():
     config.random_seed = 11
     config.imputation.numeric.set_bimodal_grouping_variable("bi", "grp")
     config.imputation.numeric.set_per_column_constant_fill("k", -9.0)
-    plan = _plan(df, config)
-    assert any(u.unit_id == "cluster_conditional:bi" for u in plan.units)
-    assert any(u.unit_id == "constant:k" for u in plan.units)
+    profile, routing, recipe = _routing_and_recipe(df, config)
+    units = derive_units(routing)
+    assert any(u.unit_id == "cluster_conditional:bi" for u in units)
+    assert any(u.unit_id == "constant:k" for u in units)
 
-    reloaded = ImputationDecision.from_dict({**plan.to_dict(), "config_snapshot": {}})
-    assert reloaded.config_snapshot == {}
+    reloaded_routing = deserialize(serialize(routing))
+    reloaded_recipe = resolve_recipe(reloaded_routing, profile, config)
+    reloaded_units = derive_units(reloaded_routing)
 
-    in_process = _fit_all(plan, df)
-    from_disk = _fit_all(reloaded, df)
+    in_process = _fit_all(recipe, units, df)
+    from_disk = _fit_all(reloaded_recipe, reloaded_units, df)
     assert set(in_process) == set(from_disk)
 
     cluster = from_disk["cluster_conditional:bi"].fitted

@@ -21,3 +21,7 @@ This decision applies to the strategy routing phase only. The `NonlinearityTag` 
 ## Amendment (Scope 16): GMM Sampling exception for bimodal columns
 
 When `NumericFlag.Bimodal` is set and no correlated features are available (all `|r| < 0.2` against available numeric predictors), the column routes to GMM Sampling instead of Median. GMM Sampling fills missing values by drawing from the fitted 2-component GMM — it does not predict from features and is therefore not subject to the R² guard that defines the Unpredictable classification. Median remains the correct fallback for non-bimodal Unpredictable columns; the exception applies exclusively to the bimodal + no-correlated-features combination. See ADR-0032.
+
+## Amendment (ADR-0092): superseded as a routing rule
+
+`Unpredictable` is no longer a router predicate. The **Signal Score** grades the continuum this guard cut at `r2_rf < 0.05` (the code's value; the 0.1 above was never the implemented threshold), and a column with no explainable variance lands in its bottom tier — the same scalar outcome, reached through one mechanism. The tag remains a profile label.

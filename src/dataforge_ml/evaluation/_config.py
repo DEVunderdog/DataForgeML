@@ -1,31 +1,21 @@
-"""Configuration for the evaluation module — an umbrella over per-metric dials.
+"""Configuration for the evaluation module — dials for C2ST.
 
-:class:`EvaluationConfig` **stands alone and is never nested on**
+:class:`C2STConfig` **stands alone and is never nested on**
 ``PipelineConfig``, deliberately breaking ADR-0030's Phase Sub-Config topology
 (ADR-0087): ``PipelineConfig`` is built once for a run, whereas evaluation is
 opt-in, stateless, and re-configured freely between calls while poking at
-results. Each metric owns one nested config — :class:`C2STConfig` today — so a
-later metric lands as a sibling field rather than a rename.
-
-:class:`EvaluationMetric` is the input enum ``metrics=`` selects with. It is
-deliberately *not* a nullable nested config: making ``EvaluationConfig.c2st is
-None`` mean "off" would collapse *absence of configuration* and *refusal of the
-metric* into one sentinel and put a control-flow switch inside a declarative
-object.
+results.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from enum import StrEnum
+from dataclasses import dataclass
 from typing import Any, Optional
 
 from ._c2st import DEFAULT_MIN_SAMPLES_LEAF, MIN_SAMPLE_FLOOR, C2STScheme
 
 __all__ = [
     "C2STConfig",
-    "EvaluationConfig",
-    "EvaluationMetric",
 ]
 
 # The repeat count a bare ``C2STConfig`` declares. Repeats are what make
@@ -50,19 +40,6 @@ _DEFAULT_IMBALANCE_WARN_RATIO: float = 0.5
 # "which columns should a human go look at", and the number is what makes that
 # shortlist arguable rather than a hidden constant.
 _DEFAULT_FDR_ALPHA: float = 0.05
-
-
-class EvaluationMetric(StrEnum):
-    """The metric selector passed as ``metrics=`` to ``evaluate_imputation``.
-
-    ``None`` — the default — means *every metric the library has*, so the bare
-    call honours the umbrella name and nobody needs to know the list exists.
-    Narrowing is scope selection on an opt-in diagnostic handed to a human, not
-    the staging of a library decision to save cost, so it does not contradict
-    the accuracy-over-speed principle (ADR-0087).
-    """
-
-    C2ST = "c2st"
 
 
 @dataclass
@@ -119,7 +96,7 @@ class C2STConfig:
     classifier : Any, optional
         An unfitted classifier to use **verbatim** for every column of the run
         — no ``set_params`` reach-in and no clone, mirroring how
-        ``ImputationDecision.custom_estimators`` holds the user's live object.
+        ``ImputationRouting.mice_estimator`` holds the user's live object.
         ``None`` builds the library's default, pins included. Stated hole
         (ADR-0087): an injected *bare*
         :class:`~sklearn.ensemble.HistGradientBoostingClassifier` reintroduces
@@ -201,48 +178,3 @@ class C2STConfig:
             fdr_alpha=data.get("fdr_alpha", default.fdr_alpha),
             random_state=data.get("random_state", default.random_state),
         )
-
-
-@dataclass
-class EvaluationConfig:
-    """The evaluation module's configuration object, one nested config per metric.
-
-    Handed to ``evaluate_imputation`` as ``config=``. It holds no observer:
-    a live callable would break the serialisable, setter-only contract every
-    config in the library keeps (ADR-0044), so ``observer=`` rides the call
-    instead.
-
-    Parameters
-    ----------
-    c2st : C2STConfig
-        Dials for the Classifier Two-Sample Test, the module's first metric.
-    """
-
-    c2st: C2STConfig = field(default_factory=C2STConfig)
-
-    def to_dict(self) -> dict:
-        """Serialise the config to a plain dictionary.
-
-        Returns
-        -------
-        dict
-            All field values keyed by field name, with ``c2st`` nested.
-        """
-        return {"c2st": self.c2st.to_dict()}
-
-    @classmethod
-    def from_dict(cls, data: dict) -> EvaluationConfig:
-        """Construct an ``EvaluationConfig`` from a plain dictionary.
-
-        Parameters
-        ----------
-        data : dict
-            Mapping produced by :meth:`to_dict`. Missing keys fall back to
-            field defaults.
-
-        Returns
-        -------
-        EvaluationConfig
-            Reconstructed config instance.
-        """
-        return cls(c2st=C2STConfig.from_dict(data.get("c2st", {})))

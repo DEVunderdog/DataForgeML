@@ -20,7 +20,7 @@ This document is an **index over the ADRs plus a per-file implementation checkli
 
 **Before (ADR-0061/0064):**
 ```
-decide(profile, n_rows, config) -> ImputationDecision
+decide(profile, n_rows, config) -> ImputationPlan
 exec = ImputationExecutor(decision, train_df, config, ...)
 exec.execute_all_pending(max_workers=...)      # state machine, degradation, on_fit_error
 imputer = exec.build()                          # completeness-gated roll-up
@@ -57,9 +57,9 @@ The user owns the loop between `decide` and `compose`. There is no resumable obj
 - `src/dataforge_ml/imputation/_fitted_imputer.py` — add `FittedImputer.compose(decision, fitted_units)` classmethod (tolerant `FittedUnit | UnitFitResult`, exact-coverage raise, inherits `build()`'s structural-column projection + whole-frame guards). Collapse internals: `records` loses `fill_value` (pure structural manifest); `models` + `model_cols` → one ordered `units` list applied in plan order (ADR-0067). Delete `FittedDegradedJoint` handling. (ADR-0071)
 - `src/dataforge_ml/imputation/_fitters.py` — rename `fit_unit` → `_dispatch_unit_fit`; strip **every** fallback (`hyp.get("tol", 1e-3)`, `hyp.get("max_iter", ctx.config.base_max_iter)`, `hyp.get("initial_strategy", ...)`, `hyp.get("n_neighbors", 5)`, `hyp.get("complete_frac", 0.0)`, siblings) → `hyp["..."]` (ADR-0073); add `perf_counter` timing + structural forced-oversize check + populate a `FitSignals` (ADR-0074); change `UnitFitOutcome` to carry `FitSignals` instead of `signals: tuple[str,...]`. Receive relocated `_MODEL_BASED_STRATEGIES` import.
 - `src/dataforge_ml/imputation/_fitted_units.py` — strip `FittedRegression.signals`, `FittedRegression.max_iter_used`, and sibling observability fields; add `FitSignals` frozen record + `ImputationFitWarning`; delete `FittedDegradedJoint`; `FittedScalar` loses `executed_strategy`/`degradation_reason`. (ADR-0071 / 0074)
-- `src/dataforge_ml/imputation/_config.py` — `ImputationDecision` holds two hyperparameter maps (decided base + sparse override delta); `_derive_units` stamps `merged = decided ⊕ delta`; add `with_hyperparameters(unit_id, dict | None)` (rename from `with_unit_hyperparameters`), unknown-key raises at edit time; receive relocated `_MODEL_BASED_STRATEGIES`. `decide()`'s KNN base must populate `complete_frac`. Delete `_ON_FIT_ERROR_POLICIES` / `on_fit_error` config surface. (ADR-0073 / 0071)
+- `src/dataforge_ml/imputation/_config.py` — `ImputationPlan` holds two hyperparameter maps (decided base + sparse override delta); `_derive_units` stamps `merged = decided ⊕ delta`; add `with_hyperparameters(unit_id, dict | None)` (rename from `with_unit_hyperparameters`), unknown-key raises at edit time; receive relocated `_MODEL_BASED_STRATEGIES`. `decide()`'s KNN base must populate `complete_frac`. Delete `_ON_FIT_ERROR_POLICIES` / `on_fit_error` config surface. (ADR-0073 / 0071)
 - `src/dataforge_ml/imputation/_decision_assembler.py` — receive relocated `_mice_winning_tag`; ensure the decided-base maps are always complete per strategy (the schema the override validates against). (ADR-0073)
-- `src/dataforge_ml/_serialization.py` — rewrite around `serialize(obj) -> bytes` / `deserialize(data) -> FittedUnit | ImputationDecision | StructuralProfileResult` (polymorphic, `kind` tag) / `inspect(data) -> dict` (header without unpickle); JSON envelope + single joblib tail for the unit only; keep `produced_with` six-version + SHA-256 gate pre-unpickle on the unit; light schema+`library_version` stamp on decision/profile; delete the `ArtifactStore`/`DocumentStore`/`BlobStore` protocols and `ArtifactIdentityMismatchError`/`verify_identity`. (ADR-0072)
+- `src/dataforge_ml/_serialization.py` — rewrite around `serialize(obj) -> bytes` / `deserialize(data) -> FittedUnit | ImputationPlan | StructuralProfileResult` (polymorphic, `kind` tag) / `inspect(data) -> dict` (header without unpickle); JSON envelope + single joblib tail for the unit only; keep `produced_with` six-version + SHA-256 gate pre-unpickle on the unit; light schema+`library_version` stamp on decision/profile; delete the `ArtifactStore`/`DocumentStore`/`BlobStore` protocols and `ArtifactIdentityMismatchError`/`verify_identity`. (ADR-0072)
 - `src/dataforge_ml/imputation/_fitted_persistence.py` — collapse: delete `save_fitted_unit_addressed` / `load_fitted_unit_addressed`; keep the unit envelope encode/decode, now reached via `serialize`/`deserialize`. (ADR-0072)
 - `src/dataforge_ml/profiling/orchestrator.py` — remove the `data_fingerprint` output and the whole-frame hash computed for keying; drop the fingerprint field from `StructuralProfileResult`. (ADR-0072)
 - `src/dataforge_ml/__init__.py` and `src/dataforge_ml/imputation/__init__.py` — see Public API changes below.
@@ -72,7 +72,7 @@ The user owns the loop between `decide` and `compose`. There is no resumable obj
 
 **Keep:** `decide`, `FittedUnit`, `FittedImputer`, `UnitNotTrainableError` (relocated), `IncompatibleArtifactError`, `ArtifactPythonVersionWarning`, and everything unrelated to execution/persistence.
 
-All added public symbols are documentation-scoped (ADR-0034): numpy-style docstrings required on `fit_unit`, `UnitFitResult`, `FittedImputer.compose`, `serialize`, `deserialize`, `inspect`, `FitSignals`, `ImputationFitWarning`, and `ImputationDecision.with_hyperparameters`.
+All added public symbols are documentation-scoped (ADR-0034): numpy-style docstrings required on `fit_unit`, `UnitFitResult`, `FittedImputer.compose`, `serialize`, `deserialize`, `inspect`, `FitSignals`, `ImputationFitWarning`, and `ImputationPlan.with_hyperparameters`.
 
 ## Cross-cutting invariants (do not regress)
 

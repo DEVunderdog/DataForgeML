@@ -5,21 +5,22 @@ Its question is whether a table produced by a pipeline phase still carries the
 distribution and dependence structure of the data behind it; the model that
 produced the table is disposable and is never graded.
 
-It is independent and opt-in. `EvaluationConfig` stands alone and is never
+It is independent and opt-in. Evaluation configuration stands alone and is never
 nested on `PipelineConfig`, because evaluation is stateless and re-configured
 freely between calls while poking at results, whereas the pipeline config is
 built once for a run.
 
 The module is layered. A **generic** layer holds the metric arithmetic and knows
 nothing about any one phase — its seam takes two frames and returns a
-`C2STResult`. It stays private: the user drives evaluation through
-`evaluate_imputation`, and the future non-imputation consumer is a sibling
-adapter inside the library. Consumer sub-packages adapt a phase's artefacts to
-that layer; `evaluation/imputation/` is the first of them.
+`C2STResult`. It is public and top-level-importable from
+`dataforge_ml.evaluation` (ADR-0087's amendment, #537): a user can run `c2st`
+directly as an ad hoc distributional check on any two frames. Consumer
+sub-packages adapt a phase's artefacts to that layer; `evaluation/imputation/`
+is the first of them.
 
 ## Reading a report
 
-`evaluate_imputation` returns one record per **active** column, always —
+`imputation_score_c2st` returns one record per **active** column, always —
 *untestable is a result, never an absence*. A column the test could not run on
 carries a `C2STOutcome` naming why and no `C2STScore` object at all, so
 `record.score.mean_frame_z` raises `AttributeError` rather than reading a
@@ -44,27 +45,27 @@ Two things the rendered report says that are worth stating here too:
 ## Entry point
 
 ```{eval-rst}
-.. autofunction:: dataforge_ml.evaluation.imputation._adapter.evaluate_imputation
+.. autofunction:: dataforge_ml.evaluation.imputation._adapter.imputation_score_c2st
+```
+
+## Generic two-sample test
+
+```{eval-rst}
+.. autofunction:: dataforge_ml.evaluation._c2st.c2st
+```
+
+```{eval-rst}
+.. autoexception:: dataforge_ml.evaluation._c2st.C2STSampleFloorError
+```
+
+```{eval-rst}
+.. autoexception:: dataforge_ml.evaluation._c2st.C2STDtypeError
 ```
 
 ## Configuration
 
 ```{eval-rst}
-.. autoclass:: dataforge_ml.evaluation._config.EvaluationConfig
-   :members:
-   :undoc-members:
-   :show-inheritance:
-```
-
-```{eval-rst}
 .. autoclass:: dataforge_ml.evaluation._config.C2STConfig
-   :members:
-   :undoc-members:
-   :show-inheritance:
-```
-
-```{eval-rst}
-.. autoclass:: dataforge_ml.evaluation._config.EvaluationMetric
    :members:
    :undoc-members:
    :show-inheritance:
@@ -78,12 +79,6 @@ Two things the rendered report says that are worth stating here too:
 ```
 
 ## Records
-
-```{eval-rst}
-.. autoclass:: dataforge_ml.evaluation.imputation._records.EvaluationReport
-   :members:
-   :show-inheritance:
-```
 
 ```{eval-rst}
 .. autoclass:: dataforge_ml.evaluation.imputation._records.C2STReport

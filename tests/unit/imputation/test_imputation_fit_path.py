@@ -1,9 +1,9 @@
 """
-Unit tests for the layered imputation fit path (decide → execute → build).
+Unit tests for the layered imputation fit path (route → execute → build).
 
 These cover the whole-frame contracts the aggregate owns — the full-schema
 manifest, Passthrough and Indicator projection, sentinel threading, and the
-decide-time size guards.  They previously drove the fused
+route-time size guards.  They previously drove the fused
 ``ImputationOrchestrator.fit()``; that seam is gone (#368) and the assertions
 now drive ``fit_imputer``, the layered drive.
 
@@ -341,20 +341,13 @@ def test_fit_numeric_sentinels_empty_when_profile_has_none():
 # The ``per_column_strategy`` model-based size guards
 # (``_validate_model_based_size_guards``) were validated inside the fused
 # ``ImputationOrchestrator.fit()`` and were tested here.  They are gone with that
-# seam (#368), and the layered path does not reproduce them:
+# seam (#368), and the layered path does not reproduce them as a raise:
 #
-# - forced **MICE** below ``mice_min_rows`` (the floor formerly named
-#   ``regression_min_rows``, before the ADR-0079 collapse folded Regression into
-#   MICE) is still caught, but as an execute-time ``UnitNotTrainableError`` rather
-#   than a decide-time ``ValueError`` naming the dial to change (ADR-0029/0066);
-# - forced **KNN** above ``knn_max_rows`` / ``knn_max_features`` is no longer caught
-#   at all — it plans and trains silently.
-#
-# ``decide()`` deliberately does not carry these guards: its own unit tests pin
-# that a forced strategy the shape cannot support is still *planned*, and that
-# execution is what refuses it.  Re-homing the KNN guard is therefore a design
-# decision (which layer owns a "your config contradicts your data" refusal), left
-# to a follow-up rather than settled inside a removal ticket.
+# - forced **MICE** or **KNN** past the Feasibility Floor / Resource Ceiling
+#   (``mice_min_rows_per_predictor`` / ``knn_max_rows``) is informed consent
+#   (ADR-0071, ADR-0088, ADR-0091): ``route()`` records every failed term as a
+#   signal on the column and the unit still trains — never a raise, at either
+#   layer. See ``test_escalation.py`` for the floor/ceiling signal coverage.
 
 
 def test_imputation_orchestrator_raises_on_invalid_config_before_processing():
@@ -371,7 +364,7 @@ def test_imputation_orchestrator_raises_on_invalid_config_before_processing():
     # Set per_column_strategy using legitimate setter, creating conflict
     cfg.imputation.numeric.set_per_column_strategy("a", ImputationStrategy.Median)
     
-    # ``decide()`` validates the config before it routes anything, so a
-    # contradictory config is rejected at plan time rather than at fit time.
+    # ``route()`` validates the config before it routes anything, so a
+    # contradictory config is rejected at route time rather than at fit time.
     with pytest.raises(ValueError, match="mutually exclusive: 'a'"):
         fit_imputer(df, profile, cfg)

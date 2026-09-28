@@ -17,7 +17,14 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
-from dataforge_ml import PipelineConfig, StructuralProfiler, decide, fit_unit
+from dataforge_ml import (
+    PipelineConfig,
+    StructuralProfiler,
+    derive_units,
+    fit_unit,
+    resolve_recipe,
+    route,
+)
 from tests.conftest import fit_imputer
 
 # ---------------------------------------------------------------------------
@@ -138,8 +145,10 @@ def test_fit_unit_applies_the_floor_after_null_resolution(
     config, df, profile = floor_setup
     calls = capture_floor("dataforge_ml.imputation._unit_fit")
 
-    plan = decide(profile, len(df), config)
-    fit_unit(plan, plan.units[0], df, random_seed=config.random_seed)
+    routing = route(profile, config)
+    recipe = resolve_recipe(routing, profile, config)
+    units = derive_units(routing)
+    fit_unit(recipe, units[0], df, random_seed=config.random_seed)
 
     assert calls, "fit_unit never applied the floor"
     _assert_floor_holds(*calls[0])

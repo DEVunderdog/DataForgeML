@@ -36,6 +36,8 @@ Locked decisions:
 
 accepted; supersedes the pin-when-parallel documentation clause of ADR-0075 (the locked decision that "a user who parallelises `fit_unit` calls themselves must pass `n_jobs_inner=1`"). ADR-0075's removal of `fit_many` and its retention of the `-1` default are unaffected. ADR-0069's layer rule is unamended and is the authority `core_budget` implements.
 
+Amended by [What fit_unit consumes](https://github.com/DEVunderdog/DataForgeML/issues/532) (map #528): the signature is `core_budget(routing, max_workers, total_cores=None)`. Every input (the units via `derive_units`, whether a KNN unit exists, `mice_model_choice` including `Custom`) is on `ImputationRouting`, and no dial changes the answer. A caller holding a recipe passes `recipe.routing`. Gained: the machine can be priced before a recipe is resolved, and the budget cannot look dial-dependent. Given up: one attribute hop. It relies on `mice_model_choice == Custom` staying on routing wherever the custom estimator object ends up. The free-function reasoning below stands, with "plan" read as "routing".
+
 ## Considered Options
 
 - **Leave the arithmetic to the user and improve the documentation.** The zero-surface option, and consistent with #377's handing scheduling back. Rejected because the three facts the derivation needs — MICE is the only `n_jobs_inner` forward, RandomForest is the only receiver, `KNNImputer` has none — are all library internals, two of which are undocumented implementation details subject to change. Documenting them would freeze them as public contract, which is a *larger* commitment than exporting one function that reads them.

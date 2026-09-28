@@ -1,33 +1,32 @@
-"""The manual authoring door — ``author()`` builds a real plan (#468/#469, ADR-0083).
+"""The manual authoring door — ``author()`` builds a real routing (ADR-0090).
 
 Every assertion drives the public API only: ``author`` in, an
-:class:`ImputationDecision` out, and where a plan has to *work* it is worked
-through ``fit_unit`` → ``compose`` → ``transform``. Nothing here reaches for
-``_derive_units``, a fitter internal, or the dial table's identity — the door's
-promise is that a hand-authored plan is indistinguishable downstream, and that
-is only testable from downstream.
+``ImputationRouting`` out, and where a routing has to *work* it is worked
+through ``resolve_recipe`` → ``derive_units`` → ``fit_unit`` → ``compose`` →
+``transform``. The door's promise is that a hand-authored routing is
+indistinguishable downstream from a routed one.
 """
 
 from __future__ import annotations
 
-import warnings
-
 import numpy as np
 import polars as pl
 import pytest
-from sklearn.tree import DecisionTreeRegressor
 
 import dataforge_ml
 from dataforge_ml import (
     AuthoredColumn,
     FittedImputer,
-    ImputationDecision,
+    ImputationRouting,
     ImputationStrategy,
-    ModelChoice,
+    PipelineConfig,
     SemanticType,
+    StructuralProfiler,
+    UnitNotTrainableError,
     author,
-    core_budget,
+    derive_units,
     fit_unit,
+    resolve_recipe,
 )
 
 COLUMNS = ["score", "revenue", "rating", "label"]
@@ -56,10 +55,20 @@ def _frame(n=240, seed=11):
     )
 
 
-def _drive(plan, df):
-    """The user-orchestrated loop: train every planned unit, then compose."""
-    results = [fit_unit(plan, unit, df, random_seed=7) for unit in plan.units]
-    return FittedImputer.compose(plan, results), results
+def _profile(df=None, config=None):
+    df = df if df is not None else _frame()
+    config = config or PipelineConfig()
+    return StructuralProfiler(config=config).profile(df)
+
+
+def _drive(routing, df, config=None):
+    """The user-orchestrated loop: route → recipe → train every unit → compose."""
+    config = config or PipelineConfig()
+    profile = _profile(df, config)
+    recipe = resolve_recipe(routing, profile, config)
+    units = derive_units(routing)
+    results = [fit_unit(recipe, unit, df, random_seed=7) for unit in units]
+    return FittedImputer.compose(recipe, results), results
 
 
 # ---------------------------------------------------------------------------
@@ -81,75 +90,76 @@ def test_exported_from_package_root_and_subpackage(name):
 # ---------------------------------------------------------------------------
 
 
-def test_names_alone_are_enough_no_data_anywhere_in_the_call():
-    plan = author(
-        {"score": ImputationStrategy.Median},
-        columns=["score", "revenue"],
-    )
-    assert isinstance(plan, ImputationDecision)
-    assert set(plan.column_decisions) == {"score", "revenue"}
+def test_names_and_types_alone_are_enough_no_statistics_touched():
+    profile = _profile()
+    routing = author({"score": ImputationStrategy.Median}, profile=profile)
+    assert isinstance(routing, ImputationRouting)
+    assert set(routing.column_routings) == set(COLUMNS)
+
+
+def test_author_takes_no_data_dependent_arguments():
+    import inspect
+
+    sig = inspect.signature(author)
+    param_names = list(sig.parameters.keys())
+    assert param_names == ["columns_map", "profile", "base", "default"]
+    assert sig.parameters["profile"].kind == inspect.Parameter.KEYWORD_ONLY
+    assert sig.parameters["base"].kind == inspect.Parameter.KEYWORD_ONLY
+    assert sig.parameters["default"].kind == inspect.Parameter.KEYWORD_ONLY
 
 
 def test_unnamed_columns_take_the_default():
-    columns = [f"c{i}" for i in range(40)]
-    named = {c: ImputationStrategy.Median for c in columns[:3]}
-    plan = author(named, columns=columns, default=ImputationStrategy.Mean)
+    profile = _profile()
+    named = {"score": ImputationStrategy.Median}
+    routing = author(named, profile=profile, default=ImputationStrategy.Passthrough)
 
-    assert [c for c in plan.column_decisions] == columns
-    for col in columns[:3]:
-        assert plan.column_decisions[col].strategy == ImputationStrategy.Median
-    others = [plan.column_decisions[c].strategy for c in columns[3:]]
-    assert others == [ImputationStrategy.Mean] * 37
+    assert routing.column_routings["score"].strategy == ImputationStrategy.Median
+    for col in ("revenue", "rating", "label"):
+        assert routing.column_routings[col].strategy == ImputationStrategy.Passthrough
 
 
 def test_default_is_passthrough():
-    plan = author({}, columns=["a", "b"])
+    routing = author({}, profile=_profile())
     assert all(
-        d.strategy == ImputationStrategy.Passthrough
-        for d in plan.column_decisions.values()
+        r.strategy == ImputationStrategy.Passthrough
+        for r in routing.column_routings.values()
     )
 
 
-def test_semantic_type_is_stamped_numeric():
-    plan = author({"score": ImputationStrategy.Mean}, columns=COLUMNS)
-    assert plan.column_decisions["score"].semantic_type == SemanticType.Numeric
+def test_semantic_type_is_read_off_the_profile():
+    profile = _profile()
+    routing = author({"score": ImputationStrategy.Mean}, profile=profile)
+    assert routing.column_routings["score"].semantic_type == SemanticType.Numeric
+    assert routing.column_routings["label"].semantic_type != SemanticType.Numeric
 
 
-def test_signals_are_empty_and_config_snapshot_may_be_empty():
-    plan = author({"score": ImputationStrategy.Mean}, columns=COLUMNS)
-    assert all(d.signals == () for d in plan.column_decisions.values())
-    assert plan.config_snapshot == {}
-
-
-def test_authored_column_facts_land_on_the_decision():
-    plan = author(
-        {
-            "rating": AuthoredColumn(
-                strategy=ImputationStrategy.ClusterConditional,
-                center1=1.0,
-                center2=5.0,
-                feature_cols=("score", "revenue"),
-                domain_snap_bounds=(1.0, 5.0),
-            )
-        },
-        columns=COLUMNS,
-    )
-    decision = plan.column_decisions["rating"]
-    assert decision.center1 == 1.0
-    assert decision.center2 == 5.0
-    assert decision.feature_cols == ("score", "revenue")
-    assert decision.domain_snap_bounds == (1.0, 5.0)
+def test_signals_are_empty():
+    routing = author({"score": ImputationStrategy.Mean}, profile=_profile())
+    assert all(r.signals == () for r in routing.column_routings.values())
 
 
 def test_constant_fill_lands_and_is_applied():
-    plan = author(
+    df = _frame()
+    routing = author(
         {"rating": AuthoredColumn(ImputationStrategy.Constant, constant_fill=3.0)},
-        columns=COLUMNS,
+        profile=_profile(df),
     )
-    assert plan.column_decisions["rating"].constant_fill == 3.0
-    imputer, _ = _drive(plan, _frame())
-    out = imputer.transform(_frame())
+    assert routing.column_routings["rating"].constant_fill == 3.0
+    imputer, _ = _drive(routing, df)
+    out = imputer.transform(df)
     assert out.dataframe["rating"].null_count() == 0
+
+
+def test_grouping_variable_lands_on_the_routing():
+    routing = author(
+        {
+            "rating": AuthoredColumn(
+                ImputationStrategy.ClusterConditional, grouping_variable="label"
+            )
+        },
+        profile=_profile(),
+    )
+    assert routing.column_routings["rating"].grouping_variable == "label"
 
 
 # ---------------------------------------------------------------------------
@@ -158,27 +168,56 @@ def test_constant_fill_lands_and_is_applied():
 
 
 def test_mnar_derives_its_flags_and_registers_an_indicator_column():
-    plan = author({"score": ImputationStrategy.MNAR}, columns=COLUMNS)
+    routing = author({"score": ImputationStrategy.MNAR}, profile=_profile())
 
-    decision = plan.column_decisions["score"]
-    assert decision.mnar is True
-    assert decision.indicator_flag is True
-    assert decision.drop is False
+    entry = routing.column_routings["score"]
+    assert entry.mnar is True
+    assert entry.indicator_flag is True
+    assert entry.drop is False
 
-    indicator = plan.column_decisions["score_missing"]
+    indicator = routing.column_routings["score_missing"]
     assert indicator.strategy == ImputationStrategy.Indicator
     assert indicator.semantic_type == SemanticType.Boolean
 
 
 def test_dropped_derives_the_drop_flag():
-    plan = author({"rating": ImputationStrategy.Dropped}, columns=COLUMNS)
-    assert plan.column_decisions["rating"].drop is True
-    assert plan.dropped_columns == ("rating",)
+    routing = author({"rating": ImputationStrategy.Dropped}, profile=_profile())
+    assert routing.column_routings["rating"].drop is True
+
+
+def test_excluded_is_carried_from_the_declaration():
+    routing = author(
+        {
+            "rating": AuthoredColumn(
+                strategy=ImputationStrategy.Passthrough, excluded=True
+            )
+        },
+        profile=_profile(),
+    )
+    assert routing.column_routings["rating"].excluded is True
+    assert routing.column_routings["score"].excluded is False
+
+
+def test_an_excluded_column_is_never_a_knn_predictor():
+    df = _frame()
+    routing = author(
+        {
+            "score": ImputationStrategy.KNN,
+            "revenue": ImputationStrategy.KNN,
+            "rating": AuthoredColumn(
+                strategy=ImputationStrategy.Passthrough, excluded=True
+            ),
+        },
+        profile=_profile(df),
+    )
+    _, results = _drive(routing, df)
+    (knn,) = [r.fitted for r in results if r.unit_id == "knn"]
+    assert "rating" not in knn.all_cols
 
 
 def test_non_mnar_columns_get_no_indicator_entry():
-    plan = author({"score": ImputationStrategy.Median}, columns=COLUMNS)
-    assert "score_missing" not in plan.column_decisions
+    routing = author({"score": ImputationStrategy.Median}, profile=_profile())
+    assert "score_missing" not in routing.column_routings
 
 
 # ---------------------------------------------------------------------------
@@ -186,338 +225,395 @@ def test_non_mnar_columns_get_no_indicator_entry():
 # ---------------------------------------------------------------------------
 
 
-def test_map_key_absent_from_columns_raises():
+def test_neither_profile_nor_base_raises():
+    with pytest.raises(ValueError, match="exactly one"):
+        author({"score": ImputationStrategy.Mean})
+
+
+def test_both_profile_and_base_raises():
+    profile = _profile()
+    base = author({}, profile=profile)
+    with pytest.raises(ValueError, match="exactly one"):
+        author({}, profile=profile, base=base)
+
+
+def test_map_key_absent_from_the_universe_raises():
     with pytest.raises(ValueError, match="typo"):
-        author({"typo": ImputationStrategy.Mean}, columns=COLUMNS)
+        author({"typo": ImputationStrategy.Mean}, profile=_profile())
 
 
 def test_mice_for_a_single_column_raises():
     with pytest.raises(ValueError, match="score"):
-        author({"score": ImputationStrategy.MICE}, columns=COLUMNS)
+        author({"score": ImputationStrategy.MICE}, profile=_profile())
 
 
 def test_constant_without_a_fill_raises():
     with pytest.raises(ValueError, match="rating"):
-        author({"rating": ImputationStrategy.Constant}, columns=COLUMNS)
+        author({"rating": ImputationStrategy.Constant}, profile=_profile())
 
 
-@pytest.mark.parametrize(
-    "strategy",
-    [ImputationStrategy.GMMSampling, ImputationStrategy.ClusterConditional],
-)
-@pytest.mark.parametrize("centres", [{}, {"center1": 1.0}, {"center2": 5.0}])
-def test_bimodal_without_both_centres_raises(strategy, centres):
+def test_excluded_with_a_strategy_other_than_passthrough_raises():
     with pytest.raises(ValueError, match="rating"):
         author(
-            {"rating": AuthoredColumn(strategy, grouping_variable="label", **centres)},
-            columns=COLUMNS,
-        )
-
-
-@pytest.mark.parametrize("feature_cols", [None, ()])
-def test_cluster_conditional_without_a_partition_raises(feature_cols):
-    with pytest.raises(ValueError, match="rating"):
-        author(
-            {
-                "rating": AuthoredColumn(
-                    ImputationStrategy.ClusterConditional,
-                    center1=1.0,
-                    center2=5.0,
-                    feature_cols=feature_cols,
-                )
-            },
-            columns=COLUMNS,
+            {"rating": AuthoredColumn(strategy=ImputationStrategy.Median, excluded=True)},
+            profile=_profile(),
         )
 
 
 def test_indicator_anywhere_in_the_map_raises():
     with pytest.raises(ValueError, match="rating"):
-        author({"rating": ImputationStrategy.Indicator}, columns=COLUMNS)
+        author({"rating": ImputationStrategy.Indicator}, profile=_profile())
 
 
 def test_indicator_as_the_default_raises():
     with pytest.raises(ValueError, match="Indicator"):
-        author({}, columns=COLUMNS, default=ImputationStrategy.Indicator)
+        author({}, profile=_profile(), default=ImputationStrategy.Indicator)
 
 
-def test_a_non_numeric_semantic_type_raises():
-    # A column decision is AuthoredColumn-shaped, so it is the one thing a user
-    # can hand the door that carries a semantic type of its own.
-    foreign = dataforge_ml.ColumnImputationDecision(
-        column="label",
-        semantic_type=SemanticType.Categorical,
-        strategy=ImputationStrategy.Mode,
-    )
+def test_a_non_numeric_column_declared_anything_but_passthrough_or_dropped_raises():
     with pytest.raises(ValueError, match="label"):
-        author({"label": foreign}, columns=COLUMNS)
+        author({"label": ImputationStrategy.Mode}, profile=_profile())
+
+
+def test_a_non_numeric_column_may_be_declared_passthrough_or_dropped():
+    routing = author(
+        {"label": ImputationStrategy.Dropped}, profile=_profile()
+    )
+    assert routing.column_routings["label"].strategy == ImputationStrategy.Dropped
 
 
 def test_an_unknown_strategy_name_raises():
     with pytest.raises(ValueError, match="score"):
-        author({"score": "interpolate"}, columns=COLUMNS)
+        author({"score": "interpolate"}, profile=_profile())
+
+
+def test_an_unrecognised_value_type_raises_type_error():
+    with pytest.raises(TypeError, match="score"):
+        author({"score": 42}, profile=_profile())
 
 
 # ---------------------------------------------------------------------------
-# The decided base, and the dial grammar on top of it
+# Re-authoring: base=
 # ---------------------------------------------------------------------------
 
 
-def test_with_hyperparameters_works_on_a_hand_authored_plan():
-    plan = author(
+def test_reauthoring_carries_unnamed_columns_verbatim():
+    profile = _profile()
+    base = author({"score": ImputationStrategy.Median}, profile=profile)
+    edited = author({"revenue": ImputationStrategy.Mean}, base=base)
+
+    assert edited.column_routings["score"] is base.column_routings["score"]
+    assert edited.column_routings["revenue"].strategy == ImputationStrategy.Mean
+
+
+def test_reauthoring_an_unknown_column_raises():
+    base = author({}, profile=_profile())
+    with pytest.raises(ValueError, match="typo"):
+        author({"typo": ImputationStrategy.Mean}, base=base)
+
+
+def test_reauthoring_replaces_indicator_entries():
+    profile = _profile()
+    base = author({"score": ImputationStrategy.MNAR}, profile=profile)
+    assert "score_missing" in base.column_routings
+
+    edited = author({"score": ImputationStrategy.Median}, base=base)
+    assert "score_missing" not in edited.column_routings
+
+
+def test_reauthoring_non_numeric_column_with_invalid_strategy_raises():
+    profile = _profile()
+    base = author({"score": ImputationStrategy.Median}, profile=profile)
+    with pytest.raises(ValueError, match="label"):
+        author({"label": ImputationStrategy.Mean}, base=base)
+
+
+def test_reauthoring_carries_mice_estimator_when_mice_columns_remain():
+    from sklearn.linear_model import Ridge
+
+    from dataforge_ml.imputation._config import ModelChoice
+
+    profile = _profile()
+    base = author(
         {"score": ImputationStrategy.MICE, "revenue": ImputationStrategy.MICE},
-        columns=COLUMNS,
-    )
-    edited = plan.with_hyperparameters("mice", {"max_iter": 3})
-    hyp = dict(next(u for u in edited.units if u.unit_id == "mice").hyperparameters)
+        profile=profile,
+    ).with_model_choice(ModelChoice.RandomForestRegressor)
 
-    assert hyp["max_iter"] == 3
-    # The base is complete: the keys the author did not name survive the edit.
-    assert set(hyp) == {"max_iter", "tol", "initial_strategy", "n_nearest_features"}
+    # Edit an unrelated column: MICE columns remain
+    edited = author({"rating": ImputationStrategy.Mean}, base=base)
+    assert edited.mice_model_choice == ModelChoice.RandomForestRegressor
+    assert edited.mice_estimator is None
 
-
-def test_an_undialable_key_raises_like_it_does_on_a_decided_plan():
-    plan = author(
-        {"score": ImputationStrategy.KNN, "revenue": ImputationStrategy.KNN},
-        columns=COLUMNS,
-    )
-    with pytest.raises(ValueError, match="max_iter"):
-        plan.with_hyperparameters("knn", {"max_iter": 3})
+    # Custom estimator instance carries by identity
+    estimator = Ridge()
+    base_custom = base.with_model_choice(estimator)
+    edited_custom = author({"rating": ImputationStrategy.Mean}, base=base_custom)
+    assert edited_custom.mice_model_choice == ModelChoice.Custom
+    assert edited_custom.mice_estimator is estimator
 
 
-def test_the_decided_base_survives_a_round_trip():
-    plan = author(
+def test_reauthoring_creates_mice_block_stamped_bayesian_ridge():
+    from dataforge_ml.imputation._config import ModelChoice
+
+    profile = _profile()
+    base = author({"score": ImputationStrategy.Median}, profile=profile)
+    assert base.mice_model_choice is None
+
+    # Edit creates the MICE block
+    edited = author(
         {"score": ImputationStrategy.MICE, "revenue": ImputationStrategy.MICE},
-        columns=COLUMNS,
+        base=base,
     )
-    assert ImputationDecision.from_dict(plan.to_dict()) == plan
+    assert edited.mice_model_choice == ModelChoice.BayesianRidge
+    assert edited.mice_estimator is None
 
 
-# ---------------------------------------------------------------------------
-# The plan trains, transforms, and prices
-# ---------------------------------------------------------------------------
+def test_reauthoring_dissolves_mice_block_clears_estimator():
+    from dataforge_ml.imputation._config import ModelChoice
 
-
-def test_a_bare_mice_plan_resolves_bayesian_ridge_and_trains():
-    plan = author(
+    profile = _profile()
+    base = author(
         {"score": ImputationStrategy.MICE, "revenue": ImputationStrategy.MICE},
-        columns=COLUMNS,
+        profile=profile,
+    ).with_model_choice(ModelChoice.RandomForestRegressor)
+
+    # Edit dissolves the MICE block
+    edited = author(
+        {"score": ImputationStrategy.Median, "revenue": ImputationStrategy.Mean},
+        base=base,
     )
-    assert plan.column_decisions["score"].model_choice == ModelChoice.BayesianRidge
+    assert edited.mice_model_choice is None
+    assert edited.mice_estimator is None
+
+
+def test_base_edited_routing_round_trips_through_resolve_recipe():
+    from dataforge_ml import route
 
     df = _frame()
-    imputer, results = _drive(plan, df)
-    mice = next(r for r in results if r.unit_id == "mice")
-    assert mice.signals.estimator == "Pipeline(StandardScaler+BayesianRidge)"
+    profile = _profile(df)
+    base = route(profile)
 
-    out = imputer.transform(df)
-    assert out.dataframe["score"].null_count() == 0
-    assert out.dataframe["revenue"].null_count() == 0
+    # Re-author one column
+    edited = author({"revenue": ImputationStrategy.Median}, base=base)
+    recipe = resolve_recipe(edited, profile, PipelineConfig())
+
+    assert recipe.routing is edited
+    assert (
+        recipe.routing.column_routings["revenue"].strategy
+        == ImputationStrategy.Median
+    )
+    # Unnamed columns keep base ColumnRouting verbatim, signals included
+    for col, r in base.column_routings.items():
+        if col not in ("revenue", "revenue_missing"):
+            assert recipe.routing.column_routings[col] is r
+
+
+# ---------------------------------------------------------------------------
+# The routing trains, transforms end to end
+# ---------------------------------------------------------------------------
 
 
 def test_a_hand_authored_cluster_conditional_fills_its_nulls():
-    # The silent no-op the door's authoring-time check closes: a unit with no
-    # partition fits cleanly and fills zero cells. This one has centres and
-    # features, so it must actually fill.
-    plan = author(
+    df = _frame()
+    profile = _profile(df)
+    routing = author(
         {
-            "rating": AuthoredColumn(
-                ImputationStrategy.ClusterConditional,
-                center1=2.0,
-                center2=4.0,
-                feature_cols=("score", "revenue"),
-            ),
+            "rating": ImputationStrategy.ClusterConditional,
             "score": ImputationStrategy.Median,
             "revenue": ImputationStrategy.Median,
         },
-        columns=COLUMNS,
+        profile=profile,
     )
-    df = _frame()
     assert df["rating"].null_count() > 0
 
-    imputer, _ = _drive(plan, df)
+    imputer, _ = _drive(routing, df)
     out = imputer.transform(df)
     assert out.dataframe["rating"].null_count() == 0
 
 
 def test_passthrough_leaves_a_column_and_its_nulls_alone():
-    plan = author({}, columns=COLUMNS)
     df = _frame()
-    imputer, _ = _drive(plan, df)
+    routing = author({}, profile=_profile(df))
+    imputer, _ = _drive(routing, df)
     out = imputer.transform(df)
     assert out.dataframe.equals(df)
 
 
-def test_sentinels_normalise_including_on_a_passthrough_column():
-    df = _frame().with_columns(
-        pl.col("rating").fill_null(-999.0),
-        pl.col("score").fill_null(-999.0),
-    )
-    plan = author(
-        {"score": ImputationStrategy.Median},
-        columns=COLUMNS,
-        numeric_sentinels={"score": [-999.0], "rating": [-999.0]},
-    )
-    assert plan.numeric_sentinels == {"score": [-999.0], "rating": [-999.0]}
-
-    imputer, _ = _drive(plan, df)
-    out = imputer.transform(df)
-
-    # The imputed column's sentinels became fills, not observations.
-    assert -999.0 not in out.dataframe["score"].to_list()
-    assert out.dataframe["score"].null_count() == 0
-    # The Passthrough column's sentinels became nulls and were then left alone.
-    assert -999.0 not in out.dataframe["rating"].to_list()
-    assert out.dataframe["rating"].null_count() > 0
-
-
-def test_a_scalar_fill_is_learned_from_sentinel_normalised_data():
-    df = _frame().with_columns(pl.col("score").fill_null(-999.0))
-    plan = author(
-        {"score": ImputationStrategy.Mean},
-        columns=COLUMNS,
-        numeric_sentinels={"score": [-999.0]},
-    )
-    imputer, _ = _drive(plan, df)
-    assert 20.0 < imputer.records["score"].fill_value < 80.0
-
-
-def test_core_budget_prices_a_hand_authored_plan():
-    plan = author(
-        {
-            "score": ImputationStrategy.MICE,
-            "revenue": ImputationStrategy.MICE,
-            "rating": ImputationStrategy.Median,
-        },
-        columns=COLUMNS,
-    )
-    budget = core_budget(plan, max_workers=1, total_cores=8)
-    assert set(budget) == {u.unit_id for u in plan.units}
-    assert budget["mice"] == -1
-    assert budget["median:rating"] == 1
-
-
-# ---------------------------------------------------------------------------
-# The estimators channel — a foreign estimator on the plan (#469, ADR-0083)
-# ---------------------------------------------------------------------------
-
-
-def _mice_plan(**kwargs):
-    return author(
-        {"score": ImputationStrategy.MICE, "revenue": ImputationStrategy.MICE},
-        columns=COLUMNS,
-        **kwargs,
-    )
-
-
-def test_a_supplied_estimator_stamps_custom_on_every_column_of_the_unit():
-    model = DecisionTreeRegressor(max_depth=3, random_state=0)
-    plan = _mice_plan(estimators={"mice": model})
-
-    assert plan.column_decisions["score"].model_choice == ModelChoice.Custom
-    assert plan.column_decisions["revenue"].model_choice == ModelChoice.Custom
-    # Columns outside the unit are untouched.
-    assert plan.column_decisions["rating"].model_choice is None
-
-
-def test_the_plan_holds_the_callers_object_itself_never_a_clone():
-    model = DecisionTreeRegressor(max_depth=3, random_state=0)
-    plan = _mice_plan(estimators={"mice": model})
-
-    assert plan.custom_estimators["mice"] is model
-
-
-@pytest.mark.parametrize(
-    "edit",
-    [
-        lambda p: p.with_hyperparameters("mice", {"max_iter": 4}),
-        lambda p: p.with_model_choice("rating", ModelChoice.BayesianRidge),
-    ],
-    ids=["with_hyperparameters", "with_model_choice"],
-)
-def test_identity_survives_every_derived_copy(edit):
-    model = DecisionTreeRegressor(max_depth=3, random_state=0)
-    plan = _mice_plan(estimators={"mice": model})
-
-    assert edit(plan).custom_estimators["mice"] is model
-
-
-def test_the_unit_itself_carries_no_estimator():
-    """``ImputationUnit`` stays estimator-free, so a two-estimator block is
-    structurally impossible rather than checked (ADR-0083)."""
-    model = DecisionTreeRegressor(max_depth=3, random_state=0)
-    plan = _mice_plan(estimators={"mice": model})
-    unit = next(u for u in plan.units if u.unit_id == "mice")
-
-    assert not any(
-        getattr(unit, name) is model for name in unit.__dataclass_fields__
-    )
-
-
-def test_the_supplied_estimator_is_what_actually_trains():
-    model = DecisionTreeRegressor(max_depth=3, random_state=0)
-    plan = _mice_plan(estimators={"mice": model})
-
-    df = _frame()
-    imputer, results = _drive(plan, df)
-    mice = next(r for r in results if r.unit_id == "mice")
-
-    assert mice.signals.estimator == "DecisionTreeRegressor"
-    out = imputer.transform(df)
-    assert out.dataframe["score"].null_count() == 0
-    assert out.dataframe["revenue"].null_count() == 0
-
-
-def test_an_already_fitted_estimator_is_accepted_without_raise_or_warning():
-    fitted = DecisionTreeRegressor(max_depth=3, random_state=0)
-    fitted.fit(np.arange(20.0).reshape(-1, 1), np.arange(20.0))
-    assert hasattr(fitted, "tree_")  # it really is fitted
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        plan = _mice_plan(estimators={"mice": fitted})
-
-    # And it trains: sklearn refits from scratch, so the prior state is inert.
-    df = _frame()
-    imputer, _ = _drive(plan, df)
-    assert imputer.transform(df).dataframe["score"].null_count() == 0
-
-
-def test_an_unknown_unit_id_raises():
-    with pytest.raises(ValueError, match="no such unit"):
-        _mice_plan(estimators={"knn": DecisionTreeRegressor()})
-
-
-def test_a_unit_with_no_estimator_slot_raises():
-    with pytest.raises(ValueError, match="trains no estimator"):
-        author(
-            {"score": ImputationStrategy.Median},
-            columns=COLUMNS,
-            estimators={"median:score": DecisionTreeRegressor()},
-        )
-
-
-def test_a_none_estimator_raises_rather_than_stamping_an_empty_slot():
-    with pytest.raises(ValueError, match="no estimator"):
-        _mice_plan(estimators={"mice": None})
-
-
-def test_core_budget_prices_a_custom_unit_at_one_in_every_branch():
-    plan = _mice_plan(estimators={"mice": DecisionTreeRegressor()})
-
-    for max_workers in (1, 4, None):
-        budget = core_budget(plan, max_workers=max_workers, total_cores=12)
-        assert budget["mice"] == 1, max_workers
-
-
 def test_mnar_end_to_end_appends_the_indicator_column():
-    plan = author(
-        {"score": ImputationStrategy.MNAR},
-        columns=COLUMNS,
-    )
     df = _frame()
-    imputer, _ = _drive(plan, df)
+    routing = author({"score": ImputationStrategy.MNAR}, profile=_profile(df))
+    imputer, _ = _drive(routing, df)
     out = imputer.transform(df)
 
     assert "score_missing" in out.dataframe.columns
-    assert out.dataframe["score"].null_count() == 0
+    assert out.dataframe["score"].null_count() == df["score"].null_count()
     assert out.dataframe["score_missing"].sum() == df["score"].null_count()
+
+
+def test_a_bare_mice_declaration_structurally_survives_authoring_but_cannot_fit():
+    """MICE may be declared at the door (>=2 columns) with no model choice —
+    author() resolves no Estimator Ladder pick (ADR-0090), so the block
+    cannot train until with_model_choice sets one explicitly."""
+    routing = author(
+        {"score": ImputationStrategy.MICE, "revenue": ImputationStrategy.MICE},
+        profile=_profile(),
+    )
+    assert routing.mice_model_choice is None
+    df = _frame()
+    recipe = resolve_recipe(routing, _profile(df), PipelineConfig())
+    (unit,) = derive_units(routing, strategy=ImputationStrategy.MICE)
+    with pytest.raises(UnitNotTrainableError):
+        fit_unit(recipe, unit, df)
+
+
+def test_with_model_choice_sets_a_library_estimator_family():
+    from dataforge_ml.imputation._config import ModelChoice
+
+    routing = author(
+        {"score": ImputationStrategy.MICE, "revenue": ImputationStrategy.MICE},
+        profile=_profile(),
+    )
+    updated = routing.with_model_choice(ModelChoice.GradientBoostingRegressor)
+    assert updated.mice_model_choice == ModelChoice.GradientBoostingRegressor
+    assert updated.mice_estimator is None
+    # The original is untouched — with_model_choice returns a new routing.
+    assert routing.mice_model_choice is None
+
+
+def test_with_model_choice_sets_a_custom_estimator_instance():
+    from sklearn.linear_model import Ridge
+
+    from dataforge_ml.imputation._config import ModelChoice
+
+    routing = author(
+        {"score": ImputationStrategy.MICE, "revenue": ImputationStrategy.MICE},
+        profile=_profile(),
+    )
+    estimator = Ridge()
+    updated = routing.with_model_choice(estimator)
+    assert updated.mice_model_choice == ModelChoice.Custom
+    assert updated.mice_estimator is estimator
+
+
+def test_with_model_choice_raises_on_bare_custom_label():
+    from dataforge_ml.imputation._config import ModelChoice
+
+    routing = author(
+        {"score": ImputationStrategy.MICE, "revenue": ImputationStrategy.MICE},
+        profile=_profile(),
+    )
+    with pytest.raises(ValueError, match="Custom"):
+        routing.with_model_choice(ModelChoice.Custom)
+
+
+def test_with_model_choice_raises_when_routing_has_no_mice_block():
+    from dataforge_ml.imputation._config import ModelChoice
+
+    routing = author({"score": ImputationStrategy.Median}, profile=_profile())
+    with pytest.raises(ValueError, match="MICE"):
+        routing.with_model_choice(ModelChoice.RandomForestRegressor)
+
+
+def test_with_model_choice_works_identically_on_routed_and_authored_routings():
+    from sklearn.linear_model import Ridge
+
+    from dataforge_ml import route
+    from dataforge_ml.imputation._config import ModelChoice
+
+    df = _frame()
+    profile = _profile(df)
+
+    # 1. Routings with MICE block: authored vs routed
+    authored_mice = author(
+        {"score": ImputationStrategy.MICE, "revenue": ImputationStrategy.MICE},
+        profile=profile,
+    )
+    cfg_mice = PipelineConfig()
+    cfg_mice.imputation.numeric.set_per_column_strategy(
+        ["score", "revenue"], ImputationStrategy.MICE
+    )
+    routed_mice = route(profile, cfg_mice)
+
+    for r in (authored_mice, routed_mice):
+        # Setting a library family produces a new routing with choice set
+        updated_lib = r.with_model_choice(ModelChoice.GradientBoostingRegressor)
+        assert updated_lib.mice_model_choice == ModelChoice.GradientBoostingRegressor
+        assert updated_lib.mice_estimator is None
+        assert r.mice_model_choice != ModelChoice.GradientBoostingRegressor
+
+        # Setting a custom estimator instance sets ModelChoice.Custom and holds instance by identity
+        est = Ridge()
+        updated_custom = r.with_model_choice(est)
+        assert updated_custom.mice_model_choice == ModelChoice.Custom
+        assert updated_custom.mice_estimator is est
+        assert r.mice_estimator is None
+
+        # Bare ModelChoice.Custom raises ValueError
+        with pytest.raises(ValueError, match="Custom"):
+            r.with_model_choice(ModelChoice.Custom)
+
+    # 2. Routings with NO MICE block: authored vs routed
+    authored_no_mice = author({"score": ImputationStrategy.Median}, profile=profile)
+    routed_no_mice = route(profile)
+
+    for r in (authored_no_mice, routed_no_mice):
+        with pytest.raises(ValueError, match="MICE"):
+            r.with_model_choice(ModelChoice.RandomForestRegressor)
+        with pytest.raises(ValueError, match="MICE"):
+            r.with_model_choice(Ridge())
+
+
+def test_hand_authored_routing_with_forced_mice_and_bimodal_estimates_end_to_end():
+    from sklearn.linear_model import Ridge
+
+    from dataforge_ml.imputation._config import ModelChoice
+
+    df = _frame()
+    profile = _profile(df)
+
+    # score is normally distributed in _frame(), so center1/center2 will be None
+    assert profile.columns["score"].stats.bimodal_stats is None
+
+    # Hand-author routing with MICE and GMMSampling
+    routing = author(
+        {
+            "rating": ImputationStrategy.MICE,
+            "revenue": ImputationStrategy.MICE,
+            "score": ImputationStrategy.GMMSampling,
+        },
+        profile=profile,
+    )
+    # Set forced MICE estimator via with_model_choice
+    custom_estimator = Ridge()
+    routing = routing.with_model_choice(custom_estimator)
+    assert routing.mice_model_choice == ModelChoice.Custom
+    assert routing.mice_estimator is custom_estimator
+
+    # resolve_recipe leaves bimodal centres as None
+    recipe = resolve_recipe(routing, profile, PipelineConfig())
+    assert recipe.column_estimates["score"].center1 is None
+    assert recipe.column_estimates["score"].center2 is None
+
+    units = derive_units(recipe.routing)
+    gmm_unit = next(u for u in units if u.strategy == ImputationStrategy.GMMSampling)
+
+    # Attempting to fit before supplying estimates raises UnitNotTrainableError
+    with pytest.raises(UnitNotTrainableError) as exc_info:
+        fit_unit(recipe, gmm_unit, df)
+    assert "with_estimates" in exc_info.value.reason
+
+    # Supply the missing bimodal centres via with_estimates
+    recipe = recipe.with_estimates("score", center1=45.0, center2=55.0)
+    assert recipe.column_estimates["score"].center1 == 45.0
+    assert recipe.column_estimates["score"].center2 == 55.0
+
+    # Now fits successfully end to end
+    results = [fit_unit(recipe, unit, df, random_seed=42) for unit in units]
+    imputer = FittedImputer.compose(recipe, results)
+    out = imputer.transform(df)
+
+    assert out.dataframe["score"].null_count() == 0
+    assert out.dataframe["revenue"].null_count() == 0
+    assert out.dataframe["rating"].null_count() == 0
+    assert out.dataframe.shape == df.shape
+

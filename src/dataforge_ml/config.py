@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass, field
 from enum import StrEnum
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from dataforge_ml.imputation._config import ImputationConfig
@@ -95,7 +95,7 @@ class PipelineConfig:
     profiling: ProfileConfig = field(default_factory=_default_profile_config)
     imputation: ImputationConfig = field(default_factory=_default_imputation_config)
     split: SplitConfig = field(default_factory=_default_split_config)
-    random_seed: Optional[int] = None
+    random_seed: int | None = None
 
     @property
     def exclude_columns(self) -> tuple[str, ...]:
@@ -109,7 +109,7 @@ class PipelineConfig:
         return tuple(self._exclude_columns)
 
     @property
-    def phase_exclusions(self) -> "MappingProxyType[PipelinePhase, tuple[str, ...]]":
+    def phase_exclusions(self) -> MappingProxyType[PipelinePhase, tuple[str, ...]]:
         """Soft exclusions — columns bypassed for a specific phase but retained in the dataset.
 
         Returns
@@ -121,7 +121,7 @@ class PipelineConfig:
         return MappingProxyType({k: tuple(v) for k, v in self._phase_exclusions.items()})
 
     @property
-    def column_overrides(self) -> "MappingProxyType[str, SemanticType]":
+    def column_overrides(self) -> MappingProxyType[str, SemanticType]:
         """Explicit semantic type assignments respected by all downstream phases.
 
         Returns
@@ -133,7 +133,7 @@ class PipelineConfig:
         return MappingProxyType(self._column_overrides)
 
     @property
-    def numeric_kind_overrides(self) -> "MappingProxyType[str, NumericKind]":
+    def numeric_kind_overrides(self) -> MappingProxyType[str, NumericKind]:
         """Explicit NumericKind assignments for individual columns, applied after auto-detection in Phase 1.
 
         Only valid for columns whose final ``SemanticType`` is ``Numeric``;
@@ -175,7 +175,7 @@ class PipelineConfig:
         excluded = hard_set | soft_set
         return [c for c in available_columns if c not in excluded]
 
-    def add_exclusion(self, column: Union[str, list[str]]) -> None:
+    def add_exclusion(self, column: str | list[str]) -> None:
         """Add columns to the hard exclusion set, deduplicating automatically.
 
         Columns already present in the exclusion list and duplicate entries
@@ -195,7 +195,7 @@ class PipelineConfig:
                 self._exclude_columns.append(col)
                 existing.add(col)
 
-    def add_phase_exclusion(self, phase: Union[PipelinePhase, str], column: Union[str, list[str]]) -> None:
+    def add_phase_exclusion(self, phase: PipelinePhase | str, column: str | list[str]) -> None:
         """Add columns to the soft exclusion set for a specific phase.
 
         Parameters
@@ -218,7 +218,7 @@ class PipelineConfig:
                 existing.add(col)
 
     def set_column_type(
-        self, column: Union[str, list[str]], semantic_type: Union[str, SemanticType]
+        self, column: str | list[str], semantic_type: str | SemanticType
     ) -> None:
         """Explicitly set the semantic type for one or more columns, overriding auto-detection.
 
@@ -250,7 +250,7 @@ class PipelineConfig:
             self._column_overrides[col] = semantic_type
 
     def set_numeric_kind(
-        self, column: Union[str, list[str]], kind: Union[str, NumericKind]
+        self, column: str | list[str], kind: str | NumericKind
     ) -> None:
         """Explicitly set the ``NumericKind`` for one or more columns.
 

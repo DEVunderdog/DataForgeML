@@ -1,4 +1,4 @@
-"""Round-trip tests for ``EvaluationConfig`` and its nested ``C2STConfig``.
+"""Round-trip tests for ``C2STConfig``.
 
 Follows the shape of ``tests/unit/imputation/test_imputation_config.py``: the
 field list is asserted once so a new dial cannot be added without a decision,
@@ -12,8 +12,6 @@ from sklearn.dummy import DummyClassifier
 from dataforge_ml.evaluation import (
     C2STConfig,
     C2STScheme,
-    EvaluationConfig,
-    EvaluationMetric,
 )
 
 
@@ -70,25 +68,7 @@ def test_the_live_classifier_is_not_carried_across_the_round_trip():
     assert C2STConfig.from_dict(config.to_dict()).classifier is None
 
 
-def test_evaluation_config_nests_c2st_and_round_trips():
-    config = EvaluationConfig(c2st=C2STConfig(repeats=3, min_filled_cells=50))
-
-    restored = EvaluationConfig.from_dict(config.to_dict())
-
-    assert restored.c2st.repeats == 3
-    assert restored.c2st.min_filled_cells == 50
-    assert restored == config
-
-
-def test_evaluation_config_defaults_to_a_bare_c2st_config():
-    assert EvaluationConfig().c2st == C2STConfig()
-
-
-def test_evaluation_config_carries_no_observer_field():
+def test_c2st_config_carries_no_observer_field():
     # A live callable would break the serialisable, setter-only contract
     # (ADR-0044), so ``observer=`` rides the call instead.
-    assert "observer" not in {f.name for f in fields(EvaluationConfig)}
-
-
-def test_the_metric_enum_names_every_metric_the_library_has():
-    assert [m for m in EvaluationMetric] == [EvaluationMetric.C2ST]
+    assert "observer" not in {f.name for f in fields(C2STConfig)}

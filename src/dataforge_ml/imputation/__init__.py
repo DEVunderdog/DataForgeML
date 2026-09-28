@@ -1,16 +1,15 @@
 from ._authoring import AuthoredColumn, author
 from ._config import (
-    ColumnImputationDecision,
     ColumnImputationRecord,
+    ColumnRouting,
     ImputationConfig,
-    ImputationDecision,
     ImputationResult,
+    ImputationRouting,
     ImputationStrategy,
     ImputationUnit,
     ModelChoice,
     NumericImputationConfig,
 )
-from ._decision_assembler import decide
 from ._fit_signals import FitSignals, ImputationFitWarning
 from ._fitted_imputer import (
     DroppedColumnAbsentWarning,
@@ -19,21 +18,26 @@ from ._fitted_imputer import (
     FittedUnit,
     UnseenColumnError,
 )
-from ._unit_fit import UnitFitResult, UnitNotTrainableError, core_budget, fit_unit
+from ._recipe import ColumnEstimates, ImputationRecipe, resolve_recipe
+from ._router import route
+from ._unit_fit import UnitFitResult, UnitNotTrainableError, fit_unit
+from ._units import derive_units
 
 __all__ = [
     "AuthoredColumn",
-    "ColumnImputationDecision",
+    "ColumnEstimates",
     "ColumnImputationRecord",
+    "ColumnRouting",
     "DroppedColumnAbsentWarning",
     "FitSignals",
     "FittedColumnAbsentError",
     "FittedImputer",
     "FittedUnit",
     "ImputationConfig",
-    "ImputationDecision",
     "ImputationFitWarning",
+    "ImputationRecipe",
     "ImputationResult",
+    "ImputationRouting",
     "ImputationStrategy",
     "ImputationUnit",
     "ModelChoice",
@@ -42,7 +46,8 @@ __all__ = [
     "UnitNotTrainableError",
     "UnseenColumnError",
     "author",
-    "core_budget",
-    "decide",
+    "derive_units",
     "fit_unit",
+    "resolve_recipe",
+    "route",
 ]
