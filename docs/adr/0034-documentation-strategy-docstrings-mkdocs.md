@@ -1,6 +1,6 @@
 # ADR 0034: Documentation strategy — numpy-style docstrings as API contract, mkdocs + mkdocstrings for generation
 
-**Status:** Superseded by ADR-0038 (toolchain only — docstring rules unchanged)
+**Status:** Amended by ADR-0108 (Operations and Wire Records follow ADR-0108's Agent rule; this numpy rule now covers only the internal seams Operations call). Toolchain superseded by ADR-0038, itself superseded by ADR-0108 (the docs site is deleted).
 
 ## Context
 

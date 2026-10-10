@@ -1,0 +1,167 @@
+{
+  "input": {
+    "additionalProperties": false,
+    "properties": {
+      "path": {
+        "description": "A Declared Input path, exactly as the Harness gave it. A relative path is resolved from the working directory.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "type": "object"
+  },
+  "output": {
+    "additionalProperties": false,
+    "description": "The new frame Handle and the frame's shape. ``result.get(name)`` finds one column.",
+    "properties": {
+      "warnings": {
+        "description": "Caveats on this result, most actionable first. Empty when there are none.",
+        "items": {
+          "additionalProperties": false,
+          "description": "A caveat on a successful result: it worked, but read this first.",
+          "properties": {
+            "code": {
+              "description": "The warning's Error Code. Branch on this, not on ``message``.",
+              "type": "string"
+            },
+            "message": {
+              "description": "What happened and what to do, in one or two sentences.",
+              "type": "string"
+            },
+            "columns": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Columns the warning concerns, or null."
+            },
+            "param": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The argument the warning concerns, or null."
+            },
+            "hint": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Library-written advice, or null."
+            }
+          },
+          "required": [
+            "code",
+            "message",
+            "columns",
+            "param",
+            "hint"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "omitted": {
+        "description": "One entry per list that was cut, naming the Operation that returns the rest. Empty when nothing was cut.",
+        "items": {
+          "additionalProperties": false,
+          "description": "A capped list was cut. Call ``operation`` to read the rest.",
+          "properties": {
+            "field": {
+              "description": "Name of the list field that was cut.",
+              "type": "string"
+            },
+            "shown": {
+              "description": "How many items the list holds.",
+              "type": "integer"
+            },
+            "total": {
+              "description": "How many items exist.",
+              "type": "integer"
+            },
+            "operation": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The Operation that returns the rest, or null when no Operation does."
+            }
+          },
+          "required": [
+            "field",
+            "shown",
+            "total",
+            "operation"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "frame": {
+        "description": "Frame Handle for the loaded data, such as ``frame_7f3a9c2e``.",
+        "type": "string"
+      },
+      "n_rows": {
+        "description": "Number of data rows, not counting the header.",
+        "type": "integer"
+      },
+      "n_columns": {
+        "description": "Number of columns, including any not listed in ``columns``.",
+        "type": "integer"
+      },
+      "columns": {
+        "description": "Columns in CSV header order, at most 100. Past 100, ``omitted`` counts the rest.",
+        "items": {
+          "additionalProperties": false,
+          "description": "One column of the loaded frame.",
+          "properties": {
+            "column": {
+              "description": "Column name, exactly as in the CSV header.",
+              "type": "string"
+            },
+            "dtype": {
+              "description": "Type the CSV reader inferred, such as ``Int64``, ``Float64`` or ``String``.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "column",
+            "dtype"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      }
+    },
+    "required": [
+      "warnings",
+      "omitted",
+      "frame",
+      "n_rows",
+      "n_columns",
+      "columns"
+    ],
+    "type": "object"
+  }
+}

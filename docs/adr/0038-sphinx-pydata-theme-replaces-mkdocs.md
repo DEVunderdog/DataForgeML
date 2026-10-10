@@ -1,6 +1,6 @@
 # ADR 0038: Sphinx + PyData Sphinx Theme replaces MkDocs as the docs build toolchain
 
-Supersedes ADR-0034 (toolchain only — docstring format and scope rules unchanged).
+**Status:** superseded by ADR-0108 (the Sphinx site, `docs/conf.py`, `docs/api/`, the `docs` dependency group and the Pages deploy are deleted; Agents read the package in place). Previously: supersedes ADR-0034 (toolchain only — docstring format and scope rules unchanged).
 
 ## Context
 
