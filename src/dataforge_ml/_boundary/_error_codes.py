@@ -110,6 +110,14 @@ _ENTRIES: tuple[ErrorCodeEntry, ...] = (
         ),
     ),
     ErrorCodeEntry(
+        code="handles_unreadable",
+        category="warning",
+        hint=(
+            "Some Handles were written by another format version or are "
+            "damaged. Run the Operations that made them again if you need them."
+        ),
+    ),
+    ErrorCodeEntry(
         code="unexpected",
         category="Unexpected",
         hint=(

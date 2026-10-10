@@ -70,6 +70,8 @@ from .observability import EventType, PipelineEvent, stderr_observer
 
 # --- Operations: the Agent-facing surface (ADR-0099). Every other name here
 # is today's door, and becomes internal as the Operations land. ------------
+from .operations.export_frame import export_frame
+from .operations.list_handles import list_handles
 from .operations.load import load
 
 # --- Config objects and Phase Sub-Configs ----------------------------------
@@ -179,6 +181,8 @@ __all__ = [
     "imputation_score_c2st",
     "inspect",
     # --- Operations ---------------------------------------------------------
+    "export_frame",
+    "list_handles",
     "load",
     "resolve_recipe",
     "route",

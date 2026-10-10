@@ -260,7 +260,7 @@ def _build_spec(
         raise ValueError(f"{name}: a Result Budget may be lower than the default, never higher")
     doc = _docstring.parse(func.__doc__)
     descriptions = doc.entries("Parameters")
-    hints = typing.get_type_hints(func)
+    hints = typing.get_type_hints(func, include_extras=True)
     fields: dict[str, Any] = {}
     for param in inspect.signature(func).parameters.values():
         if param.kind in (param.VAR_POSITIONAL, param.VAR_KEYWORD):

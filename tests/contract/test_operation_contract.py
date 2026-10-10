@@ -53,8 +53,28 @@ def _wide_load(harness: Harness, tmp_path: Path) -> dict[str, Any]:
     return harness.call("load", path=str(wide)).json
 
 
+def _full_page_of_handles(harness: Harness, tmp_path: Path) -> dict[str, Any]:
+    # A full page whose argument values are cut: long absolute paths, more
+    # Handles than one page holds, so ``omitted`` is filled too.
+    deep = tmp_path / ("d" * 60) / ("e" * 60)
+    deep.mkdir(parents=True)
+    narrow = deep / "narrow.csv"
+    narrow.write_text("a,b\n1,2\n")
+    harness.declare(narrow)
+    for _ in range(25):
+        harness.code_mode("load", path=str(narrow))
+    return harness.call("list_handles").json
+
+
+def _export(harness: Harness, tmp_path: Path) -> dict[str, Any]:
+    frame = harness.code_mode("load", path="train.csv").json["frame"]
+    return harness.call("export_frame", frame=frame).json
+
+
 #: Per Operation, a call producing its largest result on the supported fixtures.
 WORST_CASE: dict[str, Callable[[Harness, Path], dict[str, Any]]] = {
+    "export_frame": _export,
+    "list_handles": _full_page_of_handles,
     "load": _wide_load,
 }
 

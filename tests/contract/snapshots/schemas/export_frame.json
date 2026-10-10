@@ -1,0 +1,133 @@
+{
+  "input": {
+    "additionalProperties": false,
+    "properties": {
+      "frame": {
+        "description": "A frame Handle, such as ``frame_7f3a9c2e``.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "frame"
+    ],
+    "type": "object"
+  },
+  "output": {
+    "additionalProperties": false,
+    "description": "Where the exported CSV is.",
+    "properties": {
+      "warnings": {
+        "description": "Caveats on this result, most actionable first. Empty when there are none.",
+        "items": {
+          "additionalProperties": false,
+          "description": "A caveat on a successful result: it worked, but read this first.",
+          "properties": {
+            "code": {
+              "description": "The warning's Error Code. Branch on this, not on ``message``.",
+              "type": "string"
+            },
+            "message": {
+              "description": "What happened and what to do, in one or two sentences.",
+              "type": "string"
+            },
+            "columns": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Columns the warning concerns, or null."
+            },
+            "param": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The argument the warning concerns, or null."
+            },
+            "hint": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Library-written advice, or null."
+            }
+          },
+          "required": [
+            "code",
+            "message",
+            "columns",
+            "param",
+            "hint"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "omitted": {
+        "description": "One entry per list that was cut, naming the Operation that returns the rest. Empty when nothing was cut.",
+        "items": {
+          "additionalProperties": false,
+          "description": "A capped list was cut. Call ``operation`` to read the rest.",
+          "properties": {
+            "field": {
+              "description": "Name of the list field that was cut.",
+              "type": "string"
+            },
+            "shown": {
+              "description": "How many items the list holds.",
+              "type": "integer"
+            },
+            "total": {
+              "description": "How many items exist.",
+              "type": "integer"
+            },
+            "operation": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The Operation that returns the rest, or null when no Operation does."
+            }
+          },
+          "required": [
+            "field",
+            "shown",
+            "total",
+            "operation"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "path": {
+        "description": "Absolute path of the CSV, inside the Workspace's ``exports/`` folder.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "warnings",
+      "omitted",
+      "path"
+    ],
+    "type": "object"
+  }
+}

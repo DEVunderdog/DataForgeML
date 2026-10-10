@@ -18,6 +18,7 @@ import os
 import re
 import secrets
 import tempfile
+import time
 from collections.abc import Callable
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -128,6 +129,19 @@ def workspace_root() -> Path:
     return root
 
 
+def exports_dir() -> Path:
+    """Return the Workspace's ``exports/`` folder, creating it if needed.
+
+    Raises
+    ------
+    DataForgeError
+        ``workspace_not_set`` when the Harness set no Workspace.
+    """
+    directory = workspace_root() / "exports"
+    directory.mkdir(exist_ok=True)
+    return directory
+
+
 def declared_inputs() -> tuple[Path, ...]:
     """Return the Harness-declared input paths, resolved."""
     raw = os.environ.get(DECLARED_INPUTS_ENV, "")
@@ -208,6 +222,7 @@ def write_handle(
         "kind": kind,
         "format_schema_version": FORMAT_SCHEMA_VERSION,
         "library_version": library_version(),
+        "created_ns": time.time_ns(),
         "lineage": {
             "operation": call.operation,
             "arguments": call.arguments,
@@ -228,14 +243,73 @@ def write_handle(
     return handle
 
 
-def _existing(root: Path, kind: str) -> list[str]:
-    """Existing Handles of ``kind``, newest first."""
-    found = []
+def _read_json(path: Path) -> dict[str, Any] | None:
+    try:
+        data = json.loads(path.read_text("utf-8"))
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+@dataclass(frozen=True)
+class HandleListing:
+    """Every readable Handle of the asked kinds, newest first.
+
+    ``unreadable`` counts Handles whose record is damaged or was written by
+    another format version: they exist on disk but no Operation can read them.
+    """
+
+    records: list[dict[str, Any]]
+    unreadable: int
+
+
+def list_records(kind: str | None = None) -> HandleListing:
+    """List the Workspace's Handle records, newest first.
+
+    A Handle whose directory exists but whose record is not yet in place is
+    still being written by another process and is skipped. Order is creation
+    time, then the Handle string, so it is the same in every process.
+
+    Parameters
+    ----------
+    kind : str, optional
+        One of :data:`HANDLE_KINDS`; None lists every kind.
+
+    Returns
+    -------
+    HandleListing
+        The records, Lineage included, and the count of unreadable ones.
+
+    Raises
+    ------
+    DataForgeError
+        ``workspace_not_set`` when the Harness set no Workspace.
+    """
+    root = workspace_root()
+    found: list[tuple[int, str, dict[str, Any]]] = []
+    unreadable = 0
     for directory in (root / "handles").iterdir():
-        record = directory / _RECORD
-        if directory.name.startswith(f"{kind}_") and record.exists():
-            found.append((record.stat().st_mtime_ns, directory.name))
-    return [name for _, name in sorted(found, reverse=True)]
+        match = _HANDLE_RE.match(directory.name)
+        if match is None or (kind is not None and match.group(1) != kind):
+            continue
+        path = directory / _RECORD
+        if not path.exists():
+            continue
+        record = _read_json(path)
+        if (
+            record is None
+            or record.get("format_schema_version") != FORMAT_SCHEMA_VERSION
+        ):
+            unreadable += 1
+            continue
+        created = record.get("created_ns")
+        if not isinstance(created, int):
+            created = path.stat().st_mtime_ns
+        found.append((created, directory.name, record))
+    found.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    return HandleListing(
+        records=[record for _, _, record in found], unreadable=unreadable
+    )
 
 
 def read_record(handle: str, kind: str, *, param: str) -> dict[str, Any]:
@@ -279,12 +353,9 @@ def read_record(handle: str, kind: str, *, param: str) -> dict[str, Any]:
             "unknown_handle",
             f"`{param}` names no `{kind}` Handle in this Workspace.",
             param=param,
-            candidates=_existing(root, kind)[:_CANDIDATES],
+            candidates=[r["handle"] for r in list_records(kind).records[:_CANDIDATES]],
         )
-    try:
-        record = json.loads(record_path.read_text("utf-8"))
-    except ValueError:
-        record = {}
+    record = _read_json(record_path) or {}
     if record.get("format_schema_version") != FORMAT_SCHEMA_VERSION:
         raise DataForgeError.from_code(
             "incompatible_artifact",
