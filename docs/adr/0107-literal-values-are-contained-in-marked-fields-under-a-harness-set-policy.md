@@ -6,7 +6,7 @@ The profile leaks literal values by design: top values, every rare label, exact 
 
 accepted. Resolves [Which literal data values may a library result carry by default?](https://github.com/DEVunderdog/DataForgeML/issues/579) on [Map: an agent-native DataForgeML](https://github.com/DEVunderdog/DataForgeML/issues/568). It extends ADR-0100's "names, never cell values" rule to Result Warnings and Dial Pointers, and settles ADR-0104's open `value_summary`. Planning only: no code changes yet.
 
-**Amended by [ADR-0112](0112-agents-reach-the-library-through-a-cli-and-a-skill.md) (2026-10-11).** The Literal Policy is a Workspace Setting set by the user, not by a Harness outside the Agent's reach. In a shell the Agent can change it, so it is a guardrail. `deny` is a real boundary only where the Harness's permission rules stop the Agent from both reading the data and changing the setting. The containment rules for Literal Fields are unchanged.
+**Amended by [ADR-0112](0112-agents-reach-the-library-through-a-cli-and-a-skill.md) (2026-10-11).** The Literal Policy is a Workspace Setting set by the Operator, not by a Harness outside the Agent's reach. In a shell the Agent can change it, so it is a guardrail. `deny` is a real boundary only where the Harness's permission rules stop the Agent from both reading the data and changing the setting. The containment rules for Literal Fields are unchanged.
 
 ## Decisions
 
