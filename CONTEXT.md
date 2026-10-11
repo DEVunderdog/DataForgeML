@@ -15,27 +15,25 @@
 
 - **Agent** — An LLM-driven program that calls the library. The library's primary and only intended user. No agent framework or model provider is privileged, though Anthropic models are the first-class target. Wherever this glossary says "user" or "caller", the Agent is meant.
   _Avoid_: bot, assistant, LLM user
-- **Harness** — The program that runs an Agent's loop around the library: the chat loop, sandbox, tool loading, routing, and sub-agent orchestration. The Harness is not part of the library. The library ships what lets any Harness do these jobs well, and states what it expects the Harness to do. The `dataforgeml-agent` CLI is one Harness.
+- **Harness** — The off-the-shelf program that runs an Agent's loop, such as Claude Code, Codex, Gemini CLI or Cursor. It owns the chat loop, the shell, permissions, resource limits and sub-agents. The Harness is not part of the library, and the library builds none of it. The library asks only for a shell with Python, the `dataforge` command on the PATH, and the Package Skill installed. See ADR-0112.
   _Avoid_: wrapper, runtime, agent app
-- **Operation** — One typed entry point the library declares for Agents. It takes and returns only JSON-able values and handles, its result is bounded, and its failures are typed errors. Operations are the library's whole public surface: the rest of the library is internal. Each Operation lives in its own file, which is also what the Agent reads to learn it. Every Operation has one entry in the **Operation Catalogue**. See ADR-0099.
-  _Avoid_: tool, capability, command, endpoint
-- **Operation Catalogue** — The machine-readable list of every Operation, generated from the Operation files, for a Harness to search, register and defer tools. Each entry describes one Operation as a tool, plus facts only the Harness reads: what it writes, whether its cost grows with the data, its Result Budget, the Handle kinds it takes and makes, and its Error Codes. The model never reads it whole: in Code Mode the Agent reads the Package Skill and Operation files, and in Tool Calls the model loads a few entries at a time. See ADR-0109.
-  _Avoid_: tool list, manifest, registry (that is the Error Code registry)
+- **Operation** — One typed entry point the library declares for Agents. It takes and returns only JSON-able values and handles, its result is bounded, and its failures are typed errors. Operations are the library's whole public surface: the rest of the library is internal. In the **CLI** an Operation is a command of the same name in kebab-case, which is a spelling, not a separate concept. Each Operation lives in its own file, the source of its help text and its contract in **Code Mode**. See ADR-0099, ADR-0112.
+  _Avoid_: tool, capability, command (say "the CLI spelling of an Operation"), endpoint
 - **Inherited Declarations** — The declarations a frame Handle carries from the frame and profile it was made from: targets, type overrides, sentinels and exclusions. Every frame an Operation produces inherits them, so a split fold keeps its target and a later phase reads exclusions off the frame it is given. An Operation may add to them but never remove them, and a contradiction is a Library Error. Imputation adds its indicator columns as Soft Exclusions for later phases. See ADR-0110.
   _Avoid_: config propagation, apply_exclusions
-- **Code Mode** — The delivery where the Agent writes code in the Harness's sandbox and that code calls Operations. Only what the code finally outputs reaches the model. The primary delivery. See ADR-0099.
-  _Avoid_: code execution, sandbox mode
-- **Tool Calls** — The delivery where the Harness hands Operations to the model as tools, one call per Operation, natively or over MCP. Generated from the same Operations as Code Mode and behaves the same. See ADR-0099.
-  _Avoid_: function calling, MCP mode
-- **Package Skill** — The `SKILL.md` shipped at the root of the package, and the first thing an Agent reads. It holds the workflow: which Operation makes which Handle, which Operation reads it next, how to iterate on dials, and how to act on an error category. It also indexes every Operation's file. It never states a signature, a parameter or a record field. Those live only in the Operation's own file, whose docstring is written for Agents and defines the terms it uses. See ADR-0108.
+- **CLI** — The primary delivery. The Agent runs `dataforge <command>` in the Harness's shell, and each command runs one Operation in its own process and prints its result as JSON on stdout. Flat arguments are flags, and nested arguments are JSON. The exit code names a Library Error's category. See ADR-0112.
+  _Avoid_: tool calls, wrapper script
+- **Code Mode** — The second delivery: the Agent's own Python imports Operations and calls them as functions, getting the same Wire Records the CLI prints. See ADR-0099, ADR-0112.
+  _Avoid_: code execution, sandbox mode, Python API
+- **Package Skill** — The Skill the CLI installs into the Harness's skills folders with `dataforge install --skills`, and the first thing an Agent reads. It is a command cheat-sheet: the workflow from Handle to Handle, one usage line per command, how to iterate on dials, how to act on each error category, and which commands to run in the background. Per-phase detail sits in its `references/`. It never states a full signature. Those come from each command's layered help. The installed copy is stamped with the library version. See ADR-0108, ADR-0112.
   _Avoid_: docs, manual, llms.txt, API reference
-- **Library Error** — The one shape every library failure takes. It has an **Error Code**, a short message saying what to do, and optional named fields: the argument, columns, allowed values, close-match candidates and a hint. It belongs to one of six categories, and the category says what kind of fix is needed: `InvalidInput`, `UnknownName`, `Conflict`, `Infeasible`, `IncompatibleArtifact` or `Unexpected`. In Code Mode it is raised, and in Tool Calls the same record is returned as an error. It carries names, never cell values, and its size is capped. A name the Agent supplies that does not exist is always an `UnknownName`, never silently ignored. A foreign failure becomes `Unexpected`. See ADR-0100.
+- **Library Error** — The one shape every library failure takes. It has an **Error Code**, a short message saying what to do, and optional named fields: the argument, columns, allowed values, close-match candidates and a hint. It belongs to one of six categories, and the category says what kind of fix is needed: `InvalidInput`, `UnknownName`, `Conflict`, `Infeasible`, `IncompatibleArtifact` or `Unexpected`. In Code Mode it is raised, and the CLI prints the same record and exits with its category's code. It carries names, never cell values, and its size is capped. A name the Agent supplies that does not exist is always an `UnknownName`, never silently ignored. A foreign failure becomes `Unexpected`. See ADR-0100.
   _Avoid_: refusal (that is a C2ST outcome carried in a result), exception type, error message
 - **Error Code** — The stable identity of a Library Error, such as `unknown_column` or `unit_not_trainable`. Agents branch on the code, not the message. Every code has one registry entry holding its category, its hint and its fields. Renaming or removing a code is a breaking change. See ADR-0100.
   _Avoid_: error type, error name
-- **Wire Record** — A typed input or output record of an Operation, and the only kind of value besides a handle that crosses the Operation boundary. It is frozen, rejects unknown fields, and is separate from the library's internal types, which convert to and from it at the boundary. Its schema, its input check and its JSON all come from one definition. In Code Mode an Operation returns the Wire Record itself, and in Tool Calls its JSON. Enums inside it travel by value. See ADR-0101.
+- **Wire Record** — A typed input or output record of an Operation, and the only kind of value besides a handle that crosses the Operation boundary. It is frozen, rejects unknown fields, and is separate from the library's internal types, which convert to and from it at the boundary. Its schema, its input check and its JSON all come from one definition. In Code Mode an Operation returns the Wire Record itself, and the CLI prints its JSON. Enums inside it travel by value. See ADR-0101.
   _Avoid_: DTO, payload, model, request/response object
-- **Strict Subset** — The rules every Operation schema follows so that any vendor's strict mode accepts it unchanged. Object roots, no extra fields, every field required with `null` meaning "the library's default", no recursion, no open maps (keyed collections are arrays of records), no `Any` (a kind-dependent value is a tagged union), no fixed tuples, and constraints checked by the library and stated in the description. The library emits the subset itself and does not rely on a vendor's transformer. See ADR-0101.
+- **Strict Subset** — The rules every Operation schema follows. Some shape the data: no `Any` (a kind-dependent value is a tagged union), no open maps (keyed collections are arrays of records), strict values, `null` meaning "the library's default", and enums by value. The rest shape the printed schema: object roots, no extra fields, every field required, no recursion, no fixed tuples, and limits stated as words in the description. The library emits the subset itself. See ADR-0101, ADR-0112.
   _Avoid_: strict mode (that is the vendor's feature), portable schema
 
 ## Column Exclusions
@@ -309,7 +307,6 @@ The fixed order of the model-based candidates a **Signal Tier** picks from: KNN 
 
 The order of the MICE block's estimators: BayesianRidge, then RandomForest. The block's most complex `NonlinearityTag` picks the rung — `Linear` and `Unpredictable` the bottom, either nonlinear tag the top. It reads no **Feasibility Term**: the forest measured safer than BayesianRidge on few rows, not hungrier. GradientBoosting is not on the ladder; a user sets it explicitly. A column's strategy never depends on the estimator. See ADR-0094, ADR-0097.
   _Avoid_: model choice rule, estimator fallback, estimator bound, downgrade
-
 
 ## Split-Profiling Topology
 
@@ -635,8 +632,11 @@ What an Operation hands back is an output **Wire Record**, and nothing else. The
 - **Omission** — The record that a capped list in a result or an error was cut: which field, how many items are shown, how many exist, and which Operation returns the rest. It appears only when something was cut. Every result is bounded by fixed item caps, never by cutting text, so a cut result still matches its schema. See ADR-0102.
   _Avoid_: truncation, pagination marker, next link
 
-- **Result Budget** — The most a single Operation result may cost a model, 10k tokens by default. A test checks it on fixtures at the scale the library supports. An Operation may declare a lower budget, never a higher one. The Harness's output cap is the backstop, not the budget, and it must be at least the largest budget in the **Operation Catalogue**. See ADR-0102, ADR-0109.
+- **Result Budget** — The most a single Operation result may cost, in two numbers: 10k tokens and 25,000 characters for a result, and 8,000 characters for a Library Error. The character limits keep every result inline in the shells Harnesses provide. A test checks both on fixtures at the scale the library supports. The budget is a signal to split: an Operation over it gets a narrower Operation or a smaller page, never a harder cut. See ADR-0102, ADR-0112.
   _Avoid_: token cap, response limit
+
+- **Table Layout** — How a list of flat records travels in JSON: the field names once, then each record as a row of values in that order. It halves the cost of table-shaped results. A row holds at most about a dozen fields, and anything wider nests. In Code Mode the Wire Record still gives named access. See ADR-0112.
+  _Avoid_: columnar format, CSV output
 
 - **Byte-Stable Output** — The same underlying result always serialises to the same JSON. It is a promise about serialisation only. It does not promise that running an Operation twice on the same input gives the same result. See ADR-0102.
   _Avoid_: deterministic results, reproducibility
@@ -649,20 +649,22 @@ What an Operation hands back is an output **Wire Record**, and nothing else. The
 
 - **Literal Field** — A field on a result that can hold a value from a cell of the data, such as a category label, a bound, a percentile, the mode or a fill value. It is marked in the output schema. Every other field is free of literal values. Values the Agent supplied itself (sentinels, declarations) and column names are not Literal Fields. See ADR-0107.
   _Avoid_: sensitive field, PII field, raw value
-- **Literal Policy** — The Harness's setting for Literal Fields: `allow` (the default) returns real values, `deny` withholds every Literal Field and reports it in `omitted`. The Harness sets it outside the Agent's reach, like the **Workspace**. It governs library results only, not what the Agent's own code can read. See ADR-0107.
+- **Literal Policy** — The user's **Workspace Setting** for Literal Fields: `allow` (the default) returns real values, `deny` withholds every Literal Field and reports it in `omitted`. It is a guardrail. In a shell the Agent can change it, so `deny` is a real boundary only where the Harness's permissions stop that. It governs library results only, not what the Agent's own code can read. See ADR-0107, ADR-0112.
   _Avoid_: privacy mode, data disclosure policy, masking
 - **Frame Query** — A bounded read of the raw cells of one frame **Handle**: matching rows, or grouped measures, chosen by a fixed vocabulary rather than code. It runs over every row and returns only a capped answer, and it never makes a new Handle. The cells it returns are **Literal Fields**. It shows cells as stored, so declared sentinels are not read as null. See ADR-0111.
   _Avoid_: SQL, lazy query, data access
 
 ## Handles
 
-- **Handle** — A string that names one large object the library holds for the Agent: a frame, the profile, a routing, a recipe, a fitted unit, the imputer, or a result with detail Operations. It is a kind prefix plus an opaque id, such as `frame_7f3a9c2e`, and is the same value in Code Mode and Tool Calls. It is write-once: it always names the same object, and any change makes a new Handle. It lives as long as its **Workspace**. The imputer's Handle names its recipe and units and is composed again on use. See ADR-0103.
+- **Handle** — A string that names one large object the library holds for the Agent: a frame, the profile, a routing, a recipe, a fitted unit, the imputer, or a result with detail Operations. It is a kind prefix plus an opaque id, such as `frame_7f3a9c2e`, and is the same value in the CLI and Code Mode. It is write-once: it always names the same object, and any change makes a new Handle. It lives as long as its **Workspace**. The imputer's Handle names its recipe and units and is composed again on use. See ADR-0103.
   _Avoid_: reference, pointer, id, artifact key, path
-- **Workspace** — The directory where the library keeps every Handle's object. The Harness provides it, sets it outside the Agent's reach, and deletes it when done. Only the library and the Harness write to it, and the library loads saved objects from nowhere else. Several processes may share one. It is storage, not a run: nothing in it tracks progress. See ADR-0103.
+- **Workspace** — The directory where the library keeps every Handle's object, `.dataforge/` in the working directory by default. It also holds the Workspace Settings file and `exports/`. The first command that writes creates it, and the user deletes it when done. The library loads saved objects from nowhere else. Several processes may share one, so each CLI command can be its own process. It is storage, not a run: nothing in it tracks progress. See ADR-0103, ADR-0112.
   _Avoid_: session, store, cache, run, working directory
+- **Workspace Setting** — A value the user sets for how the library runs, not for what it decides: the Workspace location, the **Literal Policy**, the **Declared Inputs** and the core budget. A flag beats an env var, which beats the Workspace's `config.toml`, which beats the default. Workspace Settings are guardrails, not a boundary, because in a shell the Agent can change them. Enforcement belongs to the Harness's permissions. See ADR-0112.
+  _Avoid_: config (that is Operation arguments), dial, Harness setting
 - **Lineage** — What a Handle was made from: the Operation that produced it, the arguments it was called with as passed, and the Handles it read. The arguments plus the library version pin the config that made it, so no result echoes its config (ADR-0104). It is kept with every Handle, so an Agent can find its Handles again after a restart or as a sub-agent. See ADR-0103.
   _Avoid_: provenance (that is the dependency stamp on a saved unit), history
-- **Declared Input** — A CSV path the Harness lets the library load. It is mounted read-only. Loading any other path is refused, so the data only changes through config. See ADR-0103.
+- **Declared Input** — A CSV path the user lists as a Workspace Setting. Once any are listed, `load` refuses every other path. With none listed, `load` reads any path. It is opt-in, so the first run just works. See ADR-0103, ADR-0112.
   _Avoid_: source file, upload
 
 ## Persistence
@@ -678,6 +680,8 @@ _Being replaced: under ADR-0103 these functions become internal. They are the **
   _Avoid_: store, artifact store, cache, repository, save/load
 
 ## Observability
+
+_Being replaced: under ADR-0102 and ADR-0112, Pipeline Events are progress only and no live `observer=` crosses the Operation boundary. The CLI prints one line per Event to stderr when the Agent passes `--progress`, and prints nothing otherwise. This section describes today's code until that lands._
 
 Long-running orchestrator calls surface what they are doing so a user watching a multi-minute run knows it is progressing, not hung — and so the run leaves a diagnostic trail. Two concerns, one backbone: every meaningful moment emits a single **Pipeline Event**; that same Event feeds both progress reporting and diagnostic tracing.
 

@@ -6,6 +6,8 @@ ADR-0099 made the Python Operation the single source: the MCP server, the catalo
 
 accepted. Resolves [What is the source of truth for schemas, and what rules must they follow?](https://github.com/DEVunderdog/DataForgeML/issues/573) on [Map: an agent-native DataForgeML](https://github.com/DEVunderdog/DataForgeML/issues/568). It builds on ADR-0099 (the source) and ADR-0100 (the validator feeds `invalid_argument`). Planning only: no code changes yet.
 
+**Amended by [ADR-0112](0112-agents-reach-the-library-through-a-cli-and-a-skill.md) (2026-10-11).** The Strict Subset stays, but the test that runs schemas through Anthropic's and OpenAI's transformers is deleted, since no vendor tool schema is sent any more. Its rules now have two reasons. Design rules (no `Any`, strict values, `null` means the default, enums by value, keyed arrays) shape the data. Printing rules make `dataforge schema` output read well for an Agent and keep MCP a cheap add-back. Output lists of flat records go on the wire in Table Layout.
+
 ## Decisions
 
 - **Pydantic v2 is a core dependency.** One definition gives the JSON Schema, checks inputs at the Operation boundary in both deliveries, and writes the output JSON. Gained: schema, validation and output cannot drift, so the probe's two drifts (enum name vs value, private vs public keys) cannot come back. ADR-0100's `param` paths come from the validator's location paths for free. Given up: a new compiled dependency (`pydantic-core`) that is capped and bumped under ADR-0080.

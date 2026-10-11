@@ -4,7 +4,9 @@ ADR-0099 said the catalogue data is generated from the Operation files. A Harnes
 
 ## Status
 
-accepted. Resolves [What fields does the Operation catalogue carry?](https://github.com/DEVunderdog/DataForgeML/issues/581) on [Map: an agent-native DataForgeML](https://github.com/DEVunderdog/DataForgeML/issues/568). It amends ADR-0102 (the Result Budget becomes 10k) and ADR-0099 (one line in the Harness contract). Planning only: no code changes yet.
+superseded. Resolves [What fields does the Operation catalogue carry?](https://github.com/DEVunderdog/DataForgeML/issues/581) on [Map: an agent-native DataForgeML](https://github.com/DEVunderdog/DataForgeML/issues/568). It amends ADR-0102 (the Result Budget becomes 10k) and ADR-0099 (one line in the Harness contract). Planning only: no code changes yet.
+
+**Superseded by [ADR-0112](0112-agents-reach-the-library-through-a-cli-and-a-skill.md) (2026-10-11).** Tool Calls and the `[mcp]` extra are deleted, and no measured Harness read the catalogue. `_harness/catalogue.json` is not built. Whether a command scales with data, its Error Codes and its See Also move into `--help`. The other `_meta` facts go. The Result Budget is restated in ADR-0112 as two numbers.
 
 ## Decisions
 

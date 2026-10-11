@@ -6,6 +6,8 @@ The profile leaks literal values by design: top values, every rare label, exact 
 
 accepted. Resolves [Which literal data values may a library result carry by default?](https://github.com/DEVunderdog/DataForgeML/issues/579) on [Map: an agent-native DataForgeML](https://github.com/DEVunderdog/DataForgeML/issues/568). It extends ADR-0100's "names, never cell values" rule to Result Warnings and Dial Pointers, and settles ADR-0104's open `value_summary`. Planning only: no code changes yet.
 
+**Amended by [ADR-0112](0112-agents-reach-the-library-through-a-cli-and-a-skill.md) (2026-10-11).** The Literal Policy is a Workspace Setting set by the user, not by a Harness outside the Agent's reach. In a shell the Agent can change it, so it is a guardrail. `deny` is a real boundary only where the Harness's permission rules stop the Agent from both reading the data and changing the setting. The containment rules for Literal Fields are unchanged.
+
 ## Decisions
 
 - **The library promises containment, not privacy.** Literal values appear only in **Literal Fields**, which are marked in the output schema with an annotation. Every other field is literal-free, and a test checks this. The Harness decides whether Literal Fields reach the model, and uses the marks to find them. Gained: a claim that holds in both deliveries, and filtering a Harness can do by machine. Given up: the library can't tell anyone "your data stays private". That claim belongs to the Harness.

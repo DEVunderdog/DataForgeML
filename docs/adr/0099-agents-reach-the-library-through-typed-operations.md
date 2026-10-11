@@ -6,6 +6,8 @@ The Agent is the library's only user, so we had to decide how an Agent reaches t
 
 accepted. Resolves [How does an Agent reach the library?](https://github.com/DEVunderdog/DataForgeML/issues/571), the root decision of [Map: an agent-native DataForgeML](https://github.com/DEVunderdog/DataForgeML/issues/568). It rests on the [access-routes research](https://github.com/DEVunderdog/DataForgeML/issues/569). Planning only: no code changes yet. This is a breaking change with no compatibility shim, because the library has no users yet.
 
+**Amended by [ADR-0112](0112-agents-reach-the-library-through-a-cli-and-a-skill.md) (2026-10-11).** The CLI is now the primary delivery and Code Mode the second. Tool Calls, the `[mcp]` extra and the "no library CLI" decision are withdrawn. The Harness contract shrinks to a shell with Python ≥ 3.11, `dataforge` on the PATH and the Skill installed. The Workspace, Literal Policy, Declared Inputs and core budget become Workspace Settings: user-set guardrails, not a boundary. The Operations as the whole public surface, JSON-able inputs and Handles, and one Python source stand.
+
 ## Decisions
 
 - **The library runs inside a sandbox the Harness owns.** It is installed ahead of time and needs no network. The library never depends on a vendor's hosted sandbox. Gained: every route stays open, and no dependency surgery is needed. Given up: an Agent with only a vendor code-execution tool cannot run the library on its own. Anthropic's container has no network and no polars, and a Skill upload is capped at 30 MB.

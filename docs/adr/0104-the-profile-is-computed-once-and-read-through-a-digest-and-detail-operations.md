@@ -6,6 +6,8 @@ The full profile can't go in front of a model. On Ames (2,930 rows, 82 columns) 
 
 accepted. Resolves [How is describing the dataset split into small calls?](https://github.com/DEVunderdog/DataForgeML/issues/576) on [Map: an agent-native DataForgeML](https://github.com/DEVunderdog/DataForgeML/issues/568). It amends ADR-0103 (Lineage records arguments) and the profiling defaults of ADR-0030. Planning only: no code changes yet.
 
+**Amended by [ADR-0112](0112-agents-reach-the-library-through-a-cli-and-a-skill.md) (2026-10-11).** The Dataset Digest's column rows and every detail list go on the wire in Table Layout. Default page sizes (`describe_columns` 15, and the others) may shrink to meet the 25,000-character Result Budget.
+
 ## Decisions
 
 - **The profile is computed once, and every detail Operation reads the stored profile.** `profile` computes everything, writes a profile Handle, and returns the **Dataset Digest**. Detail Operations never recompute and never touch the frame. Gained: write-once Handles stay true (ADR-0103), and detail calls are cheap, stateless and safe to run in parallel. Given up: work the Agent never asks for is still paid for up front.

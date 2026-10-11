@@ -6,6 +6,8 @@ ADR-0107 settled that literal values travel only in Literal Fields, and it left 
 
 accepted. Resolves [Should the library offer a bounded query over raw data?](https://github.com/DEVunderdog/DataForgeML/issues/586) on [Map: an agent-native DataForgeML](https://github.com/DEVunderdog/DataForgeML/issues/568). It amends ADR-0110 (the inventory grows to 20 Operations) and ADR-0099 (the Harness contract). Planning only: no code changes yet.
 
+**Amended by [ADR-0112](0112-agents-reach-the-library-through-a-cli-and-a-skill.md) (2026-10-11).** `query_frame`'s two deliveries are now the CLI (`dataforge query-frame`, with the filter and mode as JSON arguments) and Code Mode. Its column-wise result layout already fits Table Layout.
+
 ## Decisions
 
 - **One Operation, `query_frame`, in both deliveries.** It sits in the `workspace` phase next to `export_frame` and `list_handles`. It writes nothing, its cost grows with the data, and it is not in `load_first`. Gained: the same behaviour in both deliveries (ADR-0099). Under Tool Calls it is the only way rows reach the model, and every cell it returns goes through the Literal Policy. Derived frames can be read without an export. Given up: a 20th Operation, and a vocabulary to keep small. In Code Mode it overlaps with pandas on the Declared Input.

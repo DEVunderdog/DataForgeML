@@ -6,6 +6,8 @@ An Agent has to act on a failure, not just read it. Today only three of the libr
 
 accepted; the `truncated` count is replaced by `omitted` (ADR-0102). Resolves [What is the one error contract every library failure follows?](https://github.com/DEVunderdog/DataForgeML/issues/572) on [Map: an agent-native DataForgeML](https://github.com/DEVunderdog/DataForgeML/issues/568). It closes gaps G1c, G7, G8, G12, G16 and G17 of `dataforgeml-agent-surface.md` §6. Implemented for every internal raise site by #591; the two codes this ADR left unnamed are named below.
 
+**Amended by [ADR-0112](0112-agents-reach-the-library-through-a-cli-and-a-skill.md) (2026-10-11).** Tool Calls are deleted. The CLI prints the same Library Error JSON on stdout and exits with the category's code: `2` `InvalidInput`, `3` `UnknownName`, `4` `Conflict`, `5` `Infeasible`, `6` `IncompatibleArtifact`, `1` `Unexpected`. Each Library Error is also capped at 8,000 characters, the inline limit for a failed command in Claude Code's shell.
+
 ## Decisions
 
 - **The contract applies at every raise, and the Operation boundary enforces it.** Library code raises Library Errors where the facts are known. Each Operation boundary has one catch-all that turns any foreign exception (sklearn, polars, numpy) into `Unexpected`, with `code="unexpected"`, the original class name and a truncated message. `MemoryError` and `KeyboardInterrupt` pass through untouched, because the Harness owns resources (ADR-0099). A foreign error that comes up often gets its own code at its source. Gained: no raw stack text ever reaches the model, and each error is defined next to the code that knows its columns. Given up: internal helpers depend on the error module, and debugging an `unexpected` error needs the logs.

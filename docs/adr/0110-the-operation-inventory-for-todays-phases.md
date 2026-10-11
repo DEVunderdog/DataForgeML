@@ -6,6 +6,8 @@ ADR-0099 says Operations replace the public Python API. ADRs 0103–0106 already
 
 accepted, amended by ADR-0111 (`query_frame` is a 20th Operation). Resolves [What is the Operation inventory for today's phases?](https://github.com/DEVunderdog/DataForgeML/issues/583) on [Map: an agent-native DataForgeML](https://github.com/DEVunderdog/DataForgeML/issues/568). It amends ADR-0090 (`author` folds into `route`), ADR-0084 (`derive_units` is no longer a public step), ADR-0076 and ADR-0077 (exclusions after imputation ride on the frame Handle), and ADR-0081 (the core budget is set by the Harness). Planning only: no code changes yet.
 
+**Amended by [ADR-0112](0112-agents-reach-the-library-through-a-cli-and-a-skill.md) (2026-10-11).** The core budget is a Workspace Setting, set like the Workspace. Each Operation is also a CLI command, named in kebab-case.
+
 ## Decisions
 
 - **19 Operations and 7 Handle kinds.** The Handle kinds are `frame`, `profile`, `routing`, `recipe`, `unit`, `imputer` and `c2st`. The `phase` values follow ADR-0109.

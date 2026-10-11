@@ -6,6 +6,8 @@ ADR-0101 made every Operation return an output Wire Record, whose `.to_dict()` i
 
 accepted. Resolves [What does every library result look like to an Agent?](https://github.com/DEVunderdog/DataForgeML/issues/574) on [Map: an agent-native DataForgeML](https://github.com/DEVunderdog/DataForgeML/issues/568). It supersedes ADR-0086 and amends ADR-0100, ADR-0074, ADR-0054 and ADR-0055. Amended by ADR-0109: the default Result Budget is 10k. Planning only: no code changes yet.
 
+**Amended by [ADR-0112](0112-agents-reach-the-library-through-a-cli-and-a-skill.md) (2026-10-11).** A list of flat records goes on the wire in Table Layout (`{fields, rows}`, field names once, at most about 12 fields per row), which halved the tokens on a stand-in Dataset Digest. The Result Budget becomes two numbers: at most 10k `o200k_base` tokens and 25,000 characters for a success result, and 8,000 characters for a Library Error. A result over budget is split into a narrower Operation or a smaller page, never cut harder. The CLI prints the JSON on stdout. Pipeline Events print to stderr only with `--progress`.
+
 ## Decisions
 
 - **G3 dissolves. Internal types get no `to_dict()`.** Each internal result converts to its output Wire Record at the boundary, and that record is the only serialisation path. A Payload Frame never goes into a Wire Record. The Agent gets a handle to it instead. Gained: one path, so enum name-vs-value drift cannot come back. Given up: an internal object cannot be dumped for debugging without going through the boundary.
