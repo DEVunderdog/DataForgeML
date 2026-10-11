@@ -22,8 +22,6 @@ from sklearn.ensemble import HistGradientBoostingClassifier
 
 from dataforge_ml.evaluation._c2st import (
     MIN_SAMPLE_FLOOR,
-    C2STDtypeError,
-    C2STSampleFloorError,
     C2STScheme,
     _c2st,
     _default_c2st_classifier,
@@ -36,6 +34,8 @@ from dataforge_ml.observability import (
     PipelineEvent,
     _ObservabilityMixin,
 )
+from tests.conftest import raises_code
+from dataforge_ml.records import Infeasible
 
 Z_CRIT = 1.645  # one-sided alpha = 0.05
 
@@ -240,7 +240,7 @@ def test_the_floor_predicate_is_pure_and_needs_no_test_run() -> None:
 def test_the_floor_is_asserted_internally_so_it_cannot_be_bypassed() -> None:
     frame, _ = _table(400, np.random.default_rng(15))
 
-    with pytest.raises(C2STSampleFloorError, match="size floor"):
+    with raises_code("c2st_sample_floor", match="size floor"):
         c2st(
             frame[200:],
             frame[: MIN_SAMPLE_FLOOR - 1],
@@ -250,9 +250,11 @@ def test_the_floor_is_asserted_internally_so_it_cannot_be_bypassed() -> None:
         )
 
 
-def test_the_sample_floor_error_is_a_value_error_subclass() -> None:
-    """A caller can still catch it as a bare ``ValueError`` if it wants to."""
-    assert issubclass(C2STSampleFloorError, ValueError)
+def test_the_sample_floor_error_is_infeasible() -> None:
+    """A caller catches the category, then branches on the code."""
+    frame, _ = _table(400, np.random.default_rng(15))
+    with pytest.raises(Infeasible):
+        c2st(frame[200:], frame[:10], repeats=1, scheme=C2STScheme.Split, random_state=0)
 
 
 # ---------------------------------------------------------------------------
@@ -266,7 +268,7 @@ def test_a_string_column_raises_a_named_error_identifying_the_column() -> None:
         pl.Series("note", ["a note"] * frame.height, dtype=pl.String)
     )
 
-    with pytest.raises(C2STDtypeError, match="'note'"):
+    with raises_code("c2st_string_column") as info:
         c2st(
             with_text[:100],
             with_text[100:],
@@ -274,12 +276,13 @@ def test_a_string_column_raises_a_named_error_identifying_the_column() -> None:
             scheme=C2STScheme.Split,
             random_state=0,
         )
+    assert info.value.columns == ["note"]
 
 
 def test_mismatched_columns_are_refused() -> None:
     frame, _ = _table(200, np.random.default_rng(17))
 
-    with pytest.raises(ValueError, match="same columns"):
+    with raises_code("frames_not_aligned", match="same columns"):
         c2st(
             frame[:100],
             frame[100:].drop("x3"),
@@ -290,7 +293,7 @@ def test_mismatched_columns_are_refused() -> None:
 
 
 def test_repeats_below_one_are_refused() -> None:
-    with pytest.raises(ValueError, match="at least 1 repeat"):
+    with raises_code("invalid_dial_value", match="at least 1 repeat"):
         c2st(
             *_one_world(60, 18),
             repeats=0,
@@ -381,7 +384,7 @@ def test_min_samples_leaf_with_an_injected_classifier_is_refused() -> None:
         min_samples_leaf=9, early_stopping=False, random_state=3
     )
 
-    with pytest.raises(ValueError, match="min_samples_leaf"):
+    with raises_code("invalid_argument", match="min_samples_leaf"):
         c2st(
             reference,
             candidate,

@@ -28,8 +28,6 @@ EXPECTED = [
     "C2STAnnotation",
     "C2STVerdict",
     "c2st",
-    "C2STDtypeError",
-    "C2STSampleFloorError",
 ]
 
 
@@ -50,10 +48,11 @@ def test_the_three_outcome_enums_are_the_stated_adr_0050_exception():
         assert name in dataforge_ml.__all__
 
 
-def test_the_generic_seam_and_its_errors_are_public_at_the_root():
+def test_the_generic_seam_is_public_and_its_errors_are_codes():
     assert callable(dataforge_ml.c2st)
+    # The two named refusals became Error Codes (ADR-0100); no class is exported.
     for err in ("C2STSampleFloorError", "C2STDtypeError"):
-        assert issubclass(getattr(dataforge_ml, err), Exception)
+        assert not hasattr(dataforge_ml, err)
 
 
 def test_the_root_export_list_is_wholly_reachable():

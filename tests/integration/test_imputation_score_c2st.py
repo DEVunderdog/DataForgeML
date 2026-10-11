@@ -36,6 +36,7 @@ from dataforge_ml.observability import EventType
 from dataforge_ml.profiling._config import ProfileConfig
 from dataforge_ml.profiling.orchestrator import StructuralProfiler
 from tests.conftest import fit_imputer
+from tests.conftest import raises_code
 
 N_ROWS = 400
 SENTINEL_ROWS = 80
@@ -440,7 +441,7 @@ def test_the_mask_derived_facts_are_stated_once_for_every_frame(
 def test_a_frame_of_the_wrong_height_is_refused(
     eval_df, imputed_frame, eval_profile, eval_pipeline_config, eval_config
 ):
-    with pytest.raises(ValueError, match="row-aligned"):
+    with raises_code("frames_not_aligned", match="row-aligned"):
         imputation_score_c2st(
             eval_df,
             [imputed_frame.head(10)],
@@ -453,7 +454,7 @@ def test_a_frame_of_the_wrong_height_is_refused(
 def test_no_frames_at_all_is_refused(
     eval_df, eval_profile, eval_pipeline_config, eval_config
 ):
-    with pytest.raises(ValueError, match="at least one imputed frame"):
+    with raises_code("invalid_argument", match="at least one imputed frame"):
         imputation_score_c2st(
             eval_df,
             [],

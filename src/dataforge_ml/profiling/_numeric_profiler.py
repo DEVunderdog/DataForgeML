@@ -94,8 +94,8 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
 
         Raises
         ------
-        OverrideCoercionError
-            If a column in user_overrides completely fails coercion to Numeric.
+        Infeasible
+            ``override_coercion_failed`` if a column in user_overrides completely fails coercion to Numeric.
         """
         return self._run(data, columns, user_overrides)
 
@@ -152,9 +152,13 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
 
             if clean.len() == 0:
                 if series.drop_nulls().len() > 0 and col in user_overrides:
-                    from ._base import OverrideCoercionError
-                    raise OverrideCoercionError(
-                        f"Column {col!r} with TypeFlag.UserOverride completely failed coercion to Numeric."
+                    from ..records import DataForgeError
+                    failed = series.drop_nulls().len()
+                    raise DataForgeError.from_code(
+                        "override_coercion_failed",
+                        f"Column {col!r} was declared Numeric, but all {failed} "
+                        f"non-null value(s) failed to convert.",
+                        columns=[col],
                     )
                 result.columns[col] = profile
                 continue

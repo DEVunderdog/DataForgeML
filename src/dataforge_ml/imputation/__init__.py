@@ -13,14 +13,12 @@ from ._config import (
 from ._fit_signals import FitSignals, ImputationFitWarning
 from ._fitted_imputer import (
     DroppedColumnAbsentWarning,
-    FittedColumnAbsentError,
     FittedImputer,
     FittedUnit,
-    UnseenColumnError,
 )
 from ._recipe import ColumnEstimates, ImputationRecipe, resolve_recipe
 from ._router import route
-from ._unit_fit import UnitFitResult, UnitNotTrainableError, fit_unit
+from ._unit_fit import UnitFitResult, fit_unit
 from ._units import derive_units
 
 __all__ = [
@@ -30,7 +28,6 @@ __all__ = [
     "ColumnRouting",
     "DroppedColumnAbsentWarning",
     "FitSignals",
-    "FittedColumnAbsentError",
     "FittedImputer",
     "FittedUnit",
     "ImputationConfig",
@@ -43,8 +40,6 @@ __all__ = [
     "ModelChoice",
     "NumericImputationConfig",
     "UnitFitResult",
-    "UnitNotTrainableError",
-    "UnseenColumnError",
     "author",
     "derive_units",
     "fit_unit",

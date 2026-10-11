@@ -20,6 +20,7 @@ import polars as pl
 
 from ..config import PipelineConfig, PipelinePhase
 from ..models._data_types import _FLOAT_DTYPES, _INT_DTYPES
+from ..records import DataForgeError
 from ..utils._dtype_floor import _apply_dtype_floor
 from ..utils._null_normalization import _resolve_effective_nulls
 from ._config import (
@@ -52,9 +53,11 @@ def _normalize_results(recipe: Any, results: Any) -> dict[str, Any]:
         key = frozenset(item.target_columns)
         matched = by_columns.get(key)
         if matched is None:
-            raise ValueError(
+            raise DataForgeError.from_code(
+                "unit_coverage_mismatch",
                 f"A supplied fitted unit owns columns {sorted(item.target_columns)}, "
-                f"which match no unit in the routing; it cannot be composed."
+                f"which match no unit in the routing; it cannot be composed.",
+                columns=sorted(item.target_columns),
             )
         return matched, item
 
@@ -83,33 +86,6 @@ class DroppedColumnAbsentWarning(UserWarning):
     """
 
 
-class UnseenColumnError(Exception):
-    """
-    Raised by FittedImputer.transform() when the input DataFrame contains
-    columns that were not present in the training DataFrame during fit().
-
-    Fires before any DataFrame mutations regardless of whether the unknown
-    columns contain missing values, so schema drift is caught at transform
-    entry rather than silently propagating downstream (ADR 0026).
-
-    All unknown column names are reported in a single raise so the caller
-    can resolve all schema mismatches at once.
-    """
-
-
-class FittedColumnAbsentError(Exception):
-    """
-    Raised by FittedImputer.transform() when a column that received an active
-    imputation strategy during fit() is absent from the input DataFrame.
-
-    Active strategies are any strategy other than ``Dropped`` or ``Indicator``.
-    Absence of such a column is always a pipeline bug — imputation was never
-    applied — so this is escalated to an error rather than a warning.
-
-    All absent column names are reported in a single raise.
-    """
-
-
 from typing import Protocol, runtime_checkable
 
 
@@ -121,7 +97,7 @@ class FittedUnit(Protocol):
     requirement (it carries only the 'my own columns absent' contract).
 
     A trained unit always executed the strategy the plan asked for: a unit that
-    cannot train raises :class:`~dataforge_ml.imputation.UnitNotTrainableError`
+    cannot train raises the ``unit_not_trainable`` Library Error
     rather than becoming a divergent artifact (single-track failure, ADR-0071).
     The strategy the unit executed is a route-time fact the routing holds under the
     same ``unit_id``, so a fitted unit carries only its fitted state (ADR-0074)
@@ -504,9 +480,9 @@ class FittedImputer:
 
         Raises
         ------
-        ValueError
-            If the supplied units do not exactly cover the routing's units, or a
-            raw fitted unit matches no unit.
+        InvalidInput
+            ``unit_coverage_mismatch`` if the supplied units do not exactly
+            cover the routing's units, or a raw fitted unit matches no unit.
         """
         fitted_by_id = _normalize_results(recipe, results)
         units_derived = derive_units(recipe.routing)
@@ -521,10 +497,11 @@ class FittedImputer:
                 parts.append(f"missing units {sorted(missing)}")
             if extra:
                 parts.append(f"unexpected units {sorted(extra)}")
-            raise ValueError(
+            raise DataForgeError.from_code(
+                "unit_coverage_mismatch",
                 "compose() requires the supplied units to cover the routing's "
                 f"units exactly: {'; '.join(parts)}. Train every routed unit "
-                "(and only those) before composing."
+                "(and only those) before composing.",
             )
 
         # A scalar unit's learned fill lands on the structural manifest, which is
@@ -640,14 +617,16 @@ class FittedImputer:
 
         Raises
         ------
-        UnseenColumnError
-            If df contains any column absent from ``self.records``. Fires before
-            any DataFrame mutations regardless of whether the unknown column has
-            missing values. All unknown column names are reported in one raise.
-        FittedColumnAbsentError
-            If a column with an active imputation strategy (any strategy other
-            than ``Dropped`` or ``Indicator``) is absent from df. All absent
-            column names are reported in one raise.
+        InvalidInput
+            ``unseen_column`` if df contains any column absent from
+            ``self.records``. Fires before any DataFrame mutations regardless
+            of whether the unknown column has missing values (ADR 0026). All
+            unknown column names are reported in one raise.
+            ``missing_fitted_columns`` if a column with an active imputation
+            strategy (any strategy other than ``Dropped`` or ``Indicator``) is
+            absent from df: imputation was never applied, so this is an error
+            rather than a warning. All absent column names are reported in one
+            raise.
 
         Warns
         -----
@@ -656,17 +635,19 @@ class FittedImputer:
             df. One warning is emitted per absent column. Transform continues
             normally.
         """
-        # --- UnseenColumnError check (before any mutations) ---
+        # --- unseen_column check (before any mutations) ---
         unseen = [col for col in df.columns if col not in self.records]
         if unseen:
             cols_str = ", ".join(f"'{c}'" for c in unseen)
-            raise UnseenColumnError(
+            raise DataForgeError.from_code(
+                "unseen_column",
                 f"Column(s) {cols_str} were not present in the training DataFrame "
                 f"during fit() and have no entry in the schema manifest. Schema "
-                f"drift between fit and transform is not permitted."
+                f"drift between fit and transform is not permitted.",
+                columns=unseen,
             )
 
-        # --- FittedColumnAbsentError check (before any mutations) ---
+        # --- missing_fitted_columns check (before any mutations) ---
         _absent_exempt = {ImputationStrategy.Dropped, ImputationStrategy.Indicator}
         absent = [
             col for col, rec in self.records.items()
@@ -674,10 +655,12 @@ class FittedImputer:
         ]
         if absent:
             cols_str = ", ".join(f"'{c}'" for c in absent)
-            raise FittedColumnAbsentError(
+            raise DataForgeError.from_code(
+                "missing_fitted_columns",
                 f"Column(s) {cols_str} were fitted with an active imputation "
                 f"strategy but are absent from the input DataFrame. Imputation "
-                f"cannot be applied to absent columns."
+                f"cannot be applied to absent columns.",
+                columns=absent,
             )
 
         # Phase entry: effective nulls first, then the Dtype Floor off the

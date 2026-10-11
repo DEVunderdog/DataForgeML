@@ -22,12 +22,12 @@ from dataforge_ml import (
     PipelineConfig,
     SemanticType,
     StructuralProfiler,
-    UnitNotTrainableError,
     author,
     derive_units,
     fit_unit,
     resolve_recipe,
 )
+from tests.conftest import raises_code
 
 COLUMNS = ["score", "revenue", "rating", "label"]
 
@@ -226,34 +226,34 @@ def test_non_mnar_columns_get_no_indicator_entry():
 
 
 def test_neither_profile_nor_base_raises():
-    with pytest.raises(ValueError, match="exactly one"):
+    with raises_code("invalid_argument", match="exactly one"):
         author({"score": ImputationStrategy.Mean})
 
 
 def test_both_profile_and_base_raises():
     profile = _profile()
     base = author({}, profile=profile)
-    with pytest.raises(ValueError, match="exactly one"):
+    with raises_code("invalid_argument", match="exactly one"):
         author({}, profile=profile, base=base)
 
 
 def test_map_key_absent_from_the_universe_raises():
-    with pytest.raises(ValueError, match="typo"):
+    with raises_code("unknown_column", match="typo"):
         author({"typo": ImputationStrategy.Mean}, profile=_profile())
 
 
 def test_mice_for_a_single_column_raises():
-    with pytest.raises(ValueError, match="score"):
+    with raises_code("mice_block_too_small", match="score"):
         author({"score": ImputationStrategy.MICE}, profile=_profile())
 
 
 def test_constant_without_a_fill_raises():
-    with pytest.raises(ValueError, match="rating"):
+    with raises_code("constant_fill_missing", match="rating"):
         author({"rating": ImputationStrategy.Constant}, profile=_profile())
 
 
 def test_excluded_with_a_strategy_other_than_passthrough_raises():
-    with pytest.raises(ValueError, match="rating"):
+    with raises_code("declaration_conflict", match="rating"):
         author(
             {"rating": AuthoredColumn(strategy=ImputationStrategy.Median, excluded=True)},
             profile=_profile(),
@@ -261,17 +261,17 @@ def test_excluded_with_a_strategy_other_than_passthrough_raises():
 
 
 def test_indicator_anywhere_in_the_map_raises():
-    with pytest.raises(ValueError, match="rating"):
+    with raises_code("strategy_not_declarable", match="rating"):
         author({"rating": ImputationStrategy.Indicator}, profile=_profile())
 
 
 def test_indicator_as_the_default_raises():
-    with pytest.raises(ValueError, match="Indicator"):
+    with raises_code("strategy_not_declarable", match="Indicator"):
         author({}, profile=_profile(), default=ImputationStrategy.Indicator)
 
 
 def test_a_non_numeric_column_declared_anything_but_passthrough_or_dropped_raises():
-    with pytest.raises(ValueError, match="label"):
+    with raises_code("strategy_not_declarable", match="label"):
         author({"label": ImputationStrategy.Mode}, profile=_profile())
 
 
@@ -283,12 +283,12 @@ def test_a_non_numeric_column_may_be_declared_passthrough_or_dropped():
 
 
 def test_an_unknown_strategy_name_raises():
-    with pytest.raises(ValueError, match="score"):
+    with raises_code("unknown_enum_value", match="score"):
         author({"score": "interpolate"}, profile=_profile())
 
 
 def test_an_unrecognised_value_type_raises_type_error():
-    with pytest.raises(TypeError, match="score"):
+    with raises_code("invalid_argument", match="score"):
         author({"score": 42}, profile=_profile())
 
 
@@ -308,7 +308,7 @@ def test_reauthoring_carries_unnamed_columns_verbatim():
 
 def test_reauthoring_an_unknown_column_raises():
     base = author({}, profile=_profile())
-    with pytest.raises(ValueError, match="typo"):
+    with raises_code("unknown_column", match="typo"):
         author({"typo": ImputationStrategy.Mean}, base=base)
 
 
@@ -324,7 +324,7 @@ def test_reauthoring_replaces_indicator_entries():
 def test_reauthoring_non_numeric_column_with_invalid_strategy_raises():
     profile = _profile()
     base = author({"score": ImputationStrategy.Median}, profile=profile)
-    with pytest.raises(ValueError, match="label"):
+    with raises_code("strategy_not_declarable", match="label"):
         author({"label": ImputationStrategy.Mean}, base=base)
 
 
@@ -462,7 +462,7 @@ def test_a_bare_mice_declaration_structurally_survives_authoring_but_cannot_fit(
     df = _frame()
     recipe = resolve_recipe(routing, _profile(df), PipelineConfig())
     (unit,) = derive_units(routing, strategy=ImputationStrategy.MICE)
-    with pytest.raises(UnitNotTrainableError):
+    with raises_code("unit_not_trainable"):
         fit_unit(recipe, unit, df)
 
 
@@ -502,7 +502,7 @@ def test_with_model_choice_raises_on_bare_custom_label():
         {"score": ImputationStrategy.MICE, "revenue": ImputationStrategy.MICE},
         profile=_profile(),
     )
-    with pytest.raises(ValueError, match="Custom"):
+    with raises_code("invalid_argument", match="Custom"):
         routing.with_model_choice(ModelChoice.Custom)
 
 
@@ -510,7 +510,7 @@ def test_with_model_choice_raises_when_routing_has_no_mice_block():
     from dataforge_ml.imputation._config import ModelChoice
 
     routing = author({"score": ImputationStrategy.Median}, profile=_profile())
-    with pytest.raises(ValueError, match="MICE"):
+    with raises_code("no_mice_block", match="MICE"):
         routing.with_model_choice(ModelChoice.RandomForestRegressor)
 
 
@@ -548,8 +548,8 @@ def test_with_model_choice_works_identically_on_routed_and_authored_routings():
         assert updated_custom.mice_estimator is est
         assert r.mice_estimator is None
 
-        # Bare ModelChoice.Custom raises ValueError
-        with pytest.raises(ValueError, match="Custom"):
+        # Bare ModelChoice.Custom raises invalid_argument
+        with raises_code("invalid_argument", match="Custom"):
             r.with_model_choice(ModelChoice.Custom)
 
     # 2. Routings with NO MICE block: authored vs routed
@@ -557,9 +557,9 @@ def test_with_model_choice_works_identically_on_routed_and_authored_routings():
     routed_no_mice = route(profile)
 
     for r in (authored_no_mice, routed_no_mice):
-        with pytest.raises(ValueError, match="MICE"):
+        with raises_code("no_mice_block", match="MICE"):
             r.with_model_choice(ModelChoice.RandomForestRegressor)
-        with pytest.raises(ValueError, match="MICE"):
+        with raises_code("no_mice_block", match="MICE"):
             r.with_model_choice(Ridge())
 
 
@@ -597,10 +597,10 @@ def test_hand_authored_routing_with_forced_mice_and_bimodal_estimates_end_to_end
     units = derive_units(recipe.routing)
     gmm_unit = next(u for u in units if u.strategy == ImputationStrategy.GMMSampling)
 
-    # Attempting to fit before supplying estimates raises UnitNotTrainableError
-    with pytest.raises(UnitNotTrainableError) as exc_info:
+    # Attempting to fit before supplying estimates raises unit_not_trainable
+    with raises_code("unit_not_trainable") as exc_info:
         fit_unit(recipe, gmm_unit, df)
-    assert "with_estimates" in exc_info.value.reason
+    assert "with_estimates" in exc_info.value.message
 
     # Supply the missing bimodal centres via with_estimates
     recipe = recipe.with_estimates("score", center1=45.0, center2=55.0)

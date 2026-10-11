@@ -23,7 +23,7 @@ from dataforge_ml.imputation import (
 from dataforge_ml.profiling._config import ProfileConfig
 from dataforge_ml.profiling.orchestrator import StructuralProfiler
 from dataforge_ml.splitting import DataSplitter
-from tests.conftest import fit_imputer
+from tests.conftest import fit_imputer, raises_code
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -142,7 +142,7 @@ def test_fitted_imputer_serialisation_round_trip(fitted_imputer, imputation_spli
 def test_mnar_column_keeps_its_nulls_and_exposes_its_fill():
     """An MNAR column gains its indicator, keeps its nulls, and carries the
     computed fill on its record rather than applying it (ADR-0098)."""
-    from dataforge_ml.imputation import ImputationConfig, NumericImputationConfig
+    from dataforge_ml.imputation import ImputationConfig
 
     n = 200
     data = pl.DataFrame({
@@ -326,9 +326,8 @@ def test_hard_excluded_column_still_present_raises_before_mutation(
     exclusion_df, exclusion_fitted
 ):
     """A hard-excluded column the user forgot to drop hits the strict unknown-column raise."""
-    from dataforge_ml.imputation import UnseenColumnError
 
-    with pytest.raises(UnseenColumnError, match="hard_out"):
+    with raises_code("unseen_column", match="hard_out"):
         exclusion_fitted.transform(exclusion_df)
 
 
@@ -438,8 +437,8 @@ def test_hand_authored_plan_drives_column_names_to_an_imputed_frame():
         AuthoredColumn,
         ImputationStrategy,
         author,
-        deserialize,
         derive_units,
+        deserialize,
         fit_unit,
         resolve_recipe,
         serialize,
@@ -626,6 +625,7 @@ def test_forced_gmm_sampling_end_to_end_on_bounded_discrete_snaps_output():
     with snapped output (ADR-0095).
     """
     import numpy as np
+
     from dataforge_ml.profiling._config import NumericKind
 
     rng = np.random.default_rng(42)

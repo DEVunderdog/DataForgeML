@@ -8,6 +8,7 @@ resolve_active_columns coverage lives in tests/unit/profiling/test_pipeline_conf
 import pytest
 
 from dataforge_ml.config import PipelineConfig, PipelinePhase, SemanticType
+from tests.conftest import raises_code
 
 # ---------------------------------------------------------------------------
 # set_column_type — single column override
@@ -28,14 +29,15 @@ def test_set_column_type_accepts_valid_string():
 
 def test_set_column_type_raises_on_unknown_string():
     cfg = PipelineConfig()
-    with pytest.raises(ValueError, match="invalid_type"):
+    with raises_code("unknown_enum_value", match="invalid_type"):
         cfg.set_column_type("score", "invalid_type")
 
 
 def test_set_column_type_error_message_lists_valid_values():
     cfg = PipelineConfig()
-    with pytest.raises(ValueError, match="numeric"):
+    with raises_code("unknown_enum_value") as info:
         cfg.set_column_type("score", "not_a_type")
+    assert "numeric" in info.value.allowed
 
 
 def test_set_column_type_overwrites_existing_override():
@@ -67,7 +69,7 @@ def test_set_columns_type_accepts_valid_string():
 
 def test_set_columns_type_raises_on_unknown_string():
     cfg = PipelineConfig()
-    with pytest.raises(ValueError, match="bad_type"):
+    with raises_code("unknown_enum_value", match="bad_type"):
         cfg.set_column_type(["col"], "bad_type")
 
 
@@ -169,5 +171,5 @@ def test_from_dict_raises_on_invalid_entry():
     d = {
         "column_overrides": {"score": "not_a_type"},
     }
-    with pytest.raises(ValueError, match="not_a_type"):
+    with raises_code("unknown_enum_value", match="not_a_type"):
         PipelineConfig.from_dict(d)

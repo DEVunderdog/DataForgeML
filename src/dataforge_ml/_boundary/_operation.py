@@ -186,9 +186,10 @@ def _run(spec: OperationSpec, validate: Callable[[], BaseModel]) -> OutputRecord
         finally:
             _CALL.reset(token)
         if not isinstance(result, spec.result_model):
-            raise TypeError(
+            raise DataForgeError.from_code(
+                "unexpected",
                 f"Operation {spec.name!r} returned {type(result).__name__}, "
-                f"not {spec.result_model.__name__}"
+                f"not {spec.result_model.__name__}.",
             )
         return result
     except DataForgeError:

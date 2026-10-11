@@ -20,10 +20,9 @@ from dataforge_ml.imputation._config import (
 )
 from dataforge_ml.imputation._fitted_imputer import (
     DroppedColumnAbsentWarning,
-    FittedColumnAbsentError,
     FittedImputer,
-    UnseenColumnError,
 )
+from tests.conftest import raises_code
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -264,18 +263,18 @@ def test_passthrough_nulls_pass_through_for_every_column():
 
 
 def test_absent_passthrough_column_raises_fitted_column_absent_error():
-    """FittedColumnAbsentError fires when a Passthrough column is absent."""
+    """missing_fitted_columns fires when a Passthrough column is absent."""
     imputer = FittedImputer(records={
         "clean": _record("clean", ImputationStrategy.Passthrough),
         "other": _record("other", ImputationStrategy.Mean, fill_value=1.0),
     })
     df = pl.DataFrame({"other": pl.Series([1.0, 2.0], dtype=pl.Float64)})
-    with pytest.raises(FittedColumnAbsentError):
+    with raises_code("missing_fitted_columns"):
         imputer.transform(df)
 
 
 # ---------------------------------------------------------------------------
-# transform() — UnseenColumnError schema enforcement
+# transform() — unseen_column schema enforcement
 # ---------------------------------------------------------------------------
 
 
@@ -287,7 +286,7 @@ def test_unseen_column_error_fires_for_column_not_in_records():
         "a": pl.Series([1.0, None], dtype=pl.Float64),
         "unknown": pl.Series(["x", "y"], dtype=pl.Utf8),
     })
-    with pytest.raises(UnseenColumnError, match="unknown"):
+    with raises_code("unseen_column", match="unknown"):
         imputer.transform(df)
 
 
@@ -299,7 +298,7 @@ def test_unseen_column_error_fires_even_when_unknown_column_has_no_nulls():
         "a": pl.Series([1.0, 2.0], dtype=pl.Float64),
         "extra": pl.Series(["x", "y"], dtype=pl.Utf8),
     })
-    with pytest.raises(UnseenColumnError):
+    with raises_code("unseen_column"):
         imputer.transform(df)
 
 
@@ -312,15 +311,13 @@ def test_unseen_column_error_names_all_unknown_columns_in_single_raise():
         "ghost1": pl.Series(["x", "y"], dtype=pl.Utf8),
         "ghost2": pl.Series([1, 2], dtype=pl.Int64),
     })
-    with pytest.raises(UnseenColumnError) as exc_info:
+    with raises_code("unseen_column") as exc_info:
         imputer.transform(df)
-    msg = str(exc_info.value)
-    assert "ghost1" in msg
-    assert "ghost2" in msg
+    assert exc_info.value.columns == ["ghost1", "ghost2"]
 
 
 def test_unseen_column_error_fires_before_resolve_effective_nulls():
-    """UnseenColumnError must fire before any DataFrame mutation (incl. null normalisation)."""
+    """unseen_column must fire before any DataFrame mutation (incl. null normalisation)."""
     imputer = FittedImputer(records={
         "a": _record("a", ImputationStrategy.Mean, fill_value=5.0),
     })
@@ -328,12 +325,12 @@ def test_unseen_column_error_fires_before_resolve_effective_nulls():
         "a": pl.Series([float("inf"), None], dtype=pl.Float64),
         "unseen": pl.Series([1.0, 2.0], dtype=pl.Float64),
     })
-    with pytest.raises(UnseenColumnError):
+    with raises_code("unseen_column"):
         imputer.transform(df)
 
 
 # ---------------------------------------------------------------------------
-# transform() — FittedColumnAbsentError schema enforcement
+# transform() — missing_fitted_columns schema enforcement
 # ---------------------------------------------------------------------------
 
 
@@ -343,7 +340,7 @@ def test_fitted_column_absent_error_fires_for_active_strategy_column_absent():
         "b": _record("b", ImputationStrategy.Median, fill_value=3.0),
     })
     df = pl.DataFrame({"a": pl.Series([1.0, None], dtype=pl.Float64)})
-    with pytest.raises(FittedColumnAbsentError, match="b"):
+    with raises_code("missing_fitted_columns", match="b"):
         imputer.transform(df)
 
 
@@ -354,11 +351,9 @@ def test_fitted_column_absent_error_names_all_absent_columns():
         "c": _record("c", ImputationStrategy.Mode, fill_value=1.0),
     })
     df = pl.DataFrame({"a": pl.Series([1.0, None], dtype=pl.Float64)})
-    with pytest.raises(FittedColumnAbsentError) as exc_info:
+    with raises_code("missing_fitted_columns") as exc_info:
         imputer.transform(df)
-    msg = str(exc_info.value)
-    assert "b" in msg
-    assert "c" in msg
+    assert exc_info.value.columns == ["b", "c"]
 
 
 def test_fitted_column_absent_error_does_not_fire_for_dropped_column_absent():
@@ -383,7 +378,7 @@ def test_fitted_column_absent_error_does_not_fire_for_indicator_column_absent():
 
 
 def test_unseen_column_error_fires_before_fitted_column_absent_error():
-    """When both conditions apply, UnseenColumnError must be the one raised."""
+    """When both conditions apply, unseen_column must be the one raised."""
     imputer = FittedImputer(records={
         "a": _record("a", ImputationStrategy.Mean, fill_value=5.0),
         "b": _record("b", ImputationStrategy.Median, fill_value=3.0),
@@ -393,7 +388,7 @@ def test_unseen_column_error_fires_before_fitted_column_absent_error():
         "a": pl.Series([1.0, None], dtype=pl.Float64),
         "extra": pl.Series(["x", "y"], dtype=pl.Utf8),
     })
-    with pytest.raises(UnseenColumnError):
+    with raises_code("unseen_column"):
         imputer.transform(df)
 
 
@@ -931,20 +926,15 @@ def test_indicator_round_trips_via_to_dict_from_dict(round_trip):
 
 
 # ---------------------------------------------------------------------------
-# UnseenColumnError and FittedColumnAbsentError — class identity
+# unseen_column and missing_fitted_columns — codes, not classes
 # ---------------------------------------------------------------------------
 
 
-def test_unseen_column_error_is_exception():
-    assert issubclass(UnseenColumnError, Exception)
+def test_schema_errors_are_codes_in_the_invalid_input_category():
+    from dataforge_ml._boundary._error_codes import REGISTRY
 
-
-def test_fitted_column_absent_error_is_exception():
-    assert issubclass(FittedColumnAbsentError, Exception)
-
-
-def test_unseen_column_error_is_distinct_from_fitted_column_absent_error():
-    assert UnseenColumnError is not FittedColumnAbsentError
+    assert REGISTRY["unseen_column"].category == "InvalidInput"
+    assert REGISTRY["missing_fitted_columns"].category == "InvalidInput"
 
 
 def test_unfitted_column_error_is_absent_from_the_public_api():
@@ -960,21 +950,11 @@ def test_unfitted_column_error_is_absent_from_the_public_api():
     assert not hasattr(dataforge_ml, "UnfittedColumnError")
 
 
-def test_unseen_column_error_is_instantiable():
-    err = UnseenColumnError("unknown: 'foo', 'bar'")
-    assert "foo" in str(err)
+def test_the_old_schema_error_classes_are_deleted():
+    import dataforge_ml.imputation as imputation_pkg
 
-
-def test_fitted_column_absent_error_is_instantiable():
-    err = FittedColumnAbsentError("absent: 'score'")
-    assert "score" in str(err)
-
-
-def test_new_error_classes_exported_from_package():
-    from dataforge_ml.imputation import FittedColumnAbsentError as FCE
-    from dataforge_ml.imputation import UnseenColumnError as UCE
-    assert UCE is UnseenColumnError
-    assert FCE is FittedColumnAbsentError
+    for name in ("UnseenColumnError", "FittedColumnAbsentError"):
+        assert not hasattr(imputation_pkg, name)
 
 
 # ---------------------------------------------------------------------------

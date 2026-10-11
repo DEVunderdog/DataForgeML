@@ -13,10 +13,9 @@ convenience it tested (ADR-0021's tuple return) no longer exists, and
 """
 
 import polars as pl
-import pytest
 
 from dataforge_ml.config import PipelineConfig, SemanticType
-from dataforge_ml.imputation._config import ImputationStrategy, NumericImputationConfig
+from dataforge_ml.imputation._config import ImputationStrategy
 from dataforge_ml.imputation._fitted_imputer import FittedImputer
 from dataforge_ml.profiling._config import (
     ColumnProfile,
@@ -28,7 +27,7 @@ from dataforge_ml.profiling._missingness_config import (
     MissingSeverity,
 )
 from dataforge_ml.profiling._numeric_config import NumericStats, SkewSeverity
-from tests.conftest import fit_imputer
+from tests.conftest import fit_imputer, raises_code
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -298,7 +297,6 @@ def test_indicator_record_round_trips_via_to_dict_from_dict(round_trip):
     cfg.imputation.add_mnar_column("income")
     fi = fit_imputer(df, profile, cfg)
 
-    from dataforge_ml.imputation._fitted_imputer import FittedImputer
     restored = round_trip(fi)
     assert "income_missing" in restored.records
     assert restored.records["income_missing"].decision.strategy == ImputationStrategy.Indicator
@@ -366,5 +364,5 @@ def test_imputation_orchestrator_raises_on_invalid_config_before_processing():
     
     # ``route()`` validates the config before it routes anything, so a
     # contradictory config is rejected at route time rather than at fit time.
-    with pytest.raises(ValueError, match="mutually exclusive: 'a'"):
+    with raises_code("declaration_conflict", match="mutually exclusive: 'a'"):
         fit_imputer(df, profile, cfg)

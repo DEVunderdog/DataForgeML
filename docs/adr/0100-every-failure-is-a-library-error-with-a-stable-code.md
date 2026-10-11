@@ -4,7 +4,7 @@ An Agent has to act on a failure, not just read it. Today only three of the libr
 
 ## Status
 
-accepted; the `truncated` count is replaced by `omitted` (ADR-0102). Resolves [What is the one error contract every library failure follows?](https://github.com/DEVunderdog/DataForgeML/issues/572) on [Map: an agent-native DataForgeML](https://github.com/DEVunderdog/DataForgeML/issues/568). It closes gaps G1c, G7, G8, G12, G16 and G17 of `dataforgeml-agent-surface.md` §6. Planning only: no code changes yet.
+accepted; the `truncated` count is replaced by `omitted` (ADR-0102). Resolves [What is the one error contract every library failure follows?](https://github.com/DEVunderdog/DataForgeML/issues/572) on [Map: an agent-native DataForgeML](https://github.com/DEVunderdog/DataForgeML/issues/568). It closes gaps G1c, G7, G8, G12, G16 and G17 of `dataforgeml-agent-surface.md` §6. Implemented for every internal raise site by #591; the two codes this ADR left unnamed are named below.
 
 ## Decisions
 
@@ -41,3 +41,7 @@ accepted; the `truncated` count is replaced by `omitted` (ADR-0102). Resolves [W
 - The C2ST "two named refusals" lines (ADR-0087 as amended) become the codes `c2st_string_column` and `c2st_sample_floor` under `Infeasible`. "Refusal" keeps one meaning: a C2ST outcome carried in a result.
 - G7 (`serialize` of an unsupported object) becomes an `InvalidInput` naming the supported kinds. G8 (foreign bytes) becomes `incompatible_artifact`. G1c (stratifying on a continuous target) gets its own code at its source.
 - Whether dial values are checked at edit time is left to the configuration ticket. This ADR only fixes the code they raise.
+- The two codes left to implementation are named (#591):
+  - `stratify_on_continuous_target` (`Infeasible`, fields `param`, `columns`). Every stratified split checks the target before sklearn does. It raises when the target is continuous, or when it has too few rows per value for that splitter: a shuffle split needs every value in at least 2 rows, and k-fold needs at least one value in `k` rows. The message gives counts of values, never the values.
+  - `missing_fitted_columns` (`InvalidInput`, field `columns`). A frame lacks columns that a fitted imputer or unit was fitted to fill. It replaces `FittedColumnAbsentError`.
+- The registry test reads the source's syntax tree, so it catches a raise of anything but a registered Library Error. A few guards are exempt. They protect the error machinery itself or an Operation's definition at import time, so they fire only on a library bug.

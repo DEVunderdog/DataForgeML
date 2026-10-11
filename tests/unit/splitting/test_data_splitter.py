@@ -8,6 +8,7 @@ from dataforge_ml.splitting._config import (
     SplitResult,
 )
 from dataforge_ml.splitting._splitter import DataSplitter
+from tests.conftest import raises_code
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -56,25 +57,27 @@ def test_constructor_no_target(df_no_target):
 
 
 def test_constructor_raises_type_error_for_non_polars():
-    with pytest.raises(TypeError):
+    with raises_code("invalid_argument"):
         DataSplitter([[1, 2], [3, 4]])
 
 
 def test_constructor_raises_type_error_for_numpy_array():
     import numpy as np
-    with pytest.raises(TypeError):
+    with raises_code("invalid_argument"):
         DataSplitter(np.zeros((10, 3)))
 
 
 def test_constructor_raises_value_error_for_empty_df():
     empty = pl.DataFrame({"x": pl.Series([], dtype=pl.Float64)})
-    with pytest.raises(ValueError, match="empty"):
+    with raises_code("invalid_argument", match="empty"):
         DataSplitter(empty)
 
 
 def test_constructor_raises_value_error_for_missing_target(df):
-    with pytest.raises(ValueError, match="not found"):
+    with raises_code("unknown_column") as info:
         DataSplitter(df, target="nonexistent_column")
+    assert info.value.param == "target"
+    assert info.value.columns == ["nonexistent_column"]
 
 
 # ---------------------------------------------------------------------------
@@ -147,8 +150,74 @@ def test_stratify_defaults_false_when_no_target(df_no_target):
 
 def test_stratify_true_without_target_raises_value_error(df_no_target):
     splitter = DataSplitter(df_no_target)
-    with pytest.raises(ValueError, match="target"):
+    with raises_code("stratify_without_target", match="target"):
         splitter.random_split(test_size=0.2, stratify=True)
+
+
+# ---------------------------------------------------------------------------
+# Stratifying on a continuous target (G1c)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def df_price() -> pl.DataFrame:
+    # Every price is distinct, as a continuous target is: each class is a singleton.
+    return pl.DataFrame(
+        {
+            "feature": list(range(200)),
+            "price": [100_000 + 137 * i for i in range(200)],
+        }
+    )
+
+
+def test_random_split_on_a_continuous_target_raises_its_code_with_counts(df_price):
+    with raises_code("stratify_on_continuous_target") as info:
+        DataSplitter(df_price, target="price").random_split(test_size=0.2)
+    err = info.value
+    assert err.columns == ["price"]
+    assert err.param == "stratify"
+    assert "200 of its 200 distinct value(s)" in err.message
+    # sklearn's own error listed every singleton class value; none may leak.
+    assert "100137" not in str(err.to_dict())
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda s: s.kfold(5),
+        lambda s: s.repeated_kfold(5, n_repeats=2),
+        lambda s: s.holdout_cv(test_size=0.2, k=5),
+        lambda s: s.group_kfold(5, group_column="feature"),
+    ],
+)
+def test_every_stratified_scheme_refuses_a_continuous_target(df_price, call):
+    with raises_code("stratify_on_continuous_target"):
+        call(DataSplitter(df_price, target="price"))
+
+
+def test_a_float_continuous_target_is_refused_by_kfold():
+    frame = pl.DataFrame({"x": list(range(40)), "y": [i / 7 for i in range(40)]})
+    with raises_code("stratify_on_continuous_target"):
+        DataSplitter(frame, target="y").kfold(5)
+
+
+def test_a_continuous_target_still_splits_unstratified(df_price):
+    result = DataSplitter(df_price, target="price").random_split(0.2, stratify=False)
+    assert result.test_size == 40
+
+
+@pytest.mark.filterwarnings("ignore:The least populated class")
+def test_kfold_tolerates_a_rare_class_beside_well_populated_ones():
+    # sklearn warns, not raises, when only some classes are below k.
+    frame = pl.DataFrame({"x": list(range(41)), "y": [0] * 20 + [1] * 20 + [2]})
+    folds = DataSplitter(frame, target="y", random_seed=0).kfold(5)
+    assert len(folds) == 5
+
+
+def test_an_unknown_column_offers_close_matches(df):
+    with raises_code("unknown_column") as info:
+        DataSplitter(df, target=df.columns[0] + "x")
+    assert info.value.candidates[0] == df.columns[0]
 
 
 # ---------------------------------------------------------------------------
@@ -219,12 +288,13 @@ def time_splitter(time_df) -> DataSplitter:
 
 
 def test_time_split_raises_for_missing_column(time_splitter):
-    with pytest.raises(ValueError, match="not found"):
+    with raises_code("unknown_column") as info:
         time_splitter.time_split("nonexistent")
+    assert info.value.param == "time_column"
 
 
 def test_time_split_raises_when_neither_arg_provided(time_splitter):
-    with pytest.raises(ValueError, match="Either"):
+    with raises_code("invalid_argument", match="either test_size or cutoff"):
         time_splitter.time_split("date")
 
 
@@ -418,7 +488,7 @@ def test_kfold_stratify_defaults_false_when_no_target(kfold_df, kfold_splitter_n
 
 
 def test_kfold_stratify_true_without_target_raises(kfold_splitter_no_target):
-    with pytest.raises(ValueError, match="target"):
+    with raises_code("stratify_without_target", match="target"):
         kfold_splitter_no_target.kfold(_K, stratify=True)
 
 
@@ -1949,7 +2019,7 @@ def test_repeated_kfold_stratify_defaults_false_when_no_target(kfold_splitter_no
 
 
 def test_repeated_kfold_stratify_true_without_target_raises(kfold_splitter_no_target):
-    with pytest.raises(ValueError, match="target"):
+    with raises_code("stratify_without_target", match="target"):
         kfold_splitter_no_target.repeated_kfold(_K, _N_REPEATS, stratify=True)
 
 
@@ -2038,7 +2108,7 @@ def test_group_split_ratios_reflect_actual_proportions(group_df, group_splitter)
 
 
 def test_group_split_missing_column_raises(group_splitter):
-    with pytest.raises(ValueError, match="group_column"):
+    with raises_code("unknown_column", match="group_column"):
         group_splitter.group_split(test_size=0.25, group_column="does_not_exist")
 
 
@@ -2136,12 +2206,12 @@ def test_group_kfold_stratify_false_produces_disjoint_folds(group_splitter):
 
 
 def test_group_kfold_missing_column_raises(group_splitter):
-    with pytest.raises(ValueError, match="group_column"):
+    with raises_code("unknown_column", match="group_column"):
         group_splitter.group_kfold(_GK, group_column="does_not_exist")
 
 
 def test_group_kfold_stratify_true_without_target_raises(group_splitter_no_target):
-    with pytest.raises(ValueError, match="target"):
+    with raises_code("stratify_without_target", match="target"):
         group_splitter_no_target.group_kfold(_GK, group_column="entity", stratify=True)
 
 
@@ -2230,7 +2300,7 @@ def test_holdout_cv_stratify_defaults_false_when_no_target(kfold_splitter_no_tar
 
 
 def test_holdout_cv_stratify_true_without_target_raises(kfold_splitter_no_target):
-    with pytest.raises(ValueError, match="target"):
+    with raises_code("stratify_without_target", match="target"):
         kfold_splitter_no_target.holdout_cv(
             test_size=_HCV_TEST_SIZE, k=_HCV_K, stratify=True
         )

@@ -9,6 +9,7 @@ from dataforge_ml.profiling._datetime_config import (
     InferredGranularity,
 )
 from dataforge_ml.profiling._datetime_profiler import DatetimeProfiler
+from tests.conftest import raises_code
 
 # ---------------------------------------------------------------------------
 # Result type & analysed_columns
@@ -213,17 +214,14 @@ def test_datetime_profile_config_exported_from_profiling_api():
 
 
 def test_override_coercion_error_raised_for_total_failure():
-    import pytest
 
-    from dataforge_ml.profiling import OverrideCoercionError
 
     df = pl.DataFrame({"ts": pl.Series(["abc", "def", "ghi"])})
-    with pytest.raises(OverrideCoercionError, match="completely failed coercion"):
+    with raises_code("override_coercion_failed", match="failed to convert"):
         DatetimeProfiler().profile(df, ["ts"], user_overrides={"ts"})
 
 
 def test_override_coercion_error_not_raised_for_partial_failure():
-    from dataforge_ml.profiling import OverrideCoercionError
     # 1 valid, 2 invalid
     df = pl.DataFrame({"ts": pl.Series(["2024-01-01", "abc", "def"])})
     result = DatetimeProfiler().profile(df, ["ts"], user_overrides={"ts"})
@@ -266,13 +264,11 @@ def test_datetime_profiler_with_epoch_units():
 
 
 def test_numeric_override_without_epoch_unit_raises_error():
-    import pytest
 
-    from dataforge_ml.profiling import OverrideCoercionError
     
     df = pl.DataFrame({"ts": pl.Series([1700000000, 1700000060], dtype=pl.Int64)})
     
-    with pytest.raises(OverrideCoercionError, match="completely failed coercion"):
+    with raises_code("override_coercion_failed", match="failed to convert"):
         DatetimeProfiler().profile(df, ["ts"], user_overrides={"ts"})
 
 
@@ -310,12 +306,10 @@ def test_declared_format_partial_match_parses_good_rows():
 
 
 def test_declared_format_matching_zero_rows_raises_for_override():
-    import pytest as _pytest
 
-    from dataforge_ml.profiling import OverrideCoercionError
 
     df = pl.DataFrame({"Year": pl.Series(["2013", "2014"], dtype=pl.Utf8)})
-    with _pytest.raises(OverrideCoercionError, match="set_datetime_format"):
+    with raises_code("override_coercion_failed", match="Declare its format"):
         DatetimeProfiler(formats={"Year": "%H:%M:%S"}).profile(
             df, ["Year"], user_overrides={"Year"}
         )

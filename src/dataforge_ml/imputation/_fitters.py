@@ -29,6 +29,7 @@ from sklearn.impute import IterativeImputer, KNNImputer
 from sklearn.mixture import GaussianMixture
 from sklearn.pipeline import Pipeline
 
+from ..records import DataForgeError
 from ._config import ColumnRouting, ImputationStrategy, ModelChoice
 from ._fit_signals import FitSignals
 from ._fitted_units import (
@@ -261,8 +262,8 @@ def _dispatch_unit_fit(
 
     Raises
     ------
-    ValueError
-        If ``unit.strategy`` is one no fitter in this module handles — every
+    Unexpected
+        ``unexpected`` if ``unit.strategy`` is one no fitter in this module handles — every
         structural strategy (Dropped / Passthrough / Indicator), which trains
         nothing and must not be projected into a unit.
     """
@@ -277,10 +278,11 @@ def _dispatch_unit_fit(
         return fit_gmm_unit(unit, train_df, ctx)
     if strategy == ImputationStrategy.ClusterConditional:
         return fit_cluster_unit(unit, train_df, ctx)
-    raise ValueError(
+    raise DataForgeError.from_code(
+        "unexpected",
         f"Unit '{unit.unit_id}' carries strategy '{strategy}', which no fitter "
         f"in this module handles. Structural strategies (Dropped / Passthrough "
-        f"/ Indicator) train nothing and must not be projected into a unit."
+        f"/ Indicator) train nothing and must not be projected into a unit.",
     )
 
 

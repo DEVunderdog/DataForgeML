@@ -1,4 +1,5 @@
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 
 import numpy as np
 import pytest
@@ -50,3 +51,18 @@ def fit_imputer(train_df, profile, config=None, observer=None):
         for unit in units
     }
     return FittedImputer.compose(recipe, results)
+
+
+@contextmanager
+def raises_code(code: str, match: str | None = None) -> Iterator[pytest.ExceptionInfo]:
+    """Assert the block raises the Library Error with Error Code ``code``.
+
+    Tests branch on ``err.code`` the way an Agent does (ADR-0100), never on the
+    category class alone. ``match`` is searched in ``str(err)``, which is
+    ``"<code>: <message>"``.
+    """
+    from dataforge_ml.records import DataForgeError
+
+    with pytest.raises(DataForgeError, match=match) as info:
+        yield info
+    assert info.value.code == code, f"raised {info.value.code!r}, expected {code!r}"

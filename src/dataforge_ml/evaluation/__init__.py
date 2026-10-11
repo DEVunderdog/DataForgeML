@@ -20,7 +20,7 @@ directly as an ad hoc distributional check on any two frames.
 
 from __future__ import annotations
 
-from ._c2st import C2STDtypeError, C2STResult, C2STSampleFloorError, C2STScheme, c2st
+from ._c2st import C2STResult, C2STScheme, c2st
 from ._config import C2STConfig
 from .imputation import (
     C2STAnnotation,
@@ -36,12 +36,10 @@ from .imputation import (
 __all__ = [
     "C2STAnnotation",
     "C2STConfig",
-    "C2STDtypeError",
     "C2STOutcome",
     "C2STProvenance",
     "C2STReport",
     "C2STResult",
-    "C2STSampleFloorError",
     "C2STScheme",
     "C2STScore",
     "C2STVerdict",

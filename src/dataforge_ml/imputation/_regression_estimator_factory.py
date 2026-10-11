@@ -31,6 +31,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from ..profiling._numeric_config import NonlinearityTag
+from ..records import DataForgeError
 from ._config import ModelChoice
 
 
@@ -154,8 +155,9 @@ class RegressionEstimatorFactory:
 
         Raises
         ------
-        ValueError
-            If ``choice`` is :attr:`~dataforge_ml.ModelChoice.Custom`.  That
+        Infeasible
+            ``custom_estimator_missing`` if ``choice`` is
+            :attr:`~dataforge_ml.ModelChoice.Custom`.  That
             member names an estimator the library did not build, so there is
             nothing here to construct; the instance travels on the routing's
             ``mice_estimator`` slot and the caller reads it from there
@@ -164,7 +166,8 @@ class RegressionEstimatorFactory:
             routing silently imputing with a library default instead.
         """
         if choice == ModelChoice.Custom:
-            raise ValueError(
+            raise DataForgeError.from_code(
+                "custom_estimator_missing",
                 "ModelChoice.Custom names a user-supplied estimator, which this "
                 "factory did not build and cannot reconstruct. The instance is "
                 "not serialized, so a routing reloaded from bytes carries the "

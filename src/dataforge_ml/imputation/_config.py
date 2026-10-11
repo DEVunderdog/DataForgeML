@@ -17,7 +17,9 @@ from typing import Any
 
 import polars as pl
 
+from .._boundary._error_codes import close_matches
 from ..config import SemanticType
+from ..records import DataForgeError
 
 
 class ImputationStrategy(StrEnum):
@@ -31,7 +33,7 @@ class ImputationStrategy(StrEnum):
 
     **Output-only labels** — assigned by the engine after ``route()`` and
     recorded in ``ColumnRouting.strategy``; declaring them in
-    ``per_column_strategy`` raises ``ValueError`` at construction time:
+    ``per_column_strategy`` raises ``strategy_not_declarable`` at construction time:
     ``Constant``, ``MNAR``, ``Dropped``, ``Passthrough``, ``Indicator``.
     ``Constant`` is produced when a column appears in
     ``per_column_constant_fill``; use that field instead of declaring it in
@@ -156,29 +158,53 @@ _DELETED_NUMERIC_KEYS: dict[str, str] = {
 }
 
 
-def _output_only_redirect(column: str, strategy: ImputationStrategy) -> str:
-    """Build the redirect message for an output-only strategy declaration."""
+def _output_only_redirect(column: str, strategy: ImputationStrategy) -> DataForgeError:
+    """Build the error for an output-only strategy declaration."""
     if strategy == ImputationStrategy.Dropped:
-        return (
+        message = (
             f"Column '{column}': 'Dropped' cannot be used in per_column_strategy. "
             f"To exclude a column, use PipelineConfig.exclude_columns."
         )
-    if strategy == ImputationStrategy.MNAR:
-        return (
+    elif strategy == ImputationStrategy.MNAR:
+        message = (
             f"Column '{column}': 'MNAR' cannot be used in per_column_strategy. "
             f"To declare MNAR semantics, use mnar_columns."
         )
-    return (
-        f"Column '{column}': '{strategy}' is an internal-only strategy and cannot "
-        f"be used in per_column_strategy."
+    else:
+        message = (
+            f"Column '{column}': '{strategy}' is an internal-only strategy and cannot "
+            f"be used in per_column_strategy."
+        )
+    return DataForgeError.from_code(
+        "strategy_not_declarable",
+        message,
+        columns=[column],
+        allowed=[s.value for s in ImputationStrategy if s not in _OUTPUT_ONLY_STRATEGIES],
     )
 
 
-def _constant_without_fill_redirect(column: str) -> str:
-    """Build the redirect message for a ``Constant`` declaration with no fill."""
-    return (
+def _parse_strategy(value: str | ImputationStrategy) -> ImputationStrategy:
+    """Parse a strategy name, raising ``unknown_enum_value`` on a typo."""
+    try:
+        return ImputationStrategy(value)
+    except ValueError:
+        allowed = [s.value for s in ImputationStrategy]
+        raise DataForgeError.from_code(
+            "unknown_enum_value",
+            f"{value!r} is not an imputation strategy.",
+            param="strategy",
+            allowed=allowed,
+            candidates=close_matches([str(value)], allowed),
+        ) from None
+
+
+def _constant_without_fill_redirect(column: str) -> DataForgeError:
+    """Build the error for a ``Constant`` declaration with no fill."""
+    return DataForgeError.from_code(
+        "constant_fill_missing",
         f"Column '{column}': strategy is 'Constant' but no fill value was provided. "
-        f"Add an entry to per_column_constant_fill."
+        f"Add an entry to per_column_constant_fill.",
+        columns=[column],
     )
 
 
@@ -287,15 +313,17 @@ class NumericImputationConfig:
 
     Raises
     ------
-    ValueError
-        If any column in ``per_column_strategy`` is mapped to
-        ``Passthrough``, ``Indicator``, ``Dropped``, or ``MNAR``.  ``Constant``
-        columns should use ``per_column_constant_fill``; ``Dropped`` columns
-        should use ``PipelineConfig.exclude_columns``; ``MNAR`` columns should
-        use ``mnar_columns``; ``Passthrough`` and ``Indicator`` are
-        internal-only.
-        If a column in ``bimodal_grouping_variables`` is forced to a strategy
-        other than ``ClusterConditional``.
+    InvalidInput
+        ``strategy_not_declarable`` if any column in ``per_column_strategy`` is
+        mapped to ``Passthrough``, ``Indicator``, ``Dropped``, or ``MNAR``.
+        ``Dropped`` columns should use ``PipelineConfig.exclude_columns``;
+        ``MNAR`` columns should use ``mnar_columns``; ``Passthrough`` and
+        ``Indicator`` are internal-only. ``constant_fill_missing`` if a
+        ``Constant`` column has no ``per_column_constant_fill`` entry.
+        ``invalid_dial_value`` if ``max_workers`` is below 1.
+    Conflict
+        ``declaration_conflict`` if a column in ``bimodal_grouping_variables``
+        is forced to a strategy other than ``ClusterConditional``.
     """
 
     knn_max_rows: int = 50_000
@@ -372,26 +400,32 @@ class NumericImputationConfig:
 
         Raises
         ------
-        ValueError
-            If the strategy is an output-only label (e.g. 'MNAR', 'Dropped').
-            If 'Constant' is set but no corresponding fill value exists in
+        UnknownName
+            ``unknown_enum_value`` if ``strategy`` is not an
+            ``ImputationStrategy``.
+        InvalidInput
+            ``strategy_not_declarable`` if the strategy is an output-only label
+            (e.g. 'MNAR', 'Dropped'). ``constant_fill_missing`` if 'Constant'
+            is set but no corresponding fill value exists in
             ``per_column_constant_fill``.
-            If a strategy other than 'ClusterConditional' is set for a column
-            that has an entry in ``bimodal_grouping_variables``.
+        Conflict
+            ``declaration_conflict`` if a strategy other than
+            'ClusterConditional' is set for a column that has an entry in
+            ``bimodal_grouping_variables``.
         """
         if isinstance(column, str):
             column = [column]
 
-        strategy = ImputationStrategy(strategy)
+        strategy = _parse_strategy(strategy)
 
         if strategy in _OUTPUT_ONLY_STRATEGIES:
             for col in column:
-                raise ValueError(_output_only_redirect(col, strategy))
+                raise _output_only_redirect(col, strategy)
 
         if strategy == ImputationStrategy.Constant:
             for col in column:
                 if col not in self._per_column_constant_fill:
-                    raise ValueError(_constant_without_fill_redirect(col))
+                    raise _constant_without_fill_redirect(col)
 
         if strategy != ImputationStrategy.ClusterConditional:
             conflicts = sorted(
@@ -399,10 +433,13 @@ class NumericImputationConfig:
             )
             if conflicts:
                 names = ", ".join(f"'{c}'" for c in conflicts)
-                raise ValueError(
+                raise DataForgeError.from_code(
+                    "declaration_conflict",
                     f"Columns have a bimodal grouping variable declared but are forced to "
                     f"strategy '{strategy}' (not 'ClusterConditional'): {names}. "
-                    f"A grouping variable contradicts any forced strategy other than ClusterConditional."
+                    f"A grouping variable contradicts any forced strategy other than ClusterConditional.",
+                    columns=conflicts,
+                    params=["per_column_strategy", "bimodal_grouping_variables"],
                 )
 
         for col in column:
@@ -423,13 +460,15 @@ class NumericImputationConfig:
 
         Raises
         ------
-        ValueError
-            If the value is NaN or infinity.
+        InvalidInput
+            ``invalid_argument`` if the value is NaN or infinity.
         """
         import math
 
         if math.isnan(value) or math.isinf(value):
-            raise ValueError(f"Fill value cannot be NaN or infinity, got {value}.")
+            raise DataForgeError.from_code(
+                "invalid_argument", "A fill value must be finite.", param="value"
+            )
 
         if isinstance(column, str):
             column = [column]
@@ -452,13 +491,20 @@ class NumericImputationConfig:
 
         Raises
         ------
-        ValueError
-            If the grouping variable is empty or purely whitespace.
-            If any column is already forced to a strategy other than
-            'ClusterConditional' in ``per_column_strategy``.
+        InvalidInput
+            ``invalid_argument`` if the grouping variable is empty or purely
+            whitespace.
+        Conflict
+            ``declaration_conflict`` if any column is already forced to a
+            strategy other than 'ClusterConditional' in
+            ``per_column_strategy``.
         """
         if not grouping_variable or not grouping_variable.strip():
-            raise ValueError("Grouping variable cannot be empty or purely whitespace.")
+            raise DataForgeError.from_code(
+                "invalid_argument",
+                "A grouping variable must be a non-blank column name.",
+                param="grouping_variable",
+            )
 
         if isinstance(column, str):
             column = [column]
@@ -473,9 +519,12 @@ class NumericImputationConfig:
             details = ", ".join(
                 f"'{c}' ({self._per_column_strategy[c]})" for c in conflicts
             )
-            raise ValueError(
+            raise DataForgeError.from_code(
+                "declaration_conflict",
                 f"Columns are forced to a strategy other than ClusterConditional: {details}. "
-                f"A grouping variable contradicts any forced strategy other than ClusterConditional."
+                f"A grouping variable contradicts any forced strategy other than ClusterConditional.",
+                columns=conflicts,
+                params=["per_column_strategy", "bimodal_grouping_variables"],
             )
 
         for col in column:
@@ -487,9 +536,10 @@ class NumericImputationConfig:
 
         Raises
         ------
-        ValueError
-            If any column has a bimodal grouping variable declared while being
-            forced to a strategy other than ``ClusterConditional``.
+        Conflict
+            ``declaration_conflict`` if any column has a bimodal grouping
+            variable declared while being forced to a strategy other than
+            ``ClusterConditional``.
         """
         conflicts = sorted(
             col
@@ -503,16 +553,21 @@ class NumericImputationConfig:
                 f"grouping_variable='{self._bimodal_grouping_variables[col]}')"
                 for col in conflicts
             )
-            raise ValueError(
+            raise DataForgeError.from_code(
+                "declaration_conflict",
                 f"Columns have both a bimodal grouping variable and a forced strategy "
                 f"other than ClusterConditional: {details}. "
-                f"A grouping variable contradicts any forced strategy other than ClusterConditional."
+                f"A grouping variable contradicts any forced strategy other than ClusterConditional.",
+                columns=conflicts,
+                params=["per_column_strategy", "bimodal_grouping_variables"],
             )
 
     def __post_init__(self) -> None:
         if self.max_workers is not None and self.max_workers < 1:
-            raise ValueError(
-                f"max_workers must be None or >= 1, got {self.max_workers}."
+            raise DataForgeError.from_code(
+                "invalid_dial_value",
+                f"max_workers must be None or >= 1, got {self.max_workers}.",
+                param="max_workers",
             )
         _BLOCKED = {
             ImputationStrategy.Passthrough,
@@ -522,28 +577,12 @@ class NumericImputationConfig:
         }
         for col, strategy in self._per_column_strategy.items():
             if strategy in _BLOCKED:
-                if strategy == ImputationStrategy.Dropped:
-                    raise ValueError(
-                        f"Column '{col}': 'Dropped' cannot be used in per_column_strategy. "
-                        f"To exclude a column, use PipelineConfig.exclude_columns."
-                    )
-                if strategy == ImputationStrategy.MNAR:
-                    raise ValueError(
-                        f"Column '{col}': 'MNAR' cannot be used in per_column_strategy. "
-                        f"To declare MNAR semantics, use mnar_columns."
-                    )
-                raise ValueError(
-                    f"Column '{col}': '{strategy}' is an internal-only strategy and cannot "
-                    f"be used in per_column_strategy."
-                )
+                raise _output_only_redirect(col, strategy)
             if (
                 strategy == ImputationStrategy.Constant
                 and col not in self._per_column_constant_fill
             ):
-                raise ValueError(
-                    f"Column '{col}': strategy is 'Constant' but no fill value was provided. "
-                    f"Add an entry to per_column_constant_fill."
-                )
+                raise _constant_without_fill_redirect(col)
         self.validate()
 
     def to_dict(self) -> dict:
@@ -598,8 +637,8 @@ class NumericImputationConfig:
 
         Raises
         ------
-        ValueError
-            If ``data`` carries a retired key. ``mice_max_iter`` and
+        InvalidInput
+            ``retired_dial`` if ``data`` carries a retired key. ``mice_max_iter`` and
             ``knn_n_neighbors`` moved to the recipe (ADR-0083).
             ``mice_min_rows``, ``knn_max_features``,
             ``gradient_boost_min_rows`` and
@@ -609,16 +648,20 @@ class NumericImputationConfig:
         """
         for retired in ("mice_max_iter", "knn_n_neighbors"):
             if retired in data:
-                raise ValueError(
+                raise DataForgeError.from_code(
+                    "retired_dial",
                     f"'{retired}' was removed from NumericImputationConfig. "
                     "Set this dial on the recipe instead, via "
-                    "ImputationRecipe.with_hyperparameters(unit_id, hyperparameters)."
+                    "ImputationRecipe.with_hyperparameters(unit_id, hyperparameters).",
+                    params=[retired],
                 )
         for retired, replacement in _DELETED_NUMERIC_KEYS.items():
             if retired in data:
-                raise ValueError(
+                raise DataForgeError.from_code(
+                    "retired_dial",
                     f"'{retired}' was removed from NumericImputationConfig. "
-                    f"{replacement}"
+                    f"{replacement}",
+                    params=[retired],
                 )
 
         config = cls(
@@ -673,7 +716,7 @@ class NumericImputationConfig:
         for col, val in data.get("per_column_constant_fill", {}).items():
             config.set_per_column_constant_fill(col, float(val))
         for col, val in data.get("per_column_strategy", {}).items():
-            config.set_per_column_strategy(col, ImputationStrategy(val))
+            config.set_per_column_strategy(col, _parse_strategy(val))
         for col, val in data.get("bimodal_grouping_variables", {}).items():
             config.set_bimodal_grouping_variable(col, str(val))
 
@@ -698,9 +741,9 @@ class ImputationConfig:
 
     Raises
     ------
-    ValueError
-        If any column appears in both ``mnar_columns`` and
-        ``numeric.per_column_strategy``.  These declarations are mutually
+    Conflict
+        ``declaration_conflict`` if any column appears in both
+        ``mnar_columns`` and ``numeric.per_column_strategy``.  These declarations are mutually
         exclusive: ``mnar_columns`` adds an indicator and exposes a
         data-derived fill without applying it; ``per_column_strategy`` directs the routing engine to a
         user-specified strategy.  Declaring the same column in both is
@@ -734,8 +777,9 @@ class ImputationConfig:
 
         Raises
         ------
-        ValueError
-            If any specified column already has a strategy in ``numeric.per_column_strategy``.
+        Conflict
+            ``declaration_conflict`` if any specified column already has a
+            strategy in ``numeric.per_column_strategy``.
         """
         if isinstance(column, str):
             column = [column]
@@ -743,11 +787,14 @@ class ImputationConfig:
         conflicts = sorted(set(column) & set(self.numeric.per_column_strategy.keys()))
         if conflicts:
             names = ", ".join(f"'{c}'" for c in conflicts)
-            raise ValueError(
+            raise DataForgeError.from_code(
+                "declaration_conflict",
                 f"Columns appear in both mnar_columns and numeric.per_column_strategy, "
                 f"which are mutually exclusive: {names}. "
                 f"Use mnar_columns for MNAR semantics (indicator + exposed fill) "
-                f"or per_column_strategy for a user-specified strategy, not both."
+                f"or per_column_strategy for a user-specified strategy, not both.",
+                columns=conflicts,
+                params=["mnar_columns", "per_column_strategy"],
             )
 
         for c in column:
@@ -760,11 +807,11 @@ class ImputationConfig:
 
         Raises
         ------
-        ValueError
-            If any column appears in both ``mnar_columns`` and
-            ``numeric.per_column_strategy``.
-            If any column in ``numeric.bimodal_grouping_variables`` is forced to
-            a strategy other than ``ClusterConditional``.
+        Conflict
+            ``declaration_conflict`` if any column appears in both
+            ``mnar_columns`` and ``numeric.per_column_strategy``, or if any
+            column in ``numeric.bimodal_grouping_variables`` is forced to a
+            strategy other than ``ClusterConditional``.
         """
         self.numeric.validate()
         conflicts = sorted(
@@ -772,11 +819,14 @@ class ImputationConfig:
         )
         if conflicts:
             names = ", ".join(f"'{c}'" for c in conflicts)
-            raise ValueError(
+            raise DataForgeError.from_code(
+                "declaration_conflict",
                 f"Columns appear in both mnar_columns and numeric.per_column_strategy, "
                 f"which are mutually exclusive: {names}. "
                 f"Use mnar_columns for MNAR semantics (indicator + exposed fill) "
-                f"or per_column_strategy for a user-specified strategy, not both."
+                f"or per_column_strategy for a user-specified strategy, not both.",
+                columns=conflicts,
+                params=["mnar_columns", "per_column_strategy"],
             )
 
     def to_dict(self) -> dict:
@@ -1083,10 +1133,13 @@ class ImputationRouting:
 
         Raises
         ------
-        ValueError
-            If ``choice`` is the bare :attr:`~dataforge_ml.ModelChoice.Custom`
-            label with no estimator instance, or if this routing has no MICE
-            block to set an estimator on.
+        InvalidInput
+            ``invalid_argument`` if ``choice`` is the bare
+            :attr:`~dataforge_ml.ModelChoice.Custom` label with no estimator
+            instance.
+        Infeasible
+            ``no_mice_block`` if this routing has no MICE block to set an
+            estimator on.
         """
         import dataclasses
 
@@ -1095,16 +1148,19 @@ class ImputationRouting:
             for r in self.column_routings.values()
         )
         if not mice_present:
-            raise ValueError(
+            raise DataForgeError.from_code(
+                "no_mice_block",
                 "with_model_choice() requires a MICE block: this routing "
-                "carries no column routed to ImputationStrategy.MICE."
+                "carries no column routed to ImputationStrategy.MICE.",
             )
         if isinstance(choice, ModelChoice):
             if choice == ModelChoice.Custom:
-                raise ValueError(
+                raise DataForgeError.from_code(
+                    "invalid_argument",
                     "ModelChoice.Custom is a label, not an estimator: pass "
                     "the estimator instance itself to with_model_choice() "
-                    "instead of the bare Custom member."
+                    "instead of the bare Custom member.",
+                    param="choice",
                 )
             return dataclasses.replace(
                 self, mice_model_choice=choice, mice_estimator=None

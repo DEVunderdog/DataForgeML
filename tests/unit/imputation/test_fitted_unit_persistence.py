@@ -23,7 +23,6 @@ from sklearn.linear_model import BayesianRidge
 
 from dataforge_ml import (
     ArtifactPythonVersionWarning,
-    IncompatibleArtifactError,
     deserialize,
     inspect,
     serialize,
@@ -35,6 +34,8 @@ from dataforge_ml.imputation._fitted_units import (
     FittedGMMSampling,
     FittedScalar,
 )
+from tests.conftest import raises_code
+from dataforge_ml.records import DataForgeError
 
 # --------------------------------------------------------------------------- #
 # Byte-level tampering helpers: a serialized unit is a JSON header line, a
@@ -234,7 +235,7 @@ def test_deserialize_reconstructs_bit_identical_transform(unit_and_df) -> None:
 def test_corrupt_payload_refuses_to_deserialize() -> None:
     unit, _ = _scalar_unit()
     blob = serialize(unit)
-    with pytest.raises(IncompatibleArtifactError, match="checksum"):
+    with raises_code("incompatible_artifact", match="checksum"):
         deserialize(blob + b"garbage")
 
 
@@ -243,7 +244,7 @@ def test_dependency_version_mismatch_refuses_to_deserialize() -> None:
     tampered = _tamper_header(
         serialize(unit), lambda h: h["produced_with"].update(numpy="0.0.0-fake")
     )
-    with pytest.raises(IncompatibleArtifactError, match="numpy"):
+    with raises_code("incompatible_artifact", match="numpy"):
         deserialize(tampered)
 
 
@@ -253,7 +254,7 @@ def test_newer_format_schema_refuses_to_deserialize() -> None:
         serialize(unit),
         lambda h: h["produced_with"].update(format_schema_version=999),
     )
-    with pytest.raises(IncompatibleArtifactError, match="format-schema"):
+    with raises_code("incompatible_artifact", match="format-schema"):
         deserialize(tampered)
 
 
@@ -272,8 +273,21 @@ def test_python_version_drift_warns_but_loads() -> None:
 def test_unrecognised_kind_refuses_to_deserialize() -> None:
     unit, _ = _scalar_unit()
     tampered = _tamper_header(serialize(unit), lambda h: h.update(kind="mystery"))
-    with pytest.raises(IncompatibleArtifactError, match="kind"):
+    with raises_code("incompatible_artifact", match="kind"):
         deserialize(tampered)
+
+
+def test_foreign_bytes_refuse_as_incompatible_artifact() -> None:
+    with raises_code("incompatible_artifact"):
+        deserialize(b"\x80\x04 not an envelope")
+    with raises_code("incompatible_artifact"):
+        inspect(b"[1, 2, 3]")
+
+
+def test_serializing_an_unsupported_object_names_the_supported_kinds() -> None:
+    with raises_code("unsupported_artifact_object") as info:
+        serialize({"not": "a unit"})
+    assert "ImputationRecipe" in info.value.allowed
 
 
 def test_genuine_joblib_load_failure_propagates() -> None:
@@ -282,14 +296,14 @@ def test_genuine_joblib_load_failure_propagates() -> None:
     # Replace the payload with bytes that pass the checksum gate (header updated
     # to match) but are not a valid joblib stream. The reconstruction gates let
     # it through; the raw joblib.load failure must propagate rather than be
-    # swallowed or masquerade as IncompatibleArtifactError.
+    # swallowed or masquerade as an incompatible_artifact Library Error.
     garbage = b"not a joblib payload"
     header["payload_sha256"] = hashlib.sha256(garbage).hexdigest()
     tampered = _rejoin(header, garbage)
 
     with pytest.raises(Exception) as excinfo:
         deserialize(tampered)
-    assert not isinstance(excinfo.value, IncompatibleArtifactError)
+    assert not isinstance(excinfo.value, DataForgeError)
 
 
 # --------------------------------------------------------------------------- #

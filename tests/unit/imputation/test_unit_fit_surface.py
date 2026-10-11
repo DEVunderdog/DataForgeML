@@ -14,7 +14,6 @@ import inspect
 
 import numpy as np
 import polars as pl
-import pytest
 
 from dataforge_ml import (
     FittedImputer,
@@ -31,9 +30,9 @@ from dataforge_ml.imputation import (
     ImputationStrategy,
     ImputationUnit,
     UnitFitResult,
-    UnitNotTrainableError,
 )
 from dataforge_ml.imputation._fitted_units import FittedScalar
+from tests.conftest import raises_code
 
 
 def _holey_frame(n=250, seed=0):
@@ -132,7 +131,7 @@ def test_compose_rejects_a_set_that_does_not_cover_the_routing():
 
     dropped = dict(results)
     dropped.pop(next(iter(dropped)))
-    with pytest.raises(ValueError, match="cover the routing"):
+    with raises_code("unit_coverage_mismatch", match="cover the routing"):
         FittedImputer.compose(recipe, dropped)
 
 
@@ -183,12 +182,12 @@ def test_untrainable_unit_raises_with_structured_payload():
     (unit,) = derive_units(routing)
     assert recipe.column_estimates["x"].center1 is None
 
-    with pytest.raises(UnitNotTrainableError) as exc:
+    with raises_code("unit_not_trainable") as exc:
         fit_unit(recipe, unit, df)
     err = exc.value
-    assert err.unit_id == unit.unit_id
-    assert err.columns == ("x",)
-    assert "with_estimates" in err.reason
+    assert unit.unit_id in err.message
+    assert err.columns == ["x"]
+    assert "with_estimates" in err.message
 
 
 def test_fit_result_carries_a_populated_fit_signals_record():
@@ -288,6 +287,23 @@ def test_fit_unit_always_reads_the_recipes_current_hyperparameters():
     assert original_fill != edited_fill
 
 
+def test_a_misspelt_dial_or_unit_id_raises_with_close_matches():
+    df = pl.DataFrame({"x": pl.Series([1.0, None, 3.0, 4.0, None, 6.0] * 10)})
+    config = PipelineConfig()
+    config.imputation.add_mnar_column("x")
+    _, routing, recipe = _routing_and_recipe(df, config)
+    (unit,) = derive_units(routing, strategy=ImputationStrategy.MNAR)
+
+    with raises_code("unknown_dial") as info:
+        recipe.with_hyperparameters(unit.unit_id, {"central_tendancy": "mean"})
+    assert info.value.candidates == ["central_tendency"]
+    assert info.value.params == ["hyperparameters.central_tendancy"]
+
+    with raises_code("unknown_unit") as info:
+        recipe.with_hyperparameters(unit.unit_id + "x", {})
+    assert info.value.candidates == [unit.unit_id]
+
+
 def test_mnar_signals_say_the_fill_is_computed_not_applied():
     """Nulls in the output are otherwise the only clue (ADR-0098)."""
     df = pl.DataFrame(
@@ -330,7 +346,7 @@ def test_passing_a_unit_id_string_raises_a_pointed_type_error():
     _, routing, recipe = _routing_and_recipe(df)
     units = derive_units(routing)
 
-    with pytest.raises(TypeError, match="takes an ImputationUnit, not the id"):
+    with raises_code("invalid_argument", match="takes an ImputationUnit, not the id"):
         fit_unit(recipe, units[0].unit_id, df)
 
 
@@ -345,7 +361,7 @@ def test_fit_unit_raises_key_error_for_a_unit_unknown_to_the_recipe():
     )
     assert derive_units(routing, strategy=ImputationStrategy.MICE) == ()
 
-    with pytest.raises(KeyError, match="carries no unit 'mice'"):
+    with raises_code("unknown_unit", match="carries no unit 'mice'"):
         fit_unit(recipe, foreign, df)
 
 
@@ -358,7 +374,7 @@ def test_fit_unit_raises_value_error_for_a_unit_from_a_different_routing():
         strategy=ImputationStrategy.Mean,
         columns=("does-not-exist",),
     )
-    with pytest.raises(ValueError, match="does not match the recipe's routing"):
+    with raises_code("unit_routing_mismatch", match="does not match the recipe's routing"):
         fit_unit(recipe, mismatched, df)
 
 

@@ -42,8 +42,14 @@ class TargetProfiler(DatasetLevelProfiler[TargetProfileResult]):
 
     def profile(self, data: pl.DataFrame, **kwargs) -> TargetProfileResult:
         if self.target_column not in data.columns:
-            raise ValueError(
-                f"Target column '{self.target_column}' not found in the DataFrame."
+            from .._boundary._error_codes import close_matches
+            from ..records import DataForgeError
+
+            raise DataForgeError.from_code(
+                "unknown_column",
+                f"Target column '{self.target_column}' is not in the data.",
+                columns=[self.target_column],
+                candidates=close_matches([self.target_column], data.columns),
             )
 
         return self._run(data)

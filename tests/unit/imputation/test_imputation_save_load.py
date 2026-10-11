@@ -17,7 +17,6 @@ import pytest
 from sklearn.tree import DecisionTreeRegressor
 
 from dataforge_ml import (
-    IncompatibleArtifactError,
     PipelineConfig,
     StructuralProfiler,
     deserialize,
@@ -30,7 +29,6 @@ from dataforge_ml.imputation import (
     ImputationRouting,
     ImputationStrategy,
     ModelChoice,
-    UnitNotTrainableError,
     author,
     derive_units,
     fit_unit,
@@ -38,6 +36,7 @@ from dataforge_ml.imputation import (
     route,
 )
 from dataforge_ml.profiling._config import StructuralProfileResult
+from tests.conftest import raises_code
 
 # --------------------------------------------------------------------------- #
 # Fixtures and Helpers
@@ -148,7 +147,7 @@ def test_inspect_routing_and_recipe_is_header_only(
 
 
 # --------------------------------------------------------------------------- #
-# Acceptance Criterion 2: v1-schema or kind="decision" raises IncompatibleArtifactError
+# Acceptance Criterion 2: v1-schema or kind="decision" raises incompatible_artifact
 # --------------------------------------------------------------------------- #
 
 
@@ -160,7 +159,7 @@ def test_v1_schema_payload_raises_incompatible_artifact_error(
         tampered = _tamper_json_header(
             blob, lambda h: h.update(format_schema_version=1)
         )
-        with pytest.raises(IncompatibleArtifactError) as exc_info:
+        with raises_code("incompatible_artifact") as exc_info:
             deserialize(tampered)
         msg = str(exc_info.value).lower()
         assert "1" in msg
@@ -174,7 +173,7 @@ def test_kind_decision_payload_raises_incompatible_artifact_error(
     tampered = _tamper_json_header(
         blob, lambda h: h.update(kind="decision", format_schema_version=1)
     )
-    with pytest.raises(IncompatibleArtifactError) as exc_info:
+    with raises_code("incompatible_artifact") as exc_info:
         deserialize(tampered)
     msg = str(exc_info.value).lower()
     assert "decision" in msg
@@ -187,7 +186,7 @@ def test_kind_decision_schema_v2_payload_also_raises(
 ) -> None:
     blob = serialize(rich_routing)
     tampered = _tamper_json_header(blob, lambda h: h.update(kind="decision"))
-    with pytest.raises(IncompatibleArtifactError) as exc_info:
+    with raises_code("incompatible_artifact") as exc_info:
         deserialize(tampered)
     assert "decision" in str(exc_info.value).lower()
 
@@ -204,7 +203,7 @@ def test_hand_edited_recipe_missing_dial_key_raises_naming_key(
     # Delete 'max_iter' from MICE's decided hyperparameters
     del data["decided_hyperparameters"]["mice"]["max_iter"]
 
-    with pytest.raises(ValueError) as exc_info:
+    with raises_code("incompatible_artifact") as exc_info:
         ImputationRecipe.from_dict(data)
 
     err = str(exc_info.value)
@@ -221,7 +220,7 @@ def test_hand_edited_recipe_missing_dial_key_via_deserialize(
         blob, lambda h: h["data"]["decided_hyperparameters"]["mice"].pop("tol")
     )
 
-    with pytest.raises(ValueError) as exc_info:
+    with raises_code("incompatible_artifact") as exc_info:
         deserialize(tampered)
 
     err = str(exc_info.value)
@@ -236,7 +235,7 @@ def test_hand_edited_recipe_unknown_dial_key_raises_naming_key(
     data = rich_recipe.to_dict()
     data["decided_hyperparameters"]["mice"]["bogus_dial"] = 999
 
-    with pytest.raises(ValueError) as exc_info:
+    with raises_code("incompatible_artifact") as exc_info:
         ImputationRecipe.from_dict(data)
 
     err = str(exc_info.value)
@@ -251,7 +250,7 @@ def test_hand_edited_recipe_unknown_override_dial_key_raises(
     data = rich_recipe.to_dict()
     data["hyperparameter_overrides"]["mice"] = {"non_existent": 1}
 
-    with pytest.raises(ValueError) as exc_info:
+    with raises_code("incompatible_artifact") as exc_info:
         ImputationRecipe.from_dict(data)
 
     err = str(exc_info.value)
@@ -271,7 +270,7 @@ def test_decided_base_unit_id_mismatch_missing_unit_raises(
     # Delete the entire 'knn' dial row
     del data["decided_hyperparameters"]["knn"]
 
-    with pytest.raises(ValueError) as exc_info:
+    with raises_code("incompatible_artifact") as exc_info:
         ImputationRecipe.from_dict(data)
 
     err = str(exc_info.value)
@@ -286,7 +285,7 @@ def test_decided_base_unit_id_mismatch_unexpected_unit_raises(
     data = rich_recipe.to_dict()
     data["decided_hyperparameters"]["unexpected_unit"] = {"max_iter": 10}
 
-    with pytest.raises(ValueError) as exc_info:
+    with raises_code("incompatible_artifact") as exc_info:
         ImputationRecipe.from_dict(data)
 
     err = str(exc_info.value)
@@ -304,7 +303,7 @@ def test_decided_base_unit_id_mismatch_when_routing_is_altered(
     data["routing"]["column_routings"]["m1"]["strategy"] = "Mean"
     data["routing"]["column_routings"]["m2"]["strategy"] = "Mean"
 
-    with pytest.raises(ValueError) as exc_info:
+    with raises_code("incompatible_artifact") as exc_info:
         ImputationRecipe.from_dict(data)
 
     err = str(exc_info.value)
@@ -318,7 +317,7 @@ def test_decided_base_missing_entire_hyperparameters_block_raises(
     data = rich_recipe.to_dict()
     del data["decided_hyperparameters"]
 
-    with pytest.raises(ValueError) as exc_info:
+    with raises_code("incompatible_artifact") as exc_info:
         ImputationRecipe.from_dict(data)
 
     assert "decided_hyperparameters" in str(exc_info.value)
@@ -361,10 +360,10 @@ def test_with_model_choice_custom_estimator_round_trip(
 
     # 3. Fitting the reloaded recipe fails loudly with clear message:
     (mice_unit,) = derive_units(reloaded_recipe.routing, strategy=ImputationStrategy.MICE)
-    with pytest.raises(UnitNotTrainableError) as exc_info:
+    with raises_code("unit_not_trainable") as exc_info:
         fit_unit(reloaded_recipe, mice_unit, df)
 
-    reason = exc_info.value.reason
+    reason = exc_info.value.message
     assert "ModelChoice.Custom" in reason
     assert "no estimator is carried" in reason
     assert "with_model_choice" in reason

@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 
 from ..config import PipelineConfig, PipelinePhase, SemanticType
 from ..profiling._numeric_config import NumericStats
+from ..records import DataForgeError
 from ._config import (
     _EXCLUSION_SIGNAL,
     ColumnRouting,
@@ -55,7 +56,7 @@ def _raise_on_excluded_column_overrides(
 
     The user typed "impute this column like so" and "don't impute this column"
     in the same config; neither side may silently win, so the contradiction
-    surfaces as one ``ValueError`` at route-time — before any routing —
+    surfaces as one ``declaration_conflict`` at route-time — before any routing —
     listing every offending column across the three override surfaces.
     """
     if not excluded:
@@ -76,10 +77,13 @@ def _raise_on_excluded_column_overrides(
         f"{surface}: {', '.join(repr(c) for c in cols)}"
         for surface, cols in offending.items()
     )
-    raise ValueError(
+    raise DataForgeError.from_code(
+        "declaration_conflict",
         f"Columns excluded for the Imputation phase are also named in "
         f"imputation config, which is contradictory: {details}. "
-        f"Remove the exclusion or the conflicting config entry."
+        f"Remove the exclusion or the conflicting config entry.",
+        columns=sorted(set().union(*offending.values())),
+        params=sorted(offending),
     )
 
 
@@ -151,8 +155,8 @@ def route(
 
     Raises
     ------
-    ValueError
-        If a hard- or Imputation-soft-excluded column is also named in
+    Conflict
+        ``declaration_conflict`` if a hard- or Imputation-soft-excluded column is also named in
         ``mnar_columns``, ``per_column_strategy``, or
         ``per_column_constant_fill`` — contradictory configuration surfaces at
         route-time, before any routing, with every offending column reported

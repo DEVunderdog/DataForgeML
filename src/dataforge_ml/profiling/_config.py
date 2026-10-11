@@ -13,7 +13,9 @@ from enum import StrEnum
 from types import MappingProxyType
 from typing import Optional, Union
 
+from .._boundary._error_codes import close_matches
 from ..config import Modality, SemanticType
+from ..records import DataForgeError
 from ._boolean_config import BooleanStats
 from ._categorical_config import (
     CategoricalProfileConfig,
@@ -698,14 +700,21 @@ class ProfileConfig:
 
         Raises
         ------
-        ValueError
-            If the `values` list is empty, or if any element is not numeric.
+        InvalidInput
+            ``invalid_argument`` if the `values` list is empty, or if any
+            element is not numeric.
         """
         if not values:
-            raise ValueError("values list cannot be empty.")
-        for v in values:
-            if not isinstance(v, (int, float)) or isinstance(v, bool):
-                raise ValueError(f"Value {v!r} is not numeric.")
+            raise DataForgeError.from_code(
+                "invalid_argument", "values must hold at least one sentinel.", param="values"
+            )
+        bad = [i for i, v in enumerate(values) if not isinstance(v, (int, float)) or isinstance(v, bool)]
+        if bad:
+            raise DataForgeError.from_code(
+                "invalid_argument",
+                f"{len(bad)} numeric sentinel(s) are not numbers.",
+                params=[f"values[{i}]" for i in bad],
+            )
         
         columns = [column] if isinstance(column, str) else column
         for c in columns:
@@ -724,14 +733,21 @@ class ProfileConfig:
 
         Raises
         ------
-        ValueError
-            If the `values` list is empty, or if any element is not a string.
+        InvalidInput
+            ``invalid_argument`` if the `values` list is empty, or if any
+            element is not a string.
         """
         if not values:
-            raise ValueError("values list cannot be empty.")
-        for v in values:
-            if not isinstance(v, str):
-                raise ValueError(f"Value {v!r} is not a string.")
+            raise DataForgeError.from_code(
+                "invalid_argument", "values must hold at least one sentinel.", param="values"
+            )
+        bad = [i for i, v in enumerate(values) if not isinstance(v, str)]
+        if bad:
+            raise DataForgeError.from_code(
+                "invalid_argument",
+                f"{len(bad)} string sentinel(s) are not strings.",
+                params=[f"values[{i}]" for i in bad],
+            )
         
         columns = [column] if isinstance(column, str) else column
         for c in columns:
@@ -750,14 +766,20 @@ class ProfileConfig:
 
         Raises
         ------
-        ValueError
-            If the unit is not a valid EpochUnit.
+        UnknownName
+            ``unknown_enum_value`` if the unit is not a valid EpochUnit.
         """
         try:
             enum_unit = EpochUnit(unit)
         except ValueError:
-            valid_units = ", ".join([u.value for u in EpochUnit])
-            raise ValueError(f"Unknown epoch unit {unit!r}. Valid options are: {valid_units}")
+            valid_units = [u.value for u in EpochUnit]
+            raise DataForgeError.from_code(
+                "unknown_enum_value",
+                f"{unit!r} is not an epoch unit.",
+                param="unit",
+                allowed=valid_units,
+                candidates=close_matches([str(unit)], valid_units),
+            ) from None
         
         columns = [column] if isinstance(column, str) else column
         for c in columns:
@@ -782,17 +804,23 @@ class ProfileConfig:
 
         Raises
         ------
-        ValueError
-            If any column name is empty, or if `format` is not a non-empty
-            string.
+        InvalidInput
+            ``invalid_argument`` if any column name is empty, or if `format`
+            is not a non-empty string.
         """
         if not isinstance(format, str) or not format:
-            raise ValueError("format must be a non-empty string.")
+            raise DataForgeError.from_code(
+                "invalid_argument", "format must be a non-empty string.", param="format"
+            )
 
         columns = [column] if isinstance(column, str) else column
         for c in columns:
             if not isinstance(c, str) or not c:
-                raise ValueError("column name must be a non-empty string.")
+                raise DataForgeError.from_code(
+                    "invalid_argument",
+                    "Every column name must be a non-empty string.",
+                    param="column",
+                )
             self._datetime_formats[c] = format
 
     def to_dict(self) -> dict:

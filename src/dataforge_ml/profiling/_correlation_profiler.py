@@ -215,7 +215,15 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
         is automatically excluded from its own feature-target stats.
         """
         if target_col not in df.columns:
-            raise ValueError(f"target_col {target_col!r} not found in DataFrame.")
+            from .._boundary._error_codes import close_matches
+            from ..records import DataForgeError
+
+            raise DataForgeError.from_code(
+                "unknown_column",
+                f"Target column {target_col!r} is not in the data.",
+                columns=[target_col],
+                candidates=close_matches([target_col], df.columns),
+            )
 
         # Shallow-copy the result so matrix dicts are shared (not duplicated
         # in memory) but the top-level object is independent.

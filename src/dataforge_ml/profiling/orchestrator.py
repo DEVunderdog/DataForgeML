@@ -30,9 +30,10 @@ import polars as pl
 
 from ..config import Modality, PipelineConfig, PipelinePhase, SemanticType
 from ..observability import Observer, _ObservabilityMixin
+from ..records import DataForgeError
 from ..utils._dtype_floor import _apply_dtype_floor
 from ..utils._null_normalization import _resolve_effective_nulls
-from ._base import ColumnBatchProfiler, ModalityProfiler, OverrideCoercionError
+from ._base import ColumnBatchProfiler, ModalityProfiler
 from ._boolean_profiler import BooleanProfiler
 from ._categorical import CategoricalProfiler
 from ._config import (
@@ -81,6 +82,12 @@ class StructuralProfiler(_ObservabilityMixin):
         Live Progress Observer invoked with each :class:`PipelineEvent` this
         orchestrator emits.  ``None`` (the default) disables Progress; Trace
         still flows to the ``dataforge_ml`` logger regardless (ADR-0054).
+
+    Raises
+    ------
+    UnknownName
+        ``unknown_enum_value`` if the configured modality is not ``Tabular``,
+        the only one implemented.
     """
 
     _PHASE = "profiling"
@@ -96,8 +103,11 @@ class StructuralProfiler(_ObservabilityMixin):
         if self.config.profiling.modality == Modality.Tabular:
             self.modality_profiler: ModalityProfiler = TabularProfiler()
         else:
-            raise NotImplementedError(
-                f"modality {self.config.profiling.modality} not supported yet"
+            raise DataForgeError.from_code(
+                "unknown_enum_value",
+                f"Modality {self.config.profiling.modality!r} is not supported yet.",
+                param="modality",
+                allowed=[Modality.Tabular.value],
             )
 
     # ------------------------------------------------------------------
@@ -125,17 +135,19 @@ class StructuralProfiler(_ObservabilityMixin):
 
         Raises
         ------
-        TypeError
-            When ``data`` is not a ``polars.DataFrame``.
-        OverrideCoercionError
-            When a column carrying ``TypeFlag.UserOverride`` completely fails
+        InvalidInput
+            ``invalid_argument`` when ``data`` is not a ``polars.DataFrame``.
+        Infeasible
+            ``override_coercion_failed`` when a column carrying ``TypeFlag.UserOverride`` completely fails
             coercion to its overridden ``SemanticType`` (zero usable values
             remain despite the original column having non-null data).
         """
         if not isinstance(data, pl.DataFrame):
-            raise TypeError(
+            raise DataForgeError.from_code(
+                "invalid_argument",
                 f"StructuralProfiler expects a Polars DataFrame, "
-                f"got {type(data).__name__}."
+                f"got {type(data).__name__}.",
+                param="data",
             )
 
         result = StructuralProfileResult()
@@ -221,10 +233,12 @@ class StructuralProfiler(_ObservabilityMixin):
                 continue
             cp = result.columns[col_name]
             if cp.semantic_type != SemanticType.Numeric:
-                raise ValueError(
-                    f"NumericKind override for column {col_name!r} is invalid — "
-                    f"column has {cp.semantic_type!r}. "
-                    f"NumericKind only applies to SemanticType.Numeric columns."
+                raise DataForgeError.from_code(
+                    "declaration_conflict",
+                    f"Column {col_name!r} has a numeric kind declared but its "
+                    f"semantic type is {cp.semantic_type.value!r}; a numeric kind "
+                    f"applies only to Numeric columns.",
+                    columns=[col_name],
                 )
             cp.numeric_kind = override_kind
             if TypeFlag.NumericKindOverride not in cp.type_flags:
@@ -306,7 +320,7 @@ class StructuralProfiler(_ObservabilityMixin):
                 for col_name in batch.analysed_columns:
                     if col_name in result.columns:
                         result.columns[col_name].stats = batch.columns.get(col_name)
-            except OverrideCoercionError:
+            except DataForgeError:
                 raise
             except Exception:
                 pass

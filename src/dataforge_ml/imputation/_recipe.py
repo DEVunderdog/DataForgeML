@@ -19,9 +19,11 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from .._boundary._error_codes import close_matches
 from ..config import PipelineConfig, SemanticType
 from ..profiling._config import NumericKind
 from ..profiling._numeric_config import NonlinearityTag, NumericStats, SkewSeverity
+from ..records import DataForgeError
 from ._config import (
     _STRATEGY_DIALS,
     ImputationRouting,
@@ -63,7 +65,7 @@ class ColumnEstimates:
     Populated on :class:`ImputationRecipe` only for a column whose strategy
     actually uses them; every field is ``None`` for a column that has no
     estimates (ADR-0089). Never raised over — a missing estimate is a
-    :class:`~dataforge_ml.imputation.UnitNotTrainableError` at
+    ``unit_not_trainable`` Library Error at
     :func:`~dataforge_ml.imputation.fit_unit` time, naming
     :meth:`ImputationRecipe.with_estimates` as the fix.
 
@@ -662,11 +664,10 @@ class ImputationRecipe:
 
         Raises
         ------
-        KeyError
-            If ``unit_id`` is not part of the routing's derived units.
-        ValueError
-            If ``hyperparameters`` names a key that is not one of the unit's
-            strategy's dials.
+        UnknownName
+            ``unknown_unit`` if ``unit_id`` is not part of the routing's
+            derived units. ``unknown_dial`` if ``hyperparameters`` names a key
+            that is not one of the unit's strategy's dials.
         """
         from ._units import derive_units
 
@@ -674,19 +675,30 @@ class ImputationRecipe:
             (u for u in derive_units(self.routing) if u.unit_id == unit_id), None
         )
         if unit is None:
-            raise KeyError(f"Unit '{unit_id}' is not part of this recipe's routing.")
+            raise DataForgeError.from_code(
+                "unknown_unit",
+                f"Unit '{unit_id}' is not part of this recipe's routing.",
+                param="unit_id",
+                candidates=close_matches(
+                    [unit_id], [u.unit_id for u in derive_units(self.routing)]
+                ),
+            )
 
         new_overrides = dict(self.hyperparameter_overrides)
         if hyperparameters is None:
             new_overrides.pop(unit_id, None)
         else:
             dial_keys = set(_dial_defaults(unit.strategy))
-            for key in hyperparameters:
-                if key not in dial_keys:
-                    raise ValueError(
-                        f"Unit '{unit_id}' ({unit.strategy}) has no dial '{key}' "
-                        f"to override."
-                    )
+            unknown = [key for key in hyperparameters if key not in dial_keys]
+            if unknown:
+                raise DataForgeError.from_code(
+                    "unknown_dial",
+                    f"Unit '{unit_id}' ({unit.strategy}) has no dial(s) "
+                    f"{sorted(unknown)} to override.",
+                    params=[f"hyperparameters.{k}" for k in unknown],
+                    allowed=sorted(dial_keys),
+                    candidates=close_matches(unknown, dial_keys),
+                )
             merged_delta = dict(new_overrides.get(unit_id, ()))
             merged_delta.update(hyperparameters)
             new_overrides[unit_id] = tuple(merged_delta.items())
@@ -719,21 +731,29 @@ class ImputationRecipe:
 
         Raises
         ------
-        ValueError
-            If ``column`` carries no estimates entry, or ``fields`` names a
-            key that is not one of :class:`ColumnEstimates`'s fields.
+        InvalidInput
+            ``estimates_not_applicable`` if ``column`` carries no estimates
+            entry.
+        UnknownName
+            ``unknown_dial`` if ``fields`` names a key that is not one of
+            :class:`ColumnEstimates`'s fields.
         """
         if column not in self.column_estimates:
-            raise ValueError(
+            raise DataForgeError.from_code(
+                "estimates_not_applicable",
                 f"Column '{column}' carries no estimates entry on this recipe. "
                 f"Only a column whose strategy uses estimates (the bimodal "
-                f"strategies, or a BoundedDiscrete model-based one) has one."
+                f"strategies, or a BoundedDiscrete model-based one) has one.",
+                columns=[column],
             )
-        unknown = set(fields) - _ESTIMATE_FIELDS
+        unknown = sorted(set(fields) - _ESTIMATE_FIELDS)
         if unknown:
-            raise ValueError(
-                f"Column '{column}': unknown estimate field(s) "
-                f"{sorted(unknown)}. Known fields: {sorted(_ESTIMATE_FIELDS)}."
+            raise DataForgeError.from_code(
+                "unknown_dial",
+                f"Column '{column}': unknown estimate field(s) {unknown}.",
+                params=unknown,
+                allowed=sorted(_ESTIMATE_FIELDS),
+                candidates=close_matches(unknown, _ESTIMATE_FIELDS),
             )
         from dataclasses import replace
 
@@ -849,7 +869,7 @@ class ImputationRecipe:
         unit ids must match the units derived from the inline routing, and every
         unit's dial row must be complete and contain only valid dials for that
         unit's strategy. A missing or unknown dial row or key, or a unit-id
-        mismatch against ``derive_units(routing)``, raises ``ValueError``
+        mismatch against ``derive_units(routing)``, raises ``incompatible_artifact``
         naming what is wrong and advising to resolve again.
 
         Parameters
@@ -864,16 +884,17 @@ class ImputationRecipe:
 
         Raises
         ------
-        ValueError
-            If ``data`` lacks a valid routing, or if the decided-base unit ids
-            mismatch ``derive_units(routing)``, or if any dial row has missing
-            or unknown dial keys.
+        IncompatibleArtifact
+            ``incompatible_artifact`` if ``data`` lacks a valid routing, or if
+            the decided-base unit ids mismatch ``derive_units(routing)``, or if
+            any dial row has missing or unknown dial keys.
         """
         from ._units import derive_units
 
         if "routing" not in data:
-            raise ValueError(
-                "Recipe payload is missing 'routing'. Resolve the recipe again."
+            raise DataForgeError.from_code(
+                "incompatible_artifact",
+                "Recipe payload is missing 'routing'. Resolve the recipe again.",
             )
 
         routing = ImputationRouting.from_dict(data["routing"])
@@ -886,9 +907,10 @@ class ImputationRecipe:
 
         raw_decided = data.get("decided_hyperparameters")
         if raw_decided is None:
-            raise ValueError(
+            raise DataForgeError.from_code(
+                "incompatible_artifact",
                 "Recipe payload is missing 'decided_hyperparameters'. "
-                "Resolve the recipe again."
+                "Resolve the recipe again.",
             )
 
         base_unit_ids = set(raw_decided.keys())
@@ -902,10 +924,11 @@ class ImputationRecipe:
                 details.append(f"missing unit(s) {sorted(missing)}")
             if extra:
                 details.append(f"unexpected unit(s) {sorted(extra)}")
-            raise ValueError(
+            raise DataForgeError.from_code(
+                "incompatible_artifact",
                 f"Decided base unit ids mismatch freshly derived units ({'; '.join(details)}). "
                 f"Expected unit ids: {sorted(expected_unit_ids)}, got: {sorted(base_unit_ids)}. "
-                f"Resolve the recipe again."
+                f"Resolve the recipe again.",
             )
 
         decided_hyperparameters: dict[str, tuple[tuple[str, Any], ...]] = {}
@@ -917,16 +940,18 @@ class ImputationRecipe:
 
             missing_keys = expected_keys - actual_keys
             if missing_keys:
-                raise ValueError(
+                raise DataForgeError.from_code(
+                    "incompatible_artifact",
                     f"Unit '{unit_id}' ({strategy}) is missing required dial key(s): "
-                    f"{sorted(missing_keys)}. Resolve the recipe again."
+                    f"{sorted(missing_keys)}. Resolve the recipe again.",
                 )
 
             unknown_keys = actual_keys - expected_keys
             if unknown_keys:
-                raise ValueError(
+                raise DataForgeError.from_code(
+                    "incompatible_artifact",
                     f"Unit '{unit_id}' ({strategy}) has unknown dial key(s): "
-                    f"{sorted(unknown_keys)}. Resolve the recipe again."
+                    f"{sorted(unknown_keys)}. Resolve the recipe again.",
                 )
 
             decided_hyperparameters[unit_id] = tuple(dials.items())
@@ -935,9 +960,10 @@ class ImputationRecipe:
         hyperparameter_overrides: dict[str, tuple[tuple[str, Any], ...]] = {}
         for unit_id, dials in raw_overrides.items():
             if unit_id not in unit_strategy_map:
-                raise ValueError(
+                raise DataForgeError.from_code(
+                    "incompatible_artifact",
                     f"Hyperparameter override delta contains unknown unit '{unit_id}'. "
-                    f"Resolve the recipe again."
+                    f"Resolve the recipe again.",
                 )
             strategy = unit_strategy_map[unit_id]
             expected_dials = _dial_defaults(strategy)
@@ -945,9 +971,10 @@ class ImputationRecipe:
             actual_keys = set(dials.keys())
             unknown_keys = actual_keys - expected_keys
             if unknown_keys:
-                raise ValueError(
+                raise DataForgeError.from_code(
+                    "incompatible_artifact",
                     f"Unit '{unit_id}' ({strategy}) override delta has unknown dial key(s): "
-                    f"{sorted(unknown_keys)}. Resolve the recipe again."
+                    f"{sorted(unknown_keys)}. Resolve the recipe again.",
                 )
             hyperparameter_overrides[unit_id] = tuple(dials.items())
 
@@ -1011,9 +1038,10 @@ def resolve_recipe(
 
     Raises
     ------
-    ValueError
-        If a routed column (other than a synthetic ``{col}_missing`` indicator
-        entry) is absent from ``profile``, naming every offending column.
+    UnknownName
+        ``unknown_column`` if a routed column (other than a synthetic
+        ``{col}_missing`` indicator entry) is absent from ``profile``, naming
+        every offending column.
     """
     config = config or PipelineConfig()
     numeric_cfg = config.imputation.numeric
@@ -1026,10 +1054,14 @@ def resolve_recipe(
     ]
     if missing:
         names = ", ".join(f"'{c}'" for c in sorted(missing))
-        raise ValueError(
+        raise DataForgeError.from_code(
+            "unknown_column",
             f"Column(s) {names} are part of this routing but absent from the "
             f"profile handed to resolve_recipe(). Resolve against a profile "
-            f"that covers every routed column."
+            f"that covers every routed column.",
+            param="profile",
+            columns=sorted(missing),
+            candidates=close_matches(missing, profile.columns),
         )
 
     feature_correlation = profile.dataset.feature_correlation

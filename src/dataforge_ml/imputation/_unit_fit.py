@@ -8,7 +8,7 @@ from :func:`~dataforge_ml.imputation.derive_units` with their own
 composes the fitted units into a whole-frame imputer with
 :meth:`FittedImputer.compose`. There is no executor, no state machine, and no
 store: a fit either produces a fitted unit or raises
-:class:`UnitNotTrainableError` (single-track failure, ADR-0071).
+the ``unit_not_trainable`` Library Error (single-track failure, ADR-0071).
 
 The frame is normalised off the recipe's declared sentinel maps before the
 unit trains (ADR-0068), so a raw frame may be handed straight in.
@@ -23,6 +23,8 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 
+from .._boundary._error_codes import close_matches
+from ..records import DataForgeError
 from ..utils._dtype_floor import _apply_dtype_floor
 from ..utils._null_normalization import _resolve_effective_nulls
 from ._config import ImputationStrategy, ImputationUnit, _md_cell
@@ -38,46 +40,8 @@ __all__ = [
     "FitSignals",
     "ImputationFitWarning",
     "UnitFitResult",
-    "UnitNotTrainableError",
     "fit_unit",
 ]
-
-
-class UnitNotTrainableError(RuntimeError):
-    """Raised when a routed unit cannot be trained.
-
-    Single-track failure (ADR-0071): a unit that cannot train always raises,
-    carrying a structured payload — the unit id, its strategy, its columns, and
-    the fitter's reason — rather than silently degrading to a scalar. The
-    fitter's own diagnosis is chained as the cause.
-
-    Attributes
-    ----------
-    unit_id : str
-        The id of the unit that could not train.
-    strategy : ImputationStrategy
-        The strategy the unit was planned to execute.
-    columns : tuple[str, ...]
-        The columns the unit owns.
-    reason : str
-        The fitter's human-readable explanation of why training failed.
-    """
-
-    def __init__(
-        self,
-        unit_id: str,
-        strategy: ImputationStrategy,
-        columns: tuple[str, ...],
-        reason: str,
-    ) -> None:
-        self.unit_id = unit_id
-        self.strategy = strategy
-        self.columns = tuple(columns)
-        self.reason = reason
-        names = ", ".join(f"'{c}'" for c in self.columns)
-        super().__init__(
-            f"Unit '{unit_id}' ({strategy}) could not train column(s) {names}: {reason}"
-        )
 
 
 @dataclass(frozen=True)
@@ -178,28 +142,33 @@ def _fit_context(
 def _resolve(recipe: ImputationRecipe, unit: ImputationUnit) -> ImputationUnit:
     """Match ``unit`` against the recipe's routing by id, or raise.
 
-    An unknown id raises ``KeyError``. A known id whose ``strategy`` or
+    An unknown id raises ``unknown_unit``. A known id whose ``strategy`` or
     ``columns`` differ from the recipe's own unit of that id can only have
     come from a different routing — training it would silently train a
-    mismatched recipe, so this raises ``ValueError`` naming both instead.
+    mismatched recipe, so this raises ``unit_routing_mismatch`` naming both
+    instead.
     """
     if isinstance(unit, str):
         # The pre-4.x signature took the id. Say so, rather than letting the
         # attribute lookup below fail with a bare AttributeError.
-        raise TypeError(
+        raise DataForgeError.from_code(
+            "invalid_argument",
             f"fit_unit() takes an ImputationUnit, not the id {unit!r}. Get the "
-            f"unit from derive_units(recipe.routing) and pass that."
+            f"unit from derive_units(recipe.routing) and pass that.",
+            param="unit",
         )
     recipe_units = {u.unit_id: u for u in derive_units(recipe.routing)}
     recipe_unit = recipe_units.get(unit.unit_id)
     if recipe_unit is None:
-        known = ", ".join(f"'{u}'" for u in recipe_units)
-        raise KeyError(
-            f"Recipe's routing carries no unit '{unit.unit_id}'. Known units: "
-            f"{known or '(none)'}."
+        raise DataForgeError.from_code(
+            "unknown_unit",
+            f"Recipe's routing carries no unit '{unit.unit_id}'.",
+            param="unit",
+            candidates=close_matches([unit.unit_id], recipe_units),
         )
     if recipe_unit.strategy != unit.strategy or recipe_unit.columns != unit.columns:
-        raise ValueError(
+        raise DataForgeError.from_code(
+            "unit_routing_mismatch",
             f"Unit '{unit.unit_id}' does not match the recipe's routing: "
             f"passed {unit!r}, recipe's routing carries {recipe_unit!r}. This "
             f"unit was derived from a different routing — re-derive it with "
@@ -273,17 +242,18 @@ def fit_unit(
 
     Raises
     ------
-    KeyError
-        If ``unit`` names no unit in the recipe's routing.
-    TypeError
-        If ``unit`` is a unit id string rather than an
+    UnknownName
+        ``unknown_unit`` if ``unit`` names no unit in the recipe's routing.
+    InvalidInput
+        ``invalid_argument`` if ``unit`` is a unit id string rather than an
         :class:`~dataforge_ml.ImputationUnit` — the pre-4.x signature.
-    ValueError
-        If ``unit``'s ``strategy`` or ``columns`` differ from the recipe's own
-        unit of the same id — it was derived from a different routing.
-    UnitNotTrainableError
-        If the unit cannot train, carrying its structured payload — the sole
-        failure track (ADR-0071).
+    Conflict
+        ``unit_routing_mismatch`` if ``unit``'s ``strategy`` or ``columns``
+        differ from the recipe's own unit of the same id — it was derived from
+        a different routing.
+    Infeasible
+        ``unit_not_trainable`` if the unit cannot train, naming its columns
+        and the fitter's reason — the sole failure track (ADR-0071).
     """
     start = perf_counter()
     unit = _resolve(recipe, unit)
@@ -304,11 +274,13 @@ def fit_unit(
     ctx = _fit_context(recipe, random_seed)
     outcome = _dispatch_unit_fit(unit, train_df, ctx, n_jobs_inner)
     if outcome.fitted is None or outcome.signals is None:
-        raise UnitNotTrainableError(
-            unit_id=unit.unit_id,
-            strategy=unit.strategy,
-            columns=unit.columns,
-            reason=outcome.fallback_reason or str(unit.strategy),
+        names = ", ".join(f"'{c}'" for c in unit.columns)
+        reason = outcome.fallback_reason or str(unit.strategy)
+        raise DataForgeError.from_code(
+            "unit_not_trainable",
+            f"Unit '{unit.unit_id}' ({unit.strategy}) could not train column(s) "
+            f"{names}: {reason}",
+            columns=list(unit.columns),
         )
     signals = replace(outcome.signals, duration_s=perf_counter() - start)
     _emit_warnings(signals)

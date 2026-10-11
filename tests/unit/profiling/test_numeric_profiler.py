@@ -12,6 +12,7 @@ from dataforge_ml.profiling._numeric_config import (
     TailAsymmetryTag,
 )
 from dataforge_ml.profiling._numeric_profiler import NumericProfiler
+from tests.conftest import raises_code
 
 # ---------------------------------------------------------------------------
 # Result type & column eligibility
@@ -654,17 +655,18 @@ def test_mean_median_ratio_all_zero():
 
 
 def test_override_coercion_error_raised_for_total_failure():
-    import pytest
 
-    from dataforge_ml.profiling import OverrideCoercionError
 
     df = pl.DataFrame({"num_col": pl.Series(["apple", "banana", "cherry"])})
-    with pytest.raises(OverrideCoercionError, match="completely failed coercion"):
+    with raises_code("override_coercion_failed", match="failed to convert") as info:
         NumericProfiler().profile(df, ["num_col"], user_overrides={"num_col"})
+    # A coercion failure reports a count and the column, never the bad values.
+    assert info.value.columns == ["num_col"]
+    assert "all 3 non-null" in info.value.message
+    assert not any(v in str(info.value.to_dict()) for v in ("apple", "banana", "cherry"))
 
 
 def test_override_coercion_error_not_raised_for_partial_failure():
-    from dataforge_ml.profiling import OverrideCoercionError
     # 1 valid numeric, 2 invalid
     df = pl.DataFrame({"num_col": pl.Series(["1.23", "banana", "cherry"])})
     result = NumericProfiler().profile(df, ["num_col"], user_overrides={"num_col"})

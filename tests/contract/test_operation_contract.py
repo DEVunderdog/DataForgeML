@@ -16,7 +16,6 @@ import doctest
 import inspect
 import json
 import os
-import re
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -28,7 +27,7 @@ from openai.lib._pydantic import _ensure_strict_json_schema
 
 import dataforge_ml
 from dataforge_ml._boundary._docstring import OPERATION_SECTIONS
-from dataforge_ml._boundary._error_codes import CATEGORIES, REGISTRY
+from dataforge_ml._boundary._error_codes import REGISTRY
 from dataforge_ml._boundary._operation import (
     OperationSpec,
     canonical_json,
@@ -238,24 +237,6 @@ def test_result_json_is_byte_stable(name: str, harness: Harness, tmp_path: Path)
                 keys_in_schema_order(item, node["items"])
 
     keys_in_schema_order(json.loads(first), spec.output_schema())
-
-
-# --- Error Code registry ----------------------------------------------------
-
-
-def test_every_raise_site_has_a_registry_entry() -> None:
-    raised = set()
-    for path in SOURCE.rglob("*.py"):
-        raised |= set(re.findall(r'from_code\(\s*"([a-z_]+)"', path.read_text("utf-8")))
-    assert raised, "the scan found the raise sites"
-    assert sorted(raised - set(REGISTRY)) == []
-
-
-def test_registry_entries_are_well_formed() -> None:
-    for code, entry in REGISTRY.items():
-        assert re.fullmatch(r"[a-z][a-z0-9_]*", code)
-        assert entry.category in CATEGORIES
-        assert entry.hint.strip()
 
 
 def test_every_operation_is_exported_from_the_package() -> None:

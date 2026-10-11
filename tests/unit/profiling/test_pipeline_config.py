@@ -14,6 +14,7 @@ from dataforge_ml.profiling._datetime_config import DatetimeProfileConfig
 from dataforge_ml.profiling._missingness_config import MissingnessProfileConfig
 from dataforge_ml.profiling._numeric_config import NumericProfileConfig
 from dataforge_ml.profiling._type_detection_config import TypeDetectionConfig
+from tests.conftest import raises_code
 
 _ALL_PHASES = list(PipelinePhase)
 
@@ -362,14 +363,16 @@ def test_set_numeric_kind_with_string_continuous():
 
 def test_set_numeric_kind_invalid_string_raises_value_error():
     cfg = PipelineConfig()
-    with pytest.raises(ValueError, match="Unknown NumericKind"):
+    with raises_code("unknown_enum_value", match="not a numeric kind") as info:
         cfg.set_numeric_kind("col", "ordinal")
+    assert info.value.param == "kind"
 
 
 def test_set_numeric_kind_invalid_string_lists_valid_options():
     cfg = PipelineConfig()
-    with pytest.raises(ValueError, match="continuous"):
+    with raises_code("unknown_enum_value") as info:
         cfg.set_numeric_kind("col", "garbage")
+    assert "continuous" in info.value.allowed
 
 
 # ---------------------------------------------------------------------------
@@ -559,21 +562,24 @@ def test_profile_config_numeric_and_string_sentinels_coexist():
 
 def test_profile_config_from_dict_raises_on_invalid_numeric_entry():
     d = {"numeric_sentinels": {"age": ["not_a_number"]}}
-    with pytest.raises(ValueError, match="not numeric"):
+    with raises_code("invalid_argument", match="not numbers") as info:
         ProfileConfig.from_dict(d)
+    # The offending entry is named by position; its value is never echoed.
+    assert info.value.params == ["values[0]"]
+    assert "not_a_number" not in str(info.value.to_dict())
 
     d_empty = {"numeric_sentinels": {"age": []}}
-    with pytest.raises(ValueError, match="cannot be empty"):
+    with raises_code("invalid_argument", match="at least one sentinel"):
         ProfileConfig.from_dict(d_empty)
 
 
 def test_profile_config_from_dict_raises_on_invalid_string_entry():
     d = {"string_sentinels": {"status": [123]}}
-    with pytest.raises(ValueError, match="not a string"):
+    with raises_code("invalid_argument", match="not strings"):
         ProfileConfig.from_dict(d)
 
     d_empty = {"string_sentinels": {"status": []}}
-    with pytest.raises(ValueError, match="cannot be empty"):
+    with raises_code("invalid_argument", match="at least one sentinel"):
         ProfileConfig.from_dict(d_empty)
 
 
@@ -632,8 +638,9 @@ def test_profile_config_round_trip_no_datetime_epoch_units_unchanged():
 
 def test_profile_config_from_dict_raises_on_invalid_datetime_epoch_unit():
     d = {"datetime_epoch_units": {"ts": "invalid_unit"}}
-    with pytest.raises(ValueError, match="Unknown epoch unit 'invalid_unit'. Valid options are: s, ms, us, ns, d"):
+    with raises_code("unknown_enum_value", match="'invalid_unit' is not an epoch unit") as info:
         ProfileConfig.from_dict(d)
+    assert info.value.allowed == ["s", "ms", "us", "ns", "d"]
 
 
 # ---------------------------------------------------------------------------
@@ -676,19 +683,19 @@ def test_set_datetime_format_does_not_validate_strftime_grammar():
 
 def test_set_datetime_format_rejects_empty_format():
     cfg = ProfileConfig()
-    with pytest.raises(ValueError, match="format must be a non-empty string"):
+    with raises_code("invalid_argument", match="format must be a non-empty string"):
         cfg.set_datetime_format("Year", "")
 
 
 def test_set_datetime_format_rejects_non_string_format():
     cfg = ProfileConfig()
-    with pytest.raises(ValueError, match="format must be a non-empty string"):
+    with raises_code("invalid_argument", match="format must be a non-empty string"):
         cfg.set_datetime_format("Year", 123)  # type: ignore[arg-type]
 
 
 def test_set_datetime_format_rejects_empty_column_name():
     cfg = ProfileConfig()
-    with pytest.raises(ValueError, match="column name must be a non-empty string"):
+    with raises_code("invalid_argument", match="column name must be a non-empty string"):
         cfg.set_datetime_format("", "%Y")
 
 

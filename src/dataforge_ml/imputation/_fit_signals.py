@@ -58,7 +58,7 @@ class FitSignals:
 
     The record is ephemeral — it describes the fit's runtime, not the fitted
     state, and is never serialized (ADR-0072). An untrainable unit raises
-    :class:`~dataforge_ml.imputation.UnitNotTrainableError` and produces no
+    an ``unit_not_trainable`` Library Error and produces no
     record: observability describes fits that happened (ADR-0074).
 
     Attributes

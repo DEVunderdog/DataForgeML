@@ -1,5 +1,5 @@
 from ..config import Modality, PipelineConfig, PipelinePhase, SemanticType
-from ._base import ModalityProfiler, OverrideCoercionError
+from ._base import ModalityProfiler
 from ._categorical_config import CategoricalProfileConfig
 from ._config import (
     BooleanStats,
@@ -39,7 +39,6 @@ __all__ = [
     "DatasetStats",
     "StructuralProfileResult",
     "ModalityProfiler",
-    "OverrideCoercionError",
     "MissingnessProfileConfig",
     "NumericProfileConfig",
     "NonlinearityProfileConfig",

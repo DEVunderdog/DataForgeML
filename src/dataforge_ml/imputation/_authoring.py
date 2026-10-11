@@ -11,7 +11,7 @@ only, never statistics), and ``base`` supplies a routing to re-author. It
 checks exactly what it can see from those (an unknown map key, ``MICE``
 declared for one column, a non-numeric column declared anything other than
 ``Passthrough``/``Dropped``); a strategy/dtype mismatch or a size guard needs
-data and stays a fit-time ``UnitNotTrainableError``. A missing bimodal
+data and stays a fit-time ``unit_not_trainable``. A missing bimodal
 estimate is not checked here either — :func:`~dataforge_ml.imputation.resolve_recipe`
 gives every bimodal column a :class:`~dataforge_ml.imputation.ColumnEstimates`
 entry, and a still-missing centre is refused by
@@ -24,7 +24,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from .._boundary._error_codes import close_matches
 from ..config import SemanticType
+from ..records import DataForgeError
 from ._config import (
     ColumnRouting,
     ImputationRouting,
@@ -91,12 +93,19 @@ def _coerce(column: str, value) -> AuthoredColumn:
         try:
             return AuthoredColumn(strategy=ImputationStrategy(value))
         except ValueError:
-            raise ValueError(
-                f"Column '{column}': '{value}' is not an ImputationStrategy."
+            allowed = [s.value for s in ImputationStrategy]
+            raise DataForgeError.from_code(
+                "unknown_enum_value",
+                f"Column '{column}': '{value}' is not an ImputationStrategy.",
+                param=f"columns_map.{column}",
+                allowed=allowed,
+                candidates=close_matches([str(value)], allowed),
             ) from None
-    raise TypeError(
+    raise DataForgeError.from_code(
+        "invalid_argument",
         f"Column '{column}': expected an ImputationStrategy or an AuthoredColumn, "
-        f"got {type(value).__name__}."
+        f"got {type(value).__name__}.",
+        param=f"columns_map.{column}",
     )
 
 
@@ -105,24 +114,30 @@ def _validate(column: str, authored: AuthoredColumn) -> None:
 
     Data-dependent failures — a strategy the column's dtype cannot take, a
     missing bimodal estimate, a block too small to train — are not visible
-    here and stay fit-time raises (``UnitNotTrainableError``).
+    here and stay fit-time ``unit_not_trainable`` raises.
     """
     strategy = authored.strategy
     if strategy == ImputationStrategy.Indicator:
-        raise ValueError(
+        raise DataForgeError.from_code(
+            "strategy_not_declarable",
             f"Column '{column}': 'Indicator' cannot be authored. It labels the "
             f"'{column}_missing' column an MNAR declaration appends, which the "
-            f"door registers on its own."
+            f"door registers on its own.",
+            columns=[column],
         )
     if strategy == ImputationStrategy.Constant and authored.constant_fill is None:
-        raise ValueError(
+        raise DataForgeError.from_code(
+            "constant_fill_missing",
             f"Column '{column}': strategy is 'Constant' but no fill value was "
-            f"provided. Set AuthoredColumn.constant_fill."
+            f"provided. Set AuthoredColumn.constant_fill.",
+            columns=[column],
         )
     if authored.excluded and strategy != ImputationStrategy.Passthrough:
-        raise ValueError(
+        raise DataForgeError.from_code(
+            "declaration_conflict",
             f"Column '{column}': an excluded column rides through untouched, so "
-            f"its strategy must be 'Passthrough', not '{strategy}'."
+            f"its strategy must be 'Passthrough', not '{strategy}'.",
+            columns=[column],
         )
 
 
@@ -227,22 +242,29 @@ def author(
 
     Raises
     ------
-    ValueError
-        If neither or both of ``profile``/``base`` are given; if a
-        ``columns_map`` key is absent from the column universe; if a
+    InvalidInput
+        ``invalid_argument`` if neither or both of ``profile``/``base`` are
+        given, or a ``columns_map`` value is neither an ``ImputationStrategy``
+        nor an ``AuthoredColumn``. ``strategy_not_declarable`` if a
         non-numeric column is declared any strategy other than ``Passthrough``
-        or ``Dropped``; if ``Indicator`` is declared; if ``Constant`` carries no
-        fill; if ``excluded`` is declared with a strategy other than
-        ``Passthrough``; or if ``MICE`` is declared for exactly one column,
-        which leaves the block a target and no predictor.
-    TypeError
-        If a ``columns_map`` value is neither an ``ImputationStrategy`` nor an
-        ``AuthoredColumn``.
+        or ``Dropped``, or ``Indicator`` is declared. ``constant_fill_missing``
+        if ``Constant`` carries no fill. ``mice_block_too_small`` if ``MICE``
+        is declared for exactly one column, which leaves the block a target
+        and no predictor.
+    UnknownName
+        ``unknown_column`` if a ``columns_map`` key is absent from the column
+        universe. ``unknown_enum_value`` if a strategy string is not an
+        ``ImputationStrategy``.
+    Conflict
+        ``declaration_conflict`` if ``excluded`` is declared with a strategy
+        other than ``Passthrough``.
     """
     if (profile is None) == (base is None):
-        raise ValueError(
+        raise DataForgeError.from_code(
+            "invalid_argument",
             "author() needs exactly one of 'profile' (a column universe to "
-            "route fresh) or 'base' (a routing to re-author)."
+            "route fresh) or 'base' (a routing to re-author).",
+            params=["profile", "base"],
         )
 
     if base is not None:
@@ -269,10 +291,14 @@ def author(
     if unknown:
         names = ", ".join(f"'{c}'" for c in sorted(unknown))
         source = "the base routing" if base is not None else "'profile'"
-        raise ValueError(
+        raise DataForgeError.from_code(
+            "unknown_column",
             f"Column(s) {names} are named in the strategy map but absent from "
             f"{source}. Every planned column must be part of the column "
-            f"universe."
+            f"universe.",
+            param="columns_map",
+            columns=sorted(unknown),
+            candidates=close_matches(unknown, ordered),
         )
 
     routings: dict[str, ColumnRouting] = {}
@@ -286,10 +312,16 @@ def author(
             ImputationStrategy.Passthrough,
             ImputationStrategy.Dropped,
         ):
-            raise ValueError(
+            raise DataForgeError.from_code(
+                "strategy_not_declarable",
                 f"Column '{col}': semantic type is '{semantic_type}', so only "
                 f"'Passthrough' or 'Dropped' may be declared for it, not "
-                f"'{entry.strategy}'."
+                f"'{entry.strategy}'.",
+                columns=[col],
+                allowed=[
+                    ImputationStrategy.Passthrough.value,
+                    ImputationStrategy.Dropped.value,
+                ],
             )
         _validate(col, entry)
         routings[col] = _to_routing(col, entry, semantic_type)
@@ -298,10 +330,12 @@ def author(
         c for c, r in routings.items() if r.strategy == ImputationStrategy.MICE
     ]
     if len(mice_cols) == 1:
-        raise ValueError(
+        raise DataForgeError.from_code(
+            "mice_block_too_small",
             f"Column '{mice_cols[0]}': MICE is a joint block over several "
             f"columns and was declared for this one alone, leaving it a target "
-            f"with no predictor. Declare MICE for at least two columns."
+            f"with no predictor. Declare MICE for at least two columns.",
+            columns=mice_cols,
         )
 
     # Indicator pass: pre-register the {col}_missing columns the MNAR

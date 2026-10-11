@@ -101,12 +101,15 @@ def current_call() -> CallContext:
 
     Raises
     ------
-    RuntimeError
-        If no Operation is running; Handles are written only by Operations.
+    Unexpected
+        ``unexpected`` if no Operation is running; Handles are written only by
+        Operations.
     """
     call = _CALL.get()
     if call is None:
-        raise RuntimeError("Handles are written only inside an Operation call")
+        raise DataForgeError.from_code(
+            "unexpected", "Handles are written only inside an Operation call."
+        )
     return call
 
 
@@ -154,7 +157,9 @@ def _handle_dir(root: Path, handle: str) -> Path:
     # is that nothing outside the Workspace is ever read as a payload.
     path = (root / "handles" / handle).resolve()
     if path.parent != (root / "handles").resolve():
-        raise RuntimeError(f"Handle path escapes the Workspace: {handle!r}")
+        raise DataForgeError.from_code(
+            "unexpected", f"Handle path escapes the Workspace: {handle!r}."
+        )
     return path
 
 
@@ -201,7 +206,7 @@ def write_handle(
         The new Handle, such as ``frame_7f3a9c2e``.
     """
     if kind not in HANDLE_KINDS:
-        raise ValueError(f"unknown Handle kind {kind!r}")
+        raise DataForgeError.from_code("unexpected", f"Unknown Handle kind {kind!r}.")
     call = current_call()
     root = workspace_root()
     while True:

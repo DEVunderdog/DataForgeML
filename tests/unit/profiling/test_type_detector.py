@@ -1,5 +1,4 @@
 import polars as pl
-import pytest
 
 from dataforge_ml.config import PipelineConfig
 from dataforge_ml.profiling._config import (
@@ -11,6 +10,7 @@ from dataforge_ml.profiling._config import (
 from dataforge_ml.profiling._type_detection_config import TypeDetectionConfig
 from dataforge_ml.profiling._type_detector import TypeDetector
 from dataforge_ml.profiling.orchestrator import StructuralProfiler
+from tests.conftest import raises_code
 
 # ---------------------------------------------------------------------------
 # Native pl.Boolean resolves to SemanticType.Boolean
@@ -341,7 +341,7 @@ def test_numeric_kind_override_non_numeric_column_raises_value_error():
     df = pl.DataFrame({"category": ["a", "b", "c", "a", "b"]})
     cfg = PipelineConfig()
     cfg.set_numeric_kind("category", NumericKind.BoundedDiscrete)
-    with pytest.raises(ValueError, match="category"):
+    with raises_code("declaration_conflict", match="category"):
         StructuralProfiler(cfg).profile(df)
 
 
@@ -349,8 +349,9 @@ def test_numeric_kind_override_error_message_names_actual_semantic_type():
     df = pl.DataFrame({"category": ["a", "b", "c", "a", "b"]})
     cfg = PipelineConfig()
     cfg.set_numeric_kind("category", NumericKind.BoundedDiscrete)
-    with pytest.raises(ValueError, match="SemanticType.Numeric"):
+    with raises_code("declaration_conflict", match="'categorical'") as info:
         StructuralProfiler(cfg).profile(df)
+    assert info.value.columns == ["category"]
 
 
 def test_numeric_kind_override_semantic_type_override_to_categorical_then_kind_override_raises():
@@ -361,7 +362,7 @@ def test_numeric_kind_override_semantic_type_override_to_categorical_then_kind_o
     cfg = PipelineConfig()
     cfg.set_column_type("age", SemanticType.Categorical)
     cfg.set_numeric_kind("age", NumericKind.BoundedDiscrete)
-    with pytest.raises(ValueError, match="age"):
+    with raises_code("declaration_conflict", match="age"):
         StructuralProfiler(cfg).profile(df)
 
 

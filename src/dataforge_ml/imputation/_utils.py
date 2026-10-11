@@ -10,6 +10,7 @@ import numpy as np
 import polars as pl
 
 from ..models._data_types import _FLOAT_DTYPES, _INT_DTYPES
+from ..records import DataForgeError
 
 
 def _df_to_numpy(df: pl.DataFrame, cols: list[str]) -> np.ndarray:
@@ -67,8 +68,8 @@ def _numpy_to_df(df: pl.DataFrame, cols: list[str], arr: np.ndarray) -> pl.DataF
     AssertionError
         If arr contains NaN for a column whose original dtype is an integer type.
         Post-imputation NaN in an integer column is a call-site bug.
-    ValueError
-        If a column's original dtype is neither numeric (integer or float) nor
+    Unexpected
+        ``unexpected`` if a column's original dtype is neither numeric (integer or float) nor
         castable from float64 — e.g. ``pl.Utf8`` or ``pl.Boolean``.
     """
     new_cols = []
@@ -86,9 +87,10 @@ def _numpy_to_df(df: pl.DataFrame, cols: list[str], arr: np.ndarray) -> pl.DataF
         elif dtype in _FLOAT_DTYPES:
             new_cols.append(pl.Series(col, col_arr, dtype=pl.Float64).cast(dtype))
         else:
-            raise ValueError(
+            raise DataForgeError.from_code(
+                "unexpected",
                 f"_numpy_to_df: column '{col}' has non-numeric dtype {dtype!r}; "
-                "only integer and float columns are supported"
+                "only integer and float columns are supported",
             )
     return df.with_columns(new_cols)
 

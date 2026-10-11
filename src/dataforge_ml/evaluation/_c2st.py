@@ -20,7 +20,7 @@ progress emit — ``item`` for a direct call, since the call owns the loop, and
 
 **What it does not know:** ``m``, masks, column semantics, imputation. There is
 no column-type argument either — **dtype is the whole type contract**. A
-``pl.String`` column raises :class:`C2STDtypeError` naming the column, and an
+``pl.String`` column raises ``c2st_string_column`` naming the column, and an
 int-coded categorical sitting as ``pl.Int64`` is treated as an ordered numeric,
 a stated and unenforceable precondition on the caller's typing.
 
@@ -43,11 +43,10 @@ import polars as pl
 from sklearn.ensemble import HistGradientBoostingClassifier
 
 from ..observability import Emitter, Observer
+from ..records import DataForgeError
 
 __all__ = [
-    "C2STDtypeError",
     "C2STResult",
-    "C2STSampleFloorError",
     "C2STScheme",
     "c2st",
 ]
@@ -77,31 +76,6 @@ _TEST_FRACTION: float = 0.3
 
 # The fold count of the ``CrossValidation`` scheme — five fits per repeat.
 _CV_FOLDS: int = 5
-
-
-class C2STDtypeError(TypeError):
-    """A column's dtype cannot be handed to a C2ST classifier.
-
-    Raised by :func:`c2st` when a sample carries a ``pl.String`` column, which
-    :class:`~sklearn.ensemble.HistGradientBoostingClassifier` rejects with a
-    bare ``could not convert string to float`` naming a *value* rather than a
-    column. Under ADR-0085's dtype floor no semantic categorical arrives as a
-    string, and ``Text``/``Identifier`` columns are dropped by the imputation
-    adapter before it ever calls here, so this is a diagnosis for a direct
-    caller of the generic seam rather than a path the adapter can trip.
-    """
-
-
-class C2STSampleFloorError(ValueError):
-    """A sample pair falls below C2ST's size floor.
-
-    Raised by :func:`c2st` in place of a bare ``ValueError`` so a caller can
-    catch the size-floor refusal specifically, without also swallowing the
-    other ``ValueError``s :func:`c2st` raises (a repeat count below 1, or
-    mismatched columns). :func:`_meets_sample_floor` answers the same question
-    as a pure predicate, for a caller that wants to describe the refusal
-    rather than catch it.
-    """
 
 
 class C2STScheme(StrEnum):
@@ -306,24 +280,47 @@ def _meets_sample_floor(
     return min(reference.height, candidate.height) >= min_rows
 
 
-def _check_dtypes(frame: pl.DataFrame, side: str) -> None:
-    """Raise :class:`C2STDtypeError` for the first ``pl.String`` column."""
-    for name, dtype in frame.schema.items():
-        if dtype == pl.String:
-            raise C2STDtypeError(
-                f"C2ST cannot test a pl.String column: {side} column "
-                f"{name!r} has dtype {dtype}. Cast it to pl.Categorical, or "
-                f"drop it from both samples."
-            )
+def _check_dtypes(reference: pl.DataFrame, candidate: pl.DataFrame) -> None:
+    """Raise ``c2st_string_column`` naming every ``pl.String`` column.
+
+    :class:`~sklearn.ensemble.HistGradientBoostingClassifier` rejects a string
+    column with a bare ``could not convert string to float`` naming a *value*
+    rather than a column. Under ADR-0085's dtype floor no semantic categorical
+    arrives as a string, and ``Text``/``Identifier`` columns are dropped by the
+    imputation adapter before it ever calls here, so this is a diagnosis for a
+    direct caller of the generic seam.
+    """
+    names = list(
+        dict.fromkeys(
+            name
+            for frame in (reference, candidate)
+            for name, dtype in frame.schema.items()
+            if dtype == pl.String
+        )
+    )
+    if names:
+        raise DataForgeError.from_code(
+            "c2st_string_column",
+            f"C2ST cannot test pl.String columns: {len(names)} column(s) have "
+            f"dtype String. Cast them to pl.Categorical, or drop them from "
+            f"both samples.",
+            columns=names,
+        )
 
 
 def _align(reference: pl.DataFrame, candidate: pl.DataFrame) -> pl.DataFrame:
     """Stack the two samples into one frame, reference rows first."""
     if list(reference.columns) != list(candidate.columns):
-        raise ValueError(
-            "C2ST needs the same columns in the same order in both samples: "
-            f"reference has {list(reference.columns)}, "
-            f"candidate has {list(candidate.columns)}."
+        differing = sorted(set(reference.columns) ^ set(candidate.columns))
+        raise DataForgeError.from_code(
+            "frames_not_aligned",
+            "C2ST needs the same columns in the same order in both samples. "
+            + (
+                "The columns in `columns` are in only one of them."
+                if differing
+                else "Both have the same columns, in a different order."
+            ),
+            columns=differing or None,
         )
     return pl.concat([reference, candidate], how="vertical")
 
@@ -387,15 +384,19 @@ def _run_c2st(
     size and how they report ``on_repeat``.
     """
     if repeats < 1:
-        raise ValueError(f"C2ST needs at least 1 repeat, got {repeats}.")
-    _check_dtypes(reference, "reference")
-    _check_dtypes(candidate, "candidate")
+        raise DataForgeError.from_code(
+            "invalid_dial_value",
+            f"C2ST needs at least 1 repeat, got {repeats}.",
+            param="repeats",
+        )
+    _check_dtypes(reference, candidate)
     if not _meets_sample_floor(reference, candidate, min_rows=min_rows):
-        raise C2STSampleFloorError(
+        raise DataForgeError.from_code(
+            "c2st_sample_floor",
             "C2ST refuses samples below the size floor: the smaller of "
             f"{reference.height} reference and {candidate.height} candidate "
-            f"rows is under {min_rows}. Ask _meets_sample_floor "
-            "before calling to describe such a pair rather than raise on it."
+            f"rows is under {min_rows}.",
+            param="min_rows",
         )
 
     pooled = _align(reference, candidate)
@@ -586,20 +587,21 @@ def c2st(
 
     Raises
     ------
-    C2STDtypeError
-        When either sample carries a ``pl.String`` column; the message names the
-        column.
-    C2STSampleFloorError
-        When the smaller sample falls below ``min_rows`` — the internal
-        assertion of the floor :func:`_meets_sample_floor` exposes, so a
-        direct caller cannot bypass it.
-    ValueError
-        When ``repeats`` is below 1, when the two samples do not carry the same
-        columns in the same order, or when both ``min_samples_leaf`` and
-        ``classifier`` are supplied.
+    Infeasible
+        ``c2st_string_column`` when either sample carries a ``pl.String``
+        column; ``columns`` names every one. ``c2st_sample_floor`` when the
+        smaller sample falls below ``min_rows`` — the internal assertion of
+        the floor :func:`_meets_sample_floor` exposes, so a direct caller
+        cannot bypass it.
+    InvalidInput
+        ``invalid_dial_value`` when ``repeats`` is below 1.
+        ``frames_not_aligned`` when the two samples do not carry the same
+        columns in the same order. ``invalid_argument`` when both
+        ``min_samples_leaf`` and ``classifier`` are supplied.
     """
     if min_samples_leaf is not None and classifier is not None:
-        raise ValueError(
+        raise DataForgeError.from_code(
+            "invalid_argument",
             "c2st cannot take both min_samples_leaf and classifier: "
             "min_samples_leaf only tunes the leaf size of the library's "
             "default classifier, and an injected classifier is used "

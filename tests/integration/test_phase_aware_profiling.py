@@ -10,6 +10,7 @@ import polars as pl
 import pytest
 
 from dataforge_ml.profiling import PipelineConfig, PipelinePhase, StructuralProfiler
+from tests.conftest import raises_code
 
 
 @pytest.fixture(scope="module")
@@ -173,26 +174,24 @@ def test_bare_year_override_with_declared_format_profiles_successfully():
 
 def test_bare_year_override_without_declared_format_raises():
     from dataforge_ml.config import SemanticType
-    from dataforge_ml.profiling import OverrideCoercionError
 
     df = _bare_year_df()
     cfg = PipelineConfig()
     cfg.set_column_type("Year", SemanticType.Datetime)
 
-    with pytest.raises(OverrideCoercionError, match="set_datetime_format"):
+    with raises_code("override_coercion_failed", match="Declare its format"):
         StructuralProfiler(cfg).profile(df)
 
 
 def test_wrong_declared_format_still_raises_with_hint():
     from dataforge_ml.config import SemanticType
-    from dataforge_ml.profiling import OverrideCoercionError
 
     df = _bare_year_df()
     cfg = PipelineConfig()
     cfg.set_column_type("Year", SemanticType.Datetime)
     cfg.profiling.set_datetime_format("Year", "%H:%M:%S")
 
-    with pytest.raises(OverrideCoercionError, match="set_datetime_format"):
+    with raises_code("override_coercion_failed", match="Declare its format"):
         StructuralProfiler(cfg).profile(df)
 
 

@@ -31,16 +31,6 @@ from ._config import DatasetStats
 R = TypeVar("R")
 
 
-class OverrideCoercionError(Exception):
-    """
-    Raised when a user-overridden column completely fails coercion.
-
-    This exception is triggered when zero usable values remain after coercion,
-    despite the original column having at least one non-null value.
-    """
-    pass
-
-
 class Profiling(ABC, Generic[R]):
     """
     Root base for all profilers. Thin ABC — no config state.
@@ -115,8 +105,8 @@ class ColumnBatchProfiler(Profiling[R]):
 
         Raises
         ------
-        OverrideCoercionError
-            If a column in user_overrides completely fails coercion.
+        Infeasible
+            ``override_coercion_failed`` if a column in user_overrides completely fails coercion.
         """
         ...  # type: ignore[override]
 

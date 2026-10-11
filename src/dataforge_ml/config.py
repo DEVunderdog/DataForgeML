@@ -6,6 +6,9 @@ from enum import StrEnum
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
+from ._boundary._error_codes import close_matches
+from .records import DataForgeError
+
 if TYPE_CHECKING:
     from dataforge_ml.imputation._config import ImputationConfig
     from dataforge_ml.profiling._config import NumericKind, ProfileConfig
@@ -232,19 +235,22 @@ class PipelineConfig:
 
         Raises
         ------
-        ValueError
-            When ``semantic_type`` is a string that does not match any
-            ``SemanticType`` value.
+        UnknownName
+            ``unknown_enum_value`` when ``semantic_type`` is a string that
+            does not match any ``SemanticType`` value.
         """
         if isinstance(semantic_type, str):
             try:
                 semantic_type = SemanticType(semantic_type)
             except ValueError:
                 valid = [e.value for e in SemanticType]
-                raise ValueError(
-                    f"Unknown semantic type {semantic_type!r}. "
-                    f"Valid values: {valid}"
-                )
+                raise DataForgeError.from_code(
+                    "unknown_enum_value",
+                    f"{semantic_type!r} is not a semantic type.",
+                    param="semantic_type",
+                    allowed=valid,
+                    candidates=close_matches([semantic_type], valid),
+                ) from None
         cols = [column] if isinstance(column, str) else column
         for col in cols:
             self._column_overrides[col] = semantic_type
@@ -264,9 +270,9 @@ class PipelineConfig:
 
         Raises
         ------
-        ValueError
-            When ``kind`` is a string that does not match any ``NumericKind``
-            value.
+        UnknownName
+            ``unknown_enum_value`` when ``kind`` is a string that does not
+            match any ``NumericKind`` value.
         """
         from dataforge_ml.profiling._config import NumericKind as _NumericKind
         if isinstance(kind, str):
@@ -274,9 +280,13 @@ class PipelineConfig:
                 kind = _NumericKind(kind)
             except ValueError:
                 valid = [e.value for e in _NumericKind]
-                raise ValueError(
-                    f"Unknown NumericKind {kind!r}. Valid values: {valid}"
-                )
+                raise DataForgeError.from_code(
+                    "unknown_enum_value",
+                    f"{kind!r} is not a numeric kind.",
+                    param="kind",
+                    allowed=valid,
+                    candidates=close_matches([kind], valid),
+                ) from None
         cols = [column] if isinstance(column, str) else column
         for col in cols:
             self._numeric_kind_overrides[col] = kind

@@ -36,6 +36,7 @@ import sklearn
 from ...config import PipelineConfig, PipelinePhase, SemanticType
 from ...observability import Emitter, Observer
 from ...profiling._config import StructuralProfileResult
+from ...records import DataForgeError
 from ...utils._dtype_floor import _apply_dtype_floor
 from ...utils._null_normalization import _resolve_effective_nulls
 from .._c2st import (
@@ -269,22 +270,26 @@ def imputation_score_c2st(
 
     Raises
     ------
-    ValueError
-        When ``imputed_frames`` is empty, when a frame's row count differs from
+    InvalidInput
+        ``invalid_argument`` when ``imputed_frames`` is empty.
+        ``frames_not_aligned`` when a frame's row count differs from
         ``original``'s, or when an active column is missing from an imputed
         frame.
     """
     if not imputed_frames:
-        raise ValueError(
+        raise DataForgeError.from_code(
+            "invalid_argument",
             "imputation_score_c2st needs at least one imputed frame; "
-            "imputed_frames was empty."
+            "imputed_frames was empty.",
+            param="imputed_frames",
         )
     for index, frame in enumerate(imputed_frames):
         if frame.height != original.height:
-            raise ValueError(
+            raise DataForgeError.from_code(
+                "frames_not_aligned",
                 "Each imputed frame must be row-aligned with original: "
                 f"frame {index} has {frame.height} rows against "
-                f"{original.height}."
+                f"{original.height}.",
             )
 
     if config is None:
@@ -299,11 +304,13 @@ def imputation_score_c2st(
     missing = sorted({c for c in active for frame in frames if c not in frame.columns})
     if missing:
         names = ", ".join(f"'{c}'" for c in missing)
-        raise ValueError(
+        raise DataForgeError.from_code(
+            "frames_not_aligned",
             "Every active column must be present in each imputed frame; "
             f"missing from at least one frame: {names}. Exclude a column the "
             "imputation dropped via PipelineConfig rather than handing over a "
-            "frame that has lost it."
+            "frame that has lost it.",
+            columns=missing,
         )
 
     semantic_types = {name: cp.semantic_type for name, cp in profile.columns.items()}
