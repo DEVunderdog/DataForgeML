@@ -14,7 +14,9 @@ COLUMN_CAP = 100
 
 
 def load_declared_csv(path: str) -> dict[str, Any]:
-    """Load a Declared Input CSV into a new frame Handle.
+    """Load a CSV into a new frame Handle, if the Declared Inputs allow it.
+
+    Declared Inputs are opt-in (ADR-0112): with none declared, any path loads.
 
     Parameters
     ----------
@@ -32,14 +34,20 @@ def load_declared_csv(path: str) -> dict[str, Any]:
     Raises
     ------
     DataForgeError
-        ``input_not_declared`` when ``path`` is not a Declared Input.
+        ``input_not_declared`` when Declared Inputs are listed and ``path`` is
+        not one of them; ``input_not_found`` when no file is at ``path``.
     """
     resolved = Path(path).resolve()
-    if resolved not in declared_inputs():
+    declared = declared_inputs()
+    if declared and resolved not in declared:
         raise DataForgeError.from_code(
             "input_not_declared",
             "`path` is not a Declared Input, so it cannot be loaded.",
             param="path",
+        )
+    if not resolved.is_file():
+        raise DataForgeError.from_code(
+            "input_not_found", "No file exists at `path`.", param="path"
         )
     frame = _load_csv(resolved.read_bytes())
     handle = write_handle(

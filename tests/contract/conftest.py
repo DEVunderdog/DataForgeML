@@ -2,22 +2,29 @@
 
 A test calls an Operation the way an Agent would and checks only what crosses
 the boundary. ``harness.call(name, **arguments)`` runs the Operation twice:
-once as a Code Mode Python call, once through the Tool Calls delivery. It
+once as a Code Mode Python call, once as a ``dataforge`` subprocess. It
 asserts both give the same JSON (Handle ids aside, since each run writes its
-own Handles) and returns the Code Mode outcome.
+own Handles), that the exit code names the error's category, and that stderr
+is empty. It returns the Code Mode outcome.
 
-The Harness settings are set the way a Harness sets them, through the
-environment: a temporary Workspace, and every CSV under the fixture directory
+A test that patches library internals cannot reach a subprocess, so
+``harness.call_in_process`` runs the CLI's ``run`` in this process instead.
+
+The Workspace Settings are set the way an Operator sets them, through env
+vars: a temporary Workspace, and every CSV under the fixture directory
 (copied to a temporary input directory, which is also the working directory)
 as a Declared Input.
 """
 
 from __future__ import annotations
 
+import io
 import json
 import os
 import re
 import shutil
+import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -25,16 +32,16 @@ from typing import Any
 import pytest
 
 import dataforge_ml
+from dataforge_ml._boundary._error_codes import REGISTRY
 from dataforge_ml._boundary._operation import canonical_json
-from dataforge_ml._boundary._workspace import (
-    DECLARED_INPUTS_ENV,
-    HANDLE_KINDS,
-    WORKSPACE_ENV,
-)
-from dataforge_ml._harness.tool_calls import call_tool
+from dataforge_ml._boundary._settings import DECLARED_INPUTS_ENV, WORKSPACE_ENV
+from dataforge_ml._boundary._workspace import HANDLE_KINDS
+from dataforge_ml._cli import EXIT_CODES, kebab, run
 from dataforge_ml.records import DataForgeError
 
 FIXTURES = Path(__file__).parent / "fixtures"
+#: The installed console script, next to the interpreter running the tests.
+DATAFORGE = Path(sys.executable).parent / "dataforge"
 _HANDLE = re.compile(rf"\b({'|'.join(HANDLE_KINDS)})_[0-9a-f]{{8}}\b")
 
 
@@ -60,6 +67,72 @@ class Outcome:
     @property
     def code(self) -> str | None:
         return self.json["code"] if self.is_error else None
+
+
+@dataclass(frozen=True)
+class CliOutcome:
+    """What one ``dataforge`` process printed and returned."""
+
+    json: dict[str, Any]
+    exit_code: int
+    stdout: str
+    stderr: str
+
+    @property
+    def is_error(self) -> bool:
+        return self.exit_code != 0
+
+
+def expected_exit_code(error_code: str | None) -> int:
+    """The exit code a CLI result must have: 0, or its Error Code's category's code."""
+    return 0 if error_code is None else EXIT_CODES[REGISTRY[error_code].category]
+
+
+def to_argv(name: str, arguments: dict[str, Any]) -> list[str]:
+    """Spell a Code Mode call as ``dataforge`` arguments.
+
+    A scalar becomes its text, a list of scalars a comma list, and anything
+    nested inline JSON. A null argument is left out, which is its default.
+    """
+    argv = [kebab(name)]
+    for key, value in arguments.items():
+        if value is None:
+            continue
+        if isinstance(value, bool):
+            text = "true" if value else "false"
+        elif isinstance(value, (str, int, float)):
+            text = str(value)
+        elif isinstance(value, (list, tuple)) and all(
+            isinstance(v, (str, int, float)) and not isinstance(v, bool) for v in value
+        ):
+            text = ",".join(map(str, value))
+        else:
+            text = json.dumps(value)
+        argv += [f"--{kebab(key)}", text]
+    return argv
+
+
+def run_dataforge(
+    argv: list[str], *, env: dict[str, str] | None = None, cwd: Path | None = None
+) -> CliOutcome:
+    """Run the ``dataforge`` console script as its own process."""
+    assert DATAFORGE.exists(), f"{DATAFORGE} is missing; run `uv sync` to install it"
+    done = subprocess.run(
+        [str(DATAFORGE), *argv],
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=cwd,
+        timeout=300,
+        check=False,
+    )
+    assert done.stdout.endswith("\n") and done.stdout.count("\n") == 1, done.stdout
+    return CliOutcome(
+        json=json.loads(done.stdout),
+        exit_code=done.returncode,
+        stdout=done.stdout,
+        stderr=done.stderr,
+    )
 
 
 class Harness:
@@ -89,21 +162,40 @@ class Harness:
             return Outcome(json=err.to_dict(), is_error=True, error=err)
         return Outcome(json=record.to_dict(), is_error=False, record=record)
 
-    def tool_call(self, name: str, **arguments: Any) -> Outcome:
-        """Call the Operation through the Tool Calls delivery."""
-        result = call_tool(name, arguments)
-        assert json.loads(result["content"][0]["text"]) == result["structuredContent"]
-        return Outcome(json=result["structuredContent"], is_error=result["isError"])
+    def cli(self, name: str, **arguments: Any) -> CliOutcome:
+        """Call the Operation as a ``dataforge`` subprocess, as an Agent's shell would."""
+        return run_dataforge(to_argv(name, arguments))
+
+    def cli_in_process(self, name: str, **arguments: Any) -> CliOutcome:
+        """Run the CLI's ``run`` in this process, so patched internals apply."""
+        stdout = io.StringIO()
+        exit_code = run(to_argv(name, arguments), stdout=stdout)
+        return CliOutcome(
+            json=json.loads(stdout.getvalue()),
+            exit_code=exit_code,
+            stdout=stdout.getvalue(),
+            stderr="",
+        )
+
+    def _compare(self, code: Outcome, cli: CliOutcome) -> Outcome:
+        assert code.is_error == cli.is_error
+        assert cli.exit_code == expected_exit_code(code.code)
+        assert cli.stderr == ""
+        assert normalise_handles(canonical_json(code.json)) == normalise_handles(
+            canonical_json(cli.json)
+        )
+        assert cli.stdout == canonical_json(cli.json) + "\n"
+        return code
 
     def call(self, name: str, **arguments: Any) -> Outcome:
         """Call through both deliveries, assert identical JSON, return Code Mode's."""
-        code = self.code_mode(name, **arguments)
-        tool = self.tool_call(name, **arguments)
-        assert code.is_error == tool.is_error
-        assert normalise_handles(canonical_json(code.json)) == normalise_handles(
-            canonical_json(tool.json)
+        return self._compare(self.code_mode(name, **arguments), self.cli(name, **arguments))
+
+    def call_in_process(self, name: str, **arguments: Any) -> Outcome:
+        """As :meth:`call`, with the CLI run in this process."""
+        return self._compare(
+            self.code_mode(name, **arguments), self.cli_in_process(name, **arguments)
         )
-        return code
 
 
 @pytest.fixture

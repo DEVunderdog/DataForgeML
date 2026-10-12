@@ -103,12 +103,12 @@ def list_handles(
     invalid_argument
         ``kind`` is not a Handle kind, or ``offset`` or ``limit`` is out of
         range.
-    workspace_not_set
-        The Harness set no Workspace. Stop and report it.
+    invalid_setting
+        A Workspace Setting is invalid. The message names it and its source.
 
     See Also
     --------
-    load : Make a frame Handle from a Declared Input.
+    load : Make a frame Handle from a CSV file.
     export_frame : Write a frame Handle out as CSV.
 
     Example

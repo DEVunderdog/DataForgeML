@@ -49,13 +49,13 @@ def export_frame(frame: str) -> ExportFrameResult:
         Another library format version wrote ``frame``. Load it again.
     invalid_argument
         ``frame`` is missing or not a string.
-    workspace_not_set
-        The Harness set no Workspace. Stop and report it.
+    invalid_setting
+        A Workspace Setting is invalid. The message names it and its source.
 
     See Also
     --------
     list_handles : Find a frame Handle to export.
-    load : Make a frame Handle from a Declared Input.
+    load : Make a frame Handle from a CSV file.
 
     Example
     -------

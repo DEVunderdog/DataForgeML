@@ -1,7 +1,8 @@
 """The Workspace: write-once Handles on disk, cached in memory (ADR-0103).
 
-The Harness sets the Workspace directory and the Declared Inputs through
-environment variables, outside the Agent's reach. Every Handle is a directory
+The Workspace directory and the Declared Inputs are Workspace Settings
+(``_settings``): ``.dataforge/`` and none by default. Nothing is created until
+the first write. Every Handle is a directory
 ``handles/<kind>_<id>/`` holding ``record.json`` and an optional payload. The
 handle id is claimed with an atomic ``mkdir``, so two processes can never write
 the same Handle, and ``record.json`` is renamed into place last, so a Handle
@@ -27,11 +28,7 @@ from typing import Any
 
 from .._serialization import FORMAT_SCHEMA_VERSION, library_version
 from ..records import DataForgeError
-
-#: Environment variable naming the Workspace directory.
-WORKSPACE_ENV = "DATAFORGE_ML_WORKSPACE"
-#: Environment variable listing Declared Input paths, ``os.pathsep``-separated.
-DECLARED_INPUTS_ENV = "DATAFORGE_ML_DECLARED_INPUTS"
+from ._settings import WorkspaceSettings, resolve_settings
 
 #: The closed list of Handle kinds (ADR-0110).
 HANDLE_KINDS: tuple[str, ...] = (
@@ -87,6 +84,7 @@ class CallContext:
 
     operation: str
     arguments: dict[str, Any]
+    settings: WorkspaceSettings
     inputs: list[str] = field(default_factory=list)
 
 
@@ -113,42 +111,33 @@ def current_call() -> CallContext:
     return call
 
 
-def workspace_root() -> Path:
-    """Return the Harness-set Workspace directory, creating ``handles/`` in it.
+def settings() -> WorkspaceSettings:
+    """Return the Workspace Settings: the running Operation's, or resolved now.
 
     Raises
     ------
     DataForgeError
-        ``workspace_not_set`` when the Harness set no Workspace.
+        ``invalid_setting`` as :func:`~._settings.resolve_settings`.
     """
-    raw = os.environ.get(WORKSPACE_ENV)
-    if not raw:
-        raise DataForgeError.from_code(
-            "workspace_not_set",
-            f"No Workspace is set: the Harness must set {WORKSPACE_ENV}.",
-        )
-    root = Path(raw).resolve()
-    (root / "handles").mkdir(parents=True, exist_ok=True)
-    return root
+    call = _CALL.get()
+    return call.settings if call is not None else resolve_settings()
+
+
+def workspace_root() -> Path:
+    """Return the Workspace directory. It may not exist yet: reads never create it."""
+    return settings().workspace
 
 
 def exports_dir() -> Path:
-    """Return the Workspace's ``exports/`` folder, creating it if needed.
-
-    Raises
-    ------
-    DataForgeError
-        ``workspace_not_set`` when the Harness set no Workspace.
-    """
+    """Return the Workspace's ``exports/`` folder, creating it (and the Workspace) if needed."""
     directory = workspace_root() / "exports"
-    directory.mkdir(exist_ok=True)
+    directory.mkdir(parents=True, exist_ok=True)
     return directory
 
 
 def declared_inputs() -> tuple[Path, ...]:
-    """Return the Harness-declared input paths, resolved."""
-    raw = os.environ.get(DECLARED_INPUTS_ENV, "")
-    return tuple(Path(p).resolve() for p in raw.split(os.pathsep) if p)
+    """Return the Declared Input paths, resolved. Empty means any path may be loaded."""
+    return settings().declared_inputs
 
 
 def _handle_dir(root: Path, handle: str) -> Path:
@@ -209,6 +198,7 @@ def write_handle(
         raise DataForgeError.from_code("unexpected", f"Unknown Handle kind {kind!r}.")
     call = current_call()
     root = workspace_root()
+    (root / "handles").mkdir(parents=True, exist_ok=True)
     while True:
         handle = f"{kind}_{secrets.token_hex(_ID_HEX // 2)}"
         directory = _handle_dir(root, handle)
@@ -285,15 +275,11 @@ def list_records(kind: str | None = None) -> HandleListing:
     HandleListing
         The records, Lineage included, and the count of unreadable ones.
 
-    Raises
-    ------
-    DataForgeError
-        ``workspace_not_set`` when the Harness set no Workspace.
     """
-    root = workspace_root()
+    handles = workspace_root() / "handles"
     found: list[tuple[int, str, dict[str, Any]]] = []
     unreadable = 0
-    for directory in (root / "handles").iterdir():
+    for directory in handles.iterdir() if handles.is_dir() else ():
         match = _HANDLE_RE.match(directory.name)
         if match is None or (kind is not None and match.group(1) != kind):
             continue

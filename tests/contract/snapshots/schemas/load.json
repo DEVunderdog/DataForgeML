@@ -3,7 +3,7 @@
     "additionalProperties": false,
     "properties": {
       "path": {
-        "description": "A Declared Input path, exactly as the Harness gave it. A relative path is resolved from the working directory.",
+        "description": "Path of the CSV file, exactly as you were given it. A relative path is resolved from the working directory.",
         "type": "string"
       }
     },

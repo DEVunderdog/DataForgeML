@@ -10,8 +10,9 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-from dataforge_ml._boundary import _load, _workspace
+from dataforge_ml._boundary import _load, _settings, _workspace
 from dataforge_ml._boundary._operation import _build_spec, invoke_json, invoke_python
+from dataforge_ml._cli import run as run_cli
 from dataforge_ml.records import (
     DataForgeError,
     IncompatibleArtifact,
@@ -21,7 +22,7 @@ from dataforge_ml.records import (
     UnknownName,
 )
 
-from .conftest import Harness, write_wide_csv
+from .conftest import Harness, run_dataforge, write_wide_csv
 
 
 def test_load_returns_frame_handle_counts_and_dtypes(harness: Harness) -> None:
@@ -76,11 +77,20 @@ def test_undeclared_path_is_refused_and_writes_no_handle(
 
 
 def test_schema_invalid_arguments_come_back_in_one_error(harness: Harness) -> None:
-    out = harness.call("load", path=5, sheet="x")
+    out = harness.call("load", sheet="x")
 
     assert out.code == "invalid_argument"
-    assert sorted(out.json["params"]) == ["path", "sheet"]
+    assert out.json["params"] == ["path", "sheet"]
     assert {i["param"] for i in out.json["issues"]} == {"path", "sheet"}
+    assert harness.handles() == []
+
+
+def test_a_value_of_the_wrong_type_is_named_in_one_error(harness: Harness) -> None:
+    # A shell flag is always text, so only Code Mode can pass a number here.
+    out = harness.code_mode("load", path=5, sheet="x")
+
+    assert out.code == "invalid_argument"
+    assert out.json["params"] == ["path", "sheet"]
     assert harness.handles() == []
 
 
@@ -146,7 +156,7 @@ def test_foreign_exception_becomes_unexpected_with_a_cut_message(
         raise ValueError("bad cell " * 200)
 
     monkeypatch.setattr(_load, "_load_csv", boom)
-    out = harness.call("load", path="train.csv")
+    out = harness.call_in_process("load", path="train.csv")
 
     assert out.code == "unexpected"
     assert isinstance(out.error, Unexpected)
@@ -166,15 +176,61 @@ def test_memory_error_and_interrupt_pass_through_untouched(
     with pytest.raises(exc):
         harness.code_mode("load", path="train.csv")
     with pytest.raises(exc):
-        harness.tool_call("load", path="train.csv")
+        run_cli(["load", "--path", "train.csv"])
 
 
-def test_missing_workspace_is_reported_not_crashed(
+def test_the_workspace_defaults_to_dot_dataforge_created_by_the_first_write(
     harness: Harness, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.delenv(_workspace.WORKSPACE_ENV)
+    monkeypatch.delenv(_settings.WORKSPACE_ENV)
+    default = harness.inputs / ".dataforge"
+
+    assert harness.call("list_handles").json["total"] == 0
+    assert not default.exists(), "a read must not create the Workspace"
+
     out = harness.call("load", path="train.csv")
-    assert out.code == "workspace_not_set"
+
+    assert (default / "handles" / out.json["frame"] / "record.json").exists()
+    assert harness.call("list_handles").json["total"] == 2
+
+
+def test_with_no_declared_inputs_any_path_loads(
+    harness: Harness, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv(_settings.DECLARED_INPUTS_ENV)
+    anywhere = tmp_path / "anywhere.csv"
+    anywhere.write_text("a,b\n1,2\n")
+
+    out = harness.call("load", path=str(anywhere))
+
+    assert (out.json["n_rows"], out.json["n_columns"]) == (1, 2)
+
+
+def test_once_any_input_is_declared_every_other_path_is_refused(
+    harness: Harness, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    allowed = tmp_path / "allowed.csv"
+    other = tmp_path / "other.csv"
+    for path in (allowed, other):
+        path.write_text("a\n1\n")
+    monkeypatch.setenv(_settings.DECLARED_INPUTS_ENV, str(allowed))
+
+    assert not harness.call("load", path=str(allowed)).is_error
+    refused = harness.call("load", path=str(other))
+    assert refused.code == "input_not_declared"
+    assert run_dataforge(["load", "--path", str(other)]).exit_code == 2
+
+
+def test_a_missing_file_is_input_not_found(
+    harness: Harness, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(_settings.DECLARED_INPUTS_ENV)
+
+    out = harness.call("load", path="no_such.csv")
+
+    assert out.code == "input_not_found"
+    assert out.json["param"] == "path"
+    assert harness.handles() == []
 
 
 def test_frame_handle_is_written_once_with_lineage(harness: Harness) -> None:

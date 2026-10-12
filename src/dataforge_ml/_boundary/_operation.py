@@ -7,10 +7,14 @@ and registers the Operation. At call time, in either delivery, it:
 
 1. validates every argument strictly before any work, reporting all problems
    in one ``invalid_argument`` error (ADR-0100);
-2. runs the Operation inside a call context that supplies Lineage to every
-   Handle it writes (ADR-0103);
+2. resolves the Workspace Settings once, then runs the Operation inside a
+   call context that supplies them and the Lineage to every Handle it writes
+   (ADR-0103, ADR-0112);
 3. turns any foreign exception into ``unexpected``, letting ``MemoryError``
    and ``KeyboardInterrupt`` through.
+
+Each call emits a ``stage_start`` and a ``stage_end`` Pipeline Event to the
+progress observer, when one is set. The CLI sets one only for ``--progress``.
 """
 
 from __future__ import annotations
@@ -20,7 +24,7 @@ import inspect
 import json
 import re
 import typing
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -28,9 +32,11 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, create_model
 
+from ..observability import EventType, Observer, PipelineEvent, _emit
 from ..records import DataForgeError, OutputRecord
 from . import _docstring
 from ._schema import to_strict_subset
+from ._settings import resolve_settings
 from ._workspace import _CALL, CallContext
 
 #: Default Result Budget, in ``o200k_base`` tokens (ADR-0109).
@@ -63,7 +69,7 @@ class OperationSpec:
     module: str
 
     def input_schema(self) -> dict[str, Any]:
-        """Return the Tool Call input schema, in the Strict Subset."""
+        """Return the arguments schema, in the Strict Subset."""
         return to_strict_subset(self.args_model.model_json_schema())
 
     def output_schema(self) -> dict[str, Any]:
@@ -79,6 +85,38 @@ _OPERATIONS: dict[str, OperationSpec] = {}
 _RECORDER: ContextVar[list[tuple[str, dict[str, Any]]] | None] = ContextVar(
     "dataforge_ml_recorder", default=None
 )
+_PROGRESS: ContextVar[Observer | None] = ContextVar("dataforge_ml_progress", default=None)
+
+
+@contextmanager
+def progress_to(observer: Observer | None) -> Generator[None]:
+    """Send every Pipeline Event of the Operations called in the block to ``observer``.
+
+    Parameters
+    ----------
+    observer : callable or None
+        Called with each :class:`~dataforge_ml.observability.PipelineEvent`.
+        None turns progress off.
+    """
+    token = _PROGRESS.set(observer)
+    try:
+        yield
+    finally:
+        _PROGRESS.reset(token)
+
+
+def progress_observer() -> Observer | None:
+    """Return the progress observer of the running call, or None."""
+    return _PROGRESS.get()
+
+
+def _stage(spec: OperationSpec, event_type: EventType, message: str) -> None:
+    _emit(
+        PipelineEvent(
+            event_type=event_type, phase=spec.phase, stage=spec.name, message=message
+        ),
+        _PROGRESS.get(),
+    )
 
 
 def operations() -> dict[str, OperationSpec]:
@@ -89,14 +127,14 @@ def operations() -> dict[str, OperationSpec]:
 
 
 @contextmanager
-def capture_calls() -> Iterator[list[tuple[str, dict[str, Any]]]]:
+def capture_calls() -> Generator[list[tuple[str, dict[str, Any]]]]:
     """Record the validated arguments of every Operation call in the block.
 
     Yields
     ------
     list of (str, dict)
         Operation name and its full JSON arguments, ``null`` for defaults.
-        The ``input_examples`` of the catalogue are captured this way.
+        The contract tests check each docstring Example's arguments this way.
     """
     calls: list[tuple[str, dict[str, Any]]] = []
     token = _RECORDER.set(calls)
@@ -179,10 +217,13 @@ def _run(spec: OperationSpec, validate: Callable[[], BaseModel]) -> OutputRecord
         call = CallContext(
             operation=spec.name,
             arguments=args.model_dump(mode="json", exclude_unset=True),
+            settings=resolve_settings(),
         )
         token = _CALL.set(call)
         try:
+            _stage(spec, EventType.stage_start, f"{spec.name}: started")
             result = spec.function(**{k: getattr(args, k) for k in type(args).model_fields})
+            _stage(spec, EventType.stage_end, f"{spec.name}: finished")
         finally:
             _CALL.reset(token)
         if not isinstance(result, spec.result_model):
@@ -224,14 +265,14 @@ def invoke_python(spec: OperationSpec, arguments: dict[str, Any]) -> OutputRecor
 
 
 def invoke_json(spec: OperationSpec, arguments_json: str) -> OutputRecord:
-    """Run an Operation from a Tool Call's JSON input object.
+    """Run an Operation from its arguments as one JSON object, as the CLI builds them.
 
     Parameters
     ----------
     spec : OperationSpec
         The Operation.
     arguments_json : str
-        The tool input, as JSON text.
+        The arguments, as JSON object text.
 
     Returns
     -------

@@ -24,7 +24,7 @@ from dataforge_ml._boundary._operation import canonical_json, operations
 from dataforge_ml.operations.list_handles import HandleKind
 from dataforge_ml.records import InvalidInput, UnknownName
 
-from .conftest import Harness
+from .conftest import DATAFORGE, Harness
 
 
 def _load(harness: Harness, path: str = "train.csv") -> str:
@@ -157,7 +157,7 @@ def test_a_full_page_at_every_cap_fits_the_result_budget(
         ),
     )
 
-    out = harness.call("list_handles")
+    out = harness.call_in_process("list_handles")
 
     tokens = len(tiktoken.get_encoding("o200k_base").encode(canonical_json(out.json)))
     assert len(out.json["handles"]) == PAGE_CAP
@@ -270,34 +270,37 @@ def test_a_new_process_lists_and_exports_handles_made_by_an_earlier_one(
     assert pl.read_csv(exported).equals(pl.read_csv(harness.inputs / "train.csv"))
 
 
+_ROUNDS = 6
+
+
 def test_two_processes_share_one_workspace_without_collisions(harness: Harness) -> None:
+    # Two shells, each running `dataforge load` then `dataforge export-frame`
+    # in a loop: every command is its own process on the shared Workspace.
     shared = _load(harness)
     script = (
-        "from dataforge_ml import export_frame, load\n"
-        "for _ in range(15):\n"
-        "    print(load(path='train.csv').frame)\n"
-        f"    export_frame(frame={shared!r})\n"
+        f"for _ in $(seq {_ROUNDS}); do\n"
+        f"  {DATAFORGE} load --path train.csv || exit 1\n"
+        f"  {DATAFORGE} export-frame --frame {shared} >/dev/null || exit 1\n"
+        "done\n"
     )
     workers = [
-        subprocess.Popen(
-            [sys.executable, "-c", script], stdout=subprocess.PIPE, text=True
-        )
+        subprocess.Popen(["bash", "-c", script], stdout=subprocess.PIPE, text=True)
         for _ in range(2)
     ]
     made = []
     for worker in workers:
-        out, _ = worker.communicate(timeout=300)
+        out, _ = worker.communicate(timeout=600)
         assert worker.returncode == 0
-        made += out.split()
+        made += [json.loads(line)["frame"] for line in out.splitlines()]
 
-    assert len(made) == len(set(made)) == 30
+    assert len(made) == len(set(made)) == 2 * _ROUNDS
     assert sorted(harness.handles()) == sorted([shared, *made])
     expected = pl.read_csv(harness.inputs / "train.csv")
     for handle in made:
         frame, _ = _workspace.read_frame(handle, param="frame")
         assert frame.equals(expected)
     page = harness.code_mode("list_handles", kind="frame").json
-    assert page["total"] == 31 and page["warnings"] == []
+    assert page["total"] == 2 * _ROUNDS + 1 and page["warnings"] == []
     exports = list((harness.workspace / "exports").iterdir())
     assert [p.name for p in exports] == [f"{shared}.csv"]
     assert pl.read_csv(exports[0]).equals(expected)

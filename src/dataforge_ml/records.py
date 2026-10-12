@@ -5,13 +5,13 @@ in this file are shared by all Operations, so they are documented once here.
 
 Wire Record
     A frozen record that rejects unknown fields. In Code Mode an Operation
-    returns one, and ``record.to_dict()`` gives exactly the JSON a Tool Call
-    returns. Enums travel as their string values.
+    returns one, and ``record.to_dict()`` gives exactly the JSON the
+    ``dataforge`` CLI prints. Enums travel as their string values.
 
 Library Error
     Every failure raises a :class:`DataForgeError`. Branch on ``err.code``,
-    never on the message. ``err.to_dict()`` is the same JSON a Tool Call
-    returns with ``is_error``. The exception class is one of six categories,
+    never on the message. ``err.to_dict()`` is the same JSON the CLI
+    prints, and the CLI's exit code names the category. The exception class is one of six categories,
     and the category says what kind of fix is needed:
 
     - :class:`InvalidInput` and :class:`UnknownName`: fix the call.
@@ -54,7 +54,7 @@ class WireRecord(BaseModel):
     )
 
     def to_dict(self) -> dict[str, Any]:
-        """Return the record as the exact JSON object a Tool Call returns.
+        """Return the record as the exact JSON object the CLI prints.
 
         Returns
         -------
@@ -171,7 +171,7 @@ class LibraryError(WireRecord):
     """Lists in this error that were cut."""
 
     def to_dict(self) -> dict[str, Any]:
-        """Return the error as the exact JSON a Tool Call returns with ``is_error``.
+        """Return the error as the exact JSON the CLI prints on failure.
 
         Returns
         -------
@@ -309,7 +309,7 @@ class DataForgeError(Exception):
         raise AttributeError(name)
 
     def to_dict(self) -> dict[str, Any]:
-        """Return the error as the exact JSON a Tool Call returns with ``is_error``.
+        """Return the error as the exact JSON the CLI prints on failure.
 
         Returns
         -------

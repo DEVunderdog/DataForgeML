@@ -1,4 +1,4 @@
-"""The ``load`` Operation: read a Declared Input CSV into a frame Handle."""
+"""The ``load`` Operation: read a CSV into a frame Handle."""
 
 from __future__ import annotations
 
@@ -31,13 +31,13 @@ class LoadResult(ColumnKeyedResult):
 
 @operation(effect="create", phase="load", scales_with_data=True)
 def load(path: str) -> LoadResult:
-    """Read a Declared Input CSV into a new frame Handle and report its shape.
+    """Read a CSV file into a new frame Handle and report its shape.
 
     Use when
     --------
-    Call this first, once per dataset, on a path the Harness declared. A
-    Declared Input is a CSV path the Harness lets the library read; any other
-    path is refused, including an edited copy of a declared file. Every later
+    Call this first, once per dataset. If the Operator declared inputs, only
+    those paths load, and any other path is refused, including an edited copy
+    of a declared file. With none declared, any CSV path loads. Every later
     Operation reads the data through the returned frame Handle: a short string
     such as ``frame_7f3a9c2e`` naming the stored frame, which never changes.
     Loading the same path twice makes two Handles over identical data.
@@ -45,8 +45,8 @@ def load(path: str) -> LoadResult:
     Parameters
     ----------
     path : str
-        A Declared Input path, exactly as the Harness gave it. A relative
-        path is resolved from the working directory.
+        Path of the CSV file, exactly as you were given it. A relative path
+        is resolved from the working directory.
 
     Returns
     -------
@@ -58,11 +58,14 @@ def load(path: str) -> LoadResult:
     Errors
     ------
     input_not_declared
-        ``path`` is not a Declared Input. Nothing is loaded or written.
+        The Operator declared inputs and ``path`` is not one of them. Nothing
+        is loaded or written.
+    input_not_found
+        No file exists at ``path``.
     invalid_argument
         ``path`` is missing or not a string.
-    workspace_not_set
-        The Harness set no Workspace. Stop and report it.
+    invalid_setting
+        A Workspace Setting is invalid. The message names it and its source.
     unexpected
         The file could not be read as CSV. Stop and report it.
 

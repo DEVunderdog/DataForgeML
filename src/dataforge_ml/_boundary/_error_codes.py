@@ -63,16 +63,16 @@ _ENTRIES: tuple[ErrorCodeEntry, ...] = (
         code="input_not_declared",
         category="InvalidInput",
         hint=(
-            "Only paths the Harness declared can be loaded. Use one of the "
-            "declared paths exactly as given to you; an edited copy cannot be "
-            "loaded."
+            "The Operator declared the inputs that can be loaded, and this "
+            "path is not one of them. Use a declared path exactly as given to "
+            "you; an edited copy cannot be loaded."
         ),
         fields=("param",),
     ),
     ErrorCodeEntry(
         code="unknown_operation",
         category="UnknownName",
-        hint="Call one of the Operations in `candidates`, or list the tools again.",
+        hint="Run one of the commands in `candidates`, or run `dataforge --help` to list them.",
         fields=("candidates",),
     ),
     ErrorCodeEntry(
@@ -103,12 +103,14 @@ _ENTRIES: tuple[ErrorCodeEntry, ...] = (
         fields=("param",),
     ),
     ErrorCodeEntry(
-        code="workspace_not_set",
-        category="Unexpected",
+        code="invalid_setting",
+        category="InvalidInput",
         hint=(
-            "The Harness did not provide a Workspace. Stop and report this to "
-            "the Harness; no argument can fix it."
+            "Fix the Workspace Setting named in `param` where the message says "
+            "it was set: a flag, an env var or `config.toml`. If the Operator "
+            "set it, stop and report it."
         ),
+        fields=("param", "allowed"),
     ),
     ErrorCodeEntry(
         code="handles_unreadable",
