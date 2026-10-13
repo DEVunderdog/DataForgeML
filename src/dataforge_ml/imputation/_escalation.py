@@ -25,14 +25,17 @@ absent.
 Forced columns (``per_column_strategy`` declaring KNN or MICE) never call the
 seam — they bypass routing priorities 2-7 entirely (ADR-0082). They still get
 the Feasibility Floor and Resource Ceiling evaluated, via
-:func:`_forced_model_signal`, with any failed term recorded as a signal only
-— informed consent, never a block (ADR-0071, ADR-0088, ADR-0091).
+:func:`_forced_feasibility`, with any failed term recorded as a
+``feasibility`` fact only — informed consent, never a block (ADR-0071,
+ADR-0088, ADR-0091).
+
+Every builder here returns typed Routing Evidence (ADR-0105), never prose.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from dataclasses import MISSING, dataclass, fields
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import numpy as np
 
@@ -43,15 +46,28 @@ from ..profiling._numeric_config import (
     NumericStats,
     SkewSeverity,
 )
+from ..records import DialPointer
 from ._config import ImputationStrategy, NumericImputationConfig
+from ._evidence import (
+    EntryCause,
+    EntryFact,
+    FailedTerm,
+    FeasibilityFact,
+    RoutingEvidence,
+    RoutingReason,
+    SignalScoreFact,
+    SignalTier,
+    TierFact,
+)
 
 if TYPE_CHECKING:
     from ..profiling._config import ColumnProfile
     from ..profiling._correlation_config import CorrelationProfileResult
 
 __all__ = [
+    "_Routed",
     "_escalation_seam",
-    "_forced_model_signal",
+    "_forced_feasibility",
     "_mice_winning_tag",
     "_resolve_nonlinearity_tag",
 ]
@@ -120,13 +136,51 @@ class _FeasibilityCheck:
     ----------
     feasible : bool
         Whether the candidate passed every term it is evaluated on.
-    failed_terms : tuple[str, ...]
-        Human-readable ``name: value vs bound`` strings, one per failed term.
-        Empty when ``feasible`` is ``True``.
+    failed_terms : tuple[FailedTerm, ...]
+        One typed record per failed term. Empty when ``feasible`` is ``True``.
     """
 
     feasible: bool
-    failed_terms: tuple[str, ...]
+    failed_terms: tuple[FailedTerm, ...]
+
+    def to_fact(self, strategy: ImputationStrategy) -> FeasibilityFact:
+        """The verdict as a ``feasibility`` Routing Evidence fact."""
+        return FeasibilityFact(
+            strategy=strategy.value,
+            passed=self.feasible,
+            failed_terms=list(self.failed_terms),
+        )
+
+
+class _Routed(NamedTuple):
+    """A routing outcome: the strategy, its Routing Reason, and the evidence walk."""
+
+    strategy: ImputationStrategy
+    reason: RoutingReason
+    evidence: tuple[RoutingEvidence, ...] = ()
+
+
+_NUMERIC_DIAL_DEFAULTS: dict[str, Any] = {
+    f.name: f.default
+    for f in fields(NumericImputationConfig)
+    if f.default is not MISSING
+}
+
+
+def _dial(config: NumericImputationConfig, name: str) -> DialPointer:
+    """The Dial Pointer for one ``NumericImputationConfig`` dial ``route`` read (ADR-0106)."""
+    value = getattr(config, name)
+    return DialPointer(
+        operation="route",
+        dial=f"thresholds.numeric.{name}",
+        value=value,
+        source="default" if value == _NUMERIC_DIAL_DEFAULTS.get(name) else "argument",
+    )
+
+
+def _no_predictors() -> FailedTerm:
+    """The structural failure of a target with no predictor: no dial changes it."""
+    return FailedTerm(term="predictors", value=0, limit=1, dial=None)
 
 
 def _feasibility_mice(
@@ -141,18 +195,19 @@ def _feasibility_mice(
     """
     predictors = _predictor_count(n_features, capped=config.mice_max_nearest_features)
     if predictors == 0:
-        return _FeasibilityCheck(
-            False, ("rows_per_predictor: undefined (0 predictors)",)
-        )
+        return _FeasibilityCheck(False, (_no_predictors(),))
     usable = _usable_rows(n_rows, cp)
     rows_per_predictor = usable / predictors
     if rows_per_predictor < config.mice_min_rows_per_predictor:
         return _FeasibilityCheck(
             False,
             (
-                f"rows_per_predictor: {rows_per_predictor:.2f} < ",
-                f"{config.mice_min_rows_per_predictor} ",
-                "(mice_min_rows_per_predictor)",
+                FailedTerm(
+                    term="rows_per_predictor",
+                    value=float(rows_per_predictor),
+                    limit=config.mice_min_rows_per_predictor,
+                    dial=_dial(config, "mice_min_rows_per_predictor"),
+                ),
             ),
         )
     return _FeasibilityCheck(True, ())
@@ -169,12 +224,17 @@ def _feasibility_knn(
     memory scales with the whole matrix, not with observed values.
     """
     predictors = _predictor_count(n_features)
-    failed: list[str] = []
+    failed: list[FailedTerm] = []
     if predictors == 0:
-        failed.append("rows_per_predictor: undefined (0 predictors)")
+        failed.append(_no_predictors())
     if n_rows > config.knn_max_rows:
         failed.append(
-            f"row_count: {n_rows:,} > {config.knn_max_rows:,} (knn_max_rows)"
+            FailedTerm(
+                term="row_count",
+                value=n_rows,
+                limit=config.knn_max_rows,
+                dial=_dial(config, "knn_max_rows"),
+            )
         )
     return _FeasibilityCheck(not failed, tuple(failed))
 
@@ -184,13 +244,14 @@ def _signal_score(
     cp: ColumnProfile,
     feature_correlation: CorrelationProfileResult | None,
     config: NumericImputationConfig,
-) -> tuple[float | None, str]:
+) -> tuple[float | None, SignalScoreFact | None]:
     """Compute the Signal Score for one target column (ADR-0092).
 
     ``score = clamp(base + w_breadth * breadth, min=w_latent * latent, max=1)``
     where ``base`` is Explainable Variance, ``latent`` is Latent Structure and
-    ``breadth`` is Signal Breadth. ``None`` only when no predictor correlation
-    exists at all — the column then routes to the bottom Signal Tier.
+    ``breadth`` is Signal Breadth. ``(None, None)`` only when no predictor
+    correlation exists at all — the column then routes to the bottom Signal
+    Tier.
     """
     corrs = (
         feature_correlation.pearson_matrix.get(col, {})
@@ -199,7 +260,7 @@ def _signal_score(
     )
     abs_rs = [abs(r) for c, r in corrs.items() if c != col and r is not None]
     if not abs_rs:
-        return None, "signal_score: none (no predictor correlation)"
+        return None, None
     max_abs_r = max(abs_rs)
 
     stats = _column_stats(cp)
@@ -222,26 +283,28 @@ def _signal_score(
     score = max(score, config.signal_score_latent_weight * latent)
     score = min(score, 1.0)
 
-    note = (
-        f"signal_score: {score:.3f} (base={base:.3f}"
-        f"{' [degraded: r2 pair unavailable]' if degraded else ''}, "
-        f"latent={latent:.3f}, breadth={breadth:.3f} [{breadth_count} predictors "
-        f"> mice_correlation_threshold])"
+    fact = SignalScoreFact(
+        score=float(score),
+        base=float(base),
+        latent=float(latent),
+        breadth=float(breadth),
+        predictors=breadth_count,
+        degraded=degraded,
     )
-    return score, note
+    return score, fact
 
 
-def _signal_tier(score: float | None, config: NumericImputationConfig) -> str:
-    """The Signal Tier a score falls in: ``"bottom"``, ``"middle"``, or ``"top"``."""
+def _signal_tier(score: float | None, config: NumericImputationConfig) -> SignalTier:
+    """The Signal Tier a score falls in."""
     if score is None or score < config.signal_score_middle_tier_min:
-        return "bottom"
+        return SignalTier.bottom
     if score < config.signal_score_top_tier_min:
-        return "middle"
-    return "top"
+        return SignalTier.middle
+    return SignalTier.top
 
 
 def _capability_pick(
-    tier: str, mice_feasible: bool, knn_feasible: bool
+    tier: SignalTier, mice_feasible: bool, knn_feasible: bool
 ) -> ImputationStrategy | None:
     """The Capability Ladder's pick for a tier: KNN below MICE (ADR-0094).
 
@@ -249,13 +312,13 @@ def _capability_pick(
     feasible, else KNN. ``None`` when neither candidate is feasible — the
     caller falls back to the bottom tier's scalar fill.
     """
-    if tier == "middle":
+    if tier == SignalTier.middle:
         if knn_feasible:
             return ImputationStrategy.KNN
         if mice_feasible:
             return ImputationStrategy.MICE
         return None
-    if tier == "top":
+    if tier == SignalTier.top:
         if mice_feasible:
             return ImputationStrategy.MICE
         if knn_feasible:
@@ -289,15 +352,19 @@ def _escalation_seam(
     n_rows: int,
     n_features: int,
     feature_correlation: CorrelationProfileResult | None,
-    context: str,
+    entries: tuple[EntryCause, ...],
     bimodal: bool = False,
-) -> tuple[ImputationStrategy, str]:
+) -> _Routed:
     """The one seam every model-worth-it routing branch calls (ADR-0091, ADR-0092, ADR-0094).
 
     Evaluates the Feasibility Floor for both candidates, the Signal Score,
     and — for the middle and top Signal Tiers — the Capability Ladder pick
     among the feasible candidates. The skew-picked central tendency (or Mode
     / GMM Sampling) is always feasible, so a strategy is always returned.
+
+    The evidence is, in order: one ``entry`` fact per cause in ``entries``,
+    the ``signal_score`` fact (absent when no predictor correlation exists),
+    the ``tier`` fact, then the ``feasibility`` facts for MICE and KNN.
 
     Parameters
     ----------
@@ -315,9 +382,8 @@ def _escalation_seam(
         Total number of active numeric columns.
     feature_correlation : CorrelationProfileResult, optional
         Pre-computed pairwise Pearson correlation matrix from Phase 1.
-    context : str
-        Human-readable description of the routing path that reached the
-        seam, folded into the returned signal.
+    entries : tuple[EntryCause, ...]
+        The routing rules that sent the column here, outermost first.
     bimodal : bool, default False
         Whether this column reached the seam through the Bimodal Imputation
         Framework's branch 2 — selects GMM Sampling as the bottom tier's fill
@@ -325,40 +391,35 @@ def _escalation_seam(
 
     Returns
     -------
-    tuple[ImputationStrategy, str]
-        ``(strategy, signal)``: the resolved strategy and one combined,
-        human-readable signal describing the floor, score, tier and pick.
+    _Routed
+        The resolved strategy, its Routing Reason, and the evidence walk.
     """
     mice_check = _feasibility_mice(cp, n_rows, n_features, config)
     knn_check = _feasibility_knn(cp, n_rows, n_features, config)
-    score, score_note = _signal_score(col, cp, feature_correlation, config)
+    score, score_fact = _signal_score(col, cp, feature_correlation, config)
     tier = _signal_tier(score, config)
 
-    notes = [f"escalation_seam: {context}", score_note]
+    evidence: list[RoutingEvidence] = [EntryFact(cause=c) for c in entries]
+    if score_fact is not None:
+        evidence.append(score_fact)
+    evidence.append(TierFact(tier=tier))
+    evidence.append(mice_check.to_fact(ImputationStrategy.MICE))
+    evidence.append(knn_check.to_fact(ImputationStrategy.KNN))
 
-    if tier != "bottom":
+    if tier != SignalTier.bottom:
         picked = _capability_pick(tier, mice_check.feasible, knn_check.feasible)
         if picked is not None:
-            notes.append(f"signal_tier: {tier} -> {picked}")
-            if picked == ImputationStrategy.MICE and knn_check.failed_terms:
-                notes.append(f"knn infeasible: {'; '.join(knn_check.failed_terms)}")
-            if picked == ImputationStrategy.KNN and mice_check.failed_terms:
-                notes.append(f"mice infeasible: {'; '.join(mice_check.failed_terms)}")
-            return picked, " | ".join(notes)
-        notes.append(
-            f"signal_tier: {tier} but no feasible candidate "
-            f"(mice: {'; '.join(mice_check.failed_terms) or 'feasible'}; "
-            f"knn: {'; '.join(knn_check.failed_terms) or 'feasible'})"
-        )
+            return _Routed(picked, RoutingReason.signal_tier_pick, tuple(evidence))
+        reason = RoutingReason.no_feasible_model
+    elif score is None:
+        reason = RoutingReason.no_predictor_correlation
     else:
-        notes.append("signal_tier: bottom")
+        reason = RoutingReason.bottom_tier_fill
 
-    fallback = _bottom_tier_fill(cp, bimodal)
-    notes.append(f"bottom_tier_fill: {fallback}")
-    return fallback, " | ".join(notes)
+    return _Routed(_bottom_tier_fill(cp, bimodal), reason, tuple(evidence))
 
 
-def _forced_model_signal(
+def _forced_feasibility(
     col: str,
     cp: ColumnProfile,
     config: NumericImputationConfig,
@@ -366,15 +427,14 @@ def _forced_model_signal(
     n_features: int,
     strategy: ImputationStrategy,
     feature_correlation: CorrelationProfileResult | None = None,
-) -> str | None:
+) -> FeasibilityFact | None:
     """Evaluate the Feasibility Floor and unmet conditions for a ``per_column_strategy``-forced column.
 
     Forcing a column past a routing gate is informed consent (ADR-0071,
     ADR-0088, ADR-0095): the unit trains regardless, and every failed term
-    or unmet condition is recorded as a signal rather than blocking. ``None``
-    when ``strategy`` is not ``KNN``, ``MICE``, ``ClusterConditional``, or
-    ``GMMSampling``, or when the forced candidate is feasible and meets all
-    conditions.
+    or unmet condition is recorded as a ``feasibility`` fact rather than
+    blocking. ``None`` when ``strategy`` is not ``KNN``, ``MICE``,
+    ``ClusterConditional``, or ``GMMSampling``.
 
     Parameters
     ----------
@@ -395,43 +455,48 @@ def _forced_model_signal(
 
     Returns
     -------
-    str or None
-        A signal naming every failed Feasibility Term or unmet condition, or ``None``.
+    FeasibilityFact or None
+        The forced strategy's verdict, ``passed`` false when any term or
+        condition failed, or ``None`` for a strategy with no floor.
     """
     if strategy == ImputationStrategy.MICE:
-        check = _feasibility_mice(cp, n_rows, n_features, config)
-        if check.feasible:
-            return None
-        return f"forced_past_feasibility: {'; '.join(check.failed_terms)}"
+        return _feasibility_mice(cp, n_rows, n_features, config).to_fact(strategy)
     if strategy == ImputationStrategy.KNN:
-        check = _feasibility_knn(cp, n_rows, n_features, config)
-        if check.feasible:
-            return None
-        return f"forced_past_feasibility: {'; '.join(check.failed_terms)}"
-    if strategy in (
+        return _feasibility_knn(cp, n_rows, n_features, config).to_fact(strategy)
+    if strategy not in (
         ImputationStrategy.ClusterConditional,
         ImputationStrategy.GMMSampling,
     ):
-        unmet: list[str] = []
-        stats = _column_stats(cp)
-        if stats is None or not stats.has_flag(NumericFlag.Bimodal):
-            unmet.append("not flagged Bimodal")
-        if strategy == ImputationStrategy.ClusterConditional:
-            has_grouping_var = col in config.bimodal_grouping_variables
-            has_corrs = False
-            if feature_correlation is not None:
-                col_corrs = feature_correlation.pearson_matrix.get(col, {})
-                corr_list = [
-                    c
-                    for c, r in col_corrs.items()
-                    if c != col
-                    and r is not None
-                    and abs(r) > config.bimodal_correlation_threshold
-                ]
-                has_corrs = len(corr_list) > 0
-            if not has_grouping_var and not has_corrs:
-                unmet.append("no grouping variable and no correlated features")
-        if not unmet:
-            return None
-        return f"forced_past_feasibility: {'; '.join(unmet)}"
-    return None
+        return None
+    unmet: list[FailedTerm] = []
+    stats = _column_stats(cp)
+    if stats is None or not stats.has_flag(NumericFlag.Bimodal):
+        unmet.append(
+            FailedTerm(term="bimodal_flag", value=False, limit=True, dial=None)
+        )
+    if (
+        strategy == ImputationStrategy.ClusterConditional
+        and col not in config.bimodal_grouping_variables
+    ):
+        col_corrs = (
+            feature_correlation.pearson_matrix.get(col, {})
+            if feature_correlation is not None
+            else {}
+        )
+        correlated = sum(
+            1
+            for c, r in col_corrs.items()
+            if c != col
+            and r is not None
+            and abs(r) > config.bimodal_correlation_threshold
+        )
+        if correlated == 0:
+            unmet.append(
+                FailedTerm(
+                    term="correlated_features",
+                    value=0,
+                    limit=1,
+                    dial=_dial(config, "bimodal_correlation_threshold"),
+                )
+            )
+    return _FeasibilityCheck(not unmet, tuple(unmet)).to_fact(strategy)

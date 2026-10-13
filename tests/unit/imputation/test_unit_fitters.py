@@ -14,6 +14,7 @@ function it called.
 import numpy as np
 import polars as pl
 
+from dataforge_ml.imputation import RoutingReason
 from dataforge_ml import PipelineConfig, StructuralProfiler, derive_units, fit_unit
 from dataforge_ml.config import SemanticType
 from dataforge_ml.imputation import ImputationStrategy, resolve_recipe, route
@@ -156,7 +157,7 @@ def test_constant_fill_is_read_off_the_routing():
     routing = ColumnRouting(
         column="a",
         semantic_type=SemanticType.Numeric,
-        strategy=ImputationStrategy.Constant,
+        strategy=ImputationStrategy.Constant, reason=RoutingReason.authored,
         constant_fill=3.5,
     )
     unit = ImputationUnit(
@@ -174,7 +175,7 @@ def test_constant_fill_in_config_alone_no_longer_reaches_the_fitter():
     routing = ColumnRouting(
         column="a",
         semantic_type=SemanticType.Numeric,
-        strategy=ImputationStrategy.Constant,
+        strategy=ImputationStrategy.Constant, reason=RoutingReason.authored,
     )
     unit = ImputationUnit(
         unit_id="constant:a", strategy=ImputationStrategy.Constant, columns=("a",)
@@ -190,7 +191,7 @@ def test_gmm_centres_are_read_off_the_recipes_column_estimates():
     routing = ColumnRouting(
         column="bi",
         semantic_type=SemanticType.Numeric,
-        strategy=ImputationStrategy.GMMSampling,
+        strategy=ImputationStrategy.GMMSampling, reason=RoutingReason.authored,
     )
     estimates = ColumnEstimates(center1=5.0, center2=40.0)
     unit = ImputationUnit(
@@ -208,7 +209,7 @@ def test_gmm_without_centres_on_the_recipe_cannot_train():
     routing = ColumnRouting(
         column="bi",
         semantic_type=SemanticType.Numeric,
-        strategy=ImputationStrategy.GMMSampling,
+        strategy=ImputationStrategy.GMMSampling, reason=RoutingReason.authored,
     )
     estimates = ColumnEstimates()  # centres missing
     unit = ImputationUnit(
@@ -226,7 +227,7 @@ def test_cluster_grouping_variable_is_read_off_the_routing():
     routing = ColumnRouting(
         column="bi",
         semantic_type=SemanticType.Numeric,
-        strategy=ImputationStrategy.ClusterConditional,
+        strategy=ImputationStrategy.ClusterConditional, reason=RoutingReason.authored,
         grouping_variable="grp",
     )
     estimates = ColumnEstimates(center1=5.0, center2=40.0)
@@ -253,7 +254,7 @@ def test_cluster_feature_cols_are_read_off_the_recipes_column_estimates():
     routing = ColumnRouting(
         column="bi",
         semantic_type=SemanticType.Numeric,
-        strategy=ImputationStrategy.ClusterConditional,
+        strategy=ImputationStrategy.ClusterConditional, reason=RoutingReason.authored,
     )
     estimates = ColumnEstimates(center1=5.0, center2=40.0, feature_cols=("a", "d"))
     unit = ImputationUnit(

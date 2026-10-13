@@ -1,7 +1,9 @@
 """
 _StrategyRouter — pure strategy routing for numeric column imputation.
 
-Accepts profiling signals and returns a routing decision.  No DataFrame
+Accepts profiling signals and returns a routing decision: the strategy, the
+Routing Reason that fixed it, and the typed Routing Evidence walk
+(ADR-0105).  No DataFrame
 access; all inputs are column profiles, configuration, and scalar context
 values derived from the training set by the caller.
 
@@ -33,7 +35,8 @@ from ..profiling._numeric_config import (
     SkewSeverity,
 )
 from ._config import ImputationStrategy, NumericImputationConfig
-from ._escalation import _escalation_seam, _forced_model_signal
+from ._escalation import _escalation_seam, _forced_feasibility, _Routed
+from ._evidence import EntryCause, RoutingReason
 
 if TYPE_CHECKING:
     from ..profiling._config import ColumnProfile
@@ -44,8 +47,8 @@ class _StrategyRouter:
     """Pure strategy router for numeric column imputation.
 
     Consumes profiling signals — column profile, dataset-level context, and
-    configuration — and returns the imputation strategy together with a list
-    of human-readable signals that explain the routing decision.  No
+    configuration — and returns the imputation strategy together with its
+    Routing Reason and typed Routing Evidence (ADR-0105). No
     ``pl.DataFrame`` parameter is accepted; all computation is over scalar
     values derived from Phase 1 profiling.
 
@@ -65,7 +68,7 @@ class _StrategyRouter:
         feature_correlation: CorrelationProfileResult | None = None,
         per_column_strategy: dict[str, ImputationStrategy] | None = None,
         per_column_constant_fill: dict[str, float] | None = None,
-    ) -> tuple[ImputationStrategy, list[str]]:
+    ) -> _Routed:
         """Route a single column to its imputation strategy.
 
         Parameters
@@ -102,39 +105,29 @@ class _StrategyRouter:
 
         Returns
         -------
-        tuple[ImputationStrategy, list[str]]
-            ``(strategy, signals)`` where ``signals`` records every routing
-            decision in order. A user-declared strategy is recorded only as the
-            ``per_column_strategy_override`` signal, for human readers; no
-            machine predicate for it survives on the routing. A column forced
-            onto ``KNN`` or ``MICE`` also carries the Feasibility Floor's
-            failed terms, if any, as an additional informational signal
+        _Routed
+            The strategy, its Routing Reason, and the evidence walk. A column
+            forced onto ``KNN``, ``MICE``, ``ClusterConditional`` or
+            ``GMMSampling`` carries one ``feasibility`` fact for the forced
+            strategy, ``passed`` false when it was forced past a term
             (ADR-0091) — never a block.
         """
         missingness = cp.missingness
-        signals: list[str] = []
 
         # Priority 1: DropCandidate — >50% missing
         if missingness and missingness.has_flag(MissingnessFlag.DropCandidate):
-            signals.append(
-                f"drop_candidate: {missingness.effective_null_ratio:.1%} effective missing"
-            )
-            return ImputationStrategy.Dropped, signals
+            return _Routed(ImputationStrategy.Dropped, RoutingReason.drop_candidate)
 
         # Priority 1.5: per_column_constant_fill override — fires before per_column_strategy
         if per_column_constant_fill and col in per_column_constant_fill:
-            signals.append(
-                "per_column_constant_fill_override: user declared constant fill"
+            return _Routed(
+                ImputationStrategy.Constant, RoutingReason.constant_declared
             )
-            return ImputationStrategy.Constant, signals
 
         # Priority 1.5: per_column_strategy override — fires after DropCandidate, before MNAR
         if per_column_strategy and col in per_column_strategy:
             declared = per_column_strategy[col]
-            signals.append(
-                f"per_column_strategy_override: user forced strategy={declared}"
-            )
-            forced_signal = _forced_model_signal(
+            fact = _forced_feasibility(
                 col,
                 cp,
                 config,
@@ -143,28 +136,21 @@ class _StrategyRouter:
                 declared,
                 feature_correlation=feature_correlation,
             )
-            if forced_signal is not None:
-                signals.append(forced_signal)
-            return declared, signals
+            return _Routed(
+                declared,
+                RoutingReason.strategy_forced,
+                (fact,) if fact is not None else (),
+            )
 
         # Priority 2: MNAR declared by user
         if col in mnar_columns:
-            signals.append("declared MNAR by user configuration")
-            if cp.numeric_kind == NumericKind.BoundedDiscrete:
-                signals.append("mnar_fill: mode")
-            else:
-                mnar_stats = cp.stats if isinstance(cp.stats, NumericStats) else None
-                skew_sev = (
-                    mnar_stats.skewness_severity if mnar_stats is not None else None
-                )
-                fill_stat = "mean" if skew_sev == SkewSeverity.Normal else "median"
-                signals.append(f"mnar_fill: {fill_stat} (skew={skew_sev or 'unknown'})")
-            return ImputationStrategy.MNAR, signals
+            return _Routed(ImputationStrategy.MNAR, RoutingReason.mnar_declared)
 
         # No effective missingness → Passthrough
         if missingness is None or missingness.effective_null_count == 0:
-            signals.append("no missing values in full-dataset profile")
-            return ImputationStrategy.Passthrough, signals
+            return _Routed(
+                ImputationStrategy.Passthrough, RoutingReason.no_missing_values
+            )
 
         # Priority 3: BoundedDiscrete gate — model-aware sub-chain with domain-snap
         if cp.numeric_kind == NumericKind.BoundedDiscrete:
@@ -176,7 +162,6 @@ class _StrategyRouter:
                 n_rows=n_rows,
                 n_features=n_features,
                 multi_mar=multi_mar,
-                signals=signals,
                 feature_correlation=feature_correlation,
             )
 
@@ -190,9 +175,8 @@ class _StrategyRouter:
                 config,
                 n_rows,
                 n_features,
-                multi_mar,
-                signals,
                 feature_correlation,
+                bounded_discrete=False,
             )
 
         # Priority 4 (MARSuspect) — full fallback chain. Unpredictable and
@@ -200,13 +184,11 @@ class _StrategyRouter:
         # bottom tier reaches the same scalar fill for such a column, so
         # routing no longer shortcuts on either flag directly.
         if missingness.has_flag(MissingnessFlag.MARSuspect):
-            corrs = missingness.correlated_with
-            signals.append(f"mar_suspect: correlated missingness with {corrs}")
-            strategy, signal = self._mar_strategy(
+            return self._mar_strategy(
                 col=col,
                 cp=cp,
                 severity=missingness.severity,
-                corrs=corrs,
+                corrs=missingness.correlated_with,
                 config=config,
                 n_rows=n_rows,
                 n_features=n_features,
@@ -217,8 +199,6 @@ class _StrategyRouter:
                     stats.skewness_severity if stats is not None else None
                 ),
             )
-            signals.append(signal)
-            return strategy, signals
 
         # Priority 5: MCAR routing by severity and distribution shape
         severity = missingness.severity
@@ -226,79 +206,54 @@ class _StrategyRouter:
         kurtosis_tag = stats.kurtosis_tag if stats else None
 
         if severity in (MissingSeverity.High, MissingSeverity.Severe):
-            strategy, signal = self._mcar_model_strategy(
-                col=col,
-                cp=cp,
-                severity=severity,
-                config=config,
-                n_rows=n_rows,
-                n_features=n_features,
-                feature_correlation=feature_correlation,
+            return _escalation_seam(
+                col,
+                cp,
+                config,
+                n_rows,
+                n_features,
+                feature_correlation,
+                (EntryCause.mcar_high_severity,),
             )
-            signals.append(signal)
-            return strategy, signals
 
         # MCAR Minor: Leptokurtic escalates to model-based regardless of skew
         if (
             severity == MissingSeverity.Minor
             and kurtosis_tag == KurtosisTag.Leptokurtic
         ):
-            signals.append(
-                "mcar minor + leptokurtic: heavy-tailed distribution escalation to model-based"
+            return _escalation_seam(
+                col,
+                cp,
+                config,
+                n_rows,
+                n_features,
+                feature_correlation,
+                (EntryCause.mcar_minor_leptokurtic,),
             )
-            strategy, signal = self._mcar_model_strategy(
-                col=col,
-                cp=cp,
-                severity=severity,
-                config=config,
-                n_rows=n_rows,
-                n_features=n_features,
-                feature_correlation=feature_correlation,
-            )
-            signals.append(signal)
-            return strategy, signals
 
-        # Minor + Normal skew → Mean (Platykurtic noted but does not escalate)
+        # Minor + Normal skew → Mean (Platykurtic does not escalate)
         if severity == MissingSeverity.Minor and skew_sev in (
             None,
             SkewSeverity.Normal,
         ):
-            if kurtosis_tag == KurtosisTag.Platykurtic:
-                signals.append(
-                    "mcar minor + platykurtic: thin-tailed distribution, scalar fill representative"
-                )
-            signals.append(f"mcar minor + skew={skew_sev or 'normal'}: mean imputation")
-            return ImputationStrategy.Mean, signals
+            return _Routed(ImputationStrategy.Mean, RoutingReason.mcar_minor_unskewed)
 
         # MCAR Moderate: Leptokurtic or Severe skew escalates to model-based
         if severity == MissingSeverity.Moderate and (
             kurtosis_tag == KurtosisTag.Leptokurtic or skew_sev == SkewSeverity.Severe
         ):
-            escalation_reasons = []
-            if kurtosis_tag == KurtosisTag.Leptokurtic:
-                escalation_reasons.append("leptokurtic")
-            if skew_sev == SkewSeverity.Severe:
-                escalation_reasons.append("skew=severe")
-            signals.append(
-                f"mcar moderate + {'+'.join(escalation_reasons)}: distribution shape escalation to model-based"
+            return _escalation_seam(
+                col,
+                cp,
+                config,
+                n_rows,
+                n_features,
+                feature_correlation,
+                (EntryCause.mcar_moderate_shape,),
             )
-            strategy, signal = self._mcar_model_strategy(
-                col=col,
-                cp=cp,
-                severity=severity,
-                config=config,
-                n_rows=n_rows,
-                n_features=n_features,
-                feature_correlation=feature_correlation,
-            )
-            signals.append(signal)
-            return strategy, signals
 
         # Minor/Moderate + skew >= Moderate → Median
-        signals.append(
-            f"mcar {severity} + skew={skew_sev or 'unknown'}: median imputation"
-        )
-        return ImputationStrategy.Median, signals
+        return _Routed(ImputationStrategy.Median, RoutingReason.mcar_skewed)
 
     def _route_bimodal(
         self,
@@ -307,94 +262,54 @@ class _StrategyRouter:
         config: NumericImputationConfig,
         n_rows: int,
         n_features: int,
-        multi_mar: bool,
-        signals: list[str],
-        feature_correlation: CorrelationProfileResult | None = None,
-    ) -> tuple[ImputationStrategy, list[str]]:
-        """Route a bimodal column to the Bimodal Imputation Framework."""
+        feature_correlation: CorrelationProfileResult | None,
+        *,
+        bounded_discrete: bool,
+    ) -> _Routed:
+        """Route a bimodal column through the Bimodal Imputation Framework.
+
+        Branch 4 takes GMM Sampling, or Mode for a BoundedDiscrete column.
+        """
         if col in config.bimodal_grouping_variables:
-            signals.append("bimodal_branch_1: grouping variable declared")
-            return ImputationStrategy.ClusterConditional, signals
+            return _Routed(
+                ImputationStrategy.ClusterConditional,
+                RoutingReason.bimodal_grouping_declared,
+            )
 
         if feature_correlation is not None:
             col_corrs = feature_correlation.pearson_matrix.get(col, {})
-            corr_list = [
-                c
+            count = sum(
+                1
                 for c, r in col_corrs.items()
                 if c != col and abs(r) > config.bimodal_correlation_threshold
-            ]
-            count = len(corr_list)
+            )
 
             if count >= config.bimodal_min_correlated_features:
-                signals.append("bimodal_branch_2: N correlated features >= threshold")
-                strategy, signal = self._mar_strategy(
-                    col=col,
-                    cp=cp,
-                    severity=MissingSeverity.High,
-                    corrs=corr_list,
-                    config=config,
-                    n_rows=n_rows,
-                    n_features=n_features,
-                    multi_mar=False,
-                    feature_correlation=feature_correlation,
+                entries = (EntryCause.bimodal_many_correlated,)
+                if bounded_discrete:
+                    entries = (EntryCause.bounded_discrete, *entries)
+                return _escalation_seam(
+                    col,
+                    cp,
+                    config,
+                    n_rows,
+                    n_features,
+                    feature_correlation,
+                    entries,
                     bimodal=True,
                 )
-                signals.append(signal)
-                return strategy, signals
-            elif count > 0:
-                signals.append("bimodal_branch_3: N correlated features < threshold")
-                return ImputationStrategy.ClusterConditional, signals
-
-        signals.append("bimodal_branch_4: no correlated features, gmm_sampling")
-        return ImputationStrategy.GMMSampling, signals
-
-    def _route_bimodal_bounded_discrete(
-        self,
-        col: str,
-        cp: ColumnProfile,
-        config: NumericImputationConfig,
-        n_rows: int,
-        n_features: int,
-        multi_mar: bool,
-        signals: list[str],
-        feature_correlation: CorrelationProfileResult | None = None,
-    ) -> tuple[ImputationStrategy, list[str]]:
-        """Route a BoundedDiscrete bimodal column to the Bimodal Imputation Framework."""
-        if col in config.bimodal_grouping_variables:
-            signals.append("bimodal_branch_1: grouping variable declared")
-            return ImputationStrategy.ClusterConditional, signals
-
-        if feature_correlation is not None:
-            col_corrs = feature_correlation.pearson_matrix.get(col, {})
-            corr_list = [
-                c
-                for c, r in col_corrs.items()
-                if c != col and abs(r) > config.bimodal_correlation_threshold
-            ]
-            count = len(corr_list)
-
-            if count >= config.bimodal_min_correlated_features:
-                signals.append("bimodal_branch_2: N correlated features >= threshold")
-                strategy, signal = self._mar_strategy(
-                    col=col,
-                    cp=cp,
-                    severity=MissingSeverity.High,
-                    corrs=corr_list,
-                    config=config,
-                    n_rows=n_rows,
-                    n_features=n_features,
-                    multi_mar=False,
-                    feature_correlation=feature_correlation,
-                    bimodal=True,
+            if count > 0:
+                return _Routed(
+                    ImputationStrategy.ClusterConditional,
+                    RoutingReason.bimodal_few_correlated,
                 )
-                signals.append(signal)
-                return strategy, signals
-            elif count > 0:
-                signals.append("bimodal_branch_3: N correlated features < threshold")
-                return ImputationStrategy.ClusterConditional, signals
 
-        signals.append("bimodal_branch_4: no correlated features, mode")
-        return ImputationStrategy.Mode, signals
+        return _Routed(
+            ImputationStrategy.Mode
+            if bounded_discrete
+            else ImputationStrategy.GMMSampling,
+            RoutingReason.bimodal_uncorrelated,
+        )
 
     def _route_bounded_discrete(
         self,
@@ -405,10 +320,12 @@ class _StrategyRouter:
         n_rows: int,
         n_features: int,
         multi_mar: bool,
-        signals: list[str],
         feature_correlation: CorrelationProfileResult | None = None,
-    ) -> tuple[ImputationStrategy, list[str]]:
+    ) -> _Routed:
         """Route a BoundedDiscrete column through the model-aware sub-chain.
+
+        Every scalar terminal is Mode — Mean and Median are not valid domain
+        members — under the Routing Reason ``bounded_discrete_scalar``.
 
         Parameters
         ----------
@@ -427,17 +344,13 @@ class _StrategyRouter:
         multi_mar : bool
             ``True`` when two or more non-dropped, non-MNAR columns carry
             ``MissingnessFlag.MARSuspect``.
-        signals : list[str]
-            Signal list to append routing decisions to. Extended in place and
-            also returned.
         feature_correlation : CorrelationProfileResult, optional
             Pre-computed Pearson correlation matrix from Phase 1.
 
         Returns
         -------
-        tuple[ImputationStrategy, list[str]]
-            ``(strategy, signals)`` where ``signals`` records every routing
-            decision in order.
+        _Routed
+            The strategy, its Routing Reason, and the evidence walk.
         """
         stats = cp.stats if isinstance(cp.stats, NumericStats) else None
 
@@ -446,77 +359,54 @@ class _StrategyRouter:
         # the escalation seam's Feasibility Floor and Signal Score already
         # reach Mode for a column either flag describes.
         if stats is not None and stats.has_flag(NumericFlag.Bimodal):
-            return self._route_bimodal_bounded_discrete(
+            return self._route_bimodal(
                 col,
                 cp,
                 config,
                 n_rows,
                 n_features,
-                multi_mar,
-                signals,
                 feature_correlation,
+                bounded_discrete=True,
             )
 
         # MARSuspect → domain-snapped MAR sub-chain (Mode replaces Median as terminal)
         if missingness is not None and missingness.has_flag(MissingnessFlag.MARSuspect):
-            corrs = missingness.correlated_with
-            signals.append(
-                f"bounded_discrete: mar_suspect: correlated missingness with {corrs}"
-            )
-            strategy, signal = self._mar_strategy(
+            routed = self._mar_strategy(
                 col=col,
                 cp=cp,
                 severity=missingness.severity,
-                corrs=corrs,
+                corrs=missingness.correlated_with,
                 config=config,
                 n_rows=n_rows,
                 n_features=n_features,
                 multi_mar=multi_mar,
                 feature_correlation=feature_correlation,
+                entry_prefix=(EntryCause.bounded_discrete,),
             )
-            signals.append(signal)
-            if strategy == ImputationStrategy.Median:
-                signals.append(
-                    "bounded_discrete: terminal → mode (median not valid domain member)"
+            if routed.strategy == ImputationStrategy.Median:
+                return _Routed(
+                    ImputationStrategy.Mode,
+                    RoutingReason.bounded_discrete_scalar,
+                    routed.evidence,
                 )
-                return ImputationStrategy.Mode, signals
-            return strategy, signals
+            return routed
 
-        # MCAR by severity — same routing as non-BoundedDiscrete; Mode replaces Median
+        # MCAR by severity — same routing as non-BoundedDiscrete; the seam's
+        # bottom tier already fills a BoundedDiscrete column with Mode.
         severity = missingness.severity if missingness is not None else None
-        skew_sev = stats.skewness_severity if stats is not None else None
-
         if severity in (MissingSeverity.High, MissingSeverity.Severe):
-            strategy, signal = self._mcar_model_strategy(
-                col=col,
-                cp=cp,
-                severity=severity,
-                config=config,
-                n_rows=n_rows,
-                n_features=n_features,
-                feature_correlation=feature_correlation,
+            return _escalation_seam(
+                col,
+                cp,
+                config,
+                n_rows,
+                n_features,
+                feature_correlation,
+                (EntryCause.bounded_discrete, EntryCause.mcar_high_severity),
             )
-            signals.append(signal)
-            if strategy == ImputationStrategy.Median:
-                signals.append(
-                    "bounded_discrete: terminal → mode (median not valid domain member)"
-                )
-                return ImputationStrategy.Mode, signals
-            return strategy, signals
 
-        # Minor + Normal skew → Mode (BoundedDiscrete scalar-fill rule; Mean is not a valid domain member)
-        if severity == MissingSeverity.Minor and skew_sev in (
-            None,
-            SkewSeverity.Normal,
-        ):
-            signals.append("bounded_discrete: mcar minor + normal skew → mode")
-            return ImputationStrategy.Mode, signals
-
-        # Terminal fallback → Mode (replaces Median for all remaining cases)
-        signals.append(
-            f"bounded_discrete: terminal → mode (severity={severity}, skew={skew_sev})"
-        )
-        return ImputationStrategy.Mode, signals
+        # Every remaining case → Mode (BoundedDiscrete scalar-fill rule)
+        return _Routed(ImputationStrategy.Mode, RoutingReason.bounded_discrete_scalar)
 
     def _mar_strategy(
         self,
@@ -531,8 +421,8 @@ class _StrategyRouter:
         feature_correlation: CorrelationProfileResult | None = None,
         kurtosis_tag: KurtosisTag | None = None,
         skewness_severity: SkewSeverity | None = None,
-        bimodal: bool = False,
-    ) -> tuple[ImputationStrategy, str]:
+        entry_prefix: tuple[EntryCause, ...] = (),
+    ) -> _Routed:
         """Route a MAR-suspect column, deferring every model-worth-it check to the seam.
 
         Parameters
@@ -563,149 +453,41 @@ class _StrategyRouter:
         skewness_severity : SkewSeverity, optional
             Skewness severity from Phase 1.  Used for distribution shape
             escalation at Minor/Moderate severity.
-        bimodal : bool, default False
-            Whether this call originates from the Bimodal Imputation
-            Framework's branch 2 — passed through to the escalation seam so
-            its bottom tier picks GMM Sampling.
+        entry_prefix : tuple[EntryCause, ...], default ()
+            Entry causes recorded before the MAR cause, such as
+            ``bounded_discrete``.
 
         Returns
         -------
-        tuple[ImputationStrategy, str]
-            ``(strategy, signal)`` where ``signal`` records the routing decision.
+        _Routed
+            The strategy, its Routing Reason, and the evidence walk.
         """
+
+        def seam(cause: EntryCause) -> _Routed:
+            return _escalation_seam(
+                col,
+                cp,
+                config,
+                n_rows,
+                n_features,
+                feature_correlation,
+                (*entry_prefix, cause),
+            )
+
         if multi_mar:
-            return _escalation_seam(
-                col,
-                cp,
-                config,
-                n_rows,
-                n_features,
-                feature_correlation,
-                f"mar: multi-mar (>=2 MAR-suspect columns, {n_rows:,} rows)",
-                bimodal=bimodal,
-            )
-
+            return seam(EntryCause.mar_multi)
         if severity == MissingSeverity.Severe:
-            return _escalation_seam(
-                col,
-                cp,
-                config,
-                n_rows,
-                n_features,
-                feature_correlation,
-                f"mar: severe missingness ({n_rows:,} rows)",
-                bimodal=bimodal,
-            )
-
+            return seam(EntryCause.mar_severe)
         if severity == MissingSeverity.High and corrs:
-            return _escalation_seam(
-                col,
-                cp,
-                config,
-                n_rows,
-                n_features,
-                feature_correlation,
-                f"mar: high severity + correlated missingness with {corrs}",
-                bimodal=bimodal,
-            )
-
+            return seam(EntryCause.mar_high_correlated)
         # High with empty correlations → MCAR High fallback chain
-        if severity == MissingSeverity.High and not corrs:
-            strategy, inner_signal = self._mcar_model_strategy(
-                col=col,
-                cp=cp,
-                severity=MissingSeverity.High,
-                config=config,
-                n_rows=n_rows,
-                n_features=n_features,
-                feature_correlation=feature_correlation,
-                bimodal=bimodal,
-            )
-            return (
-                strategy,
-                f"mar high + no missingness correlations detected, applying MCAR High fallback chain | {inner_signal}",
-            )
-
-        # Minor/Moderate: distribution shape escalation — Leptokurtic or Severe skew → attempt model-based
+        if severity == MissingSeverity.High:
+            return seam(EntryCause.mar_high_uncorrelated)
+        # Minor/Moderate: Leptokurtic or Severe skew → attempt model-based
         if severity in (MissingSeverity.Minor, MissingSeverity.Moderate) and (
             kurtosis_tag == KurtosisTag.Leptokurtic
             or skewness_severity == SkewSeverity.Severe
         ):
-            escalation_reasons = []
-            if kurtosis_tag == KurtosisTag.Leptokurtic:
-                escalation_reasons.append("leptokurtic")
-            if skewness_severity == SkewSeverity.Severe:
-                escalation_reasons.append("skew=severe")
-            strategy, inner_signal = self._mcar_model_strategy(
-                col=col,
-                cp=cp,
-                severity=severity,
-                config=config,
-                n_rows=n_rows,
-                n_features=n_features,
-                feature_correlation=feature_correlation,
-                bimodal=bimodal,
-            )
-            return (
-                strategy,
-                f"mar {severity} + {'+'.join(escalation_reasons)}: distribution shape escalation to model-based | {inner_signal}",
-            )
+            return seam(EntryCause.mar_shape_escalation)
 
-        return (
-            ImputationStrategy.Median,
-            "median: MAR-suspect fallback (low severity or no correlations)",
-        )
-
-    def _mcar_model_strategy(
-        self,
-        col: str,
-        cp: ColumnProfile,
-        severity: MissingSeverity,
-        config: NumericImputationConfig,
-        n_rows: int,
-        n_features: int,
-        feature_correlation: CorrelationProfileResult | None = None,
-        bimodal: bool = False,
-    ) -> tuple[ImputationStrategy, str]:
-        """Route an MCAR High/Severe column through the escalation seam.
-
-        The former feature-predictability terminal check is deleted (ADR-0092):
-        the Signal Score grades a column's predictor correlation directly,
-        so every MCAR High/Severe column defers to the seam uniformly.
-
-        Parameters
-        ----------
-        col : str
-            Column name.
-        cp : ColumnProfile
-            Phase 1 profile for the column.
-        severity : MissingSeverity
-            Missingness severity; only ``High`` and ``Severe`` are expected.
-        config : NumericImputationConfig
-            Imputation configuration.
-        n_rows : int
-            Number of rows the routing is performed against.
-        n_features : int
-            Total number of numeric columns being imputed.
-        feature_correlation : CorrelationProfileResult, optional
-            Pre-computed pairwise Pearson correlation matrix from Phase 1,
-            read by the escalation seam's Signal Score.
-        bimodal : bool, default False
-            Whether this call originates from the Bimodal Imputation
-            Framework's branch 2 — passed through to the escalation seam.
-
-        Returns
-        -------
-        tuple[ImputationStrategy, str]
-            ``(strategy, signal)`` where ``signal`` records the routing decision.
-        """
-        return _escalation_seam(
-            col,
-            cp,
-            config,
-            n_rows,
-            n_features,
-            feature_correlation,
-            f"mcar: {severity} severity ({n_rows:,} rows, {n_features} features)",
-            bimodal=bimodal,
-        )
+        return _Routed(ImputationStrategy.Median, RoutingReason.mar_unescalated)

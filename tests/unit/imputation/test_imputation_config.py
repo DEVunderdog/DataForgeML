@@ -7,6 +7,7 @@ All tests are pure — no DataFrames, no StructuralProfiler.
 
 import pytest
 
+from dataforge_ml.imputation import RoutingReason
 from dataforge_ml.config import PipelineConfig, PipelinePhase, SemanticType
 from dataforge_ml.imputation import (
     ColumnImputationRecord,
@@ -608,7 +609,7 @@ def test_column_imputation_record_round_trips(round_trip):
 
     record = ColumnImputationRecord(
         decision=ColumnRouting(
-            column="age", semantic_type=SemanticType.Numeric, strategy=ImputationStrategy.Mean
+            column="age", semantic_type=SemanticType.Numeric, strategy=ImputationStrategy.Mean, reason=RoutingReason.authored
         ),
         fill_value=30.0,
     )
@@ -784,7 +785,8 @@ def test_column_imputation_record_from_dict_round_trips():
         "strategy": "Mean",
         "fill_value": 30.0,
         "indicator_added": False,
-        "signals": [],
+        "reason": "authored",
+        "evidence": [],
     })
     assert record.decision.column == "age"
     assert record.fill_value == 30.0
@@ -792,12 +794,12 @@ def test_column_imputation_record_from_dict_round_trips():
 
 def test_column_imputation_record_carries_no_diagnostic_field():
     """Diagnostics moved to the Evaluation reports; records dropped the field (ADR-0058)."""
-    record = ColumnImputationRecord(decision=ColumnRouting(column="age", semantic_type=SemanticType.Numeric, strategy=ImputationStrategy.Mean), fill_value=30.0)
+    record = ColumnImputationRecord(decision=ColumnRouting(column="age", semantic_type=SemanticType.Numeric, strategy=ImputationStrategy.Mean, reason=RoutingReason.authored), fill_value=30.0)
     assert not hasattr(record, "diagnostic")
 
 
 def test_column_imputation_record_to_dict_excludes_diagnostic_key():
-    record = ColumnImputationRecord(decision=ColumnRouting(column="age", semantic_type=SemanticType.Numeric, strategy=ImputationStrategy.Mean), fill_value=30.0)
+    record = ColumnImputationRecord(decision=ColumnRouting(column="age", semantic_type=SemanticType.Numeric, strategy=ImputationStrategy.Mean, reason=RoutingReason.authored), fill_value=30.0)
     assert "diagnostic" not in record.to_dict()
 
 
@@ -1038,21 +1040,30 @@ def test_column_routing_excluded_round_trips():
     routing = ColumnRouting(
         column="age",
         semantic_type=SemanticType.Numeric,
-        strategy=ImputationStrategy.Passthrough,
+        strategy=ImputationStrategy.Passthrough, reason=RoutingReason.authored,
         excluded=True,
     )
     assert ColumnRouting.from_dict(routing.to_dict()) == routing
 
 
-def test_column_routing_saved_before_excluded_existed_infers_it_from_the_signal():
-    """A pre-flag payload recorded a soft exclusion only as its signal."""
-    from dataforge_ml.imputation._config import _EXCLUSION_SIGNAL
-
-    legacy = ColumnRouting(
+@pytest.mark.parametrize(
+    "corrupt",
+    [
+        lambda d: d.pop("reason"),
+        lambda d: d.pop("evidence"),
+        lambda d: d.update(reason="not_a_reason"),
+        lambda d: d.update(evidence=[{"kind": "tier", "tier": "sideways"}]),
+        lambda d: d.update(evidence=[{"kind": "entry", "cause": "mar_multi", "extra": 1}]),
+    ],
+    ids=["no-reason", "no-evidence", "unknown-reason", "bad-enum", "extra-field"],
+)
+def test_column_routing_strict_load_rejects_a_bad_reason_or_evidence(corrupt):
+    """Strict load (ADR-0105): reason and evidence must match this library's schema."""
+    data = ColumnRouting(
         column="age",
         semantic_type=SemanticType.Numeric,
-        strategy=ImputationStrategy.Passthrough,
-        signals=(_EXCLUSION_SIGNAL,),
+        strategy=ImputationStrategy.Passthrough, reason=RoutingReason.no_missing_values,
     ).to_dict()
-    del legacy["excluded"]
-    assert ColumnRouting.from_dict(legacy).excluded is True
+    corrupt(data)
+    with raises_code("incompatible_artifact"):
+        ColumnRouting.from_dict(data)

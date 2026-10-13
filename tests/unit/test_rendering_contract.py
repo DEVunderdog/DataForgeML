@@ -33,6 +33,7 @@ from typing import Any
 import polars as pl
 import pytest
 
+from dataforge_ml.imputation import RoutingReason
 from dataforge_ml.config import PipelineConfig, SemanticType
 from dataforge_ml.evaluation import (
     C2STConfig,
@@ -455,7 +456,7 @@ EMPTY_REGISTRY: list[ContractEntry] = [
         ColumnRouting(
             column="",
             semantic_type=SemanticType.Numeric,
-            strategy=ImputationStrategy.Median,
+            strategy=ImputationStrategy.Median, reason=RoutingReason.authored,
         ),
         "fragment",
     ),
@@ -479,7 +480,7 @@ EMPTY_REGISTRY: list[ContractEntry] = [
             decision=ColumnRouting(
                 column="",
                 semantic_type=SemanticType.Numeric,
-                strategy=ImputationStrategy.Median,
+                strategy=ImputationStrategy.Median, reason=RoutingReason.authored,
             )
         ),
         "fragment",

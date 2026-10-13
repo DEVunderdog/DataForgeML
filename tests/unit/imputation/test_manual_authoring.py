@@ -133,9 +133,10 @@ def test_semantic_type_is_read_off_the_profile():
     assert routing.column_routings["label"].semantic_type != SemanticType.Numeric
 
 
-def test_signals_are_empty():
+def test_authored_columns_carry_the_authored_reason_and_no_evidence():
     routing = author({"score": ImputationStrategy.Mean}, profile=_profile())
-    assert all(r.signals == () for r in routing.column_routings.values())
+    assert all(r.reason == "authored" for r in routing.column_routings.values())
+    assert all(r.evidence == () for r in routing.column_routings.values())
 
 
 def test_constant_fill_lands_and_is_applied():
@@ -402,7 +403,7 @@ def test_base_edited_routing_round_trips_through_resolve_recipe():
         recipe.routing.column_routings["revenue"].strategy
         == ImputationStrategy.Median
     )
-    # Unnamed columns keep base ColumnRouting verbatim, signals included
+    # Unnamed columns keep base ColumnRouting verbatim, reason and evidence included
     for col, r in base.column_routings.items():
         if col not in ("revenue", "revenue_missing"):
             assert recipe.routing.column_routings[col] is r

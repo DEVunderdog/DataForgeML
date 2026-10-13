@@ -10,6 +10,7 @@ from ._config import (
     ModelChoice,
     NumericImputationConfig,
 )
+from ._evidence import RoutingReason
 from ._fit_signals import FitSignals, ImputationFitWarning
 from ._fitted_imputer import (
     DroppedColumnAbsentWarning,
@@ -39,6 +40,7 @@ __all__ = [
     "ImputationUnit",
     "ModelChoice",
     "NumericImputationConfig",
+    "RoutingReason",
     "UnitFitResult",
     "author",
     "derive_units",

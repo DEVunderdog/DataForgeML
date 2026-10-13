@@ -2,7 +2,7 @@
 
 Persisting routing or recipe uses bare-bytes serialization:
 - Four independent kinds: profile, routing, recipe, fitted unit.
-- Schema version 2 is strictly checked across every kind.
+- Schema version 3 is strictly checked across every kind.
 - Gap-fill is deleted: missing or unknown dial keys/rows or unit-id mismatches fail loudly at load.
 - Live custom estimators are dropped at save, reloading as ModelChoice.Custom with an empty slot.
 - Header inspection stays lightweight and header-only.
@@ -84,6 +84,26 @@ def rich_recipe(rich_routing, rich_profile_and_df) -> ImputationRecipe:
     return recipe.with_hyperparameters("mice", {"max_iter": 25})
 
 
+@pytest.fixture
+def evidenced_routing() -> tuple[ImputationRouting, StructuralProfileResult]:
+    """A routed (not authored) routing whose columns reach the escalation seam."""
+    import numpy as np
+
+    rng = np.random.default_rng(0)
+    n = 400
+    base = rng.normal(size=n)
+    cols = {
+        f"c{i}": (base * (i + 1) + rng.normal(scale=0.3, size=n)).tolist()
+        for i in range(4)
+    }
+    for i, name in enumerate(cols):
+        for row in range(i, n, 3):
+            cols[name][row] = None
+    cols["label"] = (["a", None, "b"] * n)[:n]
+    profile = StructuralProfiler().profile(pl.DataFrame(cols))
+    return route(profile), profile
+
+
 def _tamper_json_header(blob: bytes, mutator) -> bytes:
     """Mutate the JSON header of a serialized envelope without touching payload."""
     header, sep, tail = blob.partition(b"\n")
@@ -130,7 +150,7 @@ def test_routing_and_recipe_envelopes_are_pure_json_native(
         # No joblib tail: json.loads succeeding on the full bytes verifies pure JSON
         doc = json.loads(blob.decode("utf-8"))
         assert doc["kind"] == expected_kind
-        assert doc["format_schema_version"] == 2
+        assert doc["format_schema_version"] == 3
         assert "library_version" in doc
         assert "data" in doc
 
@@ -141,9 +161,42 @@ def test_inspect_routing_and_recipe_is_header_only(
     for obj, expected_kind in [(rich_routing, "routing"), (rich_recipe, "recipe")]:
         header = inspect(serialize(obj))
         assert header["kind"] == expected_kind
-        assert header["format_schema_version"] == 2
+        assert header["format_schema_version"] == 3
         assert "library_version" in header
         assert "data" not in header
+
+
+def test_routed_evidence_survives_routing_and_recipe_round_trip(evidenced_routing) -> None:
+    """Routing Evidence persists on the routing and the recipe's routing copy (ADR-0105)."""
+    routing, profile = evidenced_routing
+    seam_facts = [
+        fact.kind
+        for r in routing.column_routings.values()
+        for fact in r.evidence
+    ]
+    assert {"entry", "tier", "feasibility"} <= set(seam_facts)
+
+    reloaded = deserialize(serialize(routing))
+    assert reloaded == routing
+    for col, r in routing.column_routings.items():
+        assert reloaded.column_routings[col].reason == r.reason
+        assert reloaded.column_routings[col].evidence == r.evidence
+
+    recipe = resolve_recipe(routing, profile)
+    reloaded_recipe = deserialize(serialize(recipe))
+    assert reloaded_recipe.routing == routing
+
+
+def test_routing_with_tampered_evidence_refuses_to_load(evidenced_routing) -> None:
+    routing, _ = evidenced_routing
+    blob = serialize(routing)
+
+    def corrupt(doc):
+        for r in doc["data"]["column_routings"].values():
+            r["evidence"] = [{"kind": "tier", "tier": "sideways"}]
+
+    with raises_code("incompatible_artifact"):
+        deserialize(_tamper_json_header(blob, corrupt))
 
 
 # --------------------------------------------------------------------------- #

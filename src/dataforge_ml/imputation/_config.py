@@ -20,6 +20,13 @@ import polars as pl
 from .._boundary._error_codes import close_matches
 from ..config import SemanticType
 from ..records import DataForgeError
+from ._evidence import (
+    RoutingEvidence,
+    RoutingReason,
+    _evidence_from_list,
+    _evidence_to_list,
+    _reason_from_value,
+)
 
 
 class ImputationStrategy(StrEnum):
@@ -130,12 +137,6 @@ _OUTPUT_ONLY_STRATEGIES: frozenset[ImputationStrategy] = frozenset(
     }
 )
 
-# Human-readable signal recorded on the Passthrough routing of an
-# Imputation-soft-excluded column. Rationale only — code reads
-# ``ColumnRouting.excluded``; the one exception is ``ColumnRouting.from_dict``
-# inferring the flag for a payload saved before the flag existed.
-_EXCLUSION_SIGNAL = "soft-excluded for Imputation phase"
-
 # Shipped NumericImputationConfig keys the escalation point deleted outright,
 # mapped to what replaced each one. ``from_dict`` rejects them rather than
 # ignoring them: each was a user-set threshold, so dropping it silently would
@@ -228,7 +229,7 @@ class NumericImputationConfig:
     base_max_iter : int
         Base number of ``IterativeImputer`` iterations before dynamic signal
         adjustments are applied.  Increase this value for columns that exhibit
-        convergence warnings in ``ColumnImputationRecord.signals``.
+        convergence warnings in ``FitSignals.warnings``.
     knn_min_neighbors : int
         Floor on the adaptively computed ``n_neighbors`` value passed to
         ``KNNImputer``. The computed k will never fall below this value.
@@ -941,8 +942,14 @@ class ColumnRouting:
         Detected semantic type of the column, carried from the profile.
     strategy : ImputationStrategy
         Strategy routed for this column.
-    signals : tuple[str, ...], optional
-        Human-readable routing rationale — the reasons that drove ``strategy``.
+    reason : RoutingReason
+        The terminal rule that fixed ``strategy`` (ADR-0105). ``authored``
+        for a column named in :func:`~dataforge_ml.imputation.author`.
+    evidence : tuple[RoutingEvidence, ...], optional
+        The typed facts of the routing walk, in order: ``entry``,
+        ``signal_score``, ``tier`` and ``feasibility`` facts. Empty for a
+        column decided by a declaration or a structural rule, and for an
+        authored column.
     constant_fill : float, optional
         The declared fill value for a ``Constant`` column. ``None`` for every
         other strategy. A declared value, never a learned one.
@@ -964,7 +971,8 @@ class ColumnRouting:
     column: str
     semantic_type: SemanticType
     strategy: ImputationStrategy
-    signals: tuple[str, ...] = ()
+    reason: RoutingReason
+    evidence: tuple[RoutingEvidence, ...] = ()
     constant_fill: float | None = None
     grouping_variable: str | None = None
     indicator_flag: bool = False
@@ -975,8 +983,10 @@ class ColumnRouting:
     def to_dict(self) -> dict:
         """Serialise the routing to a plain dictionary.
 
-        Enums are rendered by member *name* and tuples as lists, so the result
-        is JSON-friendly and structurally round-trippable.
+        Enums are rendered by member *name*, except ``reason``, which is
+        rendered by value like the evidence facts it travels with; the
+        evidence is a list of fact dictionaries. The result is JSON-friendly
+        and structurally round-trippable.
 
         Returns
         -------
@@ -987,7 +997,8 @@ class ColumnRouting:
             "column": self.column,
             "semantic_type": self.semantic_type.name,
             "strategy": self.strategy.name,
-            "signals": list(self.signals),
+            "reason": self.reason.value,
+            "evidence": _evidence_to_list(self.evidence),
             "constant_fill": self.constant_fill,
             "grouping_variable": self.grouping_variable,
             "indicator_flag": self.indicator_flag,
@@ -1005,26 +1016,36 @@ class ColumnRouting:
         data : dict
             Mapping produced by :meth:`to_dict`.
 
-        A payload saved before ``excluded`` existed recorded the exclusion only
-        as a signal, so the flag falls back to that signal when absent.
-
         Returns
         -------
         ColumnRouting
             Reconstructed routing instance.
+
+        Raises
+        ------
+        IncompatibleArtifact
+            ``incompatible_artifact`` if ``reason`` or ``evidence`` is missing,
+            or either does not match this library's schema.
         """
-        signals = tuple(data.get("signals", ()))
+        column = data["column"]
+        if "reason" not in data or "evidence" not in data:
+            raise DataForgeError.from_code(
+                "incompatible_artifact",
+                f"Column '{column}': saved routing has no Routing Reason or "
+                f"Routing Evidence. Route again.",
+            )
         return cls(
-            column=data["column"],
+            column=column,
             semantic_type=SemanticType[data["semantic_type"]],
             strategy=ImputationStrategy[data["strategy"]],
-            signals=signals,
+            reason=_reason_from_value(column, data["reason"]),
+            evidence=_evidence_from_list(column, data["evidence"]),
             constant_fill=data.get("constant_fill"),
             grouping_variable=data.get("grouping_variable"),
             indicator_flag=bool(data.get("indicator_flag", False)),
             mnar=bool(data.get("mnar", False)),
             drop=bool(data.get("drop", False)),
-            excluded=bool(data.get("excluded", _EXCLUSION_SIGNAL in signals)),
+            excluded=bool(data.get("excluded", False)),
         )
 
     def to_markdown(self) -> str:
@@ -1045,7 +1066,8 @@ class ColumnRouting:
             "|---|---|",
             f"| semantic_type | {_md_cell(self.semantic_type)} |",
             f"| strategy | {_md_cell(self.strategy)} |",
-            f"| signals | {_md_cell(self.signals)} |",
+            f"| reason | {_md_cell(self.reason)} |",
+            f"| evidence | {_md_cell([fact.kind for fact in self.evidence])} |",
             f"| constant_fill | {_md_cell(self.constant_fill)} |",
             f"| grouping_variable | {_md_cell(self.grouping_variable)} |",
             f"| indicator_flag | {_md_cell(self.indicator_flag)} |",

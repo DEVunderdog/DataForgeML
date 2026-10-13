@@ -25,7 +25,6 @@ from ..config import PipelineConfig, PipelinePhase, SemanticType
 from ..profiling._numeric_config import NumericStats
 from ..records import DataForgeError
 from ._config import (
-    _EXCLUSION_SIGNAL,
     ColumnRouting,
     ImputationRouting,
     ImputationStrategy,
@@ -33,6 +32,7 @@ from ._config import (
     NumericImputationConfig,
 )
 from ._escalation import _mice_winning_tag, _resolve_nonlinearity_tag
+from ._evidence import RoutingReason
 from ._regression_estimator_factory import RegressionEstimatorFactory
 from ._strategy_router import _StrategyRouter
 
@@ -134,7 +134,12 @@ def route(
     from ``config`` (Hard Exclusions plus Imputation-phase Soft Exclusions) —
     no upstream filtering is relied on. A hard-excluded column is omitted from
     the routing entirely; a soft-excluded column stays visible as a
-    ``Passthrough`` routing carrying a signal that records the exclusion.
+    ``Passthrough`` routing with the Routing Reason ``soft_excluded``.
+
+    Every column carries a Routing Reason and its typed Routing Evidence
+    (ADR-0105). A non-numeric column is ``Passthrough`` with the reason
+    ``not_imputed_type``, and a ``{col}_missing`` indicator entry carries its
+    source column's ``mnar_declared``.
 
     Parameters
     ----------
@@ -233,7 +238,7 @@ def route(
                 column=col,
                 semantic_type=cp.semantic_type,
                 strategy=ImputationStrategy.Passthrough,
-                signals=(_EXCLUSION_SIGNAL,),
+                reason=RoutingReason.soft_excluded,
                 excluded=True,
             )
             continue
@@ -242,10 +247,11 @@ def route(
                 column=col,
                 semantic_type=cp.semantic_type,
                 strategy=ImputationStrategy.Passthrough,
+                reason=RoutingReason.not_imputed_type,
             )
             continue
 
-        strategy, signals = router.route(
+        strategy, reason, evidence = router.route(
             col=col,
             cp=cp,
             config=numeric_cfg,
@@ -261,7 +267,8 @@ def route(
             column=col,
             semantic_type=SemanticType.Numeric,
             strategy=strategy,
-            signals=tuple(signals),
+            reason=reason,
+            evidence=evidence,
             grouping_variable=numeric_cfg.bimodal_grouping_variables.get(col),
             constant_fill=per_column_constant_fill.get(col),
             indicator_flag=strategy == ImputationStrategy.MNAR,
@@ -279,6 +286,7 @@ def route(
             column=indicator_col,
             semantic_type=SemanticType.Boolean,
             strategy=ImputationStrategy.Indicator,
+            reason=routing.reason,
         )
 
     # The MICE block trains one estimator, picked from the Estimator Ladder

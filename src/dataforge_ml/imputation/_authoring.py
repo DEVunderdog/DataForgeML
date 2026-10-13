@@ -33,6 +33,7 @@ from ._config import (
     ImputationStrategy,
     ModelChoice,
 )
+from ._evidence import RoutingReason
 
 if TYPE_CHECKING:
     from ..profiling._config import StructuralProfileResult
@@ -156,6 +157,7 @@ def _to_routing(
         column=column,
         semantic_type=semantic_type,
         strategy=strategy,
+        reason=RoutingReason.authored,
         constant_fill=authored.constant_fill,
         grouping_variable=authored.grouping_variable,
         indicator_flag=strategy == ImputationStrategy.MNAR,
@@ -188,8 +190,8 @@ def author(
     ``drop`` (from ``strategy == Dropped``), and an ``{col}_missing``
     ``Indicator`` entry per MNAR column. ``excluded`` is taken from the
     :class:`AuthoredColumn` declaration, since there is no config to read it
-    from. ``signals`` is empty on an authored column — there was no routing
-    to explain.
+    from. An authored column carries the Routing Reason ``authored`` and no
+    Routing Evidence — there was no routing to explain (ADR-0105).
 
     **The door resolves no MICE model choice for fresh authoring.** ``MICE``
     may still be declared for two or more columns — the door refuses only a
@@ -211,7 +213,8 @@ def author(
     thirty-eight the router got right. A column named in ``columns_map`` is
     rebuilt from the map and takes only its semantic type from the base; every
     other column of the base's universe keeps its
-    :class:`~dataforge_ml.imputation.ColumnRouting` verbatim, signals included.
+    :class:`~dataforge_ml.imputation.ColumnRouting` verbatim, reason and
+    evidence included.
     If MICE columns remain, ``mice_model_choice`` and the estimator carry; if
     the edit creates the block, it is stamped ``BayesianRidge``; if the edit
     dissolves it, both go.
@@ -348,6 +351,7 @@ def author(
             column=indicator_col,
             semantic_type=SemanticType.Boolean,
             strategy=ImputationStrategy.Indicator,
+            reason=routing.reason,
         )
 
     mice_model_choice: ModelChoice | None = None

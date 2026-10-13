@@ -118,11 +118,13 @@ def test_transform_applies_train_time_fill_values(fitted_imputer, imputation_spl
     assert fill_before == fill_after
 
 
-def test_result_records_contain_strategy_and_signals(fitted_imputer):
+def test_result_records_contain_strategy_and_reason(fitted_imputer):
+    from dataforge_ml.imputation import RoutingReason
+
     for col in ["score", "revenue", "rating"]:
         rec = fitted_imputer.records[col]
         assert rec.decision.strategy is not None
-        assert len(rec.decision.signals) >= 1
+        assert isinstance(rec.decision.reason, RoutingReason)
 
 
 def test_label_column_passes_through_untouched(fitted_imputer, imputation_split):
@@ -297,7 +299,7 @@ def exclusion_fitted(exclusion_df, exclusion_profile, exclusion_config):
 
 
 def test_exclusion_plan_shape(exclusion_df, exclusion_profile, exclusion_config):
-    """Soft-excluded column is Passthrough with the exclusion signal; hard-excluded column is absent."""
+    """Soft-excluded column is Passthrough with the soft_excluded reason; hard-excluded column is absent."""
     from dataforge_ml.imputation import ImputationStrategy
 
     routing = route(exclusion_profile, exclusion_config)
@@ -305,7 +307,8 @@ def test_exclusion_plan_shape(exclusion_df, exclusion_profile, exclusion_config)
     soft = routing.column_routings["soft_out"]
     assert soft.strategy == ImputationStrategy.Passthrough
     assert soft.excluded is True
-    assert any("soft-excluded" in s for s in soft.signals)
+    assert soft.reason == "soft_excluded"
+    assert soft.evidence == ()
 
 
 def test_soft_excluded_column_rides_through_transform_untouched(

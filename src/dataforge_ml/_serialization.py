@@ -48,7 +48,7 @@ from .records import DataForgeError
 
 # Bumped only when the JSON layout of a stamped document changes in a way
 # that breaks reading older documents.
-FORMAT_SCHEMA_VERSION = 2
+FORMAT_SCHEMA_VERSION = 3
 
 # The ``kind`` tags a serialized envelope carries so :func:`deserialize`
 # dispatches to the right object type without the caller declaring it.
