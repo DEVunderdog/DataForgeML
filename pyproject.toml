@@ -37,8 +37,6 @@ dataforge = "dataforge_ml._cli:main"
 [dependency-groups]
 test = [
     "pytest>=8.0",
-    "anthropic>=1.11",
-    "openai>=3.24",
     "tiktoken>=0.14",
 ]
 docs = [

@@ -59,12 +59,9 @@ def export_frame(frame: str) -> ExportFrameResult:
 
     Example
     -------
-    >>> from dataforge_ml import export_frame, load
-    >>> frame = load(path="train.csv").frame
-    >>> result = export_frame(frame=frame)
-    >>> result.path.endswith(f"exports/{frame}.csv")
-    True
-    >>> open(result.path).readline().strip()
-    'age,city,income'
+    $ dataforge load --path train.csv
+    {...,"frame":"frame_7f3a9c2e",...}
+    $ dataforge export-frame --frame frame_7f3a9c2e
+    {"warnings":...,"omitted":...,"path":".../exports/frame_7f3a9c2e.csv"}
     """
     return ExportFrameResult.model_validate(export_frame_csv(frame))

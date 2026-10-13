@@ -4,98 +4,100 @@ The names re-exported here constitute the Public API. A symbol is exported at
 the package root iff the user must reference it to configure, drive, or handle
 the pipeline (ADR-0050). Output-only internal types (e.g. ``TypeFlag``,
 per-modality stats dataclasses) remain accessible only via submodule imports.
+
+Every name is imported on first use, not when the package is imported. The
+``dataforge`` CLI imports this package, and ``dataforge --help`` and
+``dataforge schema`` must answer without importing pandas, polars or
+scikit-learn (ADR-0112).
 """
 
-# --- Pipeline-level config and shared enums -------------------------------
-# --- Bare-bytes persistence: serialize / deserialize / inspect (ADR-0072) ---
-from ._serialization import (
-    ArtifactPythonVersionWarning,
-    deserialize,
-    inspect,
-    serialize,
-)
-from .config import Modality, PipelineConfig, PipelinePhase, SemanticType
+from __future__ import annotations
 
-# --- Evaluation: c2st is public; the umbrella is gone (ADR-0087 amended) ---
-from .evaluation import (
-    C2STAnnotation,
-    C2STConfig,
-    C2STOutcome,
-    C2STProvenance,
-    C2STReport,
-    C2STResult,
-    C2STScheme,
-    C2STScore,
-    C2STVerdict,
-    ColumnC2STResult,
-    c2st,
-    imputation_score_c2st,
-)
+import importlib
+from typing import Any
 
-# --- The layered imputation door (ADR-0088/0089/0090) ----------------------
-from .imputation import (
-    AuthoredColumn,
-    ColumnEstimates,
-    ColumnImputationRecord,
-    ColumnRouting,
-    DroppedColumnAbsentWarning,
-    FitSignals,
-    FittedImputer,
-    FittedUnit,
-    ImputationConfig,
-    ImputationFitWarning,
-    ImputationRecipe,
-    ImputationResult,
-    ImputationRouting,
-    ImputationStrategy,
-    ImputationUnit,
-    ModelChoice,
-    NumericImputationConfig,
-    UnitFitResult,
-    author,
-    derive_units,
-    fit_unit,
-    resolve_recipe,
-    route,
-)
+#: Each exported name, grouped by the module that defines it.
+_EXPORTS: dict[str, tuple[str, ...]] = {
+    # --- Bare-bytes persistence: serialize / deserialize / inspect (ADR-0072)
+    "._serialization": ("ArtifactPythonVersionWarning", "deserialize", "inspect", "serialize"),
+    # --- Pipeline-level config and shared enums
+    ".config": ("Modality", "PipelineConfig", "PipelinePhase", "SemanticType"),
+    # --- Evaluation: c2st is public; the umbrella is gone (ADR-0087 amended).
+    # ``C2STOutcome`` / ``C2STAnnotation`` / ``C2STVerdict`` classify output and
+    # are never user-supplied, a stated exception to ADR-0050 (ADR-0087):
+    # reading the report *is* branching on them, so the handling half of the
+    # export rule reaches them.
+    ".evaluation": (
+        "C2STAnnotation",
+        "C2STConfig",
+        "C2STOutcome",
+        "C2STProvenance",
+        "C2STReport",
+        "C2STResult",
+        "C2STScheme",
+        "C2STScore",
+        "C2STVerdict",
+        "ColumnC2STResult",
+        "c2st",
+        "imputation_score_c2st",
+    ),
+    # --- The layered imputation door (ADR-0088/0089/0090)
+    ".imputation": (
+        "AuthoredColumn",
+        "ColumnEstimates",
+        "ColumnImputationRecord",
+        "ColumnRouting",
+        "DroppedColumnAbsentWarning",
+        "FitSignals",
+        "FittedImputer",
+        "FittedUnit",
+        "ImputationConfig",
+        "ImputationFitWarning",
+        "ImputationRecipe",
+        "ImputationResult",
+        "ImputationRouting",
+        "ImputationStrategy",
+        "ImputationUnit",
+        "ModelChoice",
+        "NumericImputationConfig",
+        "UnitFitResult",
+        "author",
+        "derive_units",
+        "fit_unit",
+        "resolve_recipe",
+        "route",
+    ),
+    # --- Observability: Pipeline Event stream + observers
+    ".observability": ("EventType", "PipelineEvent", "stderr_observer"),
+    # --- Operations: the Agent-facing surface (ADR-0099). Every other name
+    # here is today's door, and becomes internal as the Operations land.
+    ".operations.export_frame": ("export_frame",),
+    ".operations.list_handles": ("list_handles",),
+    ".operations.load": ("load",),
+    # --- Config objects, Phase Sub-Configs, input enums and result records
+    ".profiling": (
+        "CategoricalProfileConfig",
+        "ColumnProfile",
+        "CorrelationProfileConfig",
+        "DatasetStats",
+        "DatetimeProfileConfig",
+        "MissingnessProfileConfig",
+        "NonlinearityProfileConfig",
+        "NumericKind",
+        "NumericProfileConfig",
+        "ProfileConfig",
+        "StructuralProfileResult",
+        "TypeDetectionConfig",
+    ),
+    # --- Entry points
+    ".profiling.orchestrator": ("StructuralProfiler",),
+    ".splitting": ("DataSplitter", "FoldResult", "HoldoutCVResult", "SplitConfig", "SplitResult"),
+    ".utils.data_loader": ("DataLoader",),
+}
 
-# --- Observability: Pipeline Event stream + observers ----------------------
-from .observability import EventType, PipelineEvent, stderr_observer
-
-# --- Operations: the Agent-facing surface (ADR-0099). Every other name here
-# is today's door, and becomes internal as the Operations land. ------------
-from .operations.export_frame import export_frame
-from .operations.list_handles import list_handles
-from .operations.load import load
-
-# --- Config objects and Phase Sub-Configs ----------------------------------
-# --- Input enums (user-supplied via setter or field) -----------------------
-# --- Result and nested-record types ----------------------------------------
-from .profiling import (
-    CategoricalProfileConfig,
-    ColumnProfile,
-    CorrelationProfileConfig,
-    DatasetStats,
-    DatetimeProfileConfig,
-    MissingnessProfileConfig,
-    NonlinearityProfileConfig,
-    NumericKind,
-    NumericProfileConfig,
-    ProfileConfig,
-    StructuralProfileResult,
-    TypeDetectionConfig,
-)
-
-# --- Entry points ----------------------------------------------------------
-from .profiling.orchestrator import StructuralProfiler
-from .splitting import (
-    DataSplitter,
-    FoldResult,
-    HoldoutCVResult,
-    SplitConfig,
-    SplitResult,
-)
-from .utils.data_loader import DataLoader
+_MODULE_OF: dict[str, str] = {
+    name: module for module, names in _EXPORTS.items() for name in names
+}
 
 __all__ = [
     "ArtifactPythonVersionWarning",
@@ -156,17 +158,10 @@ __all__ = [
     "c2st",
     "derive_units",
     "deserialize",
+    "export_frame",
     "fit_unit",
-    # --- Evaluation ---------------------------------------------------------
-    # ``C2STOutcome`` / ``C2STAnnotation`` / ``C2STVerdict`` classify output and
-    # are never user-supplied, a stated exception to ADR-0050 (ADR-0087):
-    # reading the report *is* branching on them, so the handling half of the
-    # export rule reaches them. ``c2st`` is public as of ADR-0087's amendment
-    # (#537): the umbrella that justified privacy is gone.
     "imputation_score_c2st",
     "inspect",
-    # --- Operations ---------------------------------------------------------
-    "export_frame",
     "list_handles",
     "load",
     "resolve_recipe",
@@ -174,3 +169,16 @@ __all__ = [
     "serialize",
     "stderr_observer",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    module = _MODULE_OF.get(name)
+    if module is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    value = getattr(importlib.import_module(module, __name__), name)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted({*globals(), *__all__})

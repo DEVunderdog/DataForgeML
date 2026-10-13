@@ -35,6 +35,7 @@ Table Layout
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable, Iterator, Sequence
 from typing import Any, ClassVar, Generic, Literal, TypeVar, overload
 
@@ -58,6 +59,22 @@ CANDIDATES_CAP = 5
 MESSAGE_CAP = 500
 #: Most fields a row in Table Layout holds (ADR-0112).
 MAX_ROW_FIELDS = 12
+
+
+def canonical_json(value: Any) -> str:
+    """Serialise a JSON value byte-stably: insertion key order, no spaces, no NaN.
+
+    Parameters
+    ----------
+    value : Any
+        A JSON value, such as a record's ``to_dict()``.
+
+    Returns
+    -------
+    str
+        The exact text the CLI prints.
+    """
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
 
 
 class WireRecord(BaseModel):

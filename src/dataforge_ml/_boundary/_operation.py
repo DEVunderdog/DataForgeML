@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import functools
 import inspect
-import json
 import re
 import typing
 from collections.abc import Callable, Generator
@@ -33,7 +32,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, create_model
 
 from ..observability import EventType, Observer, PipelineEvent, _emit
-from ..records import DataForgeError, OutputRecord
+from ..records import DataForgeError, OutputRecord, canonical_json  # noqa: F401
 from . import _docstring
 from ._schema import to_strict_subset
 from ._settings import resolve_settings
@@ -86,9 +85,6 @@ class OperationSpec:
 
 
 _OPERATIONS: dict[str, OperationSpec] = {}
-_RECORDER: ContextVar[list[tuple[str, dict[str, Any]]] | None] = ContextVar(
-    "dataforge_ml_recorder", default=None
-)
 _PROGRESS: ContextVar[Observer | None] = ContextVar("dataforge_ml_progress", default=None)
 
 
@@ -128,29 +124,6 @@ def operations() -> dict[str, OperationSpec]:
     from .. import operations as _  # noqa: F401  (registers every Operation)
 
     return dict(_OPERATIONS)
-
-
-@contextmanager
-def capture_calls() -> Generator[list[tuple[str, dict[str, Any]]]]:
-    """Record the validated arguments of every Operation call in the block.
-
-    Yields
-    ------
-    list of (str, dict)
-        Operation name and its full JSON arguments, ``null`` for defaults.
-        The contract tests check each docstring Example's arguments this way.
-    """
-    calls: list[tuple[str, dict[str, Any]]] = []
-    token = _RECORDER.set(calls)
-    try:
-        yield calls
-    finally:
-        _RECORDER.reset(token)
-
-
-def canonical_json(value: Any) -> str:
-    """Serialise a JSON value byte-stably: insertion key order, no spaces, no NaN."""
-    return json.dumps(value, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
 
 
 def _param_path(loc: tuple[Any, ...]) -> str:
@@ -215,9 +188,6 @@ def _run(spec: OperationSpec, validate: Callable[[], BaseModel]) -> OutputRecord
             args = validate()
         except ValidationError as exc:
             raise _invalid_argument(exc, list(spec.args_model.model_fields)) from None
-        recorder = _RECORDER.get()
-        if recorder is not None:
-            recorder.append((spec.name, args.model_dump(mode="json")))
         call = CallContext(
             operation=spec.name,
             arguments=args.model_dump(mode="json", exclude_unset=True),

@@ -113,15 +113,13 @@ def list_handles(
 
     Example
     -------
-    >>> from dataforge_ml import list_handles, load
-    >>> frame = load(path="train.csv").frame
-    >>> page = list_handles(kind="frame")
-    >>> page.total
-    1
-    >>> found = page.handles[0]
-    >>> found.handle == frame, found.operation
-    (True, 'load')
-    >>> found.arguments[0].name, found.arguments[0].value
-    ('path', '"train.csv"')
+    $ dataforge load --path train.csv
+    {...,"frame":"frame_7f3a9c2e",...}
+    $ dataforge list-handles --kind frame
+    {"warnings":...,"omitted":...,"total":1,"offset":0,
+    "handles":{"fields":["handle","kind","operation","arguments","inputs","size"],
+    "rows":[["frame_7f3a9c2e","frame","load",
+    {"fields":["name","value","value_cut"],"rows":[["path","\\"train.csv\\"",false]]},
+    [],{"fields":["measure","value"],"rows":[["rows",6],["columns",3]]}]]}}
     """
     return ListHandlesResult.model_validate(list_workspace_handles(kind, offset, limit))

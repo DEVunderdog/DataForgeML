@@ -15,6 +15,10 @@ exit code names the error's category. stderr stays empty unless
 The Workspace Setting flags (``--workspace``, ``--literal-policy``,
 ``--declared-inputs``, ``--core-budget``) and ``--progress`` go before or
 after the command.
+
+``--help`` and ``dataforge schema`` print the generated, committed help
+(``_help.py``), so they never import the Operations or the heavy
+dependencies behind them. Only running a command does.
 """
 
 from __future__ import annotations
@@ -26,19 +30,14 @@ import typing
 import warnings
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, TextIO
+from typing import TYPE_CHECKING, Any, TextIO
 
-from ._boundary._operation import (
-    OperationSpec,
-    _unexpected,
-    canonical_json,
-    invoke_json,
-    operations,
-    progress_to,
-)
+from . import _help
 from ._boundary._settings import SETTING_NAMES, flag_overrides
-from .observability import stderr_observer
-from .records import DataForgeError
+from .records import DataForgeError, canonical_json
+
+if TYPE_CHECKING:
+    from ._boundary._operation import OperationSpec
 
 #: Exit code per Library Error category. ``0`` is success, even with warnings.
 EXIT_CODES: dict[str, int] = {
@@ -232,7 +231,7 @@ def _split_globals(argv: Sequence[str]) -> tuple[dict[str, str], bool, bool, lis
     settings: dict[str, str] = {}
     progress = help_asked = False
     rest: list[str] = []
-    position = 0 
+    position = 0
     while position < len(argv):
         token = argv[position]
         flag, has_value, text = token.partition("=")
@@ -257,38 +256,9 @@ def _split_globals(argv: Sequence[str]) -> tuple[dict[str, str], bool, bool, lis
 
 
 def _commands() -> dict[str, OperationSpec]:
+    from ._boundary._operation import operations
+
     return {kebab(name): spec for name, spec in sorted(operations().items())}
-
-
-def _overview() -> str:
-    lines = ["usage: dataforge <command> [--flag value ...]", "", "commands:"]
-    specs = _commands()
-    width = max(map(len, specs))
-    for command, spec in specs.items():
-        lines.append(f"  {command.ljust(width)}  {spec.docstring.summary}")
-    lines += [
-        "",
-        "Run `dataforge <command> --help` for one command's flags.",
-        "Every command prints JSON on stdout. Exit codes: 0 success, 2 InvalidInput,",
-        "3 UnknownName, 4 Conflict, 5 Infeasible, 6 IncompatibleArtifact, 1 Unexpected.",
-        "Workspace Settings: --workspace, --literal-policy, --declared-inputs, --core-budget.",
-        "--progress prints one line per Pipeline Event to stderr.",
-    ]
-    return "\n".join(lines)
-
-
-def _command_help(command: str, spec: OperationSpec) -> str:
-    lines = [f"usage: dataforge {command} [--flag value ...]", "", spec.docstring.summary]
-    use_when = spec.docstring.sections.get("Use when", "").strip()
-    if use_when:
-        lines += ["", use_when]
-    lines += ["", "flags:"]
-    for name, text in spec.docstring.entries("Parameters").items():
-        field = spec.args_model.model_fields[name]
-        required = " (required)" if field.is_required() else ""
-        as_json = " (JSON, inline or @file.json)" if takes_json(spec, name) else ""
-        lines.append(f"  --{kebab(name)}{required}{as_json}: {text}")
-    return "\n".join(lines)
 
 
 def _write(stream: TextIO, text: str) -> None:
@@ -303,7 +273,7 @@ def _write(stream: TextIO, text: str) -> None:
 def _unknown_command(command: str) -> DataForgeError:
     import difflib
 
-    names = list(_commands())
+    names = _help.commands()
     return DataForgeError.from_code(
         "unknown_operation",
         f"No command is named `{command}`.",
@@ -311,25 +281,75 @@ def _unknown_command(command: str) -> DataForgeError:
     )
 
 
+def _schema(tokens: Sequence[str], help_asked: bool, stdout: TextIO) -> int:
+    # dataforge schema <command> <argument> [path]: one level of one argument.
+    if help_asked:
+        _write(stdout, _help.SCHEMA_USAGE.rstrip("\n"))
+        return 0
+    if not tokens:
+        raise DataForgeError.from_code(
+            "invalid_argument",
+            "Name a command and one of its arguments, such as "
+            "`dataforge schema load path`.",
+            allowed=_help.commands(),
+        )
+    command, names = tokens[0], tokens[1:]
+    if _help.command_page(command) is None:
+        raise _unknown_command(command)
+    paths = _help.schema_paths(command)
+    path = ".".join(names)
+    page = _help.schema_page(command, path) if 1 <= len(names) <= 2 else None
+    if page is None:
+        parent = path
+        while parent and parent not in paths:
+            parent = parent.rpartition(".")[0]
+        prefix = f"{parent}." if parent else ""
+        children = [
+            p[len(prefix):] for p in paths if p.startswith(prefix) and "." not in p[len(prefix):]
+        ]
+        message = (
+            f"`{command}` has no argument path `{path}` to open. Pass the "
+            "argument, then at most one dotted path of nested fields."
+            if path
+            else f"Name one of `{command}`'s arguments after the command."
+        )
+        raise DataForgeError.from_code(
+            "invalid_argument",
+            message,
+            param=path or None,
+            allowed=[prefix + c for c in children],
+        )
+    _write(stdout, page.rstrip("\n"))
+    return 0
+
+
 def _dispatch(argv: Sequence[str], stdout: TextIO) -> int:
     settings, progress, help_asked, rest = _split_globals(argv)
     if not rest:
         if help_asked:
-            _write(stdout, _overview())
+            _write(stdout, _help.overview())
             return 0
         raise DataForgeError.from_code(
             "invalid_argument",
             "Name a command, such as `dataforge load --path train.csv`. "
             "Run `dataforge --help` to list them.",
-            allowed=list(_commands()),
+            allowed=_help.commands(),
         )
     command, tokens = rest[0], rest[1:]
+    if command == _help.SCHEMA_COMMAND:
+        return _schema(tokens, help_asked, stdout)
+    if help_asked:
+        page = _help.command_page(command)
+        if page is None:
+            raise _unknown_command(command)
+        _write(stdout, page.rstrip("\n"))
+        return 0
     spec = _commands().get(command)
     if spec is None:
         raise _unknown_command(command)
-    if help_asked:
-        _write(stdout, _command_help(command, spec))
-        return 0
+    from ._boundary._operation import invoke_json, progress_to
+    from .observability import stderr_observer
+
     arguments = build_arguments(spec, tokens)
     with flag_overrides(settings), progress_to(stderr_observer if progress else None):
         record = invoke_json(spec, json.dumps(arguments))
@@ -366,6 +386,8 @@ def run(argv: Sequence[str], stdout: TextIO | None = None) -> int:
     except (MemoryError, KeyboardInterrupt):
         raise
     except Exception as exc:  # noqa: BLE001 - the process boundary: every failure prints JSON
+        from ._boundary._operation import _unexpected
+
         err = _unexpected(exc)
         _write(stdout, canonical_json(err.to_dict()))
         return EXIT_CODES[err.category]

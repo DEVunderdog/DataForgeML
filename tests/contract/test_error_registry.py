@@ -44,6 +44,7 @@ EXEMPT: dict[tuple[str, str], str] = {
     ("_boundary/_operation.py", "decorate"): "an Operation registered twice",
     ("_boundary/_schema.py", "_inline"): "a recursive schema, found at definition time",
     ("_cli.py", "main"): "the console script's exit status, not an error",
+    ("__init__.py", "__getattr__"): "Python's module attribute protocol needs AttributeError",
 }
 
 #: ``warnings.warn`` sites left from before Result Warnings, per file. Each is

@@ -61,6 +61,26 @@ class ParsedDocstring:
             out[name] = " ".join(lines).strip()
         return out
 
+    def see_also(self) -> dict[str, str]:
+        """Return the ``See Also`` entries, each Operation name mapped to its text.
+
+        Returns
+        -------
+        dict
+            Operation name to the text after its `` : ``, joined with any
+            indented lines below it into one paragraph.
+        """
+        out: dict[str, str] = {}
+        name: str | None = None
+        for line in self.sections.get("See Also", "").splitlines():
+            if line and not line[0].isspace():
+                name, _, text = line.partition(" : ")
+                name = name.strip()
+                out[name] = text.strip()
+            elif name is not None and line.strip():
+                out[name] = f"{out[name]} {line.strip()}".strip()
+        return out
+
 
 def parse(docstring: str | None) -> ParsedDocstring:
     """Parse a numpy docstring.

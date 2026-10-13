@@ -69,7 +69,9 @@ def load_declared_csv(path: str) -> dict[str, Any]:
                 "field": "columns",
                 "shown": COLUMN_CAP,
                 "total": frame.width,
-                "operation": "describe_columns",
+                # describe_columns (#594) will return the rest; until it
+                # lands, no command does.
+                "operation": None,
             }
         )
     return {

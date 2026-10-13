@@ -2,8 +2,8 @@
 
 Each test is parametrised over the Operation registry, so a new Operation file
 is picked up with no change here. It must bring three things: a committed
-schema snapshot, a runnable ``Example``, and a worst-case entry in
-:data:`WORST_CASE` below. A missing one fails its test by name.
+schema snapshot, an ``Example`` that runs as shell commands (checked in
+``test_help.py``), and a worst-case entry in :data:`WORST_CASE` below. A missing one fails its test by name.
 
 Refresh snapshots after an intended schema change with
 ``DATAFORGE_ML_UPDATE_SNAPSHOTS=1 uv run pytest tests/contract``.
@@ -11,8 +11,6 @@ Refresh snapshots after an intended schema change with
 
 from __future__ import annotations
 
-import copy
-import doctest
 import inspect
 import json
 import os
@@ -21,8 +19,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from anthropic.lib._parse._transform import transform_schema
-from openai.lib._pydantic import _ensure_strict_json_schema
 
 import dataforge_ml
 from dataforge_ml._boundary._docstring import OPERATION_SECTIONS
@@ -30,13 +26,12 @@ from dataforge_ml._boundary._error_codes import REGISTRY
 from dataforge_ml._boundary._operation import (
     OperationSpec,
     canonical_json,
-    capture_calls,
     operations,
 )
 from dataforge_ml._boundary._schema import strict_subset_problems
 from dataforge_ml.records import MAX_ROW_FIELDS
 
-from .conftest import Harness, assert_within_budget, write_wide_csv
+from .conftest import Harness, assert_within_budget, records, write_wide_csv
 
 SNAPSHOTS = Path(__file__).parent / "snapshots" / "schemas"
 SOURCE = Path(dataforge_ml.__file__).parent
@@ -104,15 +99,6 @@ def test_every_snapshot_belongs_to_an_operation() -> None:
 def test_schema_is_in_the_strict_subset(name: str, side: str) -> None:
     schema = _schemas(OPERATIONS[name])[side]
     assert strict_subset_problems(schema) == []
-
-
-@pytest.mark.parametrize("name", NAMES)
-@pytest.mark.parametrize("side", ["input", "output"])
-def test_vendor_transformers_leave_the_schema_unchanged(name: str, side: str) -> None:
-    schema = _schemas(OPERATIONS[name])[side]
-    assert transform_schema(copy.deepcopy(schema)) == schema
-    openai = copy.deepcopy(schema)
-    assert _ensure_strict_json_schema(openai, path=(), root=openai) == schema
 
 
 @pytest.mark.parametrize("name", NAMES)
@@ -227,26 +213,6 @@ def test_every_listed_error_code_is_registered(name: str) -> None:
     assert unknown == []
 
 
-@pytest.mark.parametrize("name", NAMES)
-def test_example_runs_and_its_arguments_are_captured(
-    name: str, harness: Harness
-) -> None:
-    spec = OPERATIONS[name]
-    parser = doctest.DocTestParser()
-    test = parser.get_doctest(
-        spec.docstring.sections["Example"], {}, f"{name}.Example", spec.module, 0
-    )
-    assert test.examples, "the Example has runnable lines"
-    runner = doctest.DocTestRunner(optionflags=doctest.ELLIPSIS)
-    with capture_calls() as calls:
-        runner.run(test)
-    assert runner.failures == 0, f"the Example of {name} fails; run it to see the diff"
-    examples = [arguments for called, arguments in calls if called == name]
-    assert examples, f"the Example never calls {name}"
-    for arguments in examples:
-        spec.args_model.model_validate_json(json.dumps(arguments))
-
-
 # --- Results --------------------------------------------------------------
 
 
@@ -256,6 +222,14 @@ def test_worst_case_result_is_under_the_result_budget(
 ) -> None:
     assert name in WORST_CASE, f"add a worst-case call for {name} to WORST_CASE"
     assert_within_budget(name, WORST_CASE[name](harness, tmp_path), is_error=False)
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_every_omitted_operation_is_a_real_command(
+    name: str, harness: Harness, tmp_path: Path
+) -> None:
+    named = [o["operation"] for o in records(WORST_CASE[name](harness, tmp_path)["omitted"])]
+    assert [n for n in named if n is not None and n not in OPERATIONS] == []
 
 
 @pytest.mark.parametrize("name", NAMES)

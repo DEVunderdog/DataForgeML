@@ -53,7 +53,7 @@ def load(path: str) -> LoadResult:
     LoadResult
         ``frame``, ``n_rows``, ``n_columns``, and ``columns`` with each
         column's inferred dtype. ``columns`` lists at most 100; past that,
-        ``omitted`` counts the rest and names ``describe_columns``.
+        ``omitted`` counts the rest.
 
     Errors
     ------
@@ -71,18 +71,16 @@ def load(path: str) -> LoadResult:
 
     See Also
     --------
-    profile : Profile the frame Handle. The next step.
     list_handles : Find frame Handles made earlier in this Workspace.
+    export_frame : Write a frame Handle out as CSV.
 
     Example
     -------
-    >>> from dataforge_ml import load
-    >>> result = load(path="train.csv")
-    >>> result.frame.startswith("frame_")
-    True
-    >>> result.n_rows, result.n_columns
-    (6, 3)
-    >>> result.get("age").dtype
-    'Int64'
+    $ dataforge load --path train.csv
+    {"warnings":{"fields":["code","message","columns","param","hint"],"rows":[]},
+    "omitted":{"fields":["field","shown","total","operation"],"rows":[]},
+    "frame":"frame_7f3a9c2e","n_rows":6,"n_columns":3,
+    "columns":{"fields":["column","dtype"],
+    "rows":[["age","Int64"],["city","String"],["income","Float64"]]}}
     """
     return LoadResult.model_validate(load_declared_csv(path))

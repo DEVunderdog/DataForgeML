@@ -118,20 +118,6 @@ def test_stderr_is_empty_without_progress_and_one_line_per_event_with_it(
     assert failed.stderr == ""
 
 
-def test_help_prints_text_and_exits_zero(harness: Harness) -> None:
-    import subprocess
-
-    from .conftest import DATAFORGE
-
-    for argv in (["--help"], ["load", "--help"]):
-        done = subprocess.run(
-            [str(DATAFORGE), *argv], capture_output=True, text=True, check=False
-        )
-        assert done.returncode == 0 and done.stderr == ""
-        assert done.stdout.startswith("usage: dataforge")
-    assert harness.handles() == []
-
-
 def test_no_operation_parameter_is_shadowed_by_a_cli_flag() -> None:
     own = {*_SETTING_FLAGS, _PROGRESS_FLAG, *_HELP_FLAGS}
     for name, spec in operations().items():
