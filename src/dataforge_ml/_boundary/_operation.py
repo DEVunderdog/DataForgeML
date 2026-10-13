@@ -39,8 +39,12 @@ from ._schema import to_strict_subset
 from ._settings import resolve_settings
 from ._workspace import _CALL, CallContext
 
-#: Default Result Budget, in ``o200k_base`` tokens (ADR-0109).
+#: Default Result Budget, in ``o200k_base`` tokens (ADR-0102, ADR-0112).
 DEFAULT_RESULT_BUDGET = 10_000
+#: Most characters a result's JSON may have, whatever its token count (ADR-0112).
+RESULT_BUDGET_CHARACTERS = 25_000
+#: Most characters a Library Error's JSON may have (ADR-0112).
+ERROR_BUDGET_CHARACTERS = 8_000
 #: The catalogue's closed ``effect`` and ``phase`` vocabularies (ADR-0109).
 EFFECTS = ("read", "create", "export")
 PHASES = ("workspace", "load", "profile", "split", "impute", "evaluate")

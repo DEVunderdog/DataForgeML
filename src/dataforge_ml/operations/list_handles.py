@@ -8,7 +8,7 @@ from pydantic import Field
 
 from .._boundary._list_handles import PAGE_CAP, list_workspace_handles
 from .._boundary._operation import operation
-from ..records import OutputRecord, WireRecord
+from ..records import OutputRecord, Table, WireRecord
 
 #: The Handle kinds, as ``list_handles`` takes them (ADR-0110).
 HandleKind = Literal["frame", "profile", "routing", "recipe", "unit", "imputer", "c2st"]
@@ -43,11 +43,11 @@ class HandleSummary(WireRecord):
     """The Handle's kind: the prefix before the underscore."""
     operation: str
     """The Operation that made the Handle."""
-    arguments: list[LineageArgument]
+    arguments: Table[LineageArgument]
     """The arguments that Operation was called with, as passed. Arguments left at their default are absent."""
     inputs: list[str]
     """The Handles that Operation read, in the order it read them. At most 10; past 10, ``omitted`` counts the rest."""
-    size: list[SizeMeasure]
+    size: Table[SizeMeasure]
     """A short size summary, such as rows and columns for a frame."""
 
 
@@ -58,7 +58,7 @@ class ListHandlesResult(OutputRecord):
     """How many Handles of the asked kind exist in the Workspace."""
     offset: int
     """How many of the newest Handles this page skipped."""
-    handles: list[HandleSummary]
+    handles: Table[HandleSummary]
     """Handles, newest first. At most 20; when more remain, ``omitted`` counts them and names ``list_handles``."""
 
 

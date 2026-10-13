@@ -57,106 +57,142 @@
     "description": "One page of Handles, newest first, with their Lineage.",
     "properties": {
       "warnings": {
+        "additionalProperties": false,
         "description": "Caveats on this result, most actionable first. Empty when there are none.",
-        "items": {
-          "additionalProperties": false,
-          "description": "A caveat on a successful result: it worked, but read this first.",
-          "properties": {
-            "code": {
-              "description": "The warning's Error Code. Branch on this, not on ``message``.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `code`, `message`, `columns`, `param`, `hint`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "code",
+                "message",
+                "columns",
+                "param",
+                "hint"
+              ],
               "type": "string"
             },
-            "message": {
-              "description": "What happened and what to do, in one or two sentences.",
-              "type": "string"
-            },
-            "columns": {
-              "anyOf": [
-                {
-                  "items": {
+            "type": "array"
+          },
+          "rows": {
+            "description": "A caveat on a successful result: it worked, but read this first. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `code`: The warning's Error Code. Branch on this, not on ``message``.",
                     "type": "string"
                   },
-                  "type": "array"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Columns the warning concerns, or null."
+                  {
+                    "description": "Position 1, `message`: What happened and what to do, in one or two sentences.",
+                    "type": "string"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 2, `columns`: Columns the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `param`: The argument the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 4, `hint`: Library-written advice, or null."
+                  }
+                ]
+              },
+              "type": "array"
             },
-            "param": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "The argument the warning concerns, or null."
-            },
-            "hint": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Library-written advice, or null."
-            }
-          },
-          "required": [
-            "code",
-            "message",
-            "columns",
-            "param",
-            "hint"
-          ],
-          "type": "object"
+            "type": "array"
+          }
         },
-        "type": "array"
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
       },
       "omitted": {
+        "additionalProperties": false,
         "description": "One entry per list that was cut, naming the Operation that returns the rest. Empty when nothing was cut.",
-        "items": {
-          "additionalProperties": false,
-          "description": "A capped list was cut. Call ``operation`` to read the rest.",
-          "properties": {
-            "field": {
-              "description": "Name of the list field that was cut.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `field`, `shown`, `total`, `operation`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "field",
+                "shown",
+                "total",
+                "operation"
+              ],
               "type": "string"
             },
-            "shown": {
-              "description": "How many items the list holds.",
-              "type": "integer"
-            },
-            "total": {
-              "description": "How many items exist.",
-              "type": "integer"
-            },
-            "operation": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "The Operation that returns the rest, or null when no Operation does."
-            }
+            "type": "array"
           },
-          "required": [
-            "field",
-            "shown",
-            "total",
-            "operation"
-          ],
-          "type": "object"
+          "rows": {
+            "description": "A capped list was cut. Call ``operation`` to read the rest. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `field`: Name of the list field that was cut.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `shown`: How many items the list holds.",
+                    "type": "integer"
+                  },
+                  {
+                    "description": "Position 2, `total`: How many items exist.",
+                    "type": "integer"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `operation`: The Operation that returns the rest, or null when no Operation does."
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
         },
-        "type": "array"
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
       },
       "total": {
         "description": "How many Handles of the asked kind exist in the Workspace.",
@@ -167,93 +203,147 @@
         "type": "integer"
       },
       "handles": {
+        "additionalProperties": false,
         "description": "Handles, newest first. At most 20; when more remain, ``omitted`` counts them and names ``list_handles``.",
-        "items": {
-          "additionalProperties": false,
-          "description": "One Handle and its Lineage: what made it, from what, with which arguments.",
-          "properties": {
-            "handle": {
-              "description": "The Handle, such as ``frame_7f3a9c2e``. Pass it to any Operation that takes this kind.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `handle`, `kind`, `operation`, `arguments`, `inputs`, `size`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "handle",
+                "kind",
+                "operation",
+                "arguments",
+                "inputs",
+                "size"
+              ],
               "type": "string"
             },
-            "kind": {
-              "description": "The Handle's kind: the prefix before the underscore.",
-              "type": "string"
-            },
-            "operation": {
-              "description": "The Operation that made the Handle.",
-              "type": "string"
-            },
-            "arguments": {
-              "description": "The arguments that Operation was called with, as passed. Arguments left at their default are absent.",
-              "items": {
-                "additionalProperties": false,
-                "description": "One argument the Operation that made the Handle was called with.",
-                "properties": {
-                  "name": {
-                    "description": "Argument name, as in that Operation's signature.",
-                    "type": "string"
-                  },
-                  "value": {
-                    "description": "The value as passed, as JSON text. Cut at 80 characters, ending in ``…``, when ``value_cut`` is true.",
-                    "type": "string"
-                  },
-                  "value_cut": {
-                    "description": "True when ``value`` was cut and is not valid JSON.",
-                    "type": "boolean"
-                  }
-                },
-                "required": [
-                  "name",
-                  "value",
-                  "value_cut"
-                ],
-                "type": "object"
-              },
-              "type": "array"
-            },
-            "inputs": {
-              "description": "The Handles that Operation read, in the order it read them. At most 10; past 10, ``omitted`` counts the rest.",
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "size": {
-              "description": "A short size summary, such as rows and columns for a frame.",
-              "items": {
-                "additionalProperties": false,
-                "description": "One measure of a Handle's size.",
-                "properties": {
-                  "measure": {
-                    "description": "What is counted, such as ``rows`` or ``columns``.",
-                    "type": "string"
-                  },
-                  "value": {
-                    "description": "The count.",
-                    "type": "integer"
-                  }
-                },
-                "required": [
-                  "measure",
-                  "value"
-                ],
-                "type": "object"
-              },
-              "type": "array"
-            }
+            "type": "array"
           },
-          "required": [
-            "handle",
-            "kind",
-            "operation",
-            "arguments",
-            "inputs",
-            "size"
-          ],
-          "type": "object"
+          "rows": {
+            "description": "One Handle and its Lineage: what made it, from what, with which arguments. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `handle`: The Handle, such as ``frame_7f3a9c2e``. Pass it to any Operation that takes this kind.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `kind`: The Handle's kind: the prefix before the underscore.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 2, `operation`: The Operation that made the Handle.",
+                    "type": "string"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "Position 3, `arguments`: The arguments that Operation was called with, as passed. Arguments left at their default are absent.",
+                    "properties": {
+                      "fields": {
+                        "description": "Always exactly `name`, `value`, `value_cut`, in this order. A row's value at position i is the field named here at i.",
+                        "items": {
+                          "enum": [
+                            "name",
+                            "value",
+                            "value_cut"
+                          ],
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "rows": {
+                        "description": "One argument the Operation that made the Handle was called with. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+                        "items": {
+                          "items": {
+                            "anyOf": [
+                              {
+                                "description": "Position 0, `name`: Argument name, as in that Operation's signature.",
+                                "type": "string"
+                              },
+                              {
+                                "description": "Position 1, `value`: The value as passed, as JSON text. Cut at 80 characters, ending in ``…``, when ``value_cut`` is true.",
+                                "type": "string"
+                              },
+                              {
+                                "description": "Position 2, `value_cut`: True when ``value`` was cut and is not valid JSON.",
+                                "type": "boolean"
+                              }
+                            ]
+                          },
+                          "type": "array"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "fields",
+                      "rows"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "description": "Position 4, `inputs`: The Handles that Operation read, in the order it read them. At most 10; past 10, ``omitted`` counts the rest.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "Position 5, `size`: A short size summary, such as rows and columns for a frame.",
+                    "properties": {
+                      "fields": {
+                        "description": "Always exactly `measure`, `value`, in this order. A row's value at position i is the field named here at i.",
+                        "items": {
+                          "enum": [
+                            "measure",
+                            "value"
+                          ],
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "rows": {
+                        "description": "One measure of a Handle's size. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+                        "items": {
+                          "items": {
+                            "anyOf": [
+                              {
+                                "description": "Position 0, `measure`: What is counted, such as ``rows`` or ``columns``.",
+                                "type": "string"
+                              },
+                              {
+                                "description": "Position 1, `value`: The count.",
+                                "type": "integer"
+                              }
+                            ]
+                          },
+                          "type": "array"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "fields",
+                      "rows"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
         },
-        "type": "array"
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
       }
     },
     "required": [

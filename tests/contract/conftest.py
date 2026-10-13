@@ -4,8 +4,9 @@ A test calls an Operation the way an Agent would and checks only what crosses
 the boundary. ``harness.call(name, **arguments)`` runs the Operation twice:
 once as a Code Mode Python call, once as a ``dataforge`` subprocess. It
 asserts both give the same JSON (Handle ids aside, since each run writes its
-own Handles), that the exit code names the error's category, and that stderr
-is empty. It returns the Code Mode outcome.
+own Handles), that the exit code names the error's category, that stderr
+is empty, and that the JSON is within the Result Budget. It returns the Code
+Mode outcome.
 
 A test that patches library internals cannot reach a subprocess, so
 ``harness.call_in_process`` runs the CLI's ``run`` in this process instead.
@@ -30,10 +31,16 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import tiktoken
 
 import dataforge_ml
 from dataforge_ml._boundary._error_codes import REGISTRY
-from dataforge_ml._boundary._operation import canonical_json
+from dataforge_ml._boundary._operation import (
+    ERROR_BUDGET_CHARACTERS,
+    RESULT_BUDGET_CHARACTERS,
+    canonical_json,
+    operations,
+)
 from dataforge_ml._boundary._settings import DECLARED_INPUTS_ENV, WORKSPACE_ENV
 from dataforge_ml._boundary._workspace import HANDLE_KINDS
 from dataforge_ml._cli import EXIT_CODES, kebab, run
@@ -53,6 +60,22 @@ def normalise_handles(text: str) -> str:
         return seen.setdefault(match.group(0), f"{match.group(1)}_#{len(seen) + 1}")
 
     return _HANDLE.sub(sub, text)
+
+
+def assert_within_budget(name: str, json_value: dict[str, Any], *, is_error: bool) -> None:
+    """Fail when a result or Library Error is over its Result Budget (ADR-0112).
+
+    A result may have at most its Operation's token budget in ``o200k_base``
+    tokens and :data:`RESULT_BUDGET_CHARACTERS` characters; a Library Error at
+    most :data:`ERROR_BUDGET_CHARACTERS` characters.
+    """
+    text = canonical_json(json_value)
+    if is_error:
+        assert len(text) <= ERROR_BUDGET_CHARACTERS, f"{name}: error of {len(text)} characters"
+        return
+    tokens = len(tiktoken.get_encoding("o200k_base").encode(text))
+    assert tokens <= operations()[name].result_budget_tokens, f"{name}: {tokens} tokens"
+    assert len(text) <= RESULT_BUDGET_CHARACTERS, f"{name}: {len(text)} characters"
 
 
 @dataclass(frozen=True)
@@ -177,7 +200,8 @@ class Harness:
             stderr="",
         )
 
-    def _compare(self, code: Outcome, cli: CliOutcome) -> Outcome:
+    def _compare(self, name: str, code: Outcome, cli: CliOutcome) -> Outcome:
+        assert_within_budget(name, code.json, is_error=code.is_error)
         assert code.is_error == cli.is_error
         assert cli.exit_code == expected_exit_code(code.code)
         assert cli.stderr == ""
@@ -189,12 +213,14 @@ class Harness:
 
     def call(self, name: str, **arguments: Any) -> Outcome:
         """Call through both deliveries, assert identical JSON, return Code Mode's."""
-        return self._compare(self.code_mode(name, **arguments), self.cli(name, **arguments))
+        return self._compare(
+            name, self.code_mode(name, **arguments), self.cli(name, **arguments)
+        )
 
     def call_in_process(self, name: str, **arguments: Any) -> Outcome:
         """As :meth:`call`, with the CLI run in this process."""
         return self._compare(
-            self.code_mode(name, **arguments), self.cli_in_process(name, **arguments)
+            name, self.code_mode(name, **arguments), self.cli_in_process(name, **arguments)
         )
 
 
@@ -210,6 +236,20 @@ def harness(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Harness:
     )
     monkeypatch.chdir(inputs)
     return Harness(workspace, inputs)
+
+
+def records(table: dict[str, Any]) -> list[dict[str, Any]]:
+    """Read a list of records back out of its Table Layout JSON, nested tables too."""
+    assert list(table) == ["fields", "rows"], table
+
+    def cell(value: Any) -> Any:
+        is_table = isinstance(value, dict) and list(value) == ["fields", "rows"]
+        return records(value) if is_table else value
+
+    return [
+        {name: cell(value) for name, value in zip(table["fields"], row, strict=True)}
+        for row in table["rows"]
+    ]
 
 
 def write_wide_csv(path: Path, n_columns: int, name_length: int = 64) -> Path:

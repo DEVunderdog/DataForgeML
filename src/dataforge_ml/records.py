@@ -24,14 +24,29 @@ Library Error
     Errors name arguments, columns and dials, never cell values. Every list
     field holds at most 20 items, ``candidates`` at most 5; a cut list is
     counted in ``omitted``.
+
+Table Layout
+    Every list of records in a result is a :class:`Table`. In Code Mode it is
+    a read-only sequence of records, so ``result.warnings[0].code`` works as
+    on a list. In JSON it is ``{"fields": [...], "rows": [[...], ...]}``: the
+    field names once, then each record's values in that order. A row holds
+    at most 12 fields; a wider record nests its extra fields.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
-from typing import Any, ClassVar, Literal
+from collections.abc import Iterable, Iterator, Sequence
+from typing import Any, ClassVar, Generic, Literal, TypeVar, overload
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    GetCoreSchemaHandler,
+    GetJsonSchemaHandler,
+)
+from pydantic.json_schema import JsonSchemaValue
+from pydantic_core import CoreSchema, core_schema
 
 from ._boundary._error_codes import entry_for
 
@@ -41,6 +56,8 @@ ERROR_LIST_CAP = 20
 CANDIDATES_CAP = 5
 #: Longest message a Library Error carries, in characters.
 MESSAGE_CAP = 500
+#: Most fields a row in Table Layout holds (ADR-0112).
+MAX_ROW_FIELDS = 12
 
 
 class WireRecord(BaseModel):
@@ -62,6 +79,141 @@ class WireRecord(BaseModel):
             Keys in schema order, enums as their values, floats unrounded.
         """
         return self.model_dump(mode="json")
+
+
+R = TypeVar("R", bound=WireRecord)
+
+
+class Table(Sequence[R], Generic[R]):
+    """A list of records that travels in Table Layout.
+
+    In Code Mode a Table reads like a tuple of records: index it, iterate it,
+    take its ``len``. Only its JSON differs from a list's: ``fields`` names
+    the record's fields once, in declaration order, and each entry of
+    ``rows`` holds one record's values in that order. Declare a result field
+    as ``Table[SomeRecord]``; the record may have at most 12 fields.
+
+    Parameters
+    ----------
+    items : iterable of WireRecord, optional
+        The records, in order. Empty when omitted.
+    """
+
+    __slots__ = ("_items",)
+
+    def __init__(self, items: Iterable[R] = ()) -> None:
+        self._items: tuple[R, ...] = tuple(items)
+
+    @overload
+    def __getitem__(self, index: int) -> R: ...
+    @overload
+    def __getitem__(self, index: slice) -> Sequence[R]: ...
+    def __getitem__(self, index: int | slice) -> R | Sequence[R]:
+        return self._items[index]
+
+    def __len__(self) -> int:
+        return len(self._items)
+
+    def __iter__(self) -> Iterator[R]:
+        return iter(self._items)
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, Table):
+            return self._items == other._items
+        if isinstance(other, (list, tuple)):
+            return self._items == tuple(other)
+        return NotImplemented
+
+    __hash__ = None  # type: ignore[assignment]  # unhashable, like the list it replaces
+
+    def __repr__(self) -> str:
+        return f"Table({list(self._items)!r})"
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source: Any, handler: GetCoreSchemaHandler
+    ) -> CoreSchema:
+        args = getattr(source, "__args__", ())
+        if len(args) != 1 or not (isinstance(args[0], type) and issubclass(args[0], WireRecord)):
+            raise TypeError("declare a Table as Table[SomeWireRecord]")
+        record: type[WireRecord] = args[0]
+        fields = list(record.model_fields)
+        if len(fields) > MAX_ROW_FIELDS:
+            raise TypeError(
+                f"{record.__name__} has {len(fields)} fields; a row in Table Layout "
+                f"holds at most {MAX_ROW_FIELDS}, so nest the extra fields"
+            )
+
+        def from_wire(value: Any) -> Any:
+            if isinstance(value, Table):
+                return list(value)
+            if not isinstance(value, dict):
+                return value  # a list of records, as the library builds them
+            if list(value) != ["fields", "rows"] or value["fields"] != fields:
+                raise ValueError(f"Table Layout must be {{fields: {fields}, rows: [...]}}")
+            rows = value["rows"]
+            if not isinstance(rows, list) or not all(
+                isinstance(row, list) and len(row) == len(fields) for row in rows
+            ):
+                raise ValueError(f"every row must be a list of {len(fields)} values")
+            return [dict(zip(fields, row)) for row in rows]
+
+        def to_wire(table: Table[Any], info: core_schema.SerializationInfo) -> dict[str, Any]:
+            return {
+                "fields": list(fields),
+                "rows": [list(item.model_dump(mode=info.mode).values()) for item in table],
+            }
+
+        return core_schema.no_info_after_validator_function(
+            cls,
+            core_schema.no_info_before_validator_function(
+                from_wire, core_schema.list_schema(handler.generate_schema(record))
+            ),
+            serialization=core_schema.plain_serializer_function_ser_schema(
+                to_wire, info_arg=True
+            ),
+        )
+
+    @classmethod
+    def __get_pydantic_json_schema__(
+        cls, schema: CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        # after-validator -> before-validator -> list -> the record's schema.
+        record = handler.resolve_ref_schema(handler(schema["schema"]["schema"]["items_schema"]))
+        properties: dict[str, Any] = record["properties"]
+        names = list(properties)
+        positions = [
+            {
+                **prop,
+                "description": f"Position {i}, `{name}`: {prop.get('description', '')}".rstrip(),
+            }
+            for i, (name, prop) in enumerate(properties.items())
+        ]
+        return {
+            "type": "object",
+            "properties": {
+                "fields": {
+                    "type": "array",
+                    "items": {"type": "string", "enum": names},
+                    "description": (
+                        "Always exactly " + ", ".join(f"`{n}`" for n in names) + ", in "
+                        "this order. A row's value at position i is the field named here "
+                        "at i."
+                    ),
+                },
+                "rows": {
+                    "type": "array",
+                    "items": {"type": "array", "items": {"anyOf": positions}},
+                    "description": (
+                        f"{record.get('description', '')} One row per record, its "
+                        "values in `fields` order. The i-th schema below describes "
+                        "position i."
+                    ).lstrip(),
+                },
+            },
+            "required": ["fields", "rows"],
+            "additionalProperties": False,
+        }
 
 
 class Omission(WireRecord):
@@ -108,9 +260,9 @@ class DialPointer(WireRecord):
 class OutputRecord(WireRecord):
     """Base of every Operation result: warnings and omissions in the same place."""
 
-    warnings: list[ResultWarning] = Field(default_factory=list)
+    warnings: Table[ResultWarning] = Field(default_factory=Table)
     """Caveats on this result, most actionable first. Empty when there are none."""
-    omitted: list[Omission] = Field(default_factory=list)
+    omitted: Table[Omission] = Field(default_factory=Table)
     """One entry per list that was cut, naming the Operation that returns the rest. Empty when nothing was cut."""
 
 
@@ -373,6 +525,7 @@ __all__ = [
     "Omission",
     "OutputRecord",
     "ResultWarning",
+    "Table",
     "Unexpected",
     "UnknownName",
     "WireRecord",

@@ -37,6 +37,8 @@ EXEMPT: dict[tuple[str, str], str] = {
     ("records.py", "__init__"): "a code raised under the wrong category class",
     ("records.py", "from_code"): "a warning code raised as an error",
     ("records.py", "__getattr__"): "Python's attribute protocol needs AttributeError",
+    ("records.py", "__get_pydantic_core_schema__"): "a Table declared outside Table Layout",
+    ("records.py", "from_wire"): "Pydantic's validator protocol needs ValueError",
     ("_boundary/_error_codes.py", "entry_for"): "an unregistered code",
     ("_boundary/_operation.py", "_build_spec"): "an Operation defined outside the Strict Subset",
     ("_boundary/_operation.py", "decorate"): "an Operation registered twice",

@@ -34,7 +34,7 @@ from dataforge_ml._cli import (
 )
 from dataforge_ml.records import DataForgeError, OutputRecord, WireRecord
 
-from .conftest import Harness, run_dataforge
+from .conftest import Harness, records, run_dataforge
 
 
 def _load(harness: Harness) -> str:
@@ -80,7 +80,7 @@ def test_success_with_warnings_still_exits_zero(harness: Harness) -> None:
     out = run_dataforge(["list-handles"])
 
     assert out.exit_code == 0
-    assert [w["code"] for w in out.json["warnings"]] == ["handles_unreadable"]
+    assert [w["code"] for w in records(out.json["warnings"])] == ["handles_unreadable"]
 
 
 def test_unknown_command_is_unknown_operation_with_candidates(harness: Harness) -> None:

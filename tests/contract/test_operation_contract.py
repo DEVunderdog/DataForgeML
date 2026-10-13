@@ -21,7 +21,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import tiktoken
 from anthropic.lib._parse._transform import transform_schema
 from openai.lib._pydantic import _ensure_strict_json_schema
 
@@ -35,8 +34,9 @@ from dataforge_ml._boundary._operation import (
     operations,
 )
 from dataforge_ml._boundary._schema import strict_subset_problems
+from dataforge_ml.records import MAX_ROW_FIELDS
 
-from .conftest import Harness, write_wide_csv
+from .conftest import Harness, assert_within_budget, write_wide_csv
 
 SNAPSHOTS = Path(__file__).parent / "snapshots" / "schemas"
 SOURCE = Path(dataforge_ml.__file__).parent
@@ -134,6 +134,52 @@ def test_every_parameter_and_field_has_a_description(name: str) -> None:
     assert missing == []
 
 
+def _is_table(node: dict[str, Any]) -> bool:
+    return node.get("type") == "object" and list(node.get("properties", {})) == [
+        "fields",
+        "rows",
+    ]
+
+
+def _table_layout_problems(schema: dict[str, Any]) -> list[str]:
+    problems: list[str] = []
+
+    def walk(node: dict[str, Any], path: str) -> None:
+        if _is_table(node):
+            fields = node["properties"]["fields"]["items"]["enum"]
+            if len(fields) > MAX_ROW_FIELDS:
+                problems.append(f"{path}: a row of {len(fields)} fields; nest the extras")
+        elif node.get("type") == "array" and node["items"].get("type") == "object":
+            problems.append(f"{path}: a list of records outside Table Layout")
+        for key, prop in node.get("properties", {}).items():
+            walk(prop, f"{path}.{key}")
+        if "items" in node:
+            walk(node["items"], f"{path}[]")
+        for i, branch in enumerate(node.get("anyOf", [])):
+            walk(branch, f"{path}|{i}")
+
+    walk(schema, "$")
+    return problems
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_every_list_of_records_in_a_result_uses_table_layout(name: str) -> None:
+    assert _table_layout_problems(OPERATIONS[name].output_schema()) == []
+
+
+def test_table_layout_check_catches_what_it_should() -> None:
+    record = {"type": "object", "properties": {"a": {"type": "string"}}}
+    assert _table_layout_problems({"type": "array", "items": record})
+    wide = {
+        "type": "object",
+        "properties": {
+            "fields": {"type": "array", "items": {"enum": [f"f{i}" for i in range(13)]}},
+            "rows": {"type": "array", "items": {"type": "array", "items": {}}},
+        },
+    }
+    assert _table_layout_problems(wide)
+
+
 def test_strict_subset_checker_catches_what_it_should() -> None:
     open_map = {"type": "object", "additionalProperties": {"type": "integer"}}
     assert strict_subset_problems(open_map)
@@ -209,9 +255,17 @@ def test_worst_case_result_is_under_the_result_budget(
     name: str, harness: Harness, tmp_path: Path
 ) -> None:
     assert name in WORST_CASE, f"add a worst-case call for {name} to WORST_CASE"
-    result = WORST_CASE[name](harness, tmp_path)
-    tokens = len(tiktoken.get_encoding("o200k_base").encode(canonical_json(result)))
-    assert tokens <= OPERATIONS[name].result_budget_tokens, f"{name}: {tokens} tokens"
+    assert_within_budget(name, WORST_CASE[name](harness, tmp_path), is_error=False)
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_worst_case_error_is_under_the_error_budget(name: str, harness: Harness) -> None:
+    # The widest error any call can draw: more bad arguments than the lists
+    # hold, each with a long name, so every list is at its cap.
+    arguments = {f"argument_{i:02d}_".ljust(64, "x"): "x" * 200 for i in range(25)}
+    out = harness.code_mode(name, **arguments)
+    assert out.code == "invalid_argument" and out.json["omitted"]
+    assert_within_budget(name, out.json, is_error=True)
 
 
 @pytest.mark.parametrize("name", NAMES)
@@ -226,7 +280,16 @@ def test_result_json_is_byte_stable(name: str, harness: Harness, tmp_path: Path)
 
     def keys_in_schema_order(value: Any, schema: dict[str, Any]) -> None:
         branches = schema.get("anyOf", [schema])
-        if isinstance(value, dict):
+        table = next((b for b in branches if _is_table(b)), None)
+        if table is not None and isinstance(value, dict):
+            assert list(value) == ["fields", "rows"]
+            assert value["fields"] == table["properties"]["fields"]["items"]["enum"]
+            positions = table["properties"]["rows"]["items"]["items"]["anyOf"]
+            for row in value["rows"]:
+                assert len(row) == len(positions)
+                for cell, position in zip(row, positions):
+                    keys_in_schema_order(cell, position)
+        elif isinstance(value, dict):
             node = next(b for b in branches if b.get("type") == "object")
             assert list(value) == list(node["properties"])
             for key, item in value.items():

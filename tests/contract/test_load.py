@@ -22,7 +22,7 @@ from dataforge_ml.records import (
     UnknownName,
 )
 
-from .conftest import Harness, run_dataforge, write_wide_csv
+from .conftest import Harness, records, run_dataforge, write_wide_csv
 
 
 def test_load_returns_frame_handle_counts_and_dtypes(harness: Harness) -> None:
@@ -31,12 +31,11 @@ def test_load_returns_frame_handle_counts_and_dtypes(harness: Harness) -> None:
     assert not out.is_error
     assert out.json["frame"].startswith("frame_")
     assert (out.json["n_rows"], out.json["n_columns"]) == (6, 3)
-    assert out.json["columns"] == [
-        {"column": "age", "dtype": "Int64"},
-        {"column": "city", "dtype": "String"},
-        {"column": "income", "dtype": "Float64"},
-    ]
-    assert out.json["warnings"] == [] and out.json["omitted"] == []
+    assert out.json["columns"] == {
+        "fields": ["column", "dtype"],
+        "rows": [["age", "Int64"], ["city", "String"], ["income", "Float64"]],
+    }
+    assert records(out.json["warnings"]) == [] and records(out.json["omitted"]) == []
     assert out.record.get("income").dtype == "Float64"
     assert out.record.get("missing") is None
 
@@ -55,9 +54,10 @@ def test_load_caps_columns_at_100_and_names_the_rest_in_omitted(
     out = harness.call("load", path=str(wide))
 
     assert out.json["n_columns"] == 130
-    assert len(out.json["columns"]) == 100
-    assert out.json["columns"][0]["column"].startswith("c0000_")
-    assert out.json["omitted"] == [
+    columns = records(out.json["columns"])
+    assert len(columns) == 100
+    assert columns[0]["column"].startswith("c0000_")
+    assert records(out.json["omitted"]) == [
         {"field": "columns", "shown": 100, "total": 130, "operation": "describe_columns"}
     ]
 
@@ -145,7 +145,8 @@ def test_values_are_strict_quoted_number_is_never_an_int(harness: Harness) -> No
 
 def test_shapes_are_loose_int_for_float_and_tuple_for_array(harness: Harness) -> None:
     code, tool = _both({"count": 2, "scale": 3, "names": ["a"]})
-    assert code == tool == {"warnings": [], "omitted": [], "total": 7.0}
+    assert code == tool
+    assert (records(code["warnings"]), records(code["omitted"]), code["total"]) == ([], [], 7.0)
     assert invoke_python(_PROBE, {"count": 2, "names": ("a", "b")}).total == 4.0
 
 

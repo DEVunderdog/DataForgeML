@@ -16,15 +16,14 @@ from pathlib import Path
 
 import polars as pl
 import pytest
-import tiktoken
 
 from dataforge_ml._boundary import _list_handles, _workspace
 from dataforge_ml._boundary._list_handles import INPUTS_CAP, PAGE_CAP
-from dataforge_ml._boundary._operation import canonical_json, operations
+from dataforge_ml._boundary._operation import operations
 from dataforge_ml.operations.list_handles import HandleKind
 from dataforge_ml.records import InvalidInput, UnknownName
 
-from .conftest import DATAFORGE, Harness
+from .conftest import DATAFORGE, Harness, assert_within_budget, records
 
 
 def _load(harness: Harness, path: str = "train.csv") -> str:
@@ -47,16 +46,19 @@ def test_list_handles_is_newest_first_with_lineage_and_size(harness: Harness) ->
     out = harness.call("list_handles", kind="frame")
 
     assert out.json["total"] == 2 and out.json["offset"] == 0
-    assert [h["handle"] for h in out.json["handles"]] == [newer, older]
-    assert out.json["handles"][1] == {
-        "handle": older,
-        "kind": "frame",
-        "operation": "load",
-        "arguments": [{"name": "path", "value": '"train.csv"', "value_cut": False}],
-        "inputs": [],
-        "size": [{"measure": "rows", "value": 6}, {"measure": "columns", "value": 3}],
-    }
-    assert out.json["omitted"] == [] and out.json["warnings"] == []
+    assert [h["handle"] for h in records(out.json["handles"])] == [newer, older]
+    assert out.json["handles"]["fields"] == [
+        "handle", "kind", "operation", "arguments", "inputs", "size"
+    ]
+    assert out.json["handles"]["rows"][1] == [
+        older,
+        "frame",
+        "load",
+        {"fields": ["name", "value", "value_cut"], "rows": [["path", '"train.csv"', False]]},
+        [],
+        {"fields": ["measure", "value"], "rows": [["rows", 6], ["columns", 3]]},
+    ]
+    assert records(out.json["omitted"]) == [] and records(out.json["warnings"]) == []
 
 
 def test_list_handles_pages_with_offset_and_names_itself_in_omitted(
@@ -68,13 +70,13 @@ def test_list_handles_pages_with_offset_and_names_itself_in_omitted(
     second = harness.call("list_handles", kind="frame", offset=2, limit=2)
     last = harness.call("list_handles", kind="frame", offset=4, limit=2)
 
-    assert [h["handle"] for h in first.json["handles"]] == made[:2]
-    assert [h["handle"] for h in second.json["handles"]] == made[2:4]
-    assert [h["handle"] for h in last.json["handles"]] == made[4:]
-    assert first.json["omitted"] == [
+    assert [h["handle"] for h in records(first.json["handles"])] == made[:2]
+    assert [h["handle"] for h in records(second.json["handles"])] == made[2:4]
+    assert [h["handle"] for h in records(last.json["handles"])] == made[4:]
+    assert records(first.json["omitted"]) == [
         {"field": "handles", "shown": 2, "total": 5, "operation": "list_handles"}
     ]
-    assert last.json["omitted"] == []
+    assert records(last.json["omitted"]) == []
 
 
 def test_list_handles_without_kind_lists_every_kind_and_filters_by_kind(
@@ -82,16 +84,12 @@ def test_list_handles_without_kind_lists_every_kind_and_filters_by_kind(
 ) -> None:
     frame = _load(harness)
 
-    assert [h["handle"] for h in harness.call("list_handles").json["handles"]] == [
+    assert [h["handle"] for h in records(harness.call("list_handles").json["handles"])] == [
         frame
     ]
-    assert harness.call("list_handles", kind="profile").json == {
-        "warnings": [],
-        "omitted": [],
-        "total": 0,
-        "offset": 0,
-        "handles": [],
-    }
+    empty = harness.call("list_handles", kind="profile").json
+    assert (empty["total"], empty["offset"]) == (0, 0)
+    assert [records(empty[f]) for f in ("warnings", "omitted", "handles")] == [[], [], []]
 
 
 @pytest.mark.parametrize(
@@ -122,11 +120,12 @@ def test_list_handles_cuts_long_argument_values_and_long_input_lists(
 
     out = harness.call("list_handles")
 
-    [argument] = out.json["handles"][0]["arguments"]
+    [handle] = records(out.json["handles"])
+    [argument] = handle["arguments"]
     assert argument["value_cut"] is True
     assert len(argument["value"]) == 80 and argument["value"].endswith("…")
-    assert len(out.json["handles"][0]["inputs"]) == 10
-    assert out.json["omitted"] == [
+    assert len(handle["inputs"]) == 10
+    assert records(out.json["omitted"]) == [
         {"field": "handles[0].inputs", "shown": 10, "total": 25, "operation": None}
     ]
 
@@ -159,9 +158,8 @@ def test_a_full_page_at_every_cap_fits_the_result_budget(
 
     out = harness.call_in_process("list_handles")
 
-    tokens = len(tiktoken.get_encoding("o200k_base").encode(canonical_json(out.json)))
-    assert len(out.json["handles"]) == PAGE_CAP
-    assert tokens <= operations()["list_handles"].result_budget_tokens, tokens
+    assert len(records(out.json["handles"])) == PAGE_CAP
+    assert_within_budget("list_handles", out.json, is_error=False)
 
 
 def test_unreadable_handles_are_skipped_with_a_warning(harness: Harness) -> None:
@@ -172,8 +170,8 @@ def test_unreadable_handles_are_skipped_with_a_warning(harness: Harness) -> None
 
     out = harness.call("list_handles")
 
-    assert [h["handle"] for h in out.json["handles"]] == [kept]
-    assert [w["code"] for w in out.json["warnings"]] == ["handles_unreadable"]
+    assert [h["handle"] for h in records(out.json["handles"])] == [kept]
+    assert [w["code"] for w in records(out.json["warnings"])] == ["handles_unreadable"]
 
 
 def test_handle_kind_literal_matches_the_workspace_kinds() -> None:
@@ -300,7 +298,7 @@ def test_two_processes_share_one_workspace_without_collisions(harness: Harness) 
         frame, _ = _workspace.read_frame(handle, param="frame")
         assert frame.equals(expected)
     page = harness.code_mode("list_handles", kind="frame").json
-    assert page["total"] == 2 * _ROUNDS + 1 and page["warnings"] == []
+    assert page["total"] == 2 * _ROUNDS + 1 and records(page["warnings"]) == []
     exports = list((harness.workspace / "exports").iterdir())
     assert [p.name for p in exports] == [f"{shared}.csv"]
     assert pl.read_csv(exports[0]).equals(expected)

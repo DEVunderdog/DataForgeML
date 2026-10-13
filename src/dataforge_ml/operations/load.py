@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from .._boundary._load import load_declared_csv
 from .._boundary._operation import operation
-from ..records import ColumnKeyedResult, WireRecord
+from ..records import ColumnKeyedResult, Table, WireRecord
 
 
 class LoadedColumn(WireRecord):
@@ -25,7 +25,7 @@ class LoadResult(ColumnKeyedResult):
     """Number of data rows, not counting the header."""
     n_columns: int
     """Number of columns, including any not listed in ``columns``."""
-    columns: list[LoadedColumn]
+    columns: Table[LoadedColumn]
     """Columns in CSV header order, at most 100. Past 100, ``omitted`` counts the rest."""
 
 
