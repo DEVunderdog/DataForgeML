@@ -753,6 +753,12 @@ def profile_frame(
             "frame": frame,
             "skip_columns": skip_columns,
             "cardinality": cardinality,
+            # What detail Operations need without reading the frame again.
+            "columns": ordered,
+            "dials": {
+                "values": dials.values,
+                "set_by_caller": sorted(dials.set_by_caller),
+            },
         },
     )
 

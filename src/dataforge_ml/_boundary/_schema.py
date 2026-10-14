@@ -91,6 +91,14 @@ def _rewrite(node: dict[str, Any]) -> list[str]:
     ]
     node.pop("uniqueItems", None)
 
+    if "anyOf" in node:
+        # A nullable union nests one anyOf in another; splice it flat.
+        flat: list[Any] = []
+        for branch in node["anyOf"]:
+            key = "anyOf" if "anyOf" in branch else "oneOf"
+            nested = key in branch and set(branch) <= {key, "discriminator"}
+            flat += branch[key] if nested else [branch]
+        node["anyOf"] = flat
     for branch in node.get("anyOf", []):
         phrases += _rewrite(branch)
     if "items" in node:

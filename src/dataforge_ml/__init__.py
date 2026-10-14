@@ -72,10 +72,15 @@ _EXPORTS: dict[str, tuple[str, ...]] = {
     ".observability": ("EventType", "PipelineEvent", "stderr_observer"),
     # --- Operations: the Agent-facing surface (ADR-0099). Every other name
     # here is today's door, and becomes internal as the Operations land.
+    ".operations.describe_columns": ("describe_columns",),
+    ".operations.describe_target": ("describe_target",),
     ".operations.export_frame": ("export_frame",),
     ".operations.list_handles": ("list_handles",),
     ".operations.load": ("load",),
+    ".operations.missingness": ("missingness",),
     ".operations.profile": ("profile",),
+    ".operations.top_associations": ("top_associations",),
+    ".operations.value_summary": ("value_summary",),
     # --- Config objects, Phase Sub-Configs, input enums and result records
     ".profiling": (
         "CategoricalProfileConfig",
@@ -160,6 +165,8 @@ __all__ = [
     "author",
     "c2st",
     "derive_units",
+    "describe_columns",
+    "describe_target",
     "deserialize",
     "export_frame",
     "fit_unit",
@@ -167,11 +174,14 @@ __all__ = [
     "inspect",
     "list_handles",
     "load",
+    "missingness",
     "profile",
     "resolve_recipe",
     "route",
     "serialize",
     "stderr_observer",
+    "top_associations",
+    "value_summary",
 ]
 
 

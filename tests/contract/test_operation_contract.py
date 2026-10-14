@@ -32,6 +32,7 @@ from dataforge_ml._boundary._schema import strict_subset_problems
 from dataforge_ml.records import MAX_ROW_FIELDS
 
 from .conftest import (
+    AMES,
     Harness,
     assert_within_budget,
     records,
@@ -80,17 +81,72 @@ def _wide_profile(harness: Harness, tmp_path: Path) -> dict[str, Any]:
     return harness.call("profile", frame=frame).json
 
 
+def _wide_profile_handle(harness: Harness, tmp_path: Path) -> str:
+    wide = write_flagged_wide_csv(tmp_path / "flagged.csv", 150)
+    harness.declare(wide)
+    frame = harness.code_mode("load", path=str(wide)).json["frame"]
+    return harness.code_mode("profile", frame=frame).json["profile"]
+
+
+def _wide_describe_columns(harness: Harness, tmp_path: Path) -> dict[str, Any]:
+    # A full page of long-named, flagged columns, each co-missing with 149
+    # others, so every co-missing list is at its cap.
+    return harness.call("describe_columns", profile=_wide_profile_handle(harness, tmp_path)).json
+
+
+def _wide_top_associations(harness: Harness, tmp_path: Path) -> dict[str, Any]:
+    # 11,175 pairs of long-named columns: a full page of 100.
+    return harness.call("top_associations", profile=_wide_profile_handle(harness, tmp_path)).json
+
+
+def _wide_missingness(harness: Harness, tmp_path: Path) -> dict[str, Any]:
+    # 11,175 co-missing pairs of long-named columns: a full page of 100.
+    return harness.call("missingness", profile=_wide_profile_handle(harness, tmp_path)).json
+
+
+def _ames_profile_handle(harness: Harness) -> str:
+    harness.declare(AMES)
+    frame = harness.code_mode("load", path=str(AMES)).json["frame"]
+    return harness.code_mode(
+        "profile", frame=frame, targets=["SalePrice", "Neighborhood"]
+    ).json["profile"]
+
+
+def _ames_describe_target(harness: Harness, tmp_path: Path) -> dict[str, Any]:
+    # A 28-class target: its class list is at its cap.
+    return harness.call(
+        "describe_target", profile=_ames_profile_handle(harness), name="Neighborhood"
+    ).json
+
+
+def _long_labels_value_summary(harness: Harness, tmp_path: Path) -> dict[str, Any]:
+    # A categorical column of 64-character labels, every one of them rare:
+    # both lists at their cap of 20.
+    csv = tmp_path / "labels.csv"
+    labels = [f"label_{i:03d}_".ljust(64, "y") for i in range(60)]
+    csv.write_text("tag\n" + "\n".join(labels[i % 60] for i in range(600)) + "\n")
+    harness.declare(csv)
+    frame = harness.code_mode("load", path=str(csv)).json["frame"]
+    profile = harness.code_mode("profile", frame=frame).json["profile"]
+    return harness.call("value_summary", profile=profile, column="tag").json
+
+
 #: Per Operation, a call producing its largest result on the supported fixtures.
 WORST_CASE: dict[str, Callable[[Harness, Path], dict[str, Any]]] = {
+    "describe_columns": _wide_describe_columns,
+    "describe_target": _ames_describe_target,
     "export_frame": _export,
     "list_handles": _full_page_of_handles,
     "load": _wide_load,
+    "missingness": _wide_missingness,
     "profile": _wide_profile,
+    "top_associations": _wide_top_associations,
+    "value_summary": _long_labels_value_summary,
 }
 
 #: Operations an ``omitted`` entry may already name before they exist, each
 #: with the ticket that adds it. Remove an entry when its Operation lands.
-PENDING_OPERATIONS: dict[str, str] = {"describe_columns": "#594"}
+PENDING_OPERATIONS: dict[str, str] = {"query_frame": "#603"}
 
 
 def _schemas(spec: OperationSpec) -> dict[str, Any]:
@@ -290,7 +346,9 @@ def test_result_json_is_byte_stable(name: str, harness: Harness, tmp_path: Path)
                 for cell, position in zip(row, positions):
                     keys_in_schema_order(cell, position)
         elif isinstance(value, dict):
-            node = next(b for b in branches if b.get("type") == "object")
+            # In a tagged union, the variant whose fields the value carries.
+            objects = [b for b in branches if b.get("type") == "object"]
+            node = next(b for b in objects if set(b["properties"]) == set(value))
             assert list(value) == list(node["properties"])
             for key, item in value.items():
                 keys_in_schema_order(item, node["properties"][key])

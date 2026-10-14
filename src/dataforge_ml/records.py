@@ -31,11 +31,19 @@ Table Layout
     on a list. In JSON it is ``{"fields": [...], "rows": [[...], ...]}``: the
     field names once, then each record's values in that order. A row holds
     at most 12 fields; a wider record nests its extra fields.
+
+Literal Field
+    A result field that can hold a value from a cell of the data: a label,
+    a bound, a percentile, the median or the mode. Every other field is free
+    of cell values. A Literal Field is declared as
+    ``Annotated[<type>, LITERAL]``, and :func:`literal_field_paths` lists
+    them by machine.
 """
 
 from __future__ import annotations
 
 import json
+import typing
 from collections.abc import Iterable, Iterator, Sequence
 from typing import Any, ClassVar, Generic, Literal, TypeVar, overload
 
@@ -96,6 +104,71 @@ class WireRecord(BaseModel):
             Keys in schema order, enums as their values, floats unrounded.
         """
         return self.model_dump(mode="json")
+
+
+class LiteralFieldMarker:
+    """Marks a Wire Record field as a Literal Field: it can hold a cell value.
+
+    Use the single instance :data:`LITERAL` in ``Annotated`` metadata. The
+    mark is read by :func:`literal_field_paths`; the schema keyword it maps to
+    is set by the Literal Policy (ADR-0107).
+    """
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:
+        return "LITERAL"
+
+
+#: The Literal Field mark: ``value: Annotated[float | None, LITERAL]``.
+LITERAL = LiteralFieldMarker()
+
+
+def literal_field_paths(model: type[BaseModel]) -> list[str]:
+    """List every Literal Field a record can carry, as dotted paths.
+
+    Nested records, Tables, lists and unions are walked; a list or Table
+    step is written ``[]``, such as ``top_values[].value``.
+
+    Parameters
+    ----------
+    model : type of BaseModel
+        A Wire Record class, such as an Operation's result.
+
+    Returns
+    -------
+    list of str
+        The paths, in field declaration order.
+    """
+    paths: list[str] = []
+
+    def records_in(annotation: Any) -> list[tuple[type[BaseModel], str]]:
+        # Every record type reachable through unions, lists and Tables, with
+        # the path suffix the container adds.
+        origin = typing.get_origin(annotation)
+        args = typing.get_args(annotation)
+        if origin is typing.Annotated:
+            return records_in(args[0])
+        if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+            return [(annotation, "")]
+        if origin in (list, tuple, Table) or (
+            isinstance(origin, type) and issubclass(origin, Table)
+        ):
+            return [(m, "[]" + s) for a in args for m, s in records_in(a)]
+        return [found for a in args for found in records_in(a)]
+
+    def walk(record: type[BaseModel], prefix: str, seen: tuple[type, ...]) -> None:
+        if record in seen:
+            return
+        for name, info in record.model_fields.items():
+            path = f"{prefix}{name}"
+            if any(isinstance(m, LiteralFieldMarker) for m in info.metadata):
+                paths.append(path)
+            for nested, suffix in records_in(info.annotation):
+                walk(nested, f"{path}{suffix}.", (*seen, record))
+
+    walk(model, "", ())
+    return list(dict.fromkeys(paths))
 
 
 R = TypeVar("R", bound=WireRecord)
@@ -530,6 +603,7 @@ _CATEGORY_CLASSES: dict[str, type[DataForgeError]] = {
 }
 
 __all__ = [
+    "LITERAL",
     "ArgumentIssue",
     "ColumnKeyedResult",
     "Conflict",
@@ -539,6 +613,7 @@ __all__ = [
     "Infeasible",
     "InvalidInput",
     "LibraryError",
+    "LiteralFieldMarker",
     "Omission",
     "OutputRecord",
     "ResultWarning",
@@ -546,4 +621,5 @@ __all__ = [
     "Unexpected",
     "UnknownName",
     "WireRecord",
+    "literal_field_paths",
 ]

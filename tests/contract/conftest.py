@@ -179,7 +179,7 @@ class Harness:
         root = self.workspace / "handles"
         return sorted(p.name for p in root.iterdir()) if root.exists() else []
 
-    def code_mode(self, name: str, **arguments: Any) -> Outcome:
+    def code_mode(self, name: str, /, **arguments: Any) -> Outcome:
         """Call the Operation as the Agent's code would: imported from ``dataforge_ml``."""
         try:
             record = getattr(dataforge_ml, name)(**arguments)
@@ -187,11 +187,11 @@ class Harness:
             return Outcome(json=err.to_dict(), is_error=True, error=err)
         return Outcome(json=record.to_dict(), is_error=False, record=record)
 
-    def cli(self, name: str, **arguments: Any) -> CliOutcome:
+    def cli(self, name: str, /, **arguments: Any) -> CliOutcome:
         """Call the Operation as a ``dataforge`` subprocess, as an Agent's shell would."""
         return run_dataforge(to_argv(name, arguments))
 
-    def cli_in_process(self, name: str, **arguments: Any) -> CliOutcome:
+    def cli_in_process(self, name: str, /, **arguments: Any) -> CliOutcome:
         """Run the CLI's ``run`` in this process, so patched internals apply."""
         stdout = io.StringIO()
         exit_code = run(to_argv(name, arguments), stdout=stdout)
@@ -213,13 +213,13 @@ class Harness:
         assert cli.stdout == canonical_json(cli.json) + "\n"
         return code
 
-    def call(self, name: str, **arguments: Any) -> Outcome:
+    def call(self, name: str, /, **arguments: Any) -> Outcome:
         """Call through both deliveries, assert identical JSON, return Code Mode's."""
         return self._compare(
             name, self.code_mode(name, **arguments), self.cli(name, **arguments)
         )
 
-    def call_in_process(self, name: str, **arguments: Any) -> Outcome:
+    def call_in_process(self, name: str, /, **arguments: Any) -> Outcome:
         """As :meth:`call`, with the CLI run in this process."""
         return self._compare(
             name, self.code_mode(name, **arguments), self.cli_in_process(name, **arguments)

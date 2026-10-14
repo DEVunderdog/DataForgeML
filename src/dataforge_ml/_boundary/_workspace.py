@@ -414,3 +414,37 @@ def read_frame(handle: str, *, param: str) -> tuple[Any, InheritedDeclarations]:
         frame = pl.read_parquet(payload_path(handle, record))
         cache(handle, frame)
     return frame, InheritedDeclarations.from_dict(record["declarations"])
+
+
+def read_profile(handle: str, *, param: str) -> tuple[Any, dict[str, Any]]:
+    """Read a profile Handle and record it as an input of the current call.
+
+    Parameters
+    ----------
+    handle : str
+        The profile Handle the Agent passed.
+    param : str
+        The argument path, for error records.
+
+    Returns
+    -------
+    tuple of (StructuralProfileResult, dict)
+        The stored profile and its Handle record, which holds the column
+        order, the resolved dials and the declarations.
+
+    Raises
+    ------
+    DataForgeError
+        As :func:`read_record`.
+    """
+    from .._serialization import deserialize
+
+    record = read_record(handle, "profile", param=param)
+    call = _CALL.get()
+    if call is not None and handle not in call.inputs:
+        call.inputs.append(handle)
+    profile = cached(handle)
+    if profile is None:
+        profile = deserialize(payload_path(handle, record).read_bytes())
+        cache(handle, profile)
+    return profile, record

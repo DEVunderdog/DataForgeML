@@ -1,0 +1,398 @@
+{
+  "input": {
+    "additionalProperties": false,
+    "properties": {
+      "profile": {
+        "description": "A profile Handle, such as ``profile_7f3a9c2e``.",
+        "type": "string"
+      },
+      "column": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Only pairs that include this column, which is then always ``column_a``. Null means every pair."
+      },
+      "metric": {
+        "anyOf": [
+          {
+            "enum": [
+              "pearson",
+              "cramers_v",
+              "eta_squared"
+            ],
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Only this metric: ``pearson``, ``cramers_v`` or ``eta_squared``. Null means all three."
+      },
+      "min_strength": {
+        "anyOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Only pairs at least this strong, from 0 to 1. Null means no floor. Constraints: at least 0; at most 1."
+      },
+      "offset": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "How many matching pairs to skip, for the next page. Null means 0. Constraints: at least 0."
+      },
+      "limit": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Most pairs to return, from 1 to 100. Null means 100. Constraints: at least 1; at most 100."
+      }
+    },
+    "required": [
+      "profile",
+      "column",
+      "metric",
+      "min_strength",
+      "offset",
+      "limit"
+    ],
+    "type": "object"
+  },
+  "output": {
+    "additionalProperties": false,
+    "description": "One page of column pairs, strongest first.",
+    "properties": {
+      "warnings": {
+        "additionalProperties": false,
+        "description": "Caveats on this result, most actionable first. Empty when there are none.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `code`, `message`, `columns`, `param`, `hint`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "code",
+                "message",
+                "columns",
+                "param",
+                "hint"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "A caveat on a successful result: it worked, but read this first. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `code`: The warning's Error Code. Branch on this, not on ``message``.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `message`: What happened and what to do, in one or two sentences.",
+                    "type": "string"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 2, `columns`: Columns the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `param`: The argument the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 4, `hint`: Library-written advice, or null."
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "omitted": {
+        "additionalProperties": false,
+        "description": "One entry per list that was cut, naming the Operation that returns the rest. Empty when nothing was cut.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `field`, `shown`, `total`, `operation`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "field",
+                "shown",
+                "total",
+                "operation"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "A capped list was cut. Call ``operation`` to read the rest. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `field`: Name of the list field that was cut.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `shown`: How many items the list holds.",
+                    "type": "integer"
+                  },
+                  {
+                    "description": "Position 2, `total`: How many items exist.",
+                    "type": "integer"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `operation`: The Operation that returns the rest, or null when no Operation does."
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "profile": {
+        "description": "The profile Handle read.",
+        "type": "string"
+      },
+      "total": {
+        "description": "How many pairs match the filters.",
+        "type": "integer"
+      },
+      "offset": {
+        "description": "How many matching pairs this page skipped.",
+        "type": "integer"
+      },
+      "pairs": {
+        "additionalProperties": false,
+        "description": "Matching pairs by strength, strongest first; ties by metric (``pearson``, ``cramers_v``, ``eta_squared``), then dataset order. At most 100; when more remain, ``omitted`` counts them and names ``top_associations``.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `column_a`, `column_b`, `metric`, `value`, `near_redundant`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "column_a",
+                "column_b",
+                "metric",
+                "value",
+                "near_redundant"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "How strongly two columns go together, by one metric. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `column_a`: One column. When you filter by ``column``, always that column.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `column_b`: The other column. For ``eta_squared``, the categorical one when ``column`` is not set.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 2, `metric`: ``pearson`` for two numeric columns, ``cramers_v`` for two categorical columns, ``eta_squared`` for a numeric and a categorical one.",
+                    "enum": [
+                      "pearson",
+                      "cramers_v",
+                      "eta_squared"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 3, `value`: The measure. Pearson runs from -1 to 1; Cramér's V and η² from 0 to 1. Strength is its absolute value.",
+                    "type": "number"
+                  },
+                  {
+                    "description": "Position 4, `near_redundant`: True when the strength is above the metric's dial in ``near_redundant_dials``: one column nearly repeats the other.",
+                    "type": "boolean"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "near_redundant_dials": {
+        "additionalProperties": false,
+        "description": "For each metric, the dial behind ``near_redundant``.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `metric`, `dial`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "metric",
+                "dial"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "The dial that decides ``near_redundant`` for one metric. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `metric`: The metric.",
+                    "enum": [
+                      "pearson",
+                      "cramers_v",
+                      "eta_squared"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "Position 1, `dial`: The ``profile`` dial and the value it had.",
+                    "properties": {
+                      "operation": {
+                        "description": "The Operation that takes the dial.",
+                        "type": "string"
+                      },
+                      "dial": {
+                        "description": "The dial's argument path, such as ``thresholds.missingness.high_null_ratio``.",
+                        "type": "string"
+                      },
+                      "value": {
+                        "anyOf": [
+                          {
+                            "type": "boolean"
+                          },
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The dial's resolved value."
+                      },
+                      "source": {
+                        "description": "``default`` when the library default decided, ``argument`` when the caller set it.",
+                        "enum": [
+                          "default",
+                          "argument"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "operation",
+                      "dial",
+                      "value",
+                      "source"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "warnings",
+      "omitted",
+      "profile",
+      "total",
+      "offset",
+      "pairs",
+      "near_redundant_dials"
+    ],
+    "type": "object"
+  }
+}
