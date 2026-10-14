@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import List, Optional
+from typing import  Optional
 
 
 @dataclass
@@ -326,7 +326,7 @@ class NumericStats:
     kurtosis: Optional[float] = None
     skewness_severity: Optional[SkewSeverity] = None
     kurtosis_tag: Optional[KurtosisTag] = None
-    flags: List[NumericFlag] = field(default_factory=list)
+    flags: list[NumericFlag] = field(default_factory=list)
     nonlinearity_tag: Optional[NonlinearityTag] = None
     spearman_pearson_discrepancy: Optional[float] = None
     mean_mutual_information: Optional[float] = None
@@ -512,9 +512,6 @@ class NonlinearityProfileConfig:
         Maximum number of rows sampled for the R² gap and Breusch-Pagan
         computations.  Larger datasets are down-sampled uniformly at random.
         Default 500.
-    random_state : int
-        Random seed used for row sampling and ``RandomForestRegressor``.
-        Default 42.
     """
 
     spearman_pearson_discrepancy_threshold: float = 0.10
@@ -524,7 +521,6 @@ class NonlinearityProfileConfig:
     r2_rf_unpredictable_threshold: float = 0.05
     min_rows: int = 20
     bootstrap_sample_size: int = 500
-    random_state: int = 42
 
     def to_dict(self) -> dict:
         """
@@ -543,7 +539,6 @@ class NonlinearityProfileConfig:
             "r2_rf_unpredictable_threshold": self.r2_rf_unpredictable_threshold,
             "min_rows": self.min_rows,
             "bootstrap_sample_size": self.bootstrap_sample_size,
-            "random_state": self.random_state,
         }
 
     @classmethod
@@ -578,7 +573,6 @@ class NonlinearityProfileConfig:
             ),
             min_rows=int(data.get("min_rows", 20)),
             bootstrap_sample_size=int(data.get("bootstrap_sample_size", 500)),
-            random_state=int(data.get("random_state", 42)),
         )
 
 

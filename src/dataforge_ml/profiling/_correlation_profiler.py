@@ -36,11 +36,11 @@ from __future__ import annotations
 
 import copy
 import itertools
-import warnings
 from typing import Optional
 
 import polars as pl
 
+from .._seed import DEFAULT_SEED
 from ..models._data_types import _INT_DTYPES, _NUMERIC_DTYPES
 from ._base import DatasetLevelProfiler
 from ._correlation_config import (
@@ -55,6 +55,7 @@ from ._correlation_config import (
     NumericTargetCorrelation,
     TargetType,
 )
+from ._fallbacks import record_fallback
 
 _TOP_N_FEATURE_TARGET: int = 10
 _MI_N_NEIGHBORS: int = 3
@@ -112,6 +113,9 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
     top_n_feature_target : int, optional
         Maximum number of feature-target entries returned by
         ``profile_target``.
+    seed : int, optional
+        Seed for the mutual-information estimates. Defaults to the library's
+        fixed default seed.
     """
 
     def __init__(
@@ -120,8 +124,10 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
         categorical_columns: Optional[list[str]] = None,
         config: Optional[CorrelationProfileConfig] = None,
         top_n_feature_target: int = _TOP_N_FEATURE_TARGET,
+        seed: int = DEFAULT_SEED,
     ) -> None:
         super().__init__()
+        self._seed = seed
         self._numeric_columns = numeric_columns
         self._categorical_columns = categorical_columns or []
         self._config = config if config is not None else CorrelationProfileConfig()
@@ -185,7 +191,9 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
 
         if resolved_numeric and resolved_categorical:
             result.eta_squared_pairs = self._compute_eta_squared_pairs(
-                df, resolved_numeric, resolved_categorical,
+                df,
+                resolved_numeric,
+                resolved_categorical,
                 self._config.near_redundant_eta_squared_threshold,
             )
             result.near_redundant_eta_squared_pairs = [
@@ -359,26 +367,17 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
         cat_cols: list[str],
         threshold: float,
     ) -> list[CramerVPair]:
-        try:
-            from scipy.stats import chi2_contingency
-        except ImportError:
-            warnings.warn(
-                "scipy is required for Cramér's V. Install: pip install scipy",
-                stacklevel=3,
-            )
-            return []
-
         import numpy as np
+        from scipy.stats import chi2_contingency
 
         pairs: list[CramerVPair] = []
         for col_a, col_b in itertools.combinations(cat_cols, 2):
-            pair_df = (
-                df.select([
+            pair_df = df.select(
+                [
                     pl.col(col_a).cast(pl.Utf8, strict=False),
                     pl.col(col_b).cast(pl.Utf8, strict=False),
-                ])
-                .drop_nulls()
-            )
+                ]
+            ).drop_nulls()
             n = pair_df.height
             if n < 5:
                 pairs.append(CramerVPair(col_a=col_a, col_b=col_b))
@@ -417,18 +416,20 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
                     continue
                 v = float(np.sqrt(phi2_corr / denom))
                 v = max(0.0, min(1.0, v))
-            except Exception as exc:
-                warnings.warn(
-                    f"Cramér's V failed for ({col_a}, {col_b}): {exc}", stacklevel=3
-                )
+            except Exception:
+                record_fallback("association_failed", col_a)
+                record_fallback("association_failed", col_b)
                 pairs.append(CramerVPair(col_a=col_a, col_b=col_b))
                 continue
 
-            pairs.append(CramerVPair(
-                col_a=col_a, col_b=col_b,
-                cramer_v=v,
-                near_redundant=v > threshold,
-            ))
+            pairs.append(
+                CramerVPair(
+                    col_a=col_a,
+                    col_b=col_b,
+                    cramer_v=v,
+                    near_redundant=v > threshold,
+                )
+            )
 
         return pairs
 
@@ -443,14 +444,7 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
         cat_cols: list[str],
         threshold: float,
     ) -> list[EtaSquaredPair]:
-        try:
-            from scipy.stats import f_oneway
-        except ImportError:
-            warnings.warn(
-                "scipy is required for eta-squared. Install: pip install scipy",
-                stacklevel=3,
-            )
-            return []
+        from scipy.stats import f_oneway
 
         pairs: list[EtaSquaredPair] = []
         for num_col in numeric_cols:
@@ -470,29 +464,33 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
                 ]
                 non_empty = [g for g in groups if len(g) > 0]
                 if len(non_empty) < 2:
-                    pairs.append(EtaSquaredPair(numeric_col=num_col, categorical_col=cat_col))
+                    pairs.append(
+                        EtaSquaredPair(numeric_col=num_col, categorical_col=cat_col)
+                    )
                     continue
                 try:
                     f_oneway(*non_empty)
                     ss_between = sum(
-                        len(g) * (float(g.mean()) - grand_mean) ** 2
-                        for g in non_empty
+                        len(g) * (float(g.mean()) - grand_mean) ** 2 for g in non_empty
                     )
                     eta_sq = ss_between / ss_total if ss_total > 0 else 0.0
                     eta_sq = max(0.0, min(1.0, eta_sq))
-                except Exception as exc:
-                    warnings.warn(
-                        f"Eta-squared failed for ({num_col}, {cat_col}): {exc}",
-                        stacklevel=3,
+                except Exception:
+                    record_fallback("association_failed", num_col)
+                    record_fallback("association_failed", cat_col)
+                    pairs.append(
+                        EtaSquaredPair(numeric_col=num_col, categorical_col=cat_col)
                     )
-                    pairs.append(EtaSquaredPair(numeric_col=num_col, categorical_col=cat_col))
                     continue
 
-                pairs.append(EtaSquaredPair(
-                    numeric_col=num_col, categorical_col=cat_col,
-                    eta_squared=eta_sq,
-                    near_redundant=eta_sq > threshold,
-                ))
+                pairs.append(
+                    EtaSquaredPair(
+                        numeric_col=num_col,
+                        categorical_col=cat_col,
+                        eta_squared=eta_sq,
+                        near_redundant=eta_sq > threshold,
+                    )
+                )
 
         return pairs
 
@@ -540,15 +538,7 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
         feature_cols: list[str],
         target_col: str,
     ) -> list[CategoricalTargetCorrelation]:
-        try:
-            from scipy.stats import f_oneway  # type: ignore[import]
-        except ImportError:
-            warnings.warn(
-                "scipy is required for ANOVA feature-target analysis. "
-                "Install it with: pip install scipy",
-                stacklevel=3,
-            )
-            return []
+        from scipy.stats import f_oneway  # type: ignore[import]
 
         if not feature_cols:
             return []
@@ -570,6 +560,7 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
             try:
                 f_stat, p_val = f_oneway(*non_empty)
             except Exception:
+                record_fallback("association_failed", feat)
                 entries.append(CategoricalTargetCorrelation(feature=feat))
                 continue
 
@@ -605,18 +596,10 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
         target_col: str,
         target_type: TargetType,
     ) -> list[MutualInformationEntry]:
-        try:
-            from sklearn.feature_selection import (  # type: ignore[import]
-                mutual_info_classif,
-                mutual_info_regression,
-            )
-        except ImportError:
-            warnings.warn(
-                "scikit-learn is required for mutual information analysis. "
-                "Install it with: pip install scikit-learn",
-                stacklevel=3,
-            )
-            return []
+        from sklearn.feature_selection import (  # type: ignore[import]
+            mutual_info_classif,
+            mutual_info_regression,
+        )
 
         if not numeric_feature_cols and not categorical_feature_cols:
             return []
@@ -653,6 +636,7 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
             valid = ~(feat_null | target_null)
             n_valid = int(valid.sum())
             if n_valid < self._config.mi_min_rows:
+                record_fallback("mutual_information_too_few_rows", col)
                 continue
             x = series.to_numpy()[valid].reshape(-1, 1)
             y = y_full[valid]
@@ -663,11 +647,11 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
                         y,
                         discrete_features=[df[col].dtype in _INT_DTYPES],
                         n_neighbors=_MI_N_NEIGHBORS,
-                        random_state=42,
+                        random_state=self._seed,
                     )[0]
                 )
-            except Exception as exc:
-                warnings.warn(f"MI failed for '{col}': {exc}", stacklevel=3)
+            except Exception:
+                record_fallback("association_failed", col)
                 continue
             entries.append(MutualInformationEntry(feature=col, mi_score=score))
 
@@ -683,11 +667,7 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
             valid = ~(feat_null | target_null)
             n_valid = int(valid.sum())
             if n_valid < self._config.mi_min_rows:
-                warnings.warn(
-                    f"Skipping MI for '{col}': only {n_valid} complete rows "
-                    f"(need {self._config.mi_min_rows}).",
-                    stacklevel=3,
-                )
+                record_fallback("mutual_information_too_few_rows", col)
                 continue
             x = feat_encoded.to_numpy()[valid].reshape(-1, 1).astype(float)
             y = y_full[valid]
@@ -698,11 +678,11 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
                         y,
                         discrete_features=[True],
                         n_neighbors=_MI_N_NEIGHBORS,
-                        random_state=42,
+                        random_state=self._seed,
                     )[0]
                 )
-            except Exception as exc:
-                warnings.warn(f"MI failed for '{col}': {exc}", stacklevel=3)
+            except Exception:
+                record_fallback("association_failed", col)
                 continue
             entries.append(MutualInformationEntry(feature=col, mi_score=score))
 

@@ -28,6 +28,7 @@ from typing import Any
 import numpy as np
 import polars as pl
 
+from .._seed import DEFAULT_SEED
 from ..config import Modality, PipelineConfig, PipelinePhase, SemanticType
 from ..observability import Observer, _ObservabilityMixin
 from ..records import DataForgeError
@@ -44,6 +45,7 @@ from ._config import (
 )
 from ._correlation_profiler import CorrelationProfiler
 from ._datetime_profiler import DatetimeProfiler
+from ._fallbacks import record_fallback
 from ._missingness_profiler import MissingnessProfiler
 from ._nonlinearity_profiler import NonlinearityProfiler
 from ._numeric_profiler import NumericProfiler
@@ -82,6 +84,10 @@ class StructuralProfiler(_ObservabilityMixin):
         Live Progress Observer invoked with each :class:`PipelineEvent` this
         orchestrator emits.  ``None`` (the default) disables Progress; Trace
         still flows to the ``dataforge_ml`` logger regardless (ADR-0054).
+    seed : int, optional
+        Seed for every stochastic step: the bimodality mixture fit, the
+        mutual-information estimates and the nonlinearity probes. ``None``
+        means the library's fixed default seed, so two runs agree (ADR-0106).
 
     Raises
     ------
@@ -96,9 +102,11 @@ class StructuralProfiler(_ObservabilityMixin):
         self,
         config: PipelineConfig | None = None,
         observer: Observer | None = None,
+        seed: int | None = None,
     ) -> None:
         self.config: PipelineConfig = config or PipelineConfig()
         self._observer: Observer | None = observer
+        self._seed: int = DEFAULT_SEED if seed is None else seed
 
         if self.config.profiling.modality == Modality.Tabular:
             self.modality_profiler: ModalityProfiler = TabularProfiler()
@@ -287,7 +295,7 @@ class StructuralProfiler(_ObservabilityMixin):
         _profiling_index = 0
         for sem_type, cols in type_to_cols.items():
             if sem_type == SemanticType.Numeric:
-                profiler = NumericProfiler(config=pc.numeric)
+                profiler = NumericProfiler(config=pc.numeric, seed=self._seed)
             elif sem_type == SemanticType.Categorical:
                 profiler = CategoricalProfiler(config=pc.categorical)
             elif sem_type == SemanticType.Datetime:
@@ -323,7 +331,9 @@ class StructuralProfiler(_ObservabilityMixin):
             except DataForgeError:
                 raise
             except Exception:
-                pass
+                # The batch's columns keep no stats; the caller learns which.
+                for col_name in cols:
+                    record_fallback("column_profiling_failed", col_name)
         self._emit_stage_end("column_profiling")
 
         # ── 7. Target columns ────────────────────────────────────────────
@@ -337,6 +347,7 @@ class StructuralProfiler(_ObservabilityMixin):
                 target_result = TargetProfiler(
                     target_column=target,
                     config=self.config.profiling,
+                    seed=self._seed,
                 ).profile(data)
                 result.targets[target] = target_result
 
@@ -366,6 +377,7 @@ class StructuralProfiler(_ObservabilityMixin):
                 numeric_columns=numeric_cols,
                 categorical_columns=categorical_cols,
                 config=self.config.profiling.correlation,
+                seed=self._seed,
             )
 
             # The correlation stage's units of work are the one-time
@@ -446,6 +458,7 @@ class StructuralProfiler(_ObservabilityMixin):
                 nl_result = NonlinearityProfiler(
                     numeric_columns=numeric_cols_nl,
                     config=self.config.profiling.nonlinearity,
+                    seed=self._seed,
                 ).profile(
                     profiling_frame, pearson_matrix=p_mat, spearman_matrix=s_mat
                 )

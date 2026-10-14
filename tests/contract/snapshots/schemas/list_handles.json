@@ -42,7 +42,7 @@
             "type": "null"
           }
         ],
-        "description": "Most Handles to return, from 1 to 20. Null means 20. Constraints: at least 1; at most 20."
+        "description": "Most Handles to return, from 1 to 12. Null means 12. Constraints: at least 1; at most 12."
       }
     },
     "type": "object",
@@ -204,7 +204,7 @@
       },
       "handles": {
         "additionalProperties": false,
-        "description": "Handles, newest first. At most 20; when more remain, ``omitted`` counts them and names ``list_handles``.",
+        "description": "Handles, newest first. At most 12; when more remain, ``omitted`` counts them and names ``list_handles``.",
         "properties": {
           "fields": {
             "description": "Always exactly `handle`, `kind`, `operation`, `arguments`, `inputs`, `size`, in this order. A row's value at position i is the field named here at i.",

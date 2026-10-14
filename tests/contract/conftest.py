@@ -47,6 +47,8 @@ from dataforge_ml._cli import EXIT_CODES, kebab, run
 from dataforge_ml.records import DataForgeError
 
 FIXTURES = Path(__file__).parent / "fixtures"
+#: Ames (House Prices), the real-data fixture for Result Budgets. Declare it to load it.
+AMES = Path(__file__).parent / "data" / "ames.csv"
 #: The installed console script, next to the interpreter running the tests.
 DATAFORGE = Path(sys.executable).parent / "dataforge"
 _HANDLE = re.compile(rf"\b({'|'.join(HANDLE_KINDS)})_[0-9a-f]{{8}}\b")
@@ -257,4 +259,21 @@ def write_wide_csv(path: Path, n_columns: int, name_length: int = 64) -> Path:
     names = [f"c{i:04d}_".ljust(name_length, "x") for i in range(n_columns)]
     rows = [",".join(names)] + [",".join(str(r * i) for i in range(n_columns)) for r in range(3)]
     path.write_text("\n".join(rows) + "\n")
+    return path
+
+
+def write_flagged_wide_csv(path: Path, n_columns: int, name_length: int = 64) -> Path:
+    """Write a 40-row CSV of ``n_columns`` long-named numeric columns that raise flags.
+
+    Every column misses the same 60% of rows, so each is flagged
+    ``missingness.drop_candidate`` and ``missingness.mar_suspect``, and too few
+    complete rows remain to probe nonlinearity, which falls back with a
+    warning naming every column.
+    """
+    names = [f"c{i:04d}_".ljust(name_length, "x") for i in range(n_columns)]
+    lines = [",".join(names)]
+    for r in range(40):
+        missing = r % 5 < 3
+        lines.append(",".join("" if missing else str(r + 0.5 + i / 1000) for i in range(n_columns)))
+    path.write_text("\n".join(lines) + "\n")
     return path

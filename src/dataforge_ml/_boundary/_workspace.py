@@ -171,6 +171,7 @@ def write_handle(
     write_payload: Callable[[Path], None] | None = None,
     obj: Any = None,
     declarations: InheritedDeclarations | None = None,
+    extra: dict[str, Any] | None = None,
 ) -> str:
     """Write a new Handle with the current call's Lineage and return it.
 
@@ -187,7 +188,11 @@ def write_handle(
     obj : object, optional
         The live object, cached in memory for later reads in this process.
     declarations : InheritedDeclarations, optional
-        Inherited Declarations, for a frame Handle.
+        Inherited Declarations: a frame's own, or those a profile records
+        for every frame made from it.
+    extra : dict, optional
+        Kind-specific JSON fields stored on the record, such as the frame a
+        profile Handle carries. They may not replace a standard field.
 
     Returns
     -------
@@ -228,6 +233,12 @@ def write_handle(
     }
     if declarations is not None:
         record["declarations"] = declarations.to_dict()
+    for key, value in (extra or {}).items():
+        if key in record:
+            raise DataForgeError.from_code(
+                "unexpected", f"Handle record field {key!r} is reserved."
+            )
+        record[key] = value
 
     def _write_record(tmp: Path) -> None:
         tmp.write_text(json.dumps(record, ensure_ascii=False, indent=1), "utf-8")

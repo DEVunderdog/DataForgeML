@@ -59,7 +59,7 @@ class ListHandlesResult(OutputRecord):
     offset: int
     """How many of the newest Handles this page skipped."""
     handles: Table[HandleSummary]
-    """Handles, newest first. At most 20; when more remain, ``omitted`` counts them and names ``list_handles``."""
+    """Handles, newest first. At most 12; when more remain, ``omitted`` counts them and names ``list_handles``."""
 
 
 @operation(effect="read", phase="workspace", scales_with_data=False)
@@ -89,7 +89,7 @@ def list_handles(
         How many of the newest Handles to skip, for the next page. Null
         means 0.
     limit : int or None
-        Most Handles to return, from 1 to 20. Null means 20.
+        Most Handles to return, from 1 to 12. Null means 12.
 
     Returns
     -------

@@ -75,6 +75,7 @@ _EXPORTS: dict[str, tuple[str, ...]] = {
     ".operations.export_frame": ("export_frame",),
     ".operations.list_handles": ("list_handles",),
     ".operations.load": ("load",),
+    ".operations.profile": ("profile",),
     # --- Config objects, Phase Sub-Configs, input enums and result records
     ".profiling": (
         "CategoricalProfileConfig",
@@ -166,6 +167,7 @@ __all__ = [
     "inspect",
     "list_handles",
     "load",
+    "profile",
     "resolve_recipe",
     "route",
     "serialize",

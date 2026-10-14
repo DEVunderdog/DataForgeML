@@ -31,7 +31,13 @@ from dataforge_ml._boundary._operation import (
 from dataforge_ml._boundary._schema import strict_subset_problems
 from dataforge_ml.records import MAX_ROW_FIELDS
 
-from .conftest import Harness, assert_within_budget, records, write_wide_csv
+from .conftest import (
+    Harness,
+    assert_within_budget,
+    records,
+    write_flagged_wide_csv,
+    write_wide_csv,
+)
 
 SNAPSHOTS = Path(__file__).parent / "snapshots" / "schemas"
 SOURCE = Path(dataforge_ml.__file__).parent
@@ -65,12 +71,26 @@ def _export(harness: Harness, tmp_path: Path) -> dict[str, Any]:
     return harness.call("export_frame", frame=frame).json
 
 
+def _wide_profile(harness: Harness, tmp_path: Path) -> dict[str, Any]:
+    # 150 long-named columns, each flagged twice, past the digest's 100-row
+    # cap, with a fallback warning whose column list is at its cap.
+    wide = write_flagged_wide_csv(tmp_path / "flagged.csv", 150)
+    harness.declare(wide)
+    frame = harness.code_mode("load", path=str(wide)).json["frame"]
+    return harness.call("profile", frame=frame).json
+
+
 #: Per Operation, a call producing its largest result on the supported fixtures.
 WORST_CASE: dict[str, Callable[[Harness, Path], dict[str, Any]]] = {
     "export_frame": _export,
     "list_handles": _full_page_of_handles,
     "load": _wide_load,
+    "profile": _wide_profile,
 }
+
+#: Operations an ``omitted`` entry may already name before they exist, each
+#: with the ticket that adds it. Remove an entry when its Operation lands.
+PENDING_OPERATIONS: dict[str, str] = {"describe_columns": "#594"}
 
 
 def _schemas(spec: OperationSpec) -> dict[str, Any]:
@@ -229,7 +249,13 @@ def test_every_omitted_operation_is_a_real_command(
     name: str, harness: Harness, tmp_path: Path
 ) -> None:
     named = [o["operation"] for o in records(WORST_CASE[name](harness, tmp_path)["omitted"])]
-    assert [n for n in named if n is not None and n not in OPERATIONS] == []
+    real = set(OPERATIONS) | set(PENDING_OPERATIONS)
+    assert [n for n in named if n is not None and n not in real] == []
+
+
+def test_pending_operations_are_not_yet_registered() -> None:
+    # Once a pending Operation lands, its allowance is stale: delete it.
+    assert set(PENDING_OPERATIONS) & set(OPERATIONS) == set()
 
 
 @pytest.mark.parametrize("name", NAMES)

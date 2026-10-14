@@ -9,8 +9,9 @@ from ._error_codes import entry_for
 from ._operation import canonical_json
 from ._workspace import list_records
 
-#: Most Handles one ``list_handles`` page holds, and the default page size.
-PAGE_CAP = 20
+#: Most Handles one ``list_handles`` page holds, and the default page size. Sized so a
+#: full page of the widest Operation's Lineage fits the Result Budget (ADR-0112).
+PAGE_CAP = 12
 #: Most Lineage inputs listed per Handle; the rest are counted in ``omitted``.
 INPUTS_CAP = 10
 #: Longest argument value, as JSON text, before it is cut.

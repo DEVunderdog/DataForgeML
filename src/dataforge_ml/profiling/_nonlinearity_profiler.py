@@ -32,13 +32,13 @@ All four signals are always computed for every eligible column — none are stag
 
 from __future__ import annotations
 
-import warnings
-
 import numpy as np
 import polars as pl
 
+from .._seed import DEFAULT_SEED
 from ..models._data_types import _NUMERIC_DTYPES
 from ._base import DatasetLevelProfiler
+from ._fallbacks import record_fallback
 from ._numeric_config import (
     NonlinearityProfileConfig,
     NonlinearityProfileResult,
@@ -72,16 +72,21 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
         non-numeric dtype are silently skipped.
     config : NonlinearityProfileConfig, optional
         Threshold configuration.  Defaults to ``NonlinearityProfileConfig()``.
+    seed : int, optional
+        Seed for the row sample, the mutual-information estimate and the
+        random forest. Defaults to the library's fixed default seed.
     """
 
     def __init__(
         self,
         numeric_columns: list[str],
         config: NonlinearityProfileConfig | None = None,
+        seed: int = DEFAULT_SEED,
     ) -> None:
         super().__init__()
         self._columns = numeric_columns
         self._config = config if config is not None else NonlinearityProfileConfig()
+        self._seed = seed
 
     # ------------------------------------------------------------------
     # Public API
@@ -132,7 +137,7 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
                 data, resolved
             )
 
-        rng = np.random.default_rng(self._config.random_state)
+        rng = np.random.default_rng(self._seed)
 
         for col in resolved:
             predictors = [c for c in resolved if c != col]
@@ -140,12 +145,12 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
                 continue
 
             relevant = [col] + predictors
-            sub_df = (
-                data.select([pl.col(c).cast(pl.Float64) for c in relevant])
-                .drop_nulls()
-            )
+            sub_df = data.select(
+                [pl.col(c).cast(pl.Float64) for c in relevant]
+            ).drop_nulls()
             n_complete = sub_df.height
             if n_complete < self._config.min_rows:
+                record_fallback("nonlinearity_too_few_rows", col)
                 continue
 
             y = sub_df[col].to_numpy()
@@ -155,18 +160,19 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
                 col, predictors, pearson_matrix, spearman_matrix
             )
             raw_mi, max_mi, excess_mi = self._mutual_information_signals(
-                X, y, predictors, col, pearson_matrix
+                X, y, predictors, col, pearson_matrix, self._seed
             )
 
             sample_size = min(self._config.bootstrap_sample_size, n_complete)
             idx = rng.choice(n_complete, size=sample_size, replace=False)
             X_s, y_s = X[idx], y[idx]
 
-            r2_linear, r2_rf = self._r2_scores(X_s, y_s)
+            r2_linear, r2_rf = self._r2_scores(X_s, y_s, self._seed)
             # A probe that throws is a refusal, never a 0.0 reading (ADR-0092):
             # the column is left unanalysed, exactly as a thin one is, and the
             # Signal Score degrades to (max|r|)² for it.
             if r2_linear is None or r2_rf is None:
+                record_fallback("nonlinearity_probe_failed", col)
                 continue
             gap = r2_rf - r2_linear
 
@@ -225,6 +231,7 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
         predictors: list[str],
         col: str,
         pearson_matrix: dict[str, dict[str, float]],
+        seed: int,
     ) -> tuple[float | None, float | None, float | None]:
         """
         Compute raw mean MI, raw max MI, and excess mean MI for all predictors.
@@ -245,25 +252,17 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
             MI fit cannot run or throws — a refusal, never a ``0.0`` reading
             (ADR-0092).
         """
-        try:
-            from sklearn.feature_selection import mutual_info_regression
-        except ImportError:
-            warnings.warn(
-                "scikit-learn is required for mutual information in "
-                "NonlinearityProfiler.  Install: pip install scikit-learn",
-                stacklevel=4,
-            )
-            return None, None, None 
+        from sklearn.feature_selection import mutual_info_regression
 
         if X.shape[0] < _MI_N_NEIGHBORS + 1:
             return None, None, None
 
         try:
             scores = mutual_info_regression(
-                X, y, n_neighbors=_MI_N_NEIGHBORS, random_state=42
+                X, y, n_neighbors=_MI_N_NEIGHBORS, random_state=seed
             )
-        except Exception as exc:
-            warnings.warn(f"MI computation failed: {exc}", stacklevel=4)
+        except Exception:
+            record_fallback("nonlinearity_probe_failed", col)
             return None, None, None
 
         raw_mean = float(np.mean(scores))
@@ -274,7 +273,7 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
             mi = float(scores[i])
             r = pearson_matrix.get(col, {}).get(pred, 0.0)
             r_clamp = min(abs(r), 0.9999)
-            linear_mi = -0.5 * float(np.log(1.0 - r_clamp ** 2))
+            linear_mi = -0.5 * float(np.log(1.0 - r_clamp**2))
             excess_vals.append(max(0.0, mi - linear_mi))
 
         excess_mean = float(np.mean(excess_vals)) if excess_vals else 0.0
@@ -282,7 +281,7 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
 
     @staticmethod
     def _r2_scores(
-        X: np.ndarray, y: np.ndarray
+        X: np.ndarray, y: np.ndarray, seed: int
     ) -> tuple[float | None, float | None]:
         """
         Return ``(r2_linear, r2_rf)`` using 3-fold cross-validated R².
@@ -294,17 +293,9 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
             Each is ``None`` when its fit cannot run or throws — a refusal,
             never a ``0.0`` reading (ADR-0092).
         """
-        try:
-            from sklearn.ensemble import RandomForestRegressor
-            from sklearn.linear_model import LinearRegression
-            from sklearn.model_selection import cross_val_score
-        except ImportError:
-            warnings.warn(
-                "scikit-learn is required for R² gap in NonlinearityProfiler.  "
-                "Install: pip install scikit-learn",
-                stacklevel=4,
-            )
-            return None, None
+        from sklearn.ensemble import RandomForestRegressor
+        from sklearn.linear_model import LinearRegression
+        from sklearn.model_selection import cross_val_score
 
         n = len(y)
         cv = min(_CV_FOLDS, n)
@@ -313,11 +304,7 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
 
         try:
             r2_linear = float(
-                np.mean(
-                    cross_val_score(
-                        LinearRegression(), X, y, cv=cv, scoring="r2"
-                    )
-                )
+                np.mean(cross_val_score(LinearRegression(), X, y, cv=cv, scoring="r2"))
             )
         except Exception:
             r2_linear = None
@@ -329,7 +316,7 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
                         RandomForestRegressor(
                             n_estimators=_RF_N_ESTIMATORS,
                             max_depth=_RF_MAX_DEPTH,
-                            random_state=42,
+                            random_state=seed,
                         ),
                         X,
                         y,
@@ -368,11 +355,11 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
         except np.linalg.LinAlgError:
             return 1.0
 
-        sigma2 = float(np.mean(residuals ** 2))
+        sigma2 = float(np.mean(residuals**2))
         if sigma2 == 0.0:
             return 1.0
 
-        scaled_sq = residuals ** 2 / sigma2
+        scaled_sq = residuals**2 / sigma2
 
         try:
             betas_aux, _, _, _ = np.linalg.lstsq(X_aug, scaled_sq, rcond=None)
@@ -412,18 +399,13 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
         #     or bp_pvalue < cfg.heteroscedasticity_p_value_threshold
         # )
 
-        curvature_signal = (
-            discrepancy >= cfg.spearman_pearson_discrepancy_threshold
-        )
+        curvature_signal = discrepancy >= cfg.spearman_pearson_discrepancy_threshold
         # case when linear regression can approximates curvature in the graphs
         # but still the truth is graph is non-linear hence gap is consider smaller
         if curvature_signal and r2_gap < cfg.r2_gap_threshold:
             return NonlinearityTag.MonotonicNonlinear
 
-        if (
-            r2_gap >= cfg.r2_gap_threshold
-            or mi >= cfg.mutual_information_threshold
-        ):
+        if r2_gap >= cfg.r2_gap_threshold or mi >= cfg.mutual_information_threshold:
             return NonlinearityTag.ComplexNonlinear
 
         return NonlinearityTag.Linear

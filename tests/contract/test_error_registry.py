@@ -13,8 +13,9 @@ A raise is accepted when it is:
   ``DataForgeError`` (a builder such as ``_incompatible``), whose own
   ``from_code`` calls are checked by the same scan.
 
-A warning site is a ``ResultWarning(code="<code>")``; its code must be
-registered as a ``warning``.
+A warning site is a ``ResultWarning(code="<code>")`` or a profiling
+``record_fallback("<code>", ...)``; its code must be registered as a
+``warning``.
 """
 
 from __future__ import annotations
@@ -39,6 +40,7 @@ EXEMPT: dict[tuple[str, str], str] = {
     ("records.py", "__getattr__"): "Python's attribute protocol needs AttributeError",
     ("records.py", "__get_pydantic_core_schema__"): "a Table declared outside Table Layout",
     ("records.py", "from_wire"): "Pydantic's validator protocol needs ValueError",
+    ("operations/profile.py", "_exactly_one"): "Pydantic's validator protocol needs ValueError",
     ("_boundary/_error_codes.py", "entry_for"): "an unregistered code",
     ("_boundary/_operation.py", "_build_spec"): "an Operation defined outside the Strict Subset",
     ("_boundary/_operation.py", "decorate"): "an Operation registered twice",
@@ -52,8 +54,6 @@ EXEMPT: dict[tuple[str, str], str] = {
 #: (#593 profile, #600 fit_unit, #601 impute, #606 old surface). The count may
 #: only go down; a new ``warnings.warn`` anywhere fails.
 LEGACY_WARN_SITES: dict[str, int] = {
-    "profiling/_correlation_profiler.py": 9,
-    "profiling/_nonlinearity_profiler.py": 3,
     "imputation/_unit_fit.py": 1,
     "imputation/_fitted_imputer.py": 1,
     "_serialization.py": 1,
@@ -140,6 +140,13 @@ def test_every_coded_site_is_registered() -> None:
                     problems.append(f"{name}:{node.lineno} {code.value!r} is not registered")
                 elif REGISTRY[code.value].category == "warning":
                     problems.append(f"{name}:{node.lineno} {code.value!r} is a warning")
+            elif isinstance(node.func, ast.Name) and node.func.id == "record_fallback":
+                seen += 1
+                code = node.args[0] if node.args else None
+                if not (isinstance(code, ast.Constant) and isinstance(code.value, str)):
+                    problems.append(f"{name}:{node.lineno} fallback code is not a string literal")
+                elif REGISTRY.get(code.value) is None or REGISTRY[code.value].category != "warning":
+                    problems.append(f"{name}:{node.lineno} {code.value!r} is not a registered warning")
             elif isinstance(node.func, ast.Name) and node.func.id == "ResultWarning":
                 seen += 1
                 code = next((k.value for k in node.keywords if k.arg == "code"), None)

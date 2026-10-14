@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import polars as pl
 
+from .._seed import DEFAULT_SEED
 from ._base import ColumnBatchProfiler
 from ._correlation_profiler import _INT_DTYPES
 from ._numeric_config import (
@@ -59,10 +60,21 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
 
     Profiles every column passed to profile(df, columns) — no internal
     eligibility gate.
+
+    Parameters
+    ----------
+    config : NumericProfileConfig, optional
+        Threshold configuration. Defaults to ``NumericProfileConfig()``.
+    seed : int, optional
+        Seed for the bimodality mixture fit. Defaults to the library's fixed
+        default seed.
     """
 
-    def __init__(self, config: NumericProfileConfig | None = None) -> None:
+    def __init__(
+        self, config: NumericProfileConfig | None = None, seed: int = DEFAULT_SEED
+    ) -> None:
         self._config = config if config is not None else NumericProfileConfig()
+        self._seed = seed
 
     # ------------------------------------------------------------------
     # Public API
@@ -208,7 +220,7 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
 
             self._compute_outlier_density(clean, profile, self._config)
 
-            self._compute_bimodality(clean, profile, self._config)
+            self._compute_bimodality(clean, profile, self._config, self._seed)
 
             result.columns[col] = profile
 
@@ -445,6 +457,7 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
         clean: pl.Series,
         profile: NumericStats,
         config: NumericProfileConfig,
+        seed: int = DEFAULT_SEED,
     ) -> None:
         if profile.has_flag(NumericFlag.NearConstant):
             return
@@ -463,7 +476,7 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
 
         if dip_p_value < config.bimodal_dip_p_value_threshold:
             # Fit 2-component GMM
-            gmm = GaussianMixture(n_components=2, random_state=42)
+            gmm = GaussianMixture(n_components=2, random_state=seed)
             gmm.fit(arr.reshape(-1, 1))
             
             centers = gmm.means_.flatten()

@@ -127,7 +127,16 @@ _ENTRIES: tuple[ErrorCodeEntry, ...] = (
             "Set the dial named in `param` to a value inside its documented "
             "range and call again."
         ),
-        fields=("param", "params", "allowed"),
+        fields=("param", "params", "allowed", "issues"),
+    ),
+    ErrorCodeEntry(
+        code="duplicate_key",
+        category="InvalidInput",
+        hint=(
+            "A keyed list names the same key twice. Keep one entry per column "
+            "in each list named in `params`."
+        ),
+        fields=("param", "params", "columns", "issues"),
     ),
     ErrorCodeEntry(
         code="retired_dial",
@@ -242,7 +251,7 @@ _ENTRIES: tuple[ErrorCodeEntry, ...] = (
             "Use a column name exactly as it appears in the data. "
             "`candidates` lists close matches, best first."
         ),
-        fields=("param", "columns", "candidates"),
+        fields=("param", "params", "columns", "candidates", "issues"),
     ),
     ErrorCodeEntry(
         code="unknown_enum_value",
@@ -275,7 +284,7 @@ _ENTRIES: tuple[ErrorCodeEntry, ...] = (
             "Two declarations on the columns in `columns` contradict each "
             "other. Remove or change one of them."
         ),
-        fields=("columns", "params"),
+        fields=("param", "columns", "params", "issues"),
     ),
     ErrorCodeEntry(
         code="unit_routing_mismatch",
@@ -347,6 +356,49 @@ _ENTRIES: tuple[ErrorCodeEntry, ...] = (
             "lower the floor dial if you accept a weaker test."
         ),
         fields=("param",),
+    ),
+    ErrorCodeEntry(
+        code="column_profiling_failed",
+        category="warning",
+        hint=(
+            "The columns in `columns` kept no statistics, so they show no "
+            "skew, outlier density or flags. Check their declared types, or "
+            "skip them with `skip_columns`."
+        ),
+    ),
+    ErrorCodeEntry(
+        code="nonlinearity_too_few_rows",
+        category="warning",
+        hint=(
+            "Too few complete rows to probe these columns' nonlinearity, so "
+            "routing reads only their correlations. Lower the dial in `param` "
+            "to probe them on fewer rows."
+        ),
+    ),
+    ErrorCodeEntry(
+        code="nonlinearity_probe_failed",
+        category="warning",
+        hint=(
+            "A nonlinearity probe failed on these columns and was left unset, "
+            "never read as zero. Routing reads only their correlations."
+        ),
+    ),
+    ErrorCodeEntry(
+        code="mutual_information_too_few_rows",
+        category="warning",
+        hint=(
+            "Too few rows with both the feature and the target present to "
+            "estimate their mutual information. Lower the dial in `param` to "
+            "estimate it on fewer rows."
+        ),
+    ),
+    ErrorCodeEntry(
+        code="association_failed",
+        category="warning",
+        hint=(
+            "An association measure failed for pairs involving these columns "
+            "and was left unset, never read as zero."
+        ),
     ),
     ErrorCodeEntry(
         code="unexpected",

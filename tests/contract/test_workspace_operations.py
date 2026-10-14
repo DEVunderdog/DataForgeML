@@ -97,7 +97,7 @@ def test_list_handles_without_kind_lists_every_kind_and_filters_by_kind(
     [
         ({"kind": "frames"}, "kind"),
         ({"offset": -1}, "offset"),
-        ({"limit": 21}, "limit"),
+        ({"limit": PAGE_CAP + 1}, "limit"),
     ],
 )
 def test_list_handles_rejects_bad_paging_and_kinds(

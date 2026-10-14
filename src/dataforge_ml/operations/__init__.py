@@ -5,4 +5,4 @@ Wire Records only it returns, and one call into internal code. Agents import
 Operations from ``dataforge_ml``.
 """
 
-from . import export_frame, list_handles, load  # noqa: F401
+from . import export_frame, list_handles, load, profile  # noqa: F401
