@@ -388,7 +388,7 @@ def test_reauthoring_dissolves_mice_block_clears_estimator():
 
 
 def test_base_edited_routing_round_trips_through_resolve_recipe():
-    from dataforge_ml import route
+    from dataforge_ml.imputation import route
 
     df = _frame()
     profile = _profile(df)
@@ -518,7 +518,7 @@ def test_with_model_choice_raises_when_routing_has_no_mice_block():
 def test_with_model_choice_works_identically_on_routed_and_authored_routings():
     from sklearn.linear_model import Ridge
 
-    from dataforge_ml import route
+    from dataforge_ml.imputation import route
     from dataforge_ml.imputation._config import ModelChoice
 
     df = _frame()

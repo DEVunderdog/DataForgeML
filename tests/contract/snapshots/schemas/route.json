@@ -1,0 +1,687 @@
+{
+  "input": {
+    "additionalProperties": false,
+    "properties": {
+      "profile": {
+        "description": "A profile Handle, such as ``profile_7f3a9c2e``.",
+        "type": "string"
+      },
+      "strategies": {
+        "anyOf": [
+          {
+            "items": {
+              "additionalProperties": false,
+              "description": "One column's strategy, set by you instead of routed.",
+              "properties": {
+                "column": {
+                  "description": "Column name, exactly as in the data.",
+                  "type": "string"
+                },
+                "strategy": {
+                  "description": "The strategy. A column that is not numeric, or that profiling skipped, takes only ``passthrough`` or ``dropped``. ``indicator`` is never declared: ``mnar`` adds the ``<column>_missing`` indicator itself.",
+                  "enum": [
+                    "mean",
+                    "median",
+                    "mode",
+                    "knn",
+                    "mice",
+                    "mnar",
+                    "constant",
+                    "dropped",
+                    "passthrough",
+                    "cluster_conditional",
+                    "gmm_sampling"
+                  ],
+                  "type": "string"
+                },
+                "constant_fill": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The fill value of a ``constant`` column, which needs one. Null for every other strategy."
+                },
+                "grouping_variable": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "For ``cluster_conditional`` only: the column whose groups the fill is taken within. Null takes it per mixture component instead."
+                }
+              },
+              "required": [
+                "column",
+                "strategy",
+                "constant_fill",
+                "grouping_variable"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Strategies you set, one entry per column. Null means none."
+      },
+      "default_strategy": {
+        "anyOf": [
+          {
+            "enum": [
+              "mean",
+              "median",
+              "mode",
+              "knn",
+              "mice",
+              "mnar",
+              "dropped",
+              "passthrough",
+              "cluster_conditional",
+              "gmm_sampling"
+            ],
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The strategy every unlisted numeric column takes. Unlisted columns that are not numeric stay ``passthrough``. Null routes every unlisted column from its profile."
+      },
+      "model_choice": {
+        "anyOf": [
+          {
+            "enum": [
+              "bayesian_ridge",
+              "random_forest_regressor",
+              "gradient_boosting_regressor"
+            ],
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The estimator the MICE block trains with. Null lets the Estimator Ladder pick it from the block's nonlinearity. Setting it with no ``mice`` column fails."
+      },
+      "exclude_columns": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Columns to leave out of this and every later phase, added to what the profile already excludes. Null means none."
+      },
+      "skip_columns": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Columns routing leaves as they are: ``passthrough`` with reason ``soft_excluded``, and never a predictor. Null means none."
+      },
+      "thresholds": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "description": "Every routing dial, grouped. Null keeps every default.",
+            "properties": {
+              "numeric": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "Dials routing reads for numeric columns. Null keeps every default in this group.",
+                    "properties": {
+                      "knn_max_rows": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "KNN's Resource Ceiling: most rows a frame may have for a column to take ``knn``. Null means 50000. Constraints: at least 1."
+                      },
+                      "mice_min_rows_per_predictor": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The Feasibility Floor: fewest non-missing rows per predictor a column needs to take ``mice``. Null means 2. Constraints: at least 0."
+                      },
+                      "mice_max_nearest_features": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Most predictors the Feasibility Floor counts for ``mice``. Null means 20. Constraints: at least 1."
+                      },
+                      "mice_correlation_threshold": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Least absolute correlation for a column to count as a predictor in the Signal Score's breadth. Null means 0.1. Constraints: at least 0; at most 1."
+                      },
+                      "signal_score_breadth_weight": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "How much the count of predictors may add to the Signal Score. Null means 0.1. Constraints: at least 0; at most 1."
+                      },
+                      "signal_score_latent_weight": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "How far mutual information alone can raise the Signal Score. Null means 0.3. Constraints: at least 0; at most 1."
+                      },
+                      "signal_score_middle_tier_min": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Signal Score at or above which a column may take a model (``knn`` first). Must not exceed ``signal_score_top_tier_min``. Null means 0.3. Constraints: at least 0; at most 1."
+                      },
+                      "signal_score_top_tier_min": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Signal Score at or above which a column takes the richest feasible model (``mice`` first). Null means 0.6. Constraints: at least 0; at most 1."
+                      },
+                      "bimodal_min_correlated_features": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Fewest correlated columns a bimodal column needs to try a model instead of ``cluster_conditional``. Null means 3. Constraints: at least 1."
+                      },
+                      "bimodal_correlation_threshold": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Least absolute correlation for a column to count toward ``bimodal_min_correlated_features``. Null means 0.2. Constraints: at least 0; at most 1."
+                      }
+                    },
+                    "type": "object",
+                    "required": [
+                      "knn_max_rows",
+                      "mice_min_rows_per_predictor",
+                      "mice_max_nearest_features",
+                      "mice_correlation_threshold",
+                      "signal_score_breadth_weight",
+                      "signal_score_latent_weight",
+                      "signal_score_middle_tier_min",
+                      "signal_score_top_tier_min",
+                      "bimodal_min_correlated_features",
+                      "bimodal_correlation_threshold"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The Feasibility Floor, the Signal Score and the bimodal rules."
+              }
+            },
+            "type": "object",
+            "required": [
+              "numeric"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Dials, grouped by what they judge, each with its default and range. Null keeps every default."
+      }
+    },
+    "required": [
+      "profile",
+      "strategies",
+      "default_strategy",
+      "model_choice",
+      "exclude_columns",
+      "skip_columns",
+      "thresholds"
+    ],
+    "type": "object"
+  },
+  "output": {
+    "additionalProperties": false,
+    "description": "The routing Handle and each column's strategy. ``result.get(name)`` finds one column.",
+    "properties": {
+      "warnings": {
+        "additionalProperties": false,
+        "description": "Caveats on this result, most actionable first. Empty when there are none.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `code`, `message`, `columns`, `param`, `hint`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "code",
+                "message",
+                "columns",
+                "param",
+                "hint"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "A caveat on a successful result: it worked, but read this first. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `code`: The warning's Error Code. Branch on this, not on ``message``.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `message`: What happened and what to do, in one or two sentences.",
+                    "type": "string"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 2, `columns`: Columns the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `param`: The argument the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 4, `hint`: Library-written advice, or null."
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "omitted": {
+        "additionalProperties": false,
+        "description": "One entry per list that was cut, naming the Operation that returns the rest. Empty when nothing was cut.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `field`, `shown`, `total`, `operation`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "field",
+                "shown",
+                "total",
+                "operation"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "A capped list was cut. Call ``operation`` to read the rest. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `field`: Name of the list field that was cut.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `shown`: How many items the list holds.",
+                    "type": "integer"
+                  },
+                  {
+                    "description": "Position 2, `total`: How many items exist.",
+                    "type": "integer"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `operation`: The Operation that returns the rest, or null when no Operation does."
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "routing": {
+        "description": "Routing Handle, such as ``routing_7f3a9c2e``. It stores every column's Routing Evidence.",
+        "type": "string"
+      },
+      "profile": {
+        "description": "The profile Handle that was routed.",
+        "type": "string"
+      },
+      "mice_estimator": {
+        "anyOf": [
+          {
+            "enum": [
+              "bayesian_ridge",
+              "random_forest_regressor",
+              "gradient_boosting_regressor"
+            ],
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The estimator the MICE block trains with; null when no column takes ``mice``."
+      },
+      "estimator_reason": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "description": "Why the MICE block trains with its estimator.",
+            "properties": {
+              "source": {
+                "description": "``argument`` when ``model_choice`` set it, ``ladder`` when the most complex nonlinearity among the block's columns did.",
+                "enum": [
+                  "ladder",
+                  "argument"
+                ],
+                "type": "string"
+              },
+              "tag": {
+                "description": "The block's most complex nonlinearity tag. The ladder takes ``random_forest_regressor`` for a nonlinear tag, else ``bayesian_ridge``.",
+                "enum": [
+                  "linear",
+                  "monotonic_nonlinear",
+                  "complex_nonlinear",
+                  "unpredictable"
+                ],
+                "type": "string"
+              },
+              "column": {
+                "description": "The first MICE column carrying ``tag``.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "tag",
+              "column"
+            ],
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Why ``mice_estimator`` was chosen; null when it is null."
+      },
+      "census": {
+        "additionalProperties": false,
+        "description": "Columns per strategy, over every column, most first.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `strategy`, `count`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "strategy",
+                "count"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "How many columns take one strategy. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `strategy`: The strategy.",
+                    "enum": [
+                      "mean",
+                      "median",
+                      "mode",
+                      "knn",
+                      "mice",
+                      "mnar",
+                      "constant",
+                      "dropped",
+                      "passthrough",
+                      "cluster_conditional",
+                      "gmm_sampling",
+                      "indicator"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `count`: Number of ``columns`` rows, indicators included, that take it.",
+                    "type": "integer"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "columns": {
+        "additionalProperties": false,
+        "description": "Every column but the excluded ones: those that fill or drop values first, then ``passthrough``, each group in dataset order. At most 100; past 100, ``omitted`` counts the rest and names ``explain_routing``.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `column`, `semantic_type`, `strategy`, `reason`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "column",
+                "semantic_type",
+                "strategy",
+                "reason"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "One column's strategy and the rule that fixed it. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `column`: Column name. A ``<column>_missing`` row is the indicator an ``mnar`` column adds.",
+                    "type": "string"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "enum": [
+                          "numeric",
+                          "categorical",
+                          "datetime",
+                          "boolean",
+                          "text",
+                          "identifier"
+                        ],
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 1, `semantic_type`: The profile's semantic type; null when profiling skipped the column. An indicator row is ``boolean``."
+                  },
+                  {
+                    "description": "Position 2, `strategy`: The strategy the column takes.",
+                    "enum": [
+                      "mean",
+                      "median",
+                      "mode",
+                      "knn",
+                      "mice",
+                      "mnar",
+                      "constant",
+                      "dropped",
+                      "passthrough",
+                      "cluster_conditional",
+                      "gmm_sampling",
+                      "indicator"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 3, `reason`: The Routing Reason: the one rule that fixed ``strategy``. ``authored`` when you declared it. ``explain_routing`` gives the evidence behind it.",
+                    "enum": [
+                      "drop_candidate",
+                      "constant_declared",
+                      "strategy_forced",
+                      "mnar_declared",
+                      "no_missing_values",
+                      "soft_excluded",
+                      "not_imputed_type",
+                      "authored",
+                      "mcar_minor_unskewed",
+                      "mcar_skewed",
+                      "mar_unescalated",
+                      "bounded_discrete_scalar",
+                      "bimodal_grouping_declared",
+                      "bimodal_few_correlated",
+                      "bimodal_uncorrelated",
+                      "signal_tier_pick",
+                      "bottom_tier_fill",
+                      "no_feasible_model",
+                      "no_predictor_correlation"
+                    ],
+                    "type": "string"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "warnings",
+      "omitted",
+      "routing",
+      "profile",
+      "mice_estimator",
+      "estimator_reason",
+      "census",
+      "columns"
+    ],
+    "type": "object"
+  }
+}

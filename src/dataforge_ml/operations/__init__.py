@@ -13,6 +13,7 @@ from . import (  # noqa: F401
     load,
     missingness,
     profile,
+    route,
     top_associations,
     value_summary,
 )

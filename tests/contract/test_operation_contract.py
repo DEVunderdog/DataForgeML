@@ -131,6 +131,20 @@ def _long_labels_value_summary(harness: Harness, tmp_path: Path) -> dict[str, An
     return harness.call("value_summary", profile=profile, column="tag").json
 
 
+def _wide_route(harness: Harness, tmp_path: Path) -> dict[str, Any]:
+    # 150 long-named columns, past the 100-row cap, with 25 forced past the
+    # Feasibility Floor so the warning's column list is at its cap.
+    forced = [
+        {"column": f"c{i:04d}_".ljust(64, "x"), "strategy": "knn"} for i in range(25)
+    ]
+    return harness.call(
+        "route",
+        profile=_wide_profile_handle(harness, tmp_path),
+        strategies=forced,
+        thresholds={"numeric": {"knn_max_rows": 1}},
+    ).json
+
+
 #: Per Operation, a call producing its largest result on the supported fixtures.
 WORST_CASE: dict[str, Callable[[Harness, Path], dict[str, Any]]] = {
     "describe_columns": _wide_describe_columns,
@@ -140,13 +154,14 @@ WORST_CASE: dict[str, Callable[[Harness, Path], dict[str, Any]]] = {
     "load": _wide_load,
     "missingness": _wide_missingness,
     "profile": _wide_profile,
+    "route": _wide_route,
     "top_associations": _wide_top_associations,
     "value_summary": _long_labels_value_summary,
 }
 
 #: Operations an ``omitted`` entry may already name before they exist, each
 #: with the ticket that adds it. Remove an entry when its Operation lands.
-PENDING_OPERATIONS: dict[str, str] = {"query_frame": "#603"}
+PENDING_OPERATIONS: dict[str, str] = {"explain_routing": "#598", "query_frame": "#603"}
 
 
 def _schemas(spec: OperationSpec) -> dict[str, Any]:

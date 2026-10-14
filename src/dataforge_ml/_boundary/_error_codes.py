@@ -175,13 +175,13 @@ _ENTRIES: tuple[ErrorCodeEntry, ...] = (
             "The strategy is output-only or not valid for these columns. "
             "Declare one of `allowed`, or use the declaration the message names."
         ),
-        fields=("columns", "allowed"),
+        fields=("param", "params", "columns", "allowed", "issues"),
     ),
     ErrorCodeEntry(
         code="constant_fill_missing",
         category="InvalidInput",
         hint="Give every `Constant` column in `columns` a fill value, then declare the strategy.",
-        fields=("columns",),
+        fields=("param", "params", "columns", "issues"),
     ),
     ErrorCodeEntry(
         code="mice_block_too_small",
@@ -330,6 +330,7 @@ _ENTRIES: tuple[ErrorCodeEntry, ...] = (
             "An estimator applies only to a MICE block, and this routing has "
             "none. Route at least two columns to MICE first."
         ),
+        fields=("param",),
     ),
     ErrorCodeEntry(
         code="custom_estimator_missing",
@@ -398,6 +399,25 @@ _ENTRIES: tuple[ErrorCodeEntry, ...] = (
         hint=(
             "An association measure failed for pairs involving these columns "
             "and was left unset, never read as zero."
+        ),
+    ),
+    ErrorCodeEntry(
+        code="forced_past_feasibility",
+        category="warning",
+        hint=(
+            "You declared these columns a strategy the Feasibility Floor or the "
+            "strategy's own conditions advise against. They train anyway. Read "
+            "the failed terms with `explain_routing`, then keep the declaration, "
+            "turn the dial each term names, or declare another strategy."
+        ),
+    ),
+    ErrorCodeEntry(
+        code="non_numeric_missing_kept",
+        category="warning",
+        hint=(
+            "Routing imputes only numeric columns, so these keep their missing "
+            "values and evaluation reports them `Unfilled`. Declare them "
+            "`dropped` in `strategies`, exclude them, or accept the nulls."
         ),
     ),
     ErrorCodeEntry(

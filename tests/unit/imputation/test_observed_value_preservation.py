@@ -30,8 +30,8 @@ from dataforge_ml import (
     derive_units,
     fit_unit,
     resolve_recipe,
-    route,
 )
+from dataforge_ml.imputation import route
 
 STRATEGY_CASES = [
     pytest.param("median", id="scalar-control"),

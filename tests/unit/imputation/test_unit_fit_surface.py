@@ -22,8 +22,8 @@ from dataforge_ml import (
     derive_units,
     fit_unit,
     resolve_recipe,
-    route,
 )
+from dataforge_ml.imputation import route
 from dataforge_ml.imputation import (
     FitSignals,
     ImputationFitWarning,  # noqa: F401 — re-exported, importability check

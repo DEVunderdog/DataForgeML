@@ -66,7 +66,6 @@ _EXPORTS: dict[str, tuple[str, ...]] = {
         "derive_units",
         "fit_unit",
         "resolve_recipe",
-        "route",
     ),
     # --- Observability: Pipeline Event stream + observers
     ".observability": ("EventType", "PipelineEvent", "stderr_observer"),
@@ -79,6 +78,7 @@ _EXPORTS: dict[str, tuple[str, ...]] = {
     ".operations.load": ("load",),
     ".operations.missingness": ("missingness",),
     ".operations.profile": ("profile",),
+    ".operations.route": ("route",),
     ".operations.top_associations": ("top_associations",),
     ".operations.value_summary": ("value_summary",),
     # --- Config objects, Phase Sub-Configs, input enums and result records
