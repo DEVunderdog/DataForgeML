@@ -631,7 +631,7 @@ What an Operation hands back is an output **Wire Record**, and nothing else. The
 - **Result Warning** — A caveat the library attaches to a successful result: something worked, but the Agent should know a fact about how. It has a code from the Error Code registry, a short message, and optionally the columns, argument and hint it concerns. It carries names, never cell values. It is data on the result and nothing else; the library raises no Python warnings. A C2ST outcome is never a Result Warning, because it is the measurement itself. See ADR-0102.
   _Avoid_: warning event, fit warning, notice, caveat
 
-- **Omission** — The record that a capped list in a result or an error was cut: which field, how many items are shown, how many exist, and which Operation returns the rest. It appears only when something was cut. Every result is bounded by fixed item caps, never by cutting text, so a cut result still matches its schema. See ADR-0102.
+- **Omission** — The record that something was left out of a result or an error: which field, how many items are shown, how many exist, which Operation returns the rest, and why. The reason is `cap` when a capped list was cut, or `literal_policy` when a **Literal Field** was withheld under `deny`. It appears only when something was left out. Every result is bounded by fixed item caps, never by cutting text, so a cut result still matches its schema. See ADR-0102, ADR-0107.
   _Avoid_: truncation, pagination marker, next link
 
 - **Result Budget** — The most a single Operation result may cost, in two numbers: 10k tokens and 25,000 characters for a result, and 8,000 characters for a Library Error. The character limits keep every result inline in the shells Harnesses provide. A test checks both on fixtures at the scale the library supports. The budget is a signal to split: an Operation over it gets a narrower Operation or a smaller page, never a harder cut. See ADR-0102, ADR-0112.
@@ -649,7 +649,7 @@ What an Operation hands back is an output **Wire Record**, and nothing else. The
 - **Payload Frame** — A data frame the library produces as part of a result, such as the imputed frame or the frames of a split. It never goes into a Wire Record. The Agent gets a **Handle** to it instead.
   _Avoid_: data frame, payload, the data
 
-- **Literal Field** — A field on a result that can hold a value from a cell of the data, such as a category label, a bound, a percentile, the mode or a fill value. It is marked in the output schema. Every other field is free of literal values. Values the Agent supplied itself (sentinels, declarations) and column names are not Literal Fields. See ADR-0107.
+- **Literal Field** — A field on a result that can hold a value from a cell of the data, such as a category label, a bound, a percentile, the mode or a fill value. It is marked in the output schema with `"x-literal": true`. Every other field is free of literal values. Values the Agent supplied itself (sentinels, declarations) and column names are not Literal Fields. See ADR-0107.
   _Avoid_: sensitive field, PII field, raw value
 - **Literal Policy** — The Operator's **Workspace Setting** for Literal Fields: `allow` (the default) returns real values, `deny` withholds every Literal Field and reports it in `omitted`. It is a guardrail. In a shell the Agent can change it, so `deny` is a real boundary only where the Harness's permissions stop that. It governs library results only, not what the Agent's own code can read. See ADR-0107, ADR-0112.
   _Avoid_: privacy mode, data disclosure policy, masking

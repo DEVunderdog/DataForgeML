@@ -58,7 +58,7 @@ def test_load_caps_columns_at_100_and_names_the_rest_in_omitted(
     assert len(columns) == 100
     assert columns[0]["column"].startswith("c0000_")
     assert records(out.json["omitted"]) == [
-        {"field": "columns", "shown": 100, "total": 130, "operation": None}
+        {"field": "columns", "shown": 100, "total": 130, "operation": None, "reason": "cap"}
     ]
 
 
@@ -310,5 +310,5 @@ def test_error_list_fields_are_capped_with_omitted() -> None:
     )
     assert len(err.candidates) == 5
     assert err.to_dict()["omitted"] == [
-        {"field": "candidates", "shown": 5, "total": 9, "operation": None}
+        {"field": "candidates", "shown": 5, "total": 9, "operation": None, "reason": "cap"}
     ]

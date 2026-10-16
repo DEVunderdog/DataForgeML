@@ -1065,33 +1065,34 @@
         "description": "One entry per list that was cut, naming the Operation that returns the rest. Empty when nothing was cut.",
         "properties": {
           "fields": {
-            "description": "Always exactly `field`, `shown`, `total`, `operation`, in this order. A row's value at position i is the field named here at i.",
+            "description": "Always exactly `field`, `shown`, `total`, `operation`, `reason`, in this order. A row's value at position i is the field named here at i.",
             "items": {
               "enum": [
                 "field",
                 "shown",
                 "total",
-                "operation"
+                "operation",
+                "reason"
               ],
               "type": "string"
             },
             "type": "array"
           },
           "rows": {
-            "description": "A capped list was cut. Call ``operation`` to read the rest. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "description": "Something left out of a result: a capped list was cut, or a Literal Field withheld. One row per record, its values in `fields` order. The i-th schema below describes position i.",
             "items": {
               "items": {
                 "anyOf": [
                   {
-                    "description": "Position 0, `field`: Name of the list field that was cut.",
+                    "description": "Position 0, `field`: Name of the list field that was cut, or the path of the Literal Field withheld, such as ``top_values[].value``.",
                     "type": "string"
                   },
                   {
-                    "description": "Position 1, `shown`: How many items the list holds.",
+                    "description": "Position 1, `shown`: How many items the list holds; 0 for a withheld Literal Field.",
                     "type": "integer"
                   },
                   {
-                    "description": "Position 2, `total`: How many items exist.",
+                    "description": "Position 2, `total`: How many items exist; for a withheld Literal Field, how many values at that path are null.",
                     "type": "integer"
                   },
                   {
@@ -1104,6 +1105,14 @@
                       }
                     ],
                     "description": "Position 3, `operation`: The Operation that returns the rest, or null when no Operation does."
+                  },
+                  {
+                    "description": "Position 4, `reason`: ``cap`` when a list was cut to its cap; ``literal_policy`` when the Operator's Literal Policy is ``deny``.",
+                    "enum": [
+                      "cap",
+                      "literal_policy"
+                    ],
+                    "type": "string"
                   }
                 ]
               },

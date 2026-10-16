@@ -121,6 +121,16 @@ _ENTRIES: tuple[ErrorCodeEntry, ...] = (
         ),
     ),
     ErrorCodeEntry(
+        code="literal_policy",
+        category="warning",
+        hint=(
+            "The Operator set the Literal Policy to `deny`, so every Literal "
+            "Field is null. Counts, shares and the values you supplied are "
+            "real. Work from those; if you need the values, ask the Operator "
+            "rather than changing the setting."
+        ),
+    ),
+    ErrorCodeEntry(
         code="invalid_dial_value",
         category="InvalidInput",
         hint=(

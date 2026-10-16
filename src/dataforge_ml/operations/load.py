@@ -78,7 +78,7 @@ def load(path: str) -> LoadResult:
     -------
     $ dataforge load --path train.csv
     {"warnings":{"fields":["code","message","columns","param","hint"],"rows":[]},
-    "omitted":{"fields":["field","shown","total","operation"],"rows":[]},
+    "omitted":{"fields":["field","shown","total","operation","reason"],"rows":[]},
     "frame":"frame_7f3a9c2e","n_rows":6,"n_columns":3,
     "columns":{"fields":["column","dtype"],
     "rows":[["age","Int64"],["city","String"],["income","Float64"]]}}

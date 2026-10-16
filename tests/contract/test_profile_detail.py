@@ -117,7 +117,7 @@ def test_describe_columns_pages_flagged_first_and_statelessly(harness: Harness) 
     assert flagged == sorted(flagged, reverse=True), "flagged columns come first"
     assert canonical_json(first.json) == canonical_json(again.json)
     assert records(first.json["omitted"]) == [
-        {"field": "columns", "shown": 15, "total": 82, "operation": "describe_columns"}
+        {"field": "columns", "shown": 15, "total": 82, "operation": "describe_columns", "reason": "cap"}
     ]
     assert records(first.json["columns"]) == whole[15:30]
 
@@ -173,6 +173,7 @@ def test_long_co_missing_lists_are_capped_naming_missingness(
         "shown": 10,
         "total": 29,
         "operation": "missingness",
+        "reason": "cap",
     } in records(out.json["omitted"])
 
 
@@ -246,6 +247,7 @@ def test_associations_against_a_target_put_it_first(harness: Harness) -> None:
             "shown": 5,
             "total": out.json["total"],
             "operation": "top_associations",
+            "reason": "cap",
         }
     ]
 
@@ -270,7 +272,7 @@ def test_associations_cap_at_100(harness: Harness, tmp_path: Path) -> None:
 
     assert len(records(out.json["pairs"])) == 100
     assert records(out.json["omitted"]) == [
-        {"field": "pairs", "shown": 100, "total": 190, "operation": "top_associations"}
+        {"field": "pairs", "shown": 100, "total": 190, "operation": "top_associations", "reason": "cap"}
     ]
 
 
@@ -327,7 +329,7 @@ def test_missingness_pairs_cap_at_100(harness: Harness, tmp_path: Path) -> None:
     last = harness.call("missingness", profile=profile, offset=100)
 
     assert records(first.json["omitted"]) == [
-        {"field": "pairs", "shown": 100, "total": 190, "operation": "missingness"}
+        {"field": "pairs", "shown": 100, "total": 190, "operation": "missingness", "reason": "cap"}
     ]
     assert (
         len(records(last.json["pairs"])) == 90 and records(last.json["omitted"]) == []
@@ -378,6 +380,7 @@ def test_describe_target_caps_classes_naming_value_summary(harness: Harness) -> 
             "shown": 10,
             "total": 28,
             "operation": "value_summary",
+            "reason": "cap",
         }
     ]
 
@@ -437,7 +440,7 @@ def test_value_summary_k_cuts_each_list_naming_value_summary(
 
     assert [v["value"] for v in records(out.json["top_values"])] == ["high"]
     assert records(out.json["omitted"]) == [
-        {"field": "top_values", "shown": 1, "total": 3, "operation": "value_summary"}
+        {"field": "top_values", "shown": 1, "total": 3, "operation": "value_summary", "reason": "cap"}
     ]
 
 

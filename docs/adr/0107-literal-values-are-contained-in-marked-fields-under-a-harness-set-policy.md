@@ -36,5 +36,5 @@ accepted. Resolves [Which literal data values may a library result carry by defa
 - ADR-0099's Harness contract gains the Literal Policy setting. It also states that `deny` is a real boundary only when the Agent's code can't read the Declared Inputs, which means Tool Calls, or a sandbox that doesn't mount the inputs. The library doesn't try to detect which case it is in.
 - A containment test seeds a fixture with canary values. It asserts that no canary appears outside a Literal Field in any Operation's result, warnings or errors, and that under `deny` none appears anywhere.
 - The split fallback that names singleton class labels changes to report a count.
-- The exact schema annotation keyword is chosen at implementation.
+- The exact schema annotation keyword is chosen at implementation. [#595](https://github.com/DEVunderdog/DataForgeML/issues/595) chose `"x-literal": true` on the field's output schema node. An `x-` keyword is an annotation every JSON Schema reader ignores, so the mark changes no validation and holds no data. Under `deny`, each withheld path is an `omitted` entry with `reason: "literal_policy"`, `shown: 0` and `total` set to the number of values nulled at that path.
 - The map's fog item "bounded lazy querying of raw data" is unblocked. Its results are Literal Fields by this ADR.

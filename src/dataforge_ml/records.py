@@ -36,8 +36,12 @@ Literal Field
     A result field that can hold a value from a cell of the data: a label,
     a bound, a percentile, the median or the mode. Every other field is free
     of cell values. A Literal Field is declared as
-    ``Annotated[<type>, LITERAL]``, and :func:`literal_field_paths` lists
-    them by machine.
+    ``Annotated[<type> | None, LITERAL]``. Its output schema node carries
+    ``"x-literal": true``, so a Harness finds it by machine, and
+    :func:`literal_field_paths` lists them in Python. Under the Operator's
+    ``deny`` Literal Policy every Literal Field is ``null``, listed in
+    ``omitted`` with reason ``literal_policy``, under one ``literal_policy``
+    Result Warning. Counts, shares and values you supplied stay.
 """
 
 from __future__ import annotations
@@ -106,18 +110,31 @@ class WireRecord(BaseModel):
         return self.model_dump(mode="json")
 
 
+#: The output schema keyword that marks a Literal Field (ADR-0107). An
+#: ``x-`` keyword is an annotation every JSON Schema reader ignores, so the
+#: mark changes no validation and carries no data.
+LITERAL_KEYWORD = "x-literal"
+
+
 class LiteralFieldMarker:
     """Marks a Wire Record field as a Literal Field: it can hold a cell value.
 
     Use the single instance :data:`LITERAL` in ``Annotated`` metadata. The
-    mark is read by :func:`literal_field_paths`; the schema keyword it maps to
-    is set by the Literal Policy (ADR-0107).
+    mark is read by :func:`literal_field_paths`, and it writes
+    ``"x-literal": true`` (:data:`LITERAL_KEYWORD`) on the field's schema
+    node. The field's type must admit ``None``, which is what the ``deny``
+    Literal Policy returns.
     """
 
     __slots__ = ()
 
     def __repr__(self) -> str:
         return "LITERAL"
+
+    def __get_pydantic_json_schema__(
+        self, schema: CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        return {**handler(schema), LITERAL_KEYWORD: True}
 
 
 #: The Literal Field mark: ``value: Annotated[float | None, LITERAL]``.
@@ -307,16 +324,18 @@ class Table(Sequence[R], Generic[R]):
 
 
 class Omission(WireRecord):
-    """A capped list was cut. Call ``operation`` to read the rest."""
+    """Something left out of a result: a capped list was cut, or a Literal Field withheld."""
 
     field: str
-    """Name of the list field that was cut."""
+    """Name of the list field that was cut, or the path of the Literal Field withheld, such as ``top_values[].value``."""
     shown: int
-    """How many items the list holds."""
+    """How many items the list holds; 0 for a withheld Literal Field."""
     total: int
-    """How many items exist."""
+    """How many items exist; for a withheld Literal Field, how many values at that path are null."""
     operation: str | None
     """The Operation that returns the rest, or null when no Operation does."""
+    reason: Literal["cap", "literal_policy"] = "cap"
+    """``cap`` when a list was cut to its cap; ``literal_policy`` when the Operator's Literal Policy is ``deny``."""
 
 
 class ResultWarning(WireRecord):
@@ -604,6 +623,7 @@ _CATEGORY_CLASSES: dict[str, type[DataForgeError]] = {
 
 __all__ = [
     "LITERAL",
+    "LITERAL_KEYWORD",
     "ArgumentIssue",
     "ColumnKeyedResult",
     "Conflict",

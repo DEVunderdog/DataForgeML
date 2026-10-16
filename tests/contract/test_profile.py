@@ -121,6 +121,7 @@ def test_wide_digest_is_capped_at_100_flagged_first_naming_describe_columns(
     assert all(c["flags"] for c in columns)
     assert records(out.json["omitted"])[0] == {
         "field": "columns", "shown": 100, "total": 150, "operation": "describe_columns",
+        "reason": "cap",
     }
 
 
@@ -253,7 +254,7 @@ def test_correlation_and_nonlinearity_always_run_and_fall_back_with_codes(
     assert [w["code"] for w in warnings] == ["nonlinearity_too_few_rows"]
     assert warnings[0]["param"] == "thresholds.nonlinearity.min_rows"
     assert len(warnings[0]["columns"]) == 20
-    assert {"field": "warnings[0].columns", "shown": 20, "total": 30, "operation": None} in records(
+    assert {"field": "warnings[0].columns", "shown": 20, "total": 30, "operation": None, "reason": "cap"} in records(
         out.json["omitted"]
     )
 

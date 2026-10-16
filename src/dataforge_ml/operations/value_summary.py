@@ -55,7 +55,7 @@ class ValueSummaryResult(OutputRecord):
     """Number of distinct non-missing values; null when skipped."""
     top_values: Table[ValueCount]
     """The most common values, most common first. The profile keeps up to 10 for a categorical, boolean or whole-number column and none for a continuous one; ``omitted`` counts the rest."""
-    rare_labels: Annotated[list[CellValue], LITERAL]
+    rare_labels: Annotated[list[CellValue] | None, LITERAL]
     """Labels of a categorical column rarer than ``thresholds.categorical.stratification_rare_threshold_pct`` of ``profile``, most common first. A Literal Field."""
     bounds: Bounds | None
     """The smallest and largest value of a numeric or datetime column; else null."""

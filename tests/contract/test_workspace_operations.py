@@ -74,7 +74,7 @@ def test_list_handles_pages_with_offset_and_names_itself_in_omitted(
     assert [h["handle"] for h in records(second.json["handles"])] == made[2:4]
     assert [h["handle"] for h in records(last.json["handles"])] == made[4:]
     assert records(first.json["omitted"]) == [
-        {"field": "handles", "shown": 2, "total": 5, "operation": "list_handles"}
+        {"field": "handles", "shown": 2, "total": 5, "operation": "list_handles", "reason": "cap"}
     ]
     assert records(last.json["omitted"]) == []
 
@@ -126,7 +126,7 @@ def test_list_handles_cuts_long_argument_values_and_long_input_lists(
     assert len(argument["value"]) == 80 and argument["value"].endswith("…")
     assert len(handle["inputs"]) == 10
     assert records(out.json["omitted"]) == [
-        {"field": "handles[0].inputs", "shown": 10, "total": 25, "operation": None}
+        {"field": "handles[0].inputs", "shown": 10, "total": 25, "operation": None, "reason": "cap"}
     ]
 
 

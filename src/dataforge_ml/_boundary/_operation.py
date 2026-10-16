@@ -10,7 +10,9 @@ and registers the Operation. At call time, in either delivery, it:
 2. resolves the Workspace Settings once, then runs the Operation inside a
    call context that supplies them and the Lineage to every Handle it writes
    (ADR-0103, ADR-0112);
-3. turns any foreign exception into ``unexpected``, letting ``MemoryError``
+3. under the ``deny`` Literal Policy, nulls every Literal Field of the
+   result and reports it in ``omitted`` and one warning (ADR-0107);
+4. turns any foreign exception into ``unexpected``, letting ``MemoryError``
    and ``KeyboardInterrupt`` through.
 
 Each call emits a ``stage_start`` and a ``stage_end`` Pipeline Event to the
@@ -34,6 +36,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, create_model
 from ..observability import EventType, Observer, PipelineEvent, _emit
 from ..records import DataForgeError, OutputRecord, canonical_json  # noqa: F401
 from . import _docstring
+from ._literal import withhold_literals
 from ._schema import to_strict_subset
 from ._settings import resolve_settings
 from ._workspace import _CALL, CallContext
@@ -206,6 +209,8 @@ def _run(spec: OperationSpec, validate: Callable[[], BaseModel]) -> OutputRecord
                 f"Operation {spec.name!r} returned {type(result).__name__}, "
                 f"not {spec.result_model.__name__}.",
             )
+        if call.settings.literal_policy == "deny":
+            result = withhold_literals(result)
         return result
     except DataForgeError:
         raise
