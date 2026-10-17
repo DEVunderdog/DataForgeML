@@ -14,6 +14,7 @@ from . import (  # noqa: F401
     missingness,
     profile,
     route,
+    split,
     top_associations,
     value_summary,
 )

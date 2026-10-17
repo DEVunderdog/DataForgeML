@@ -145,6 +145,15 @@ def _wide_route(harness: Harness, tmp_path: Path) -> dict[str, Any]:
     ).json
 
 
+def _ames_repeated_kfold(harness: Harness, tmp_path: Path) -> dict[str, Any]:
+    # The most folds a split may make, 100, each with two frame Handles.
+    return harness.call(
+        "split",
+        profile=_ames_profile_handle(harness),
+        scheme={"kind": "repeated_kfold", "k": 10, "repeats": 10, "target": "Neighborhood"},
+    ).json
+
+
 #: Per Operation, a call producing its largest result on the supported fixtures.
 WORST_CASE: dict[str, Callable[[Harness, Path], dict[str, Any]]] = {
     "describe_columns": _wide_describe_columns,
@@ -155,6 +164,7 @@ WORST_CASE: dict[str, Callable[[Harness, Path], dict[str, Any]]] = {
     "missingness": _wide_missingness,
     "profile": _wide_profile,
     "route": _wide_route,
+    "split": _ames_repeated_kfold,
     "top_associations": _wide_top_associations,
     "value_summary": _long_labels_value_summary,
 }

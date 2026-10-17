@@ -206,15 +206,15 @@ def _correlation_result() -> CorrelationProfileResult:
 
 
 def _split_result() -> SplitResult:
-    return DataSplitter(_wide_frame(), random_seed=0).random_split(test_size=0.25)
+    return DataSplitter(_wide_frame(), seed=0).random_split(test_size=0.25)
 
 
 def _fold_result() -> FoldResult:
-    return DataSplitter(_wide_frame(), random_seed=0).kfold(k=3)[0]
+    return DataSplitter(_wide_frame(), seed=0).kfold(k=3)[0]
 
 
 def _holdout_cv_result() -> HoldoutCVResult:
-    return DataSplitter(_wide_frame(), random_seed=0).holdout_cv(
+    return DataSplitter(_wide_frame(), seed=0).holdout_cv(
         test_size=0.2, k=3
     )
 

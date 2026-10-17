@@ -63,7 +63,7 @@ def imputation_profile(imputation_df):
 
 @pytest.fixture(scope="module")
 def imputation_split(imputation_df, imputation_profile):
-    splitter = DataSplitter(imputation_df, random_seed=42)
+    splitter = DataSplitter(imputation_df, seed=42)
     return splitter.profile_stratified_split(imputation_profile, test_size=0.2)
 
 
@@ -172,7 +172,7 @@ def test_repeated_fits_are_independent(imputation_df, imputation_profile):
     independence is structural on the layered path rather than a property of
     a reused orchestrator; this pins that it stays so.
     """
-    splitter = DataSplitter(imputation_df, random_seed=1)
+    splitter = DataSplitter(imputation_df, seed=1)
     split1 = splitter.random_split(test_size=0.5, stratify=False)
     split2 = splitter.random_split(test_size=0.5, stratify=False)
 

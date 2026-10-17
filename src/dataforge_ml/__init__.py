@@ -79,6 +79,7 @@ _EXPORTS: dict[str, tuple[str, ...]] = {
     ".operations.missingness": ("missingness",),
     ".operations.profile": ("profile",),
     ".operations.route": ("route",),
+    ".operations.split": ("split",),
     ".operations.top_associations": ("top_associations",),
     ".operations.value_summary": ("value_summary",),
     # --- Config objects, Phase Sub-Configs, input enums and result records
@@ -179,6 +180,7 @@ __all__ = [
     "resolve_recipe",
     "route",
     "serialize",
+    "split",
     "stderr_observer",
     "top_associations",
     "value_summary",

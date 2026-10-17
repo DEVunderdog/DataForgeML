@@ -7,6 +7,7 @@ suitable for MultilabelStratifiedShuffleSplit / MultilabelStratifiedKFold.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Optional
 
 import numpy as np
@@ -34,6 +35,50 @@ _PRIORITY_NUMERIC = 3
 _PRIORITY_MISSINGNESS = 4
 
 
+@dataclass
+class SignalReport:
+    """Counts of what the stratification gates did, filled in by the builders.
+
+    Pass one to :func:`build_label_matrix` and :func:`unsplittable_train_mask`
+    to learn how many signals each ADR-0047 gate kept and how many rows
+    ADR-0048 routed to train. It holds counts only, never a label value.
+
+    Attributes
+    ----------
+    floor : int
+        The viability floor the signals were held to.
+    candidates : int
+        Signals built from the profile, before any gate.
+    viable : int
+        Signals that passed the viability gate.
+    non_redundant : int
+        Viable signals left after the redundancy gate.
+    cap : int
+        The signal cap, ``min(max_stratification_signals, n_rows / rows_per_signal)``.
+    kept : int
+        Signals in the label matrix; 0 means the split falls back to random.
+    target_evicted : bool
+        True when the cap could not hold every target signal, so none were kept.
+    target_kept : int
+        Target signals in the label matrix.
+    rows_to_train : int
+        Rows routed into training because their label is below the floor.
+    labels_to_train : int
+        Target classes and rare values below the floor.
+    """
+
+    floor: int = 0
+    candidates: int = 0
+    viable: int = 0
+    non_redundant: int = 0
+    cap: int = 0
+    kept: int = 0
+    target_evicted: bool = False
+    target_kept: int = 0
+    rows_to_train: int = 0
+    labels_to_train: int = 0
+
+
 def _abs_correlation(a: np.ndarray, b: np.ndarray) -> float:
     """Absolute Pearson correlation between two binary signal vectors.
 
@@ -54,6 +99,7 @@ def build_label_matrix(
     target: Optional[str],
     config: Optional[SplitConfig] = None,
     min_positives: int = 1,
+    report: Optional[SignalReport] = None,
 ) -> np.ndarray:
     """
     Return a (n_rows, n_signals) int8 label matrix for multilabel stratification.
@@ -117,6 +163,8 @@ def build_label_matrix(
         Viability floor (ADR-0047 gate 2).  A signal is admitted only when it
         carries at least this many ones **and** at least this many zeros.
         Defaults to ``1`` (drop only all-zeros/all-ones signals).
+    report : SignalReport, optional
+        Filled in with the count each gate kept.
 
     Returns
     -------
@@ -125,6 +173,8 @@ def build_label_matrix(
         Returns shape ``(n_rows, 0)`` when no usable signals exist.
     """
     _config = config if config is not None else SplitConfig()
+    report = report if report is not None else SignalReport()
+    report.floor = min_positives
     # Phase entry: effective nulls first, then the Dtype Floor (ADR-0085).
     df = _apply_dtype_floor(
         _resolve_effective_nulls(
@@ -135,6 +185,9 @@ def build_label_matrix(
         {name: cp.semantic_type for name, cp in profile.columns.items()},
     )
     n = len(df)
+    report.cap = min(
+        _config.max_stratification_signals, int(n / _config.rows_per_signal)
+    )
     # Each signal is collected with its family priority (for the gate-3 redundancy
     # tie-break) and an optional mutually-exclusive group id (target class/bucket
     # sets, whose last member is dropped dummy-style in gate 3).
@@ -374,6 +427,7 @@ def build_label_matrix(
             s = (row_null_count > p90).cast(pl.Int8).to_numpy()
             add(s, _PRIORITY_MISSINGNESS)
 
+    report.candidates = len(signals)
     if not signals:
         return np.empty((n, 0), dtype=np.int8)
 
@@ -396,6 +450,7 @@ def build_label_matrix(
     signals = [signals[i] for i in keep]
     priorities = [priorities[i] for i in keep]
     groups = [groups[i] for i in keep]
+    report.viable = len(signals)
     if not signals:
         return np.empty((n, 0), dtype=np.int8)
 
@@ -437,6 +492,7 @@ def build_label_matrix(
     survivors = [i for i in range(len(signals)) if i not in dropped]
     signals = [signals[i] for i in survivors]
     priorities = [priorities[i] for i in survivors]
+    report.non_redundant = len(signals)
     if not signals:
         return np.empty((n, 0), dtype=np.int8)
 
@@ -446,15 +502,13 @@ def build_label_matrix(
     # constraints). Target signals are never evicted; when even the target
     # cannot fit the budget the matrix is emptied so the splitter falls back to
     # a random split.
-    max_signals = min(
-        _config.max_stratification_signals,
-        int(n / _config.rows_per_signal),
-    )
+    max_signals = report.cap
     if len(signals) > max_signals:
         n_target = sum(1 for p in priorities if p == _PRIORITY_TARGET)
         if n_target > max_signals:
             # The budget cannot support even the full target signal set; a
             # partial target is worthless, so fall back to a random split.
+            report.target_evicted = True
             return np.empty((n, 0), dtype=np.int8)
         # Rank by family priority (target -> rare categorical -> boolean ->
         # numeric -> missingness) then by rarity within a family (rarer viable
@@ -466,10 +520,13 @@ def build_label_matrix(
         )
         keep_idx = sorted(ranked[:max_signals])
         signals = [signals[i] for i in keep_idx]
+        priorities = [priorities[i] for i in keep_idx]
 
     if not signals:
         return np.empty((n, 0), dtype=np.int8)
 
+    report.kept = len(signals)
+    report.target_kept = sum(1 for p in priorities if p == _PRIORITY_TARGET)
     return np.column_stack(signals).astype(np.int8)
 
 
@@ -479,6 +536,7 @@ def unsplittable_train_mask(
     target: Optional[str],
     min_positives: int,
     config: Optional[SplitConfig] = None,
+    report: Optional[SignalReport] = None,
 ) -> np.ndarray:
     """
     Return a boolean mask of rows to route into the training split (ADR-0048).
@@ -515,6 +573,8 @@ def unsplittable_train_mask(
         routed to train.
     config : SplitConfig, optional
         Stratification thresholds.  Defaults to ``SplitConfig()`` when omitted.
+    report : SignalReport, optional
+        Filled in with the rows and labels routed to train.
 
     Returns
     -------
@@ -535,6 +595,7 @@ def unsplittable_train_mask(
     )
     n = len(df)
     mask = np.zeros(n, dtype=bool)
+    labels = 0
 
     # Rare categorical values too sparse to satisfy the viability floor.
     for col, cp in profile.columns.items():
@@ -552,6 +613,7 @@ def unsplittable_train_mask(
             hit = (col_s == val).fill_null(False).to_numpy()
             if int(hit.sum()) < min_positives:
                 mask |= hit
+                labels += 1
 
     # Target classes too sparse to satisfy the viability floor (discrete branch
     # only; a continuous quantile-binned target has no discrete class).
@@ -571,5 +633,9 @@ def unsplittable_train_mask(
                 hit = (target_s == cls).fill_null(False).to_numpy()
                 if int(hit.sum()) < min_positives:
                     mask |= hit
+                    labels += 1
 
+    if report is not None:
+        report.rows_to_train = int(mask.sum())
+        report.labels_to_train = labels
     return mask

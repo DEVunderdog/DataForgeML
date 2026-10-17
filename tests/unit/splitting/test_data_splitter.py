@@ -1,6 +1,7 @@
 import polars as pl
 import pytest
 
+from dataforge_ml._seed import DEFAULT_SEED
 from dataforge_ml.splitting._config import (
     FoldResult,
     HoldoutCVResult,
@@ -44,16 +45,22 @@ def df_no_target() -> pl.DataFrame:
 
 
 def test_valid_construction(df):
-    splitter = DataSplitter(df, target="label", random_seed=42)
+    splitter = DataSplitter(df, target="label", seed=42)
     assert splitter._df is df
     assert splitter._target == "label"
-    assert splitter._random_seed == 42
+    assert splitter._seed == 42
 
 
 def test_constructor_no_target(df_no_target):
     splitter = DataSplitter(df_no_target)
     assert splitter._target is None
-    assert splitter._random_seed is None
+    assert splitter._seed == DEFAULT_SEED, "no seed means the fixed default, never random"
+
+
+def test_no_seed_gives_the_same_split_twice(df):
+    first = DataSplitter(df).kfold(3, stratify=False)
+    second = DataSplitter(df).kfold(3, stratify=False)
+    assert [f.val.equals(s.val) for f, s in zip(first, second)] == [True] * 3
 
 
 def test_constructor_raises_type_error_for_non_polars():
@@ -86,20 +93,20 @@ def test_constructor_raises_value_error_for_missing_target(df):
 
 
 def test_random_split_sizes_sum_to_total(df):
-    splitter = DataSplitter(df, target="label", random_seed=0)
+    splitter = DataSplitter(df, target="label", seed=0)
     result = splitter.random_split(test_size=0.2)
     assert result.train_size + result.test_size == len(df)
 
 
 def test_random_split_dataframe_row_counts_match_sizes(df):
-    splitter = DataSplitter(df, target="label", random_seed=0)
+    splitter = DataSplitter(df, target="label", seed=0)
     result = splitter.random_split(test_size=0.2)
     assert len(result.train) == result.train_size
     assert len(result.test) == result.test_size
 
 
 def test_random_split_ratios_reflect_actual_proportions(df):
-    splitter = DataSplitter(df, target="label", random_seed=0)
+    splitter = DataSplitter(df, target="label", seed=0)
     result = splitter.random_split(test_size=0.2)
     total = len(df)
     assert result.train_ratio == pytest.approx(result.train_size / total)
@@ -107,7 +114,7 @@ def test_random_split_ratios_reflect_actual_proportions(df):
 
 
 def test_random_split_returns_split_result(df):
-    splitter = DataSplitter(df, target="label", random_seed=0)
+    splitter = DataSplitter(df, target="label", seed=0)
     result = splitter.random_split(test_size=0.2)
     assert isinstance(result, SplitResult)
 
@@ -118,7 +125,7 @@ def test_random_split_returns_split_result(df):
 
 
 def test_stratified_split_preserves_class_ratios(df):
-    splitter = DataSplitter(df, target="label", random_seed=42)
+    splitter = DataSplitter(df, target="label", seed=42)
     result = splitter.random_split(test_size=0.2, stratify=True)
     original_ratio = df["label"].value_counts(sort=True)["count"].to_list()
     train_counts = result.train["label"].value_counts(sort=True)["count"].to_list()
@@ -131,19 +138,19 @@ def test_stratified_split_preserves_class_ratios(df):
 
 
 def test_stratify_false_produces_valid_split(df_no_target):
-    splitter = DataSplitter(df_no_target, random_seed=7)
+    splitter = DataSplitter(df_no_target, seed=7)
     result = splitter.random_split(test_size=0.3, stratify=False)
     assert result.train_size + result.test_size == len(df_no_target)
 
 
 def test_stratify_defaults_true_when_target_set(df):
-    splitter = DataSplitter(df, target="label", random_seed=1)
+    splitter = DataSplitter(df, target="label", seed=1)
     result = splitter.random_split(test_size=0.2)
     assert result.train_size + result.test_size == len(df)
 
 
 def test_stratify_defaults_false_when_no_target(df_no_target):
-    splitter = DataSplitter(df_no_target, random_seed=1)
+    splitter = DataSplitter(df_no_target, seed=1)
     result = splitter.random_split(test_size=0.2)
     assert result.train_size + result.test_size == len(df_no_target)
 
@@ -210,7 +217,7 @@ def test_a_continuous_target_still_splits_unstratified(df_price):
 def test_kfold_tolerates_a_rare_class_beside_well_populated_ones():
     # sklearn warns, not raises, when only some classes are below k.
     frame = pl.DataFrame({"x": list(range(41)), "y": [0] * 20 + [1] * 20 + [2]})
-    folds = DataSplitter(frame, target="y", random_seed=0).kfold(5)
+    folds = DataSplitter(frame, target="y", seed=0).kfold(5)
     assert len(folds) == 5
 
 
@@ -226,8 +233,8 @@ def test_an_unknown_column_offers_close_matches(df):
 
 
 def test_same_seed_produces_identical_splits(df):
-    s1 = DataSplitter(df, target="label", random_seed=99)
-    s2 = DataSplitter(df, target="label", random_seed=99)
+    s1 = DataSplitter(df, target="label", seed=99)
+    s2 = DataSplitter(df, target="label", seed=99)
     r1 = s1.random_split(test_size=0.2)
     r2 = s2.random_split(test_size=0.2)
     assert r1.train.equals(r2.train)
@@ -235,8 +242,8 @@ def test_same_seed_produces_identical_splits(df):
 
 
 def test_different_seeds_produce_different_splits(df):
-    s1 = DataSplitter(df, target="label", random_seed=1)
-    s2 = DataSplitter(df, target="label", random_seed=2)
+    s1 = DataSplitter(df, target="label", seed=1)
+    s2 = DataSplitter(df, target="label", seed=2)
     r1 = s1.random_split(test_size=0.2)
     r2 = s2.random_split(test_size=0.2)
     assert not r1.train.equals(r2.train)
@@ -391,12 +398,12 @@ def kfold_df() -> pl.DataFrame:
 
 @pytest.fixture(scope="module")
 def kfold_splitter(kfold_df) -> DataSplitter:
-    return DataSplitter(kfold_df, target="label", random_seed=42)
+    return DataSplitter(kfold_df, target="label", seed=42)
 
 
 @pytest.fixture(scope="module")
 def kfold_splitter_no_target(kfold_df) -> DataSplitter:
-    return DataSplitter(kfold_df, random_seed=42)
+    return DataSplitter(kfold_df, seed=42)
 
 
 # ---------------------------------------------------------------------------
@@ -524,7 +531,7 @@ def ps_profile(ps_df):
 
 @pytest.fixture(scope="module")
 def ps_splitter(ps_df) -> DataSplitter:
-    return DataSplitter(ps_df, target="label", random_seed=42)
+    return DataSplitter(ps_df, target="label", seed=42)
 
 
 # ---------------------------------------------------------------------------
@@ -590,7 +597,7 @@ def test_profile_split_falls_back_when_no_signals():
     )
     # Profile with no target, no missingness → no signals → graceful fallback
     profile = StructuralProfiler(PipelineConfig()).profile(df)
-    splitter = DataSplitter(df, random_seed=0)
+    splitter = DataSplitter(df, seed=0)
     result = splitter.profile_stratified_split(profile, test_size=0.2)
     assert result.train_size + result.test_size == len(df)
 
@@ -617,7 +624,7 @@ def test_profile_split_computes_shuffle_floor(monkeypatch):
         }
     )
     profile = StructuralProfiler(PipelineConfig()).profile(df)
-    splitter = DataSplitter(df, target="label", random_seed=0)
+    splitter = DataSplitter(df, target="label", seed=0)
     splitter.profile_stratified_split(profile, test_size=0.2)
 
     # ceil(2 / min(0.2, 0.8)) == ceil(2 / 0.2) == 10
@@ -646,7 +653,7 @@ def test_profile_kfold_computes_k_floor(monkeypatch):
         }
     )
     profile = StructuralProfiler(PipelineConfig()).profile(df)
-    splitter = DataSplitter(df, target="label", random_seed=0)
+    splitter = DataSplitter(df, target="label", seed=0)
     splitter.profile_stratified_kfold(profile, k=5)
 
     assert captured["min_positives"] == 5
@@ -800,7 +807,7 @@ def test_too_small_dataset_falls_back_to_random_split():
     df = pl.DataFrame({"target": pl.Series(target_vals, dtype=pl.Utf8)})
     profile = StructuralProfiler(PipelineConfig()).profile(df)
 
-    splitter = DataSplitter(df, target="target", random_seed=0)
+    splitter = DataSplitter(df, target="target", seed=0)
     result = splitter.profile_stratified_split(profile, test_size=0.25)
     # A valid split is still produced (via the random fallback), covering all rows.
     assert result.train_size + result.test_size == len(df)
@@ -1534,14 +1541,14 @@ def test_split_config_exported_from_splitting_api():
 
 def test_data_splitter_no_config_uses_defaults(df):
     from dataforge_ml.splitting._config import SplitConfig
-    splitter = DataSplitter(df, target="label", random_seed=0)
+    splitter = DataSplitter(df, target="label", seed=0)
     assert splitter._config == SplitConfig()
 
 
 def test_data_splitter_accepts_custom_config(df):
     from dataforge_ml.splitting._config import SplitConfig
     cfg = SplitConfig(max_stratification_signals=10)
-    splitter = DataSplitter(df, target="label", random_seed=0, config=cfg)
+    splitter = DataSplitter(df, target="label", seed=0, config=cfg)
     assert splitter._config.max_stratification_signals == 10
 
 
@@ -1896,7 +1903,7 @@ def test_profile_split_routes_sub_floor_rare_categorical_to_train():
         }
     )
     profile = StructuralProfiler(PipelineConfig()).profile(df)
-    splitter = DataSplitter(df, target="label", random_seed=7)
+    splitter = DataSplitter(df, target="label", seed=7)
     result = splitter.profile_stratified_split(profile, test_size=0.2)
 
     assert (result.test["cat"] == "Z").sum() == 0
@@ -1916,7 +1923,7 @@ def test_profile_split_routes_sub_floor_target_class_to_train():
         }
     )
     profile = StructuralProfiler(PipelineConfig()).profile(df)
-    splitter = DataSplitter(df, target="label", random_seed=7)
+    splitter = DataSplitter(df, target="label", seed=7)
     result = splitter.profile_stratified_split(profile, test_size=0.2)
 
     assert (result.test["label"] == "C").sum() == 0
@@ -1936,7 +1943,7 @@ def test_profile_kfold_routes_lone_rare_row_to_every_train():
         }
     )
     profile = StructuralProfiler(PipelineConfig()).profile(df)
-    splitter = DataSplitter(df, target="label", random_seed=7)
+    splitter = DataSplitter(df, target="label", seed=7)
     folds = splitter.profile_stratified_kfold(profile, k=5)
 
     for fold in folds:
@@ -2024,8 +2031,8 @@ def test_repeated_kfold_stratify_true_without_target_raises(kfold_splitter_no_ta
 
 
 def test_repeated_kfold_same_seed_identical(kfold_df):
-    s1 = DataSplitter(kfold_df, target="label", random_seed=42)
-    s2 = DataSplitter(kfold_df, target="label", random_seed=42)
+    s1 = DataSplitter(kfold_df, target="label", seed=42)
+    s2 = DataSplitter(kfold_df, target="label", seed=42)
     f1 = s1.repeated_kfold(_K, _N_REPEATS)
     f2 = s2.repeated_kfold(_K, _N_REPEATS)
     for a, b in zip(f1, f2):
@@ -2035,8 +2042,8 @@ def test_repeated_kfold_same_seed_identical(kfold_df):
 
 
 def test_repeated_kfold_different_seeds_differ(kfold_df):
-    s1 = DataSplitter(kfold_df, target="label", random_seed=1)
-    s2 = DataSplitter(kfold_df, target="label", random_seed=2)
+    s1 = DataSplitter(kfold_df, target="label", seed=1)
+    s2 = DataSplitter(kfold_df, target="label", seed=2)
     f1 = s1.repeated_kfold(_K, _N_REPEATS)
     f2 = s2.repeated_kfold(_K, _N_REPEATS)
     assert any(not a.val.equals(b.val) for a, b in zip(f1, f2))
@@ -2072,7 +2079,7 @@ def group_df() -> pl.DataFrame:
 
 @pytest.fixture(scope="module")
 def group_splitter(group_df) -> DataSplitter:
-    return DataSplitter(group_df, target="label", random_seed=42)
+    return DataSplitter(group_df, target="label", seed=42)
 
 
 # ---------------------------------------------------------------------------
@@ -2113,8 +2120,8 @@ def test_group_split_missing_column_raises(group_splitter):
 
 
 def test_group_split_same_seed_identical(group_df):
-    s1 = DataSplitter(group_df, target="label", random_seed=7)
-    s2 = DataSplitter(group_df, target="label", random_seed=7)
+    s1 = DataSplitter(group_df, target="label", seed=7)
+    s2 = DataSplitter(group_df, target="label", seed=7)
     r1 = s1.group_split(test_size=0.25, group_column="entity")
     r2 = s2.group_split(test_size=0.25, group_column="entity")
     assert r1.train.equals(r2.train)
@@ -2122,8 +2129,8 @@ def test_group_split_same_seed_identical(group_df):
 
 
 def test_group_split_different_seeds_differ(group_df):
-    s1 = DataSplitter(group_df, target="label", random_seed=1)
-    s2 = DataSplitter(group_df, target="label", random_seed=2)
+    s1 = DataSplitter(group_df, target="label", seed=1)
+    s2 = DataSplitter(group_df, target="label", seed=2)
     r1 = s1.group_split(test_size=0.25, group_column="entity")
     r2 = s2.group_split(test_size=0.25, group_column="entity")
     assert not r1.test.equals(r2.test)
@@ -2136,7 +2143,7 @@ def test_group_split_different_seeds_differ(group_df):
 
 @pytest.fixture(scope="module")
 def group_splitter_no_target(group_df) -> DataSplitter:
-    return DataSplitter(group_df, random_seed=42)
+    return DataSplitter(group_df, seed=42)
 
 
 _GK = 5
@@ -2216,8 +2223,8 @@ def test_group_kfold_stratify_true_without_target_raises(group_splitter_no_targe
 
 
 def test_group_kfold_same_seed_identical(group_df):
-    s1 = DataSplitter(group_df, target="label", random_seed=7)
-    s2 = DataSplitter(group_df, target="label", random_seed=7)
+    s1 = DataSplitter(group_df, target="label", seed=7)
+    s2 = DataSplitter(group_df, target="label", seed=7)
     f1 = s1.group_kfold(_GK, group_column="entity")
     f2 = s2.group_kfold(_GK, group_column="entity")
     for a, b in zip(f1, f2):
@@ -2225,8 +2232,8 @@ def test_group_kfold_same_seed_identical(group_df):
 
 
 def test_group_kfold_different_seeds_differ(group_df):
-    s1 = DataSplitter(group_df, target="label", random_seed=1)
-    s2 = DataSplitter(group_df, target="label", random_seed=2)
+    s1 = DataSplitter(group_df, target="label", seed=1)
+    s2 = DataSplitter(group_df, target="label", seed=2)
     f1 = s1.group_kfold(_GK, group_column="entity")
     f2 = s2.group_kfold(_GK, group_column="entity")
     assert any(not a.val.equals(b.val) for a, b in zip(f1, f2))
@@ -2307,8 +2314,8 @@ def test_holdout_cv_stratify_true_without_target_raises(kfold_splitter_no_target
 
 
 def test_holdout_cv_same_seed_identical(kfold_df):
-    s1 = DataSplitter(kfold_df, target="label", random_seed=7)
-    s2 = DataSplitter(kfold_df, target="label", random_seed=7)
+    s1 = DataSplitter(kfold_df, target="label", seed=7)
+    s2 = DataSplitter(kfold_df, target="label", seed=7)
     r1 = s1.holdout_cv(test_size=_HCV_TEST_SIZE, k=_HCV_K)
     r2 = s2.holdout_cv(test_size=_HCV_TEST_SIZE, k=_HCV_K)
     assert r1.test.equals(r2.test)
@@ -2317,8 +2324,8 @@ def test_holdout_cv_same_seed_identical(kfold_df):
 
 
 def test_holdout_cv_different_seeds_differ(kfold_df):
-    s1 = DataSplitter(kfold_df, target="label", random_seed=1)
-    s2 = DataSplitter(kfold_df, target="label", random_seed=2)
+    s1 = DataSplitter(kfold_df, target="label", seed=1)
+    s2 = DataSplitter(kfold_df, target="label", seed=2)
     r1 = s1.holdout_cv(test_size=_HCV_TEST_SIZE, k=_HCV_K)
     r2 = s2.holdout_cv(test_size=_HCV_TEST_SIZE, k=_HCV_K)
     assert not r1.test.equals(r2.test)

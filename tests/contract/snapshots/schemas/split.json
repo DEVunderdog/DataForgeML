@@ -1,0 +1,1057 @@
+{
+  "input": {
+    "additionalProperties": false,
+    "properties": {
+      "profile": {
+        "description": "A profile Handle, such as ``profile_7f3a9c2e``. Its frame is split.",
+        "type": "string"
+      },
+      "scheme": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "description": "One shuffled train/test split.",
+            "properties": {
+              "kind": {
+                "description": "Always ``random``.",
+                "type": "string",
+                "enum": [
+                  "random"
+                ]
+              },
+              "test_size": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Share of rows held out as ``test``. Null means 0.2. Constraints: greater than 0; less than 1."
+              },
+              "stratify": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "True keeps each target class's share the same in train and test. Null stratifies when the profile declares a target."
+              },
+              "target": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The declared target to stratify on. Null takes the profile's target; name one when it declares several."
+              }
+            },
+            "required": [
+              "kind",
+              "test_size",
+              "stratify",
+              "target"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "One chronological split: the latest rows are ``test``, so no future row trains.",
+            "properties": {
+              "kind": {
+                "description": "Always ``time``.",
+                "type": "string",
+                "enum": [
+                  "time"
+                ]
+              },
+              "time_column": {
+                "description": "The datetime or numeric column that orders the rows. Its sentinels count as missing, and rows with no time go to train.",
+                "type": "string"
+              },
+              "test_size": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Share of rows, the latest ones, held out as ``test``. Null means 0.2 unless ``cutoff`` is set; set at most one of the two. Constraints: greater than 0; less than 1."
+              },
+              "cutoff": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Rows at or after this time are ``test``. A datetime for a datetime column (an ISO string on the CLI), a number for a numeric one. Null splits by ``test_size``. Constraints: in date-time format."
+              }
+            },
+            "required": [
+              "kind",
+              "time_column",
+              "test_size",
+              "cutoff"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "One train/test split that keeps every group whole on one side.",
+            "properties": {
+              "kind": {
+                "description": "Always ``group``.",
+                "type": "string",
+                "enum": [
+                  "group"
+                ]
+              },
+              "group_column": {
+                "description": "The column naming each row's group, such as a customer id. Rows missing it form one group.",
+                "type": "string"
+              },
+              "test_size": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Share of groups held out as ``test``. Null means 0.2. Constraints: greater than 0; less than 1."
+              }
+            },
+            "required": [
+              "kind",
+              "group_column",
+              "test_size"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "``k`` shuffled folds: each row is in exactly one fold's validation frame.",
+            "properties": {
+              "kind": {
+                "description": "Always ``kfold``.",
+                "type": "string",
+                "enum": [
+                  "kfold"
+                ]
+              },
+              "k": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Number of folds. Null means 5. Constraints: at least 2; at most 100."
+              },
+              "stratify": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "True keeps each target class's share the same in every fold. Null stratifies when the profile declares a target."
+              },
+              "target": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The declared target to stratify on. Null takes the profile's target; name one when it declares several."
+              }
+            },
+            "required": [
+              "kind",
+              "k",
+              "stratify",
+              "target"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "``k`` folds that keep every group whole on one side of each fold.",
+            "properties": {
+              "kind": {
+                "description": "Always ``group_kfold``.",
+                "type": "string",
+                "enum": [
+                  "group_kfold"
+                ]
+              },
+              "group_column": {
+                "description": "The column naming each row's group. Rows missing it form one group.",
+                "type": "string"
+              },
+              "k": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Number of folds, at most the number of groups. Null means 5. Constraints: at least 2; at most 100."
+              },
+              "stratify": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "True balances target classes across folds as far as whole groups allow. Null stratifies when the profile declares a target."
+              },
+              "target": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The declared target to stratify on. Null takes the profile's target; name one when it declares several."
+              }
+            },
+            "required": [
+              "kind",
+              "group_column",
+              "k",
+              "stratify",
+              "target"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "k-fold run ``repeats`` times, each with a new shuffle: ``k * repeats`` folds.",
+            "properties": {
+              "kind": {
+                "description": "Always ``repeated_kfold``.",
+                "type": "string",
+                "enum": [
+                  "repeated_kfold"
+                ]
+              },
+              "k": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Number of folds per repeat. Null means 5. Constraints: at least 2; at most 100."
+              },
+              "repeats": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Number of repeats. ``k * repeats`` may be at most 100. Null means 10. Constraints: at least 1; at most 50."
+              },
+              "stratify": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "True keeps each target class's share the same in every fold. Null stratifies when the profile declares a target."
+              },
+              "target": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The declared target to stratify on. Null takes the profile's target; name one when it declares several."
+              }
+            },
+            "required": [
+              "kind",
+              "k",
+              "repeats",
+              "stratify",
+              "target"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "A held-out ``test`` frame, then ``k`` folds over the remaining rows.",
+            "properties": {
+              "kind": {
+                "description": "Always ``holdout_cv``.",
+                "type": "string",
+                "enum": [
+                  "holdout_cv"
+                ]
+              },
+              "test_size": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Share of rows held out as ``test``. Null means 0.2. Constraints: greater than 0; less than 1."
+              },
+              "k": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Number of folds over the rest. Null means 5. Constraints: at least 2; at most 100."
+              },
+              "stratify": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "True stratifies the hold-out and the folds on the target. Null stratifies when the profile declares a target."
+              },
+              "target": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The declared target to stratify on. Null takes the profile's target; name one when it declares several."
+              }
+            },
+            "required": [
+              "kind",
+              "test_size",
+              "k",
+              "stratify",
+              "target"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "One train/test split balanced on every signal the profile flags: target, missingness, extremes, rare labels.",
+            "properties": {
+              "kind": {
+                "description": "Always ``profile_stratified``.",
+                "type": "string",
+                "enum": [
+                  "profile_stratified"
+                ]
+              },
+              "test_size": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Share of rows held out as ``test``. It also sets the viability floor, ``ceil(2 / min(test_size, 1 - test_size))`` rows. Null means 0.2. Constraints: greater than 0; less than 1."
+              },
+              "target": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The declared target to balance with the other signals. Null takes the profile's target, if any; name one when it declares several."
+              }
+            },
+            "required": [
+              "kind",
+              "test_size",
+              "target"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "``k`` folds balanced on every signal the profile flags.",
+            "properties": {
+              "kind": {
+                "description": "Always ``profile_stratified_kfold``.",
+                "type": "string",
+                "enum": [
+                  "profile_stratified_kfold"
+                ]
+              },
+              "k": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Number of folds. It is also the viability floor, in rows. Null means 5. Constraints: at least 2; at most 100."
+              },
+              "target": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The declared target to balance with the other signals. Null takes the profile's target, if any; name one when it declares several."
+              }
+            },
+            "required": [
+              "kind",
+              "k",
+              "target"
+            ],
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "How to split, chosen by ``kind``; null means ``profile_stratified`` with its defaults."
+      },
+      "seed": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Seed of every shuffle. Null means a fixed default, so the same call gives the same split. Constraints: at least 0; at most 4294967295."
+      },
+      "thresholds": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "description": "Every split dial, grouped. Null keeps every default.",
+            "properties": {
+              "stratification": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "Dials the profile-stratified schemes read. Null keeps every default in this group.",
+                    "properties": {
+                      "max_stratification_signals": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Most signals balanced at once. The cap is the smaller of this and ``n_rows / rows_per_signal``. Null means 50. Constraints: at least 1."
+                      },
+                      "rows_per_signal": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Rows the data must have per balanced signal. Null means 10. Constraints: at least 1."
+                      },
+                      "boolean_minority_threshold": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "A boolean column whose rarer value is below this share becomes a signal. Null means 0.05. Constraints: at most 0.5; greater than 0."
+                      },
+                      "redundancy_correlation_threshold": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Absolute correlation at or above which two signals count as one, and the less important is dropped. Null means 0.95. Constraints: at most 1; greater than 0."
+                      }
+                    },
+                    "type": "object",
+                    "required": [
+                      "max_stratification_signals",
+                      "rows_per_signal",
+                      "boolean_minority_threshold",
+                      "redundancy_correlation_threshold"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The signal gates of the profile-stratified schemes."
+              }
+            },
+            "type": "object",
+            "required": [
+              "stratification"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Dials of the profile-stratified schemes, each with its default and range. Null keeps every default."
+      }
+    },
+    "required": [
+      "profile",
+      "scheme",
+      "seed",
+      "thresholds"
+    ],
+    "type": "object"
+  },
+  "output": {
+    "additionalProperties": false,
+    "description": "The test frame and the folds, each a frame Handle carrying the profile's declarations.",
+    "properties": {
+      "warnings": {
+        "additionalProperties": false,
+        "description": "Caveats on this result, most actionable first. Empty when there are none.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `code`, `message`, `columns`, `param`, `hint`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "code",
+                "message",
+                "columns",
+                "param",
+                "hint"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "A caveat on a successful result: it worked, but read this first. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `code`: The warning's Error Code. Branch on this, not on ``message``.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `message`: What happened and what to do, in one or two sentences.",
+                    "type": "string"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 2, `columns`: Columns the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `param`: The argument the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 4, `hint`: Library-written advice, or null."
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "omitted": {
+        "additionalProperties": false,
+        "description": "One entry per list that was cut, naming the Operation that returns the rest. Empty when nothing was cut.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `field`, `shown`, `total`, `operation`, `reason`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "field",
+                "shown",
+                "total",
+                "operation",
+                "reason"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "Something left out of a result: a capped list was cut, or a Literal Field withheld. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `field`: Name of the list field that was cut, or the path of the Literal Field withheld, such as ``top_values[].value``.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `shown`: How many items the list holds; 0 for a withheld Literal Field.",
+                    "type": "integer"
+                  },
+                  {
+                    "description": "Position 2, `total`: How many items exist; for a withheld Literal Field, how many values at that path are null.",
+                    "type": "integer"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `operation`: The Operation that returns the rest, or null when no Operation does."
+                  },
+                  {
+                    "description": "Position 4, `reason`: ``cap`` when a list was cut to its cap; ``literal_policy`` when the Operator's Literal Policy is ``deny``.",
+                    "enum": [
+                      "cap",
+                      "literal_policy"
+                    ],
+                    "type": "string"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "profile": {
+        "description": "The profile Handle that was split.",
+        "type": "string"
+      },
+      "frame": {
+        "description": "The frame Handle the profile was made from, whose rows were split.",
+        "type": "string"
+      },
+      "scheme": {
+        "description": "The scheme used.",
+        "enum": [
+          "random",
+          "time",
+          "group",
+          "kfold",
+          "group_kfold",
+          "repeated_kfold",
+          "holdout_cv",
+          "profile_stratified",
+          "profile_stratified_kfold"
+        ],
+        "type": "string"
+      },
+      "seed": {
+        "description": "The seed used: yours, or the fixed default when you passed null.",
+        "type": "integer"
+      },
+      "stratified_on": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The target the split balanced; null when it balanced none."
+      },
+      "test": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Frame Handle of the held-out rows; null for the k-fold schemes, which hold none out."
+      },
+      "test_rows": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Rows in ``test``; null when it is null."
+      },
+      "folds": {
+        "additionalProperties": false,
+        "description": "Every fold, in repeat then index order. At most 100.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `index`, `repeat`, `train`, `validation`, `train_rows`, `validation_rows`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "index",
+                "repeat",
+                "train",
+                "validation",
+                "train_rows",
+                "validation_rows"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "One fold's frames. A single train/test split has one fold with no validation frame. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `index`: Fold number, from 0, within its repeat.",
+                    "type": "integer"
+                  },
+                  {
+                    "description": "Position 1, `repeat`: Repeat number, from 0. Always 0 except for ``repeated_kfold``.",
+                    "type": "integer"
+                  },
+                  {
+                    "description": "Position 2, `train`: Frame Handle of the training rows.",
+                    "type": "string"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `validation`: Frame Handle of the validation rows; null for a single train/test split, whose held-out rows are ``test``."
+                  },
+                  {
+                    "description": "Position 4, `train_rows`: Rows in ``train``.",
+                    "type": "integer"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 5, `validation_rows`: Rows in ``validation``; null when it is null."
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "stratification": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "description": "How many signals each gate of a profile-stratified scheme kept. Counts only.",
+            "properties": {
+              "floor": {
+                "description": "The viability floor: fewest rows on each side a signal or label needs.",
+                "type": "integer"
+              },
+              "candidates": {
+                "description": "Signals the profile gave.",
+                "type": "integer"
+              },
+              "viable": {
+                "description": "Signals at or above the floor on both sides.",
+                "type": "integer"
+              },
+              "non_redundant": {
+                "description": "Viable signals left after near-duplicates were dropped.",
+                "type": "integer"
+              },
+              "cap": {
+                "description": "Most signals balanced at once.",
+                "type": "integer"
+              },
+              "kept": {
+                "description": "Signals balanced. 0 means the rows were split at random.",
+                "type": "integer"
+              },
+              "rows_to_train": {
+                "description": "Rows sent to train because their target class or rare value is below the floor.",
+                "type": "integer"
+              },
+              "labels_to_train": {
+                "description": "Target classes and rare values below the floor.",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "floor",
+              "candidates",
+              "viable",
+              "non_redundant",
+              "cap",
+              "kept",
+              "rows_to_train",
+              "labels_to_train"
+            ],
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Signal counts for the profile-stratified schemes; null for the others."
+      },
+      "fallbacks": {
+        "additionalProperties": false,
+        "description": "Every fallback taken, each with the dials behind it. Empty when none.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `fallback`, `count`, `dials`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "fallback",
+                "count",
+                "dials"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "A step the split took because a threshold ruled out the planned one. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `fallback`: ``unstratified``: no signal could be balanced, so rows were split at random. ``signals_capped``: some signals were not balanced. ``rows_to_train``: rows of labels below the floor all went to train.",
+                    "enum": [
+                      "unstratified",
+                      "signals_capped",
+                      "rows_to_train"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `count`: Rows split at random, signals left out, or rows sent to train, by ``fallback``.",
+                    "type": "integer"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "Position 2, `dials`: The dials or ``scheme`` arguments that decided it, with their resolved values. Empty when the data had nothing to balance.",
+                    "properties": {
+                      "fields": {
+                        "description": "Always exactly `operation`, `dial`, `value`, `source`, in this order. A row's value at position i is the field named here at i.",
+                        "items": {
+                          "enum": [
+                            "operation",
+                            "dial",
+                            "value",
+                            "source"
+                          ],
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "rows": {
+                        "description": "The dial whose value decided a threshold outcome. Turn it to change the outcome. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+                        "items": {
+                          "items": {
+                            "anyOf": [
+                              {
+                                "description": "Position 0, `operation`: The Operation that takes the dial.",
+                                "type": "string"
+                              },
+                              {
+                                "description": "Position 1, `dial`: The dial's argument path, such as ``thresholds.missingness.high_null_ratio``.",
+                                "type": "string"
+                              },
+                              {
+                                "anyOf": [
+                                  {
+                                    "type": "boolean"
+                                  },
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Position 2, `value`: The dial's resolved value."
+                              },
+                              {
+                                "description": "Position 3, `source`: ``default`` when the library default decided, ``argument`` when the caller set it.",
+                                "enum": [
+                                  "default",
+                                  "argument"
+                                ],
+                                "type": "string"
+                              }
+                            ]
+                          },
+                          "type": "array"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "fields",
+                      "rows"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "warnings",
+      "omitted",
+      "profile",
+      "frame",
+      "scheme",
+      "seed",
+      "stratified_on",
+      "test",
+      "test_rows",
+      "folds",
+      "stratification",
+      "fallbacks"
+    ],
+    "type": "object"
+  }
+}

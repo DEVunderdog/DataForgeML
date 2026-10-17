@@ -431,6 +431,44 @@ _ENTRIES: tuple[ErrorCodeEntry, ...] = (
         ),
     ),
     ErrorCodeEntry(
+        code="split_unstratified",
+        category="warning",
+        hint=(
+            "The profile-stratified split found no signal it could balance, so "
+            "rows were split at random. `fallbacks` names the dials that decided "
+            "it: lower the viability floor with a larger `scheme.test_size` or a "
+            "smaller `scheme.k`, or raise the signal cap."
+        ),
+    ),
+    ErrorCodeEntry(
+        code="stratification_signals_capped",
+        category="warning",
+        hint=(
+            "More signals passed the gates than the signal cap holds, so the "
+            "least important were not balanced. Raise the dials in `fallbacks` "
+            "to balance more of them."
+        ),
+    ),
+    ErrorCodeEntry(
+        code="rare_rows_to_train",
+        category="warning",
+        hint=(
+            "Some target classes or rare values have fewer rows than the "
+            "viability floor, so their rows always go to train and are never "
+            "evaluated. Accept it, or lower the floor with the argument in "
+            "`fallbacks`."
+        ),
+    ),
+    ErrorCodeEntry(
+        code="null_time_rows_to_train",
+        category="warning",
+        hint=(
+            "Rows with no time cannot be placed in time, so they all go to "
+            "train. Declare a sentinel or a datetime format on `profile` if "
+            "these rows do have a time."
+        ),
+    ),
+    ErrorCodeEntry(
         code="unexpected",
         category="Unexpected",
         hint=(

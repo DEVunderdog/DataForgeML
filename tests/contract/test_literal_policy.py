@@ -140,6 +140,12 @@ CALLS: dict[str, Callable[[Handles], list[Call]]] = {
         ("route", {"profile": h.profile}),
         ("route", {"profile": h.profile, "strategies": [{"column": "amount", "strategy": "constant"}]}),
     ],
+    "split": lambda h: [
+        ("split", {"profile": h.profile, "scheme": {"kind": "profile_stratified_kfold", "k": 3}}),
+        ("split", {"profile": h.profile, "scheme": {"kind": "time", "time_column": "when"}}),
+        ("split", {"profile": h.profile, "scheme": {"kind": "kfold", "k": 40}}),
+        ("split", {"profile": h.profile, "scheme": {"kind": "group", "group_column": "citty"}}),
+    ],
     "export_frame": lambda h: [
         ("export_frame", {"frame": h.frame}),
         ("export_frame", {"frame": h.profile}),
