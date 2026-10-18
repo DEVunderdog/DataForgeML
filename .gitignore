@@ -20,6 +20,5 @@ dataforge_ml.egg-info
 *.pyc
 ralph
 site
-docs/_build/
 docs/learning
 prototypes

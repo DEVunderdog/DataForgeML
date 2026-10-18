@@ -59,8 +59,8 @@ jobs:
 
       # --locked fails the build if uv.lock disagrees with pyproject.toml, which is
       # what stops the two from ever being bumped separately.
-      # Only the `test` group is synced: pytest jobs have no business installing the
-      # Sphinx toolchain, and a docs-tool release must not be able to redden tests.
+      # Only the `test` group is synced, so a new dependency group added later
+      # stays out of the pytest jobs unless they ask for it.
       - name: Install project and test dependencies
         run: uv sync --locked --no-default-groups --group test
         env:

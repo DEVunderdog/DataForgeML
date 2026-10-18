@@ -43,7 +43,6 @@ uv run ruff check                                # lint; CI and the hook hold it
 uv run pytest tests/unit/imputation -q           # one directory
 uv run pytest -n 0 tests/contract/test_load.py   # serially, to debug one test
 uv run --python 3.11 pytest                      # a different interpreter from the matrix
-uv run sphinx-build -W -b html docs/ docs/_build/html   # the docs
 ```
 
 The suite runs in parallel by default: `pyproject.toml` sets `addopts = "-n auto"`, so
@@ -76,15 +75,13 @@ The hook checks your working tree, not only what you staged. Unstaged edits coun
 
 ## Dependency groups
 
-Dev dependencies are split so that a job installs only what it uses — a Sphinx release
-cannot redden the test matrix:
+Dev dependencies live in a dependency group, so a job installs only what it uses:
 
-| Group  | Contains                | Sync it with                                        |
-|--------|-------------------------|-----------------------------------------------------|
-| `test` | pytest, pytest-xdist    | `uv sync --no-default-groups --group test`          |
-| `docs` | Sphinx toolchain        | `uv sync --no-default-groups --group docs`          |
+| Group  | Contains                          | Sync it with                                 |
+|--------|-----------------------------------|----------------------------------------------|
+| `test` | pytest, pytest-xdist, tiktoken    | `uv sync --no-default-groups --group test`   |
 
-A bare `uv sync` gives you both. These groups are **not** published in the wheel.
+A bare `uv sync` gives you `test`. Groups are **not** published in the wheel.
 
 ---
 
@@ -140,7 +137,7 @@ uv run --python 3.11 pytest && uv run --python 3.12 pytest && uv run --python 3.
 **5. One PR, both files.** `pyproject.toml` and `uv.lock` always travel together — a lock
 that disagrees with the caps is exactly the drift this design exists to prevent.
 
-**6. Tag and release.** `publish.yml` builds and uploads; `deploy-docs.yml` follows.
+**6. Tag and release.** `publish.yml` builds and uploads.
 
 If a CVE fix sits above a cap, this runbook is what unblocks it — `pip-audit` will be
 failing CI until you run it.
