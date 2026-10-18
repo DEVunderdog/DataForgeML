@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+# Refuse a commit that breaks the package import or a unit test.
+# Install once with: git config core.hooksPath .githooks (see CONTRIBUTING.md).
+set -e
+
+if ! command -v uv >/dev/null 2>&1; then
+    echo "pre-commit: uv not found on PATH; install it (see CONTRIBUTING.md)" >&2
+    exit 1
+fi
+
+hooks_dir=$(dirname "$0")
+
+echo "pre-commit: import smoke test"
+uv run --locked --quiet python "$hooks_dir/import_smoke.py"
+
+echo "pre-commit: unit tests"
+uv run --locked --quiet pytest tests/unit -q -x -p no:cacheprovider

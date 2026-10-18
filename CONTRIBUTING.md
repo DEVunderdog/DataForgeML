@@ -48,6 +48,20 @@ uv run sphinx-build -W -b html docs/ docs/_build/html   # the docs
 with `pyproject.toml`**. If you change a dependency, commit the regenerated lock in the
 same PR.
 
+### Install the pre-commit hook
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Run it once per clone. Every commit then runs `.githooks/pre-commit`. The hook does two
+things. It imports every module under `dataforge_ml.operations` and `dataforge_ml.splitting`,
+and names any import that fails. Then it runs `tests/unit`. The whole hook takes under a
+minute. A failure refuses the commit. Contract and integration tests stay out of the hook
+because they are slow; CI runs them.
+
+The hook checks your working tree, not only what you staged. Unstaged edits count.
+
 ---
 
 ## Dependency groups
