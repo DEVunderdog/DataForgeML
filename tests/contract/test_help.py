@@ -4,7 +4,7 @@ Every test is driven by the Operation registry, so an Operation added later
 gets its help checked with no change here. The help is generated into the
 committed ``_help.json``; refresh it after an intended change with
 ``uv run python -m dataforge_ml._boundary._help_build`` (or
-``DATAFORGE_ML_UPDATE_SNAPSHOTS=1 uv run pytest tests/contract``).
+``DATAFORGE_ML_UPDATE_SNAPSHOTS=1 uv run pytest -n 0 tests/contract``).
 """
 
 from __future__ import annotations

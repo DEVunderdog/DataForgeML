@@ -37,6 +37,7 @@ dataforge = "dataforge_ml._cli:main"
 [dependency-groups]
 test = [
     "pytest>=8.0",
+    "pytest-xdist>=3.6",
     "tiktoken>=0.14",
 ]
 docs = [
@@ -53,3 +54,5 @@ default-groups = ["test", "docs"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Parallel by default (pytest-xdist); `-n 0` runs serially. See CONTRIBUTING.md.
+addopts = "-n auto"

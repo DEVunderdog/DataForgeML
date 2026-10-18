@@ -38,11 +38,19 @@ including CI, gets a byte-identical environment.
 Run things with `uv run`, which syncs first if anything is stale:
 
 ```bash
-uv run pytest                                    # the suite
+uv run pytest                                    # the suite, in parallel
 uv run pytest tests/unit/imputation -q           # one directory
+uv run pytest -n 0 tests/contract/test_load.py   # serially, to debug one test
 uv run --python 3.11 pytest                      # a different interpreter from the matrix
 uv run sphinx-build -W -b html docs/ docs/_build/html   # the docs
 ```
+
+The suite runs in parallel by default: `pyproject.toml` sets `addopts = "-n auto"`, so
+pytest-xdist starts one worker per physical core. Pass `-n 0` to run in one process, where
+`pdb`, `-s` and print debugging behave normally, and to refresh snapshots
+(`DATAFORGE_ML_UPDATE_SNAPSHOTS=1`), which rewrites files other workers read. A test must
+not depend on another test's leftovers, because the tests that share a worker change from
+run to run.
 
 `uv.lock` is committed and CI runs `uv sync --locked`, which **fails if the lock disagrees
 with `pyproject.toml`**. If you change a dependency, commit the regenerated lock in the
@@ -71,7 +79,7 @@ cannot redden the test matrix:
 
 | Group  | Contains                | Sync it with                                        |
 |--------|-------------------------|-----------------------------------------------------|
-| `test` | pytest                  | `uv sync --no-default-groups --group test`          |
+| `test` | pytest, pytest-xdist    | `uv sync --no-default-groups --group test`          |
 | `docs` | Sphinx toolchain        | `uv sync --no-default-groups --group docs`          |
 
 A bare `uv sync` gives you both. These groups are **not** published in the wheel.

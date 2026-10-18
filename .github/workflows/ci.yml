@@ -44,6 +44,7 @@ jobs:
         env:
           UV_PYTHON: ${{ matrix.python-version }}
 
+      # Parallel across the runner's CPUs: pyproject.toml's addopts sets `-n auto`.
       - name: Run tests
         run: uv run --no-sync pytest
         env:

@@ -6,7 +6,7 @@ schema snapshot, an ``Example`` that runs as shell commands (checked in
 ``test_help.py``), and a worst-case entry in :data:`WORST_CASE` below. A missing one fails its test by name.
 
 Refresh snapshots after an intended schema change with
-``DATAFORGE_ML_UPDATE_SNAPSHOTS=1 uv run pytest tests/contract``.
+``DATAFORGE_ML_UPDATE_SNAPSHOTS=1 uv run pytest -n 0 tests/contract``.
 """
 
 from __future__ import annotations
