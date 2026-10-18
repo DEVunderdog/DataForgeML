@@ -1,6 +1,13 @@
 name: CI
 
+# Every push to a feature branch is checked, so a break shows up before any PR
+# opens. Both jobs run on push, pip-audit included. While a PR is open, each push
+# runs twice. That cost is accepted: the push run tests the branch head, the PR
+# run tests its merge into main, and only the merge catches main moving on.
 on:
+  push:
+    branches:
+      - "feature/**"
   pull_request:
     branches:
       - main

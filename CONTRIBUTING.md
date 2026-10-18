@@ -238,7 +238,8 @@ On GitHub, open a PR against `main`:
 - **Body**: include `Closes #<issue-number>` so the issue closes automatically on merge
 - Describe what you changed and why, not just what the code does
 
-CI will run automatically. Fix any failing tests before requesting review.
+CI runs on every push to a `feature/**` branch, before any PR is open, and again on the PR
+itself. Fix any CI failures before requesting review.
 
 ---
 
