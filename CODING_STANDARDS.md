@@ -12,12 +12,11 @@ A new Operation reuses what its sibling Operations already share. When a helper
 exists, call it. When a second Operation needs logic that so far lives in one
 place, extract it into a shared module and have both call it.
 
-The shared helpers today:
+Look in these modules before writing a helper:
 
-- `_boundary/_detail.py`: `page` cuts a result page and builds its `omitted` entry;
-  `unknown_columns` builds the one `unknown_column` error.
-- `_boundary/_workspace.py`: the Handle readers (`read_record`, `read_frame`,
-  `read_profile`, `read_routing`) and `write_handle`.
+- `_boundary/_detail.py`: cutting a result page with its `omitted` entry, and
+  building the `unknown_column` error.
+- `_boundary/_workspace.py`: reading and writing Handles.
 
 **Why:** a pasted copy drifts. The paging rule, the `unknown_column` error shape,
 and the Handle checks are part of the Agent-facing contract. When one copy changes
