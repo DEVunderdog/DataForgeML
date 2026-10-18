@@ -145,6 +145,17 @@ def _wide_route(harness: Harness, tmp_path: Path) -> dict[str, Any]:
     ).json
 
 
+def _wide_explain_routing(harness: Harness, tmp_path: Path) -> dict[str, Any]:
+    # A full page of long-named columns, each failing both model checks on a
+    # dialled term, so every column carries its longest evidence.
+    routing = harness.code_mode(
+        "route",
+        profile=_wide_profile_handle(harness, tmp_path),
+        thresholds={"numeric": {"knn_max_rows": 1, "mice_min_rows_per_predictor": 1e9}},
+    ).json["routing"]
+    return harness.call("explain_routing", routing=routing).json
+
+
 def _ames_repeated_kfold(harness: Harness, tmp_path: Path) -> dict[str, Any]:
     # The most folds a split may make, 100, each with two frame Handles.
     return harness.call(
@@ -158,6 +169,7 @@ def _ames_repeated_kfold(harness: Harness, tmp_path: Path) -> dict[str, Any]:
 WORST_CASE: dict[str, Callable[[Harness, Path], dict[str, Any]]] = {
     "describe_columns": _wide_describe_columns,
     "describe_target": _ames_describe_target,
+    "explain_routing": _wide_explain_routing,
     "export_frame": _export,
     "list_handles": _full_page_of_handles,
     "load": _wide_load,
@@ -171,7 +183,7 @@ WORST_CASE: dict[str, Callable[[Harness, Path], dict[str, Any]]] = {
 
 #: Operations an ``omitted`` entry may already name before they exist, each
 #: with the ticket that adds it. Remove an entry when its Operation lands.
-PENDING_OPERATIONS: dict[str, str] = {"explain_routing": "#598", "query_frame": "#603"}
+PENDING_OPERATIONS: dict[str, str] = {"query_frame": "#603"}
 
 
 def _schemas(spec: OperationSpec) -> dict[str, Any]:

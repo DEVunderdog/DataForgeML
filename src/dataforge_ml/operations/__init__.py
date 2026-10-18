@@ -8,6 +8,7 @@ Operations from ``dataforge_ml``.
 from . import (  # noqa: F401 - importing each module registers its Operation
     describe_columns,
     describe_target,
+    explain_routing,
     export_frame,
     list_handles,
     load,

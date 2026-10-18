@@ -109,9 +109,11 @@ def _raise_problem(node: ast.Raise, builders: set[str]) -> str | None:
 
 def test_every_raise_site_raises_a_library_error() -> None:
     problems = []
-    for name, tree in _sources():
+    sources = _sources()
+    # A builder may live in a shared module and be imported where it is raised.
+    builders = set().union(*(_builders(tree) for _, tree in sources))
+    for name, tree in sources:
         parents = _parents(tree)
-        builders = _builders(tree)
         for node in ast.walk(tree):
             if not isinstance(node, ast.Raise):
                 continue

@@ -199,7 +199,7 @@ def test_a_forced_column_stores_its_failed_terms_with_dial_pointers(harness: Har
         thresholds={"numeric": {"knn_max_rows": 1}},
     )
 
-    # explain_routing (#598) will read this; until then, read the Handle itself.
+    # The Handle itself: test_explain_routing reads the same facts over the wire.
     routing = _stored_routing(out.json["routing"])
     (fact,) = routing.column_routings["income"].evidence
     assert (fact.kind, fact.strategy, fact.passed) == ("feasibility", "knn", False)

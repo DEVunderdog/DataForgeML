@@ -330,6 +330,24 @@ def _with_dial_sources(evidence: tuple[Any, ...], dials: _Dials) -> tuple[Any, .
     return tuple(out)
 
 
+def ordered_columns(routings: dict[str, Any]) -> list[str]:
+    """Return routed columns in result order: those that fill or drop first, then ``passthrough``.
+
+    Each group keeps the routing's own order: dataset order, then indicators.
+
+    Parameters
+    ----------
+    routings : dict
+        Column name to ``ColumnRouting``, in routing order.
+
+    Returns
+    -------
+    list of str
+        The column names, in the order ``route`` and ``explain_routing`` list them.
+    """
+    return sorted(routings, key=lambda c: routings[c].strategy.value == "passthrough")
+
+
 def _capped_warning(
     warning: ResultWarning, columns: list[str], index: int
 ) -> tuple[ResultWarning, list[dict[str, Any]]]:
@@ -619,7 +637,8 @@ def route_profile(
         omitted += cut
 
     rows = []
-    for column, r in routings.items():
+    for column in ordered_columns(routings):
+        r = routings[column]
         cp = result.columns.get(column)
         semantic_type = (
             r.semantic_type if cp is None else cp.semantic_type
@@ -632,7 +651,6 @@ def route_profile(
                 "reason": r.reason.value,
             }
         )
-    rows.sort(key=lambda row: row["strategy"] == "passthrough")  # stable: dataset order
     census: dict[str, int] = {}
     for row in rows:
         census[row["strategy"]] = census.get(row["strategy"], 0) + 1

@@ -140,6 +140,10 @@ CALLS: dict[str, Callable[[Handles], list[Call]]] = {
         ("route", {"profile": h.profile}),
         ("route", {"profile": h.profile, "strategies": [{"column": "amount", "strategy": "constant"}]}),
     ],
+    "explain_routing": lambda h: [
+        ("explain_routing", {"routing": h.routing}),
+        ("explain_routing", {"routing": h.routing, "columns": ["citty"]}),
+    ],
     "split": lambda h: [
         ("split", {"profile": h.profile, "scheme": {"kind": "profile_stratified_kfold", "k": 3}}),
         ("split", {"profile": h.profile, "scheme": {"kind": "time", "time_column": "when"}}),

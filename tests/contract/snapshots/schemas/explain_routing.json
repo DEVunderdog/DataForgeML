@@ -1,0 +1,585 @@
+{
+  "input": {
+    "additionalProperties": false,
+    "properties": {
+      "routing": {
+        "description": "A routing Handle, such as ``routing_7f3a9c2e``.",
+        "type": "string"
+      },
+      "columns": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Only these columns. Null means every routed column."
+      },
+      "offset": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "How many matching columns to skip, for the next page. Null means 0. Constraints: at least 0."
+      },
+      "limit": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Most columns to return, from 1 to 15. Null means 15. Constraints: at least 1; at most 15."
+      }
+    },
+    "required": [
+      "routing",
+      "columns",
+      "offset",
+      "limit"
+    ],
+    "type": "object"
+  },
+  "output": {
+    "additionalProperties": false,
+    "description": "One page of Routing Evidence. ``result.get(name)`` finds one column.",
+    "properties": {
+      "warnings": {
+        "additionalProperties": false,
+        "description": "Caveats on this result, most actionable first. Empty when there are none.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `code`, `message`, `columns`, `param`, `hint`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "code",
+                "message",
+                "columns",
+                "param",
+                "hint"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "A caveat on a successful result: it worked, but read this first. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `code`: The warning's Error Code. Branch on this, not on ``message``.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `message`: What happened and what to do, in one or two sentences.",
+                    "type": "string"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 2, `columns`: Columns the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `param`: The argument the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 4, `hint`: Library-written advice, or null."
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "omitted": {
+        "additionalProperties": false,
+        "description": "One entry per list that was cut, naming the Operation that returns the rest. Empty when nothing was cut.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `field`, `shown`, `total`, `operation`, `reason`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "field",
+                "shown",
+                "total",
+                "operation",
+                "reason"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "Something left out of a result: a capped list was cut, or a Literal Field withheld. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `field`: Name of the list field that was cut, or the path of the Literal Field withheld, such as ``top_values[].value``.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `shown`: How many items the list holds; 0 for a withheld Literal Field.",
+                    "type": "integer"
+                  },
+                  {
+                    "description": "Position 2, `total`: How many items exist; for a withheld Literal Field, how many values at that path are null.",
+                    "type": "integer"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `operation`: The Operation that returns the rest, or null when no Operation does."
+                  },
+                  {
+                    "description": "Position 4, `reason`: ``cap`` when a list was cut to its cap; ``literal_policy`` when the Operator's Literal Policy is ``deny``.",
+                    "enum": [
+                      "cap",
+                      "literal_policy"
+                    ],
+                    "type": "string"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "routing": {
+        "description": "The routing Handle read.",
+        "type": "string"
+      },
+      "profile": {
+        "description": "The profile Handle the routing was made from.",
+        "type": "string"
+      },
+      "total": {
+        "description": "How many columns match ``columns``.",
+        "type": "integer"
+      },
+      "offset": {
+        "description": "How many matching columns this page skipped.",
+        "type": "integer"
+      },
+      "columns": {
+        "additionalProperties": false,
+        "description": "Matching columns in ``route``'s order: those that fill or drop first, then ``passthrough``. At most 15; when more remain, ``omitted`` counts them and names ``explain_routing``.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `column`, `strategy`, `reason`, `entry`, `signal_score`, `tier`, `feasibility`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "column",
+                "strategy",
+                "reason",
+                "entry",
+                "signal_score",
+                "tier",
+                "feasibility"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "One column's strategy, its Routing Reason, and the Routing Evidence behind it. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `column`: Column name. A ``<column>_missing`` row is the indicator an ``mnar`` column adds.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `strategy`: The strategy the column takes.",
+                    "enum": [
+                      "mean",
+                      "median",
+                      "mode",
+                      "knn",
+                      "mice",
+                      "mnar",
+                      "constant",
+                      "dropped",
+                      "passthrough",
+                      "cluster_conditional",
+                      "gmm_sampling",
+                      "indicator"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 2, `reason`: The Routing Reason: the one rule that fixed ``strategy``.",
+                    "enum": [
+                      "drop_candidate",
+                      "constant_declared",
+                      "strategy_forced",
+                      "mnar_declared",
+                      "no_missing_values",
+                      "soft_excluded",
+                      "not_imputed_type",
+                      "authored",
+                      "mcar_minor_unskewed",
+                      "mcar_skewed",
+                      "mar_unescalated",
+                      "bounded_discrete_scalar",
+                      "bimodal_grouping_declared",
+                      "bimodal_few_correlated",
+                      "bimodal_uncorrelated",
+                      "signal_tier_pick",
+                      "bottom_tier_fill",
+                      "no_feasible_model",
+                      "no_predictor_correlation"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 3, `entry`: Why the column reached the Signal Score check, outermost rule first. Empty when it never did.",
+                    "items": {
+                      "enum": [
+                        "bounded_discrete",
+                        "mar_multi",
+                        "mar_severe",
+                        "mar_high_correlated",
+                        "mar_high_uncorrelated",
+                        "mar_shape_escalation",
+                        "mcar_high_severity",
+                        "mcar_minor_leptokurtic",
+                        "mcar_moderate_shape",
+                        "bimodal_many_correlated"
+                      ],
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "description": "The Signal Score and the terms it was built from.",
+                        "properties": {
+                          "score": {
+                            "description": "The Signal Score, from 0 to 1. ``tier`` says which Signal Tier it fell in.",
+                            "type": "number"
+                          },
+                          "base": {
+                            "description": "Explainable Variance: the larger of the best R² and the squared largest absolute correlation.",
+                            "type": "number"
+                          },
+                          "latent": {
+                            "description": "Latent Structure, from the largest mutual information.",
+                            "type": "number"
+                          },
+                          "breadth": {
+                            "description": "Signal Breadth: ``predictors / (predictors + 1)``.",
+                            "type": "number"
+                          },
+                          "predictors": {
+                            "description": "Columns whose absolute correlation with this one is above ``thresholds.numeric.mice_correlation_threshold`` of ``route``.",
+                            "type": "integer"
+                          },
+                          "degraded": {
+                            "description": "True when the R² pair was missing, so ``base`` is the squared largest absolute correlation alone.",
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "score",
+                          "base",
+                          "latent",
+                          "breadth",
+                          "predictors",
+                          "degraded"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 4, `signal_score`: The Signal Score; null when the column never reached the check or has no predictor correlation."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "enum": [
+                          "bottom",
+                          "middle",
+                          "top"
+                        ],
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 5, `tier`: The Signal Tier, set by ``thresholds.numeric.signal_score_middle_tier_min`` and ``signal_score_top_tier_min`` of ``route``; null when not reached."
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "Position 6, `feasibility`: Each model strategy checked: ``mice`` then ``knn`` for a routed column, or the one strategy you declared. Empty when none was checked.",
+                    "properties": {
+                      "fields": {
+                        "description": "Always exactly `strategy`, `passed`, `failed_terms`, in this order. A row's value at position i is the field named here at i.",
+                        "items": {
+                          "enum": [
+                            "strategy",
+                            "passed",
+                            "failed_terms"
+                          ],
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "rows": {
+                        "description": "One strategy's Feasibility Floor and Resource Ceiling verdict. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+                        "items": {
+                          "items": {
+                            "anyOf": [
+                              {
+                                "description": "Position 0, `strategy`: The strategy checked.",
+                                "enum": [
+                                  "mice",
+                                  "knn",
+                                  "cluster_conditional",
+                                  "gmm_sampling"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "description": "Position 1, `passed`: True when it passed every term.",
+                                "type": "boolean"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "description": "Position 2, `failed_terms`: Each term it failed, with the dial behind it. Empty when ``passed`` is true.",
+                                "properties": {
+                                  "fields": {
+                                    "description": "Always exactly `term`, `value`, `limit`, `dial`, in this order. A row's value at position i is the field named here at i.",
+                                    "items": {
+                                      "enum": [
+                                        "term",
+                                        "value",
+                                        "limit",
+                                        "dial"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "type": "array"
+                                  },
+                                  "rows": {
+                                    "description": "One Feasibility term or condition a strategy failed. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+                                    "items": {
+                                      "items": {
+                                        "anyOf": [
+                                          {
+                                            "description": "Position 0, `term`: The term: ``rows_per_predictor`` and ``predictors`` (``mice``), ``row_count`` (``knn``), ``bimodal_flag`` and ``correlated_features`` (a declared ``cluster_conditional`` or ``gmm_sampling``).",
+                                            "enum": [
+                                              "rows_per_predictor",
+                                              "predictors",
+                                              "row_count",
+                                              "bimodal_flag",
+                                              "correlated_features"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          {
+                                            "anyOf": [
+                                              {
+                                                "type": "boolean"
+                                              },
+                                              {
+                                                "type": "integer"
+                                              },
+                                              {
+                                                "type": "number"
+                                              },
+                                              {
+                                                "type": "null"
+                                              }
+                                            ],
+                                            "description": "Position 1, `value`: The column's value for the term; null when undefined."
+                                          },
+                                          {
+                                            "anyOf": [
+                                              {
+                                                "type": "boolean"
+                                              },
+                                              {
+                                                "type": "integer"
+                                              },
+                                              {
+                                                "type": "number"
+                                              },
+                                              {
+                                                "type": "null"
+                                              }
+                                            ],
+                                            "description": "Position 2, `limit`: The bound ``value`` failed; null when the term has none."
+                                          },
+                                          {
+                                            "anyOf": [
+                                              {
+                                                "additionalProperties": false,
+                                                "description": "The dial whose value decided a threshold outcome. Turn it to change the outcome.",
+                                                "properties": {
+                                                  "operation": {
+                                                    "description": "The Operation that takes the dial.",
+                                                    "type": "string"
+                                                  },
+                                                  "dial": {
+                                                    "description": "The dial's argument path, such as ``thresholds.missingness.high_null_ratio``.",
+                                                    "type": "string"
+                                                  },
+                                                  "value": {
+                                                    "anyOf": [
+                                                      {
+                                                        "type": "boolean"
+                                                      },
+                                                      {
+                                                        "type": "integer"
+                                                      },
+                                                      {
+                                                        "type": "number"
+                                                      },
+                                                      {
+                                                        "type": "string"
+                                                      },
+                                                      {
+                                                        "type": "null"
+                                                      }
+                                                    ],
+                                                    "description": "The dial's resolved value."
+                                                  },
+                                                  "source": {
+                                                    "description": "``default`` when the library default decided, ``argument`` when the caller set it.",
+                                                    "enum": [
+                                                      "default",
+                                                      "argument"
+                                                    ],
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "operation",
+                                                  "dial",
+                                                  "value",
+                                                  "source"
+                                                ],
+                                                "type": "object"
+                                              },
+                                              {
+                                                "type": "null"
+                                              }
+                                            ],
+                                            "description": "Position 3, `dial`: The dial that set ``limit``, and whether you set it; null when no dial changes this outcome."
+                                          }
+                                        ]
+                                      },
+                                      "type": "array"
+                                    },
+                                    "type": "array"
+                                  }
+                                },
+                                "required": [
+                                  "fields",
+                                  "rows"
+                                ],
+                                "type": "object"
+                              }
+                            ]
+                          },
+                          "type": "array"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "fields",
+                      "rows"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "warnings",
+      "omitted",
+      "routing",
+      "profile",
+      "total",
+      "offset",
+      "columns"
+    ],
+    "type": "object"
+  }
+}

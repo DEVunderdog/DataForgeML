@@ -73,6 +73,7 @@ _EXPORTS: dict[str, tuple[str, ...]] = {
     # here is today's door, and becomes internal as the Operations land.
     ".operations.describe_columns": ("describe_columns",),
     ".operations.describe_target": ("describe_target",),
+    ".operations.explain_routing": ("explain_routing",),
     ".operations.export_frame": ("export_frame",),
     ".operations.list_handles": ("list_handles",),
     ".operations.load": ("load",),
@@ -169,6 +170,7 @@ __all__ = [
     "describe_columns",
     "describe_target",
     "deserialize",
+    "explain_routing",
     "export_frame",
     "fit_unit",
     "imputation_score_c2st",

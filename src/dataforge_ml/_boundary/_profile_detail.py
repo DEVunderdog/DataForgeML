@@ -17,7 +17,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..records import DataForgeError
-from ._error_codes import close_matches
+from ._detail import page as _page
+from ._detail import unknown_columns
 from ._profile import FLAG_DIALS, _Dials, _flags
 from ._workspace import read_profile
 
@@ -99,63 +100,18 @@ def _unknown_columns(
     what: str = "column in the profile",
 ) -> DataForgeError:
     """One ``unknown_column`` error naming every ``(param, name)`` at fault."""
-    pool = list(stored.columns if pool is None else pool)
-
-    def problem(name: str) -> str:
-        if name in stored.excluded:
-            return f"`{name}` was excluded, so the profile holds nothing on it"
-        return f"no {what} `{name}`"
-
-    issues = [{"param": p, "problem": problem(n)} for p, n in unknown]
-    first_param, first_name = unknown[0]
-    if len(unknown) == 1:
-        message = f"`{first_param}`: {problem(first_name)}."
-    else:
-        message = (
-            f"{len(unknown)} unknown columns, first `{first_param}`: "
-            f"{problem(first_name)}. See `issues` for all of them."
-        )
-    params = [p for p, _ in unknown]
-    return DataForgeError.from_code(
-        "unknown_column",
-        message,
-        param=first_param if len(params) == 1 else None,
-        params=params,
-        columns=list(dict.fromkeys(n for _, n in unknown)),
-        candidates=close_matches([n for _, n in unknown], pool) or pool[:5],
-        issues=issues,
+    return unknown_columns(
+        unknown,
+        pool=list(stored.columns if pool is None else pool),
+        excluded=stored.excluded,
+        holder="profile",
+        what=what,
     )
 
 
 def _check_column(stored: _Stored, column: str | None, param: str) -> None:
     if column is not None and column not in stored.columns:
         raise _unknown_columns(stored, [(param, column)])
-
-
-def _page(
-    items: list[Any],
-    offset: int | None,
-    limit: int | None,
-    cap: int,
-    *,
-    field: str,
-    operation: str,
-) -> tuple[list[Any], int, list[dict[str, Any]]]:
-    """Cut one page out of a filtered, sorted list; count it when more remain."""
-    offset = 0 if offset is None else offset
-    limit = cap if limit is None else limit
-    page = items[offset : offset + limit]
-    omitted = []
-    if offset + len(page) < len(items):  # more remain past this page
-        omitted.append(
-            {
-                "field": field,
-                "shown": len(page),
-                "total": len(items),
-                "operation": operation,
-            }
-        )
-    return page, offset, omitted
 
 
 def _flag_dials(stored: _Stored, flags: Sequence[str]) -> list[dict[str, Any]]:

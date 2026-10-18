@@ -416,6 +416,21 @@ def read_frame(handle: str, *, param: str) -> tuple[Any, InheritedDeclarations]:
     return frame, InheritedDeclarations.from_dict(record["declarations"])
 
 
+def _read_serialized(handle: str, kind: str, *, param: str) -> tuple[Any, dict[str, Any]]:
+    # One serialized library object, recorded as an input of the current call.
+    from .._serialization import deserialize
+
+    record = read_record(handle, kind, param=param)
+    call = _CALL.get()
+    if call is not None and handle not in call.inputs:
+        call.inputs.append(handle)
+    obj = cached(handle)
+    if obj is None:
+        obj = deserialize(payload_path(handle, record).read_bytes())
+        cache(handle, obj)
+    return obj, record
+
+
 def read_profile(handle: str, *, param: str) -> tuple[Any, dict[str, Any]]:
     """Read a profile Handle and record it as an input of the current call.
 
@@ -437,14 +452,29 @@ def read_profile(handle: str, *, param: str) -> tuple[Any, dict[str, Any]]:
     DataForgeError
         As :func:`read_record`.
     """
-    from .._serialization import deserialize
+    return _read_serialized(handle, "profile", param=param)
 
-    record = read_record(handle, "profile", param=param)
-    call = _CALL.get()
-    if call is not None and handle not in call.inputs:
-        call.inputs.append(handle)
-    profile = cached(handle)
-    if profile is None:
-        profile = deserialize(payload_path(handle, record).read_bytes())
-        cache(handle, profile)
-    return profile, record
+
+def read_routing(handle: str, *, param: str) -> tuple[Any, dict[str, Any]]:
+    """Read a routing Handle and record it as an input of the current call.
+
+    Parameters
+    ----------
+    handle : str
+        The routing Handle the Agent passed.
+    param : str
+        The argument path, for error records.
+
+    Returns
+    -------
+    tuple of (ImputationRouting, dict)
+        The stored routing, with every column's Routing Evidence, and its
+        Handle record, which holds the profile it was routed from and the
+        declarations.
+
+    Raises
+    ------
+    DataForgeError
+        As :func:`read_record`.
+    """
+    return _read_serialized(handle, "routing", param=param)
