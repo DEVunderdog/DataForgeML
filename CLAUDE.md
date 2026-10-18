@@ -1,5 +1,7 @@
 # DataForgeML — Claude Code Instructions
 
+Adding an Operation? Follow the checklist in `CONTRIBUTING.md`, section "Adding an Operation".
+
 ## Documentation rule (ADR-0034)
 
 Every class, every public method on that class, and every exported standalone function that falls within documentation scope **must** have a numpy-style docstring before the task is considered done.

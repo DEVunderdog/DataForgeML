@@ -232,6 +232,59 @@ def method(self, param: Type) -> ReturnType:
 
 ---
 
+## Adding an Operation
+
+An Operation touches more files than its own. Most of the spots below are enforced by a
+contract test, but you only learn that after a long run. Work down this list instead.
+`<name>` is the Operation's snake_case name, for example `explain_routing`.
+
+**Write the Operation**
+
+| Where | What goes there |
+|---|---|
+| `src/dataforge_ml/operations/<name>.py` | The thin Operation file: the function under `@operation(effect=..., phase=..., scales_with_data=..., result_budget_tokens=...)`, the Wire Records only it returns, and one call into internal code. |
+| The same file, the docstring | Written for Agents: a summary line plus the sections in `OPERATION_SECTIONS` (`_boundary/_docstring.py`). The `Example` must run as shell commands; `test_help.py` checks it. |
+| `src/dataforge_ml/_boundary/` | The internal boundary module the Operation calls into, where its logic lives. Usually a new `_<name>.py`. Related Operations may share one: the profile detail reads all live in `_profile_detail.py`. |
+| `src/dataforge_ml/_boundary/_error_codes.py` | One `ErrorCodeEntry` (code, category, hint, and `fields` if any) for every new error or warning code the Operation raises. `test_error_registry.py` fails on a raise with no registered code. |
+| `CONTEXT.md` | Any new domain term the Operation introduces. Skip this if there is none. |
+| `_boundary/_operation.py` `PHASES` and `_boundary/_help_build.py` `PHASE_ORDER` | Only when the Operation needs a phase that does not exist yet. Add it to both. `test_help.py` fails when a phase is missing from `PHASE_ORDER`. |
+
+**Register it**
+
+| Where | What goes there |
+|---|---|
+| `src/dataforge_ml/operations/__init__.py` | The module name, in the alphabetical import list. Importing the package registers every Operation. |
+| `src/dataforge_ml/__init__.py`, `_EXPORTS` | `".operations.<name>": ("<name>",),` |
+| `src/dataforge_ml/__init__.py`, `__all__` | `"<name>",`. Both lists need the entry. |
+
+**Join the contract tests**
+
+| Where | What goes there |
+|---|---|
+| `tests/contract/test_<name>.py` | The Operation's own contract tests. |
+| `tests/contract/test_operation_contract.py`, `WORST_CASE` | A function that makes the Operation's largest result on the supported fixtures, plus its entry in the table. The test checks that result is under the Result Budget. |
+| `tests/contract/test_operation_contract.py`, `PENDING_OPERATIONS` | Delete the Operation's entry if it has one. A pending entry for a registered Operation fails a test. |
+| `tests/contract/test_literal_policy.py`, `CALLS` | Canary calls for the Operation: at least one that succeeds and one that fails. Most existing failures misspell a fixture column, such as `"citty"`. |
+
+**Regenerate the derived files**
+
+Both are committed, and a contract test fails when either is stale. Run them after the
+Operation's signature and docstring are final.
+
+```bash
+# The committed CLI help, src/dataforge_ml/_help.json
+uv run python -m dataforge_ml._boundary._help_build
+
+# The schema snapshots, tests/contract/snapshots/schemas/<name>.json (also refreshes the help)
+DATAFORGE_ML_UPDATE_SNAPSHOTS=1 uv run pytest -n 0 tests/contract
+```
+
+The snapshot refresh needs `-n 0`; see "Setting up your development environment" above.
+Read the diff of both before you commit. A change to another Operation's snapshot means
+you changed a shared record.
+
+---
+
 ## Opening a pull request
 
 When your work is ready:
