@@ -35,8 +35,7 @@ from dataforge_ml.evaluation.imputation import _adapter
 from dataforge_ml.observability import EventType
 from dataforge_ml.profiling._config import ProfileConfig
 from dataforge_ml.profiling.orchestrator import StructuralProfiler
-from tests.conftest import fit_imputer
-from tests.conftest import raises_code
+from tests.conftest import fit_imputer, raises_code
 
 N_ROWS = 400
 SENTINEL_ROWS = 80

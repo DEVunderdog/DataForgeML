@@ -11,7 +11,6 @@ import json
 from dataclasses import InitVar, dataclass, field
 from enum import StrEnum
 from types import MappingProxyType
-from typing import Optional, Union
 
 from .._boundary._error_codes import close_matches
 from ..config import Modality, SemanticType
@@ -49,6 +48,11 @@ from ._type_detection_config import TypeDetectionConfig
 
 
 class NumericKind(StrEnum):
+    """The NumericKind of a Numeric column: ``Continuous`` or ``BoundedDiscrete``.
+
+    Set by detection, or by the caller via ``set_numeric_kind``.
+    """
+
     Continuous = "continuous"
     BoundedDiscrete = "bounded_discrete"
 
@@ -78,7 +82,7 @@ class EpochUnit(StrEnum):
 # Column and dataset result containers
 # ---------------------------------------------------------------------------
 
-AnyStats = Union[NumericStats, CategoricalStats, DatetimeStats, BooleanStats, TextStats]
+AnyStats = NumericStats | CategoricalStats | DatetimeStats | BooleanStats | TextStats
 
 
 def _format_dict_lines(d: dict, indent: int = 0) -> list[str]:
@@ -113,14 +117,14 @@ class ColumnProfile:
     """
 
     name: str = ""
-    semantic_type: Optional[SemanticType] = None
-    numeric_kind: Optional[NumericKind] = None
+    semantic_type: SemanticType | None = None
+    numeric_kind: NumericKind | None = None
     type_flags: list[TypeFlag] = field(default_factory=list)
     original_dtype: str = ""
     inferred_dtype: str = ""
-    missingness: Optional[ColumnMissingnessProfile] = None
+    missingness: ColumnMissingnessProfile | None = None
     is_target: bool = False
-    stats: Optional[AnyStats] = None
+    stats: AnyStats | None = None
 
     def to_dict(self) -> dict:
         """
@@ -145,7 +149,7 @@ class ColumnProfile:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "ColumnProfile":
+    def from_dict(cls, data: dict) -> ColumnProfile:
         """
         Reconstruct a ``ColumnProfile`` from a plain dictionary.
 
@@ -170,7 +174,7 @@ class ColumnProfile:
         )
         raw_numeric_kind = data.get("numeric_kind")
         raw_stats = data.get("stats")
-        stats: Optional[AnyStats] = None
+        stats: AnyStats | None = None
         if raw_stats is not None:
             stats_by_type = {
                 SemanticType.Numeric: NumericStats,
@@ -216,7 +220,7 @@ class MemoryBreakdown:
         return {"column_bytes": dict(self.column_bytes)}
 
     @classmethod
-    def from_dict(cls, data: dict) -> "MemoryBreakdown":
+    def from_dict(cls, data: dict) -> MemoryBreakdown:
         return cls(column_bytes=dict(data.get("column_bytes", {})))
 
 
@@ -234,17 +238,17 @@ class DatasetStats:
     row_count: int = 0
     column_count: int = 0
     memory_bytes: int = 0
-    memory_breakdown: Optional[MemoryBreakdown] = None
+    memory_breakdown: MemoryBreakdown | None = None
     duplicate_count: int = 0
     duplicate_ratio: float = 0.0
     overall_sparsity: float = 0.0
     was_chunked: bool = False
-    missingness_matrix: Optional[dict[str, dict[str, float]]] = None
+    missingness_matrix: dict[str, dict[str, float]] | None = None
     row_distribution: RowMissingnessDistribution = field(
         default_factory=RowMissingnessDistribution
     )
 
-    feature_correlation: Optional[CorrelationProfileResult] = None
+    feature_correlation: CorrelationProfileResult | None = None
 
     target_correlations: dict[str, CorrelationProfileResult] = field(
         default_factory=dict,
@@ -277,7 +281,7 @@ class DatasetStats:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "DatasetStats":
+    def from_dict(cls, data: dict) -> DatasetStats:
         """
         Reconstruct the dataset stats from a plain dictionary.
 
@@ -359,7 +363,7 @@ class StructuralProfileResult:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "StructuralProfileResult":
+    def from_dict(cls, data: dict) -> StructuralProfileResult:
         """
         Reconstruct a ``StructuralProfileResult`` from a plain dictionary.
 
@@ -562,7 +566,7 @@ class ProfileConfig:
     modality: Modality = Modality.Tabular
     target_columns: list[str] = field(default_factory=list)
     compute_correlation: bool = False
-    correlation_target_column: Optional[str] = None
+    correlation_target_column: str | None = None
     memory_threshold_mb: float = 500.0
     chunk_size: int = 100_000
     row_drop_threshold: float = 0.50
@@ -584,10 +588,10 @@ class ProfileConfig:
     nonlinearity: NonlinearityProfileConfig = field(
         default_factory=_default_nonlinearity_config
     )
-    numeric_sentinels: InitVar[Optional[dict[str, list[float]]]] = None
-    string_sentinels: InitVar[Optional[dict[str, list[str]]]] = None
-    datetime_epoch_units: InitVar[Optional[dict[str, Union[str, EpochUnit]]]] = None
-    datetime_formats: InitVar[Optional[dict[str, str]]] = None
+    numeric_sentinels: InitVar[dict[str, list[float]] | None] = None
+    string_sentinels: InitVar[dict[str, list[str]] | None] = None
+    datetime_epoch_units: InitVar[dict[str, str | EpochUnit] | None] = None
+    datetime_formats: InitVar[dict[str, str] | None] = None
     _numeric_sentinels: dict[str, list[float]] = field(default_factory=dict, init=False)
     _string_sentinels: dict[str, list[str]] = field(default_factory=dict, init=False)
     _datetime_epoch_units: dict[str, EpochUnit] = field(default_factory=dict, init=False)
@@ -595,10 +599,10 @@ class ProfileConfig:
 
     def __post_init__(
         self,
-        numeric_sentinels: Optional[dict[str, list[float]]],
-        string_sentinels: Optional[dict[str, list[str]]],
-        datetime_epoch_units: Optional[dict[str, Union[str, EpochUnit]]] = None,
-        datetime_formats: Optional[dict[str, str]] = None,
+        numeric_sentinels: dict[str, list[float]] | None,
+        string_sentinels: dict[str, list[str]] | None,
+        datetime_epoch_units: dict[str, str | EpochUnit] | None,
+        datetime_formats: dict[str, str] | None,
     ) -> None:
         if numeric_sentinels is not None and not isinstance(numeric_sentinels, property):
             for k, vals in numeric_sentinels.items():
@@ -614,7 +618,7 @@ class ProfileConfig:
                 self.set_datetime_format(k, fmt)
 
     @property
-    def numeric_sentinels(self) -> MappingProxyType[str, list[float]]:
+    def numeric_sentinels(self) -> MappingProxyType[str, list[float]]:  # noqa: F811 - read-only view over the same-named InitVar (ADR-0043)
         """
         Get the per-column numeric sentinel declarations.
 
@@ -633,7 +637,7 @@ class ProfileConfig:
         return MappingProxyType(self._numeric_sentinels)
 
     @property
-    def string_sentinels(self) -> MappingProxyType[str, list[str]]:
+    def string_sentinels(self) -> MappingProxyType[str, list[str]]:  # noqa: F811 - read-only view over the same-named InitVar (ADR-0043)
         """
         Get the per-column user-declared string sentinel declarations.
 
@@ -655,7 +659,7 @@ class ProfileConfig:
         return MappingProxyType(self._string_sentinels)
 
     @property
-    def datetime_epoch_units(self) -> MappingProxyType[str, EpochUnit]:
+    def datetime_epoch_units(self) -> MappingProxyType[str, EpochUnit]:  # noqa: F811 - read-only view over the same-named InitVar (ADR-0043)
         """
         Get the per-column datetime epoch units.
 
@@ -667,7 +671,7 @@ class ProfileConfig:
         return MappingProxyType(self._datetime_epoch_units)
 
     @property
-    def datetime_formats(self) -> MappingProxyType[str, str]:
+    def datetime_formats(self) -> MappingProxyType[str, str]:  # noqa: F811 - read-only view over the same-named InitVar (ADR-0043)
         """
         Get the per-column declared datetime format strings.
 
@@ -938,9 +942,9 @@ class ColumnTypeInfo:
     column: str
     original_dtype: str
     inferred_dtype: str
-    numeric_kind: Optional[NumericKind] = None
+    numeric_kind: NumericKind | None = None
     flags: list[TypeFlag] = field(default_factory=list)
-    semantic_type: Optional[SemanticType] = None
+    semantic_type: SemanticType | None = None
 
     def has_flag(self, flag: TypeFlag) -> bool:
         return flag in self.flags

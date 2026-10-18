@@ -34,8 +34,8 @@ from dataforge_ml.observability import (
     PipelineEvent,
     _ObservabilityMixin,
 )
-from tests.conftest import raises_code
 from dataforge_ml.records import Infeasible
+from tests.conftest import raises_code
 
 Z_CRIT = 1.645  # one-sided alpha = 0.05
 

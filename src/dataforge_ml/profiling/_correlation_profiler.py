@@ -36,7 +36,6 @@ from __future__ import annotations
 
 import copy
 import itertools
-from typing import Optional
 
 import polars as pl
 
@@ -121,8 +120,8 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
     def __init__(
         self,
         numeric_columns: list[str],
-        categorical_columns: Optional[list[str]] = None,
-        config: Optional[CorrelationProfileConfig] = None,
+        categorical_columns: list[str] | None = None,
+        config: CorrelationProfileConfig | None = None,
         top_n_feature_target: int = _TOP_N_FEATURE_TARGET,
         seed: int = DEFAULT_SEED,
     ) -> None:
@@ -148,7 +147,7 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
         self,
         df: pl.DataFrame,
         numeric_cols: list[str],
-        categorical_cols: Optional[list[str]] = None,
+        categorical_cols: list[str] | None = None,
     ) -> CorrelationProfileResult:
         """
         Compute pairwise feature-feature correlation matrices.
@@ -416,7 +415,7 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
                     continue
                 v = float(np.sqrt(phi2_corr / denom))
                 v = max(0.0, min(1.0, v))
-            except Exception:
+            except Exception:  # noqa: BLE001 - any scipy failure on a pair is a recorded fallback, not a crash
                 record_fallback("association_failed", col_a)
                 record_fallback("association_failed", col_b)
                 pairs.append(CramerVPair(col_a=col_a, col_b=col_b))
@@ -475,7 +474,7 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
                     )
                     eta_sq = ss_between / ss_total if ss_total > 0 else 0.0
                     eta_sq = max(0.0, min(1.0, eta_sq))
-                except Exception:
+                except Exception:  # noqa: BLE001 - any scipy failure on a pair is a recorded fallback, not a crash
                     record_fallback("association_failed", num_col)
                     record_fallback("association_failed", cat_col)
                     pairs.append(
@@ -559,7 +558,7 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
                 continue
             try:
                 f_stat, p_val = f_oneway(*non_empty)
-            except Exception:
+            except Exception:  # noqa: BLE001 - any scipy failure on a feature is a recorded fallback, not a crash
                 record_fallback("association_failed", feat)
                 entries.append(CategoricalTargetCorrelation(feature=feat))
                 continue
@@ -650,7 +649,7 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
                         random_state=self._seed,
                     )[0]
                 )
-            except Exception:
+            except Exception:  # noqa: BLE001 - any sklearn MI failure is a recorded fallback, not a crash
                 record_fallback("association_failed", col)
                 continue
             entries.append(MutualInformationEntry(feature=col, mi_score=score))
@@ -681,7 +680,7 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
                         random_state=self._seed,
                     )[0]
                 )
-            except Exception:
+            except Exception:  # noqa: BLE001 - any sklearn MI failure is a recorded fallback, not a crash
                 record_fallback("association_failed", col)
                 continue
             entries.append(MutualInformationEntry(feature=col, mi_score=score))

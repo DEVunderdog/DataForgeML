@@ -8,7 +8,6 @@ suitable for MultilabelStratifiedShuffleSplit / MultilabelStratifiedKFold.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 import numpy as np
 import polars as pl
@@ -96,10 +95,10 @@ def _abs_correlation(a: np.ndarray, b: np.ndarray) -> float:
 def build_label_matrix(
     df: pl.DataFrame,
     profile: StructuralProfileResult,
-    target: Optional[str],
-    config: Optional[SplitConfig] = None,
+    target: str | None,
+    config: SplitConfig | None = None,
     min_positives: int = 1,
-    report: Optional[SignalReport] = None,
+    report: SignalReport | None = None,
 ) -> np.ndarray:
     """
     Return a (n_rows, n_signals) int8 label matrix for multilabel stratification.
@@ -193,9 +192,9 @@ def build_label_matrix(
     # sets, whose last member is dropped dummy-style in gate 3).
     signals: list[np.ndarray] = []
     priorities: list[int] = []
-    groups: list[Optional[str]] = []
+    groups: list[str | None] = []
 
-    def add(s: np.ndarray, priority: int, group: Optional[str] = None) -> None:
+    def add(s: np.ndarray, priority: int, group: str | None = None) -> None:
         signals.append(s)
         priorities.append(priority)
         groups.append(group)
@@ -533,10 +532,10 @@ def build_label_matrix(
 def unsplittable_train_mask(
     df: pl.DataFrame,
     profile: StructuralProfileResult,
-    target: Optional[str],
+    target: str | None,
     min_positives: int,
-    config: Optional[SplitConfig] = None,
-    report: Optional[SignalReport] = None,
+    config: SplitConfig | None = None,
+    report: SignalReport | None = None,
 ) -> np.ndarray:
     """
     Return a boolean mask of rows to route into the training split (ADR-0048).

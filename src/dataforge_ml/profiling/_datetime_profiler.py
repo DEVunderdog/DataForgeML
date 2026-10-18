@@ -24,7 +24,7 @@ Granularity inference bands (median gap in seconds):
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import polars as pl
 
@@ -142,7 +142,7 @@ class DatetimeProfiler(ColumnBatchProfiler[DatetimeProfileResult]):
 
     def _run(self, df: pl.DataFrame, columns: list[str], user_overrides: set[str] | None = None) -> DatetimeProfileResult:
         result = DatetimeProfileResult()
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         user_overrides = user_overrides or set()
 
         available = []
@@ -245,13 +245,13 @@ class DatetimeProfiler(ColumnBatchProfiler[DatetimeProfileResult]):
 
         if min_ts is not None:
             profile.min_date = (
-                min_ts.replace(tzinfo=timezone.utc)
+                min_ts.replace(tzinfo=UTC)
                 if isinstance(min_ts, datetime)
                 else min_ts
             )
         if max_ts is not None:
             profile.max_date = (
-                max_ts.replace(tzinfo=timezone.utc)
+                max_ts.replace(tzinfo=UTC)
                 if isinstance(max_ts, datetime)
                 else max_ts
             )

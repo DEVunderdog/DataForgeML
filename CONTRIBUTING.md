@@ -39,6 +39,7 @@ Run things with `uv run`, which syncs first if anything is stale:
 
 ```bash
 uv run pytest                                    # the suite, in parallel
+uv run ruff check                                # lint; CI and the hook hold it at zero
 uv run pytest tests/unit/imputation -q           # one directory
 uv run pytest -n 0 tests/contract/test_load.py   # serially, to debug one test
 uv run --python 3.11 pytest                      # a different interpreter from the matrix
@@ -62,9 +63,10 @@ same PR.
 git config core.hooksPath .githooks
 ```
 
-Run it once per clone. Every commit then runs `.githooks/pre-commit`. The hook does two
-things. It imports every module under `dataforge_ml.operations` and `dataforge_ml.splitting`,
-and names any import that fails. Then it runs `tests/unit`. The whole hook takes under a
+Run it once per clone. Every commit then runs `.githooks/pre-commit`. The hook does three
+things. It runs `ruff check` over the repo. Then it imports every module under
+`dataforge_ml.operations` and `dataforge_ml.splitting`, and names any import that fails.
+Then it runs `tests/unit`. The whole hook takes under a
 minute. A failure refuses the commit. Contract and integration tests stay out of the hook
 because they are slow; CI runs them.
 

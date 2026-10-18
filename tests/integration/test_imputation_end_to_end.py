@@ -100,8 +100,8 @@ def test_transform_test_has_no_nulls_in_numeric_cols(fitted_imputer, imputation_
 
 def test_transform_applies_train_time_fill_values(fitted_imputer, imputation_split):
     """Fill value on test split equals the value learned from train, not recomputed."""
-    train_result = fitted_imputer.transform(imputation_split.train)
-    test_result = fitted_imputer.transform(imputation_split.test)
+    fitted_imputer.transform(imputation_split.train)
+    fitted_imputer.transform(imputation_split.test)
 
     for col in ["score", "revenue", "rating"]:
         train_fill = fitted_imputer.records[col].fill_value

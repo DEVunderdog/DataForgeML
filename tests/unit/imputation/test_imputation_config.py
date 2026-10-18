@@ -7,15 +7,14 @@ All tests are pure — no DataFrames, no StructuralProfiler.
 
 import pytest
 
-from dataforge_ml.imputation import RoutingReason
-from dataforge_ml.config import PipelineConfig, PipelinePhase, SemanticType
+from dataforge_ml.config import PipelineConfig, SemanticType
 from dataforge_ml.imputation import (
     ColumnImputationRecord,
     ColumnRouting,
     ImputationConfig,
-    ImputationResult,
     ImputationStrategy,
     NumericImputationConfig,
+    RoutingReason,
 )
 from tests.conftest import raises_code
 
@@ -26,11 +25,11 @@ from tests.conftest import raises_code
 
 def test_all_types_importable_from_imputation_module():
     from dataforge_ml.imputation import (
-        ColumnImputationRecord,  # noqa: F401
-        ImputationConfig,
-        ImputationResult,
-        ImputationStrategy,
-        NumericImputationConfig,
+        ColumnImputationRecord,  # noqa: F401 - the import is the assertion
+        ImputationConfig,  # noqa: F401 - the import is the assertion
+        ImputationResult,  # noqa: F401 - the import is the assertion
+        ImputationStrategy,  # noqa: F401 - the import is the assertion
+        NumericImputationConfig,  # noqa: F401 - the import is the assertion
     )
 
 

@@ -73,7 +73,7 @@ def test_one_column_knn_block_does_not_collapse_to_the_training_mean():
     """
     df, t_true, missing_idx = _correlated_frame()
     cfg = _config(t=ImputationStrategy.KNN)
-    _, routing, units, train, fitted = _drive(df, cfg)
+    _, _, _, train, fitted = _drive(df, cfg)
 
     knn_unit = fitted["knn"]
     assert knn_unit.all_cols == ["t", "p"]  # widened past the block's own column
@@ -164,7 +164,7 @@ def test_mice_end_to_end_fits_and_converges():
 
     df = pl.DataFrame({"a": a, "b": b_masked, "c": c_masked})
     cfg = _config(b=ImputationStrategy.MICE, c=ImputationStrategy.MICE)
-    _, routing, units, train, fitted = _drive(df, cfg)
+    _, routing, _, train, fitted = _drive(df, cfg)
 
     assert routing.mice_model_choice is not None
     mice_unit = fitted["mice"]
@@ -198,7 +198,7 @@ def test_mice_domain_snaps_a_bounded_discrete_column():
         }
     )
     cfg = _config(rating=ImputationStrategy.MICE)
-    _, routing, units, train, fitted = _drive(df, cfg)
+    _, _, _, train, fitted = _drive(df, cfg)
 
     mice_unit = fitted["mice"]
     out = mice_unit.transform(train)
@@ -286,7 +286,7 @@ def test_real_frame_ames_regression():
         df_raw = bunch.frame
         num_cols = df_raw.select_dtypes(include=np.number).columns.tolist()
         df_num = df_raw[num_cols].dropna().iloc[:300].copy()
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - any fetch or parse failure means the dataset is unavailable
         pytest.skip(f"Ames dataset unavailable: {exc}")
 
     rng = np.random.default_rng(42)

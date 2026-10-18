@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Optional
 
 
 class BooleanFlag(StrEnum):
@@ -28,7 +27,7 @@ class BooleanStats:
     false_count: int = 0
     true_ratio: float = 0.0
     false_ratio: float = 0.0
-    mode: Optional[bool] = None
+    mode: bool | None = None
     flags: list[BooleanFlag] = field(default_factory=list)
 
     def has_flag(self, flag: BooleanFlag) -> bool:
@@ -66,7 +65,7 @@ class BooleanStats:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "BooleanStats":
+    def from_dict(cls, data: dict) -> BooleanStats:
         """Reconstruct the boolean statistics from a plain dictionary.
 
         Parameters

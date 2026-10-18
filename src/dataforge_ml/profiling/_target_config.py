@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Optional
 
 from ._categorical_config import (
     CategoricalColumnProfile,
@@ -54,8 +53,8 @@ class TargetProfileResult:
     missing_ratio: float = 0.0
 
     # Underlying profile data depending on the problem type
-    numeric_profile: Optional[ColumnNumericProfile] = None
-    categorical_profile: Optional[CategoricalColumnProfile] = None
+    numeric_profile: ColumnNumericProfile | None = None
+    categorical_profile: CategoricalColumnProfile | None = None
 
     flags: list[TargetFlag] = field(default_factory=list)
 
@@ -98,7 +97,7 @@ class TargetProfileResult:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "TargetProfileResult":
+    def from_dict(cls, data: dict) -> TargetProfileResult:
         """Reconstruct the target profile from a plain dictionary.
 
         Parameters
@@ -145,7 +144,7 @@ class TargetProfileResult:
         lines.append("| Field | Value |")
         lines.append("|---|---|")
         lines.append(f"| column | {self.column or 'not set'} |")
-        lines.append(f"| problem_type | {str(self.problem_type)} |")
+        lines.append(f"| problem_type | {self.problem_type!s} |")
         lines.append(f"| missing_count | {self.missing_count:,} |")
         lines.append(f"| missing_ratio | {self.missing_ratio:.2%} |")
         flags = ", ".join(str(f) for f in self.flags) if self.flags else "none"

@@ -50,7 +50,7 @@ class TextStats:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "TextStats":
+    def from_dict(cls, data: dict) -> TextStats:
         """Reconstruct the text statistics from a plain dictionary.
 
         Parameters

@@ -127,7 +127,6 @@ def test_random_split_returns_split_result(df):
 def test_stratified_split_preserves_class_ratios(df):
     splitter = DataSplitter(df, target="label", seed=42)
     result = splitter.random_split(test_size=0.2, stratify=True)
-    original_ratio = df["label"].value_counts(sort=True)["count"].to_list()
     train_counts = result.train["label"].value_counts(sort=True)["count"].to_list()
     test_counts = result.test["label"].value_counts(sort=True)["count"].to_list()
     # both splits should have roughly equal class representation (50/50 here)
@@ -255,10 +254,7 @@ def test_different_seeds_produce_different_splits(df):
 
 
 def test_no_profiling_import():
-    import sys
-
     import dataforge_ml.splitting._splitter as mod
-    profiling_modules = [k for k in sys.modules if k.startswith("profiling")]
     # DataSplitter module itself must not have caused profiling to be imported
     assert "profiling" not in mod.__dict__
 
@@ -564,12 +560,15 @@ def test_profile_split_missingness_in_training(ps_profile, ps_splitter):
     """Every column with missingness has at least one null in the training split."""
     result = ps_splitter.profile_stratified_split(ps_profile, test_size=0.2)
     for col, cp in ps_profile.columns.items():
-        if cp.missingness and cp.missingness.effective_null_count > 0:
-            if col in result.train.columns:
-                assert result.train[col].null_count() > 0, (
-                    f"column '{col}' has missingness in the profile but zero nulls "
-                    f"in the training split"
-                )
+        if (
+            cp.missingness
+            and cp.missingness.effective_null_count > 0
+            and col in result.train.columns
+        ):
+            assert result.train[col].null_count() > 0, (
+                f"column '{col}' has missingness in the profile but zero nulls "
+                f"in the training split"
+            )
 
 
 def test_profile_split_preserves_target_proportions(ps_df, ps_profile, ps_splitter):
@@ -698,11 +697,14 @@ def test_profile_kfold_missingness_in_training(ps_profile, ps_splitter):
     folds = ps_splitter.profile_stratified_kfold(ps_profile, k=_PS_K)
     for fold in folds:
         for col, cp in ps_profile.columns.items():
-            if cp.missingness and cp.missingness.effective_null_count > 0:
-                if col in fold.train.columns:
-                    assert fold.train[col].null_count() > 0, (
-                        f"fold {fold.fold_index}: column '{col}' has no nulls in training"
-                    )
+            if (
+                cp.missingness
+                and cp.missingness.effective_null_count > 0
+                and col in fold.train.columns
+            ):
+                assert fold.train[col].null_count() > 0, (
+                    f"fold {fold.fold_index}: column '{col}' has no nulls in training"
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -786,7 +788,6 @@ def test_rows_per_signal_reduces_wide_but_short_input():
 
 def test_too_few_rows_to_support_target_degrades_to_empty():
     """When the budget cannot fit the full target set the matrix is empty."""
-    from dataforge_ml.splitting._config import SplitConfig
     from dataforge_ml.splitting._profile_signals import build_label_matrix
 
     # 3-class target → 2 signals after dummy-drop, but a row budget of
@@ -801,7 +802,6 @@ def test_too_few_rows_to_support_target_degrades_to_empty():
 
 def test_too_small_dataset_falls_back_to_random_split():
     """profile_stratified_split degrades to a random split on a tiny dataset."""
-    from dataforge_ml.splitting._config import SplitConfig
 
     target_vals = ["a"] * 4 + ["b"] * 4 + ["c"] * 4
     df = pl.DataFrame({"target": pl.Series(target_vals, dtype=pl.Utf8)})
@@ -927,8 +927,8 @@ def test_redundancy_threshold_is_configurable():
     # near-perfect duplicates. The conservative default (0.95) keeps both; a
     # lowered threshold collapses them.
     df = pl.DataFrame({
-        "p": _num_null(set(range(0, 10)), n),
-        "q": _num_null(set(range(0, 7)), n),
+        "p": _num_null(set(range(10)), n),
+        "q": _num_null(set(range(7)), n),
     })
     profile = StructuralProfiler(PipelineConfig()).profile(df)
 
@@ -1584,7 +1584,6 @@ def test_boolean_minority_threshold_triggers_signal():
     from dataforge_ml.splitting._config import SplitConfig
     from dataforge_ml.splitting._profile_signals import build_label_matrix
 
-    n = 100
     # 8 True, 92 False → true_ratio = 0.08
     bool_vals = [True] * 8 + [False] * 92
     df = pl.DataFrame({"flag": pl.Series(bool_vals, dtype=pl.Boolean)})
@@ -1607,7 +1606,6 @@ def test_boolean_minority_threshold_suppresses_signal():
     from dataforge_ml.splitting._config import SplitConfig
     from dataforge_ml.splitting._profile_signals import build_label_matrix
 
-    n = 100
     # 3 True, 97 False → true_ratio = 0.03
     bool_vals = [True] * 3 + [False] * 97
     df = pl.DataFrame({"flag": pl.Series(bool_vals, dtype=pl.Boolean)})
@@ -1758,7 +1756,7 @@ def test_signal_1_declared_sentinels_do_not_affect_other_dtype_columns():
     )
     profile = StructuralProfiler(pipeline_cfg).profile(df)
 
-    mat = build_label_matrix(df, profile, target=None)
+    build_label_matrix(df, profile, target=None)
 
     # Collect the num signal: standard null (row 2) should be the only null
     num_profile = profile.columns["num"]
@@ -1866,7 +1864,6 @@ def test_unsplittable_mask_flags_sub_floor_rare_categorical():
     """unsplittable_train_mask marks rows of a rare value below the floor."""
     from dataforge_ml.splitting._profile_signals import unsplittable_train_mask
 
-    n = 300
     # "Z" occurs once (0.33%) → rare and below any reasonable floor.
     cat = ["A"] * 150 + ["B"] * 149 + ["Z"]
     df = pl.DataFrame({"cat": pl.Series(cat, dtype=pl.Utf8)})

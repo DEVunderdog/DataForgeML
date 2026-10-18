@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import  Optional
 
 
 @dataclass
@@ -57,7 +56,7 @@ class BimodalStats:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "BimodalStats":
+    def from_dict(cls, data: dict) -> BimodalStats:
         """Reconstruct a ``BimodalStats`` instance from a plain dictionary.
 
         Parameters
@@ -109,16 +108,16 @@ class PercentileSnapshot:
         99th percentile value.
     """
 
-    p1: Optional[float] = None
-    p5: Optional[float] = None
-    p25: Optional[float] = None
-    p50: Optional[float] = None
-    p75: Optional[float] = None
-    p95: Optional[float] = None
-    p99: Optional[float] = None
+    p1: float | None = None
+    p5: float | None = None
+    p25: float | None = None
+    p50: float | None = None
+    p75: float | None = None
+    p95: float | None = None
+    p99: float | None = None
 
     @property
-    def iqr(self) -> Optional[float]:
+    def iqr(self) -> float | None:
         """Compute the interquartile range from this snapshot.
 
         Returns
@@ -310,38 +309,38 @@ class NumericStats:
         Proportion of values considered as extreme outliers.
     """
 
-    mean: Optional[float] = None
-    median: Optional[float] = None
-    mean_median_ratio: Optional[float] = None
-    mode: Optional[float] = None
+    mean: float | None = None
+    median: float | None = None
+    mean_median_ratio: float | None = None
+    mode: float | None = None
     mode_frequency: float = 0.0
     top_values: list[NumericTopValueEntry] = field(default_factory=list)
     histogram: list[HistogramBin] = field(default_factory=list)
-    std: Optional[float] = None
-    variance: Optional[float] = None
-    min: Optional[float] = None
-    max: Optional[float] = None
+    std: float | None = None
+    variance: float | None = None
+    min: float | None = None
+    max: float | None = None
     percentiles: PercentileSnapshot = field(default_factory=PercentileSnapshot)
-    skewness: Optional[float] = None
-    kurtosis: Optional[float] = None
-    skewness_severity: Optional[SkewSeverity] = None
-    kurtosis_tag: Optional[KurtosisTag] = None
+    skewness: float | None = None
+    kurtosis: float | None = None
+    skewness_severity: SkewSeverity | None = None
+    kurtosis_tag: KurtosisTag | None = None
     flags: list[NumericFlag] = field(default_factory=list)
-    nonlinearity_tag: Optional[NonlinearityTag] = None
-    spearman_pearson_discrepancy: Optional[float] = None
-    mean_mutual_information: Optional[float] = None
-    max_mutual_information: Optional[float] = None
-    r2_gap: Optional[float] = None
-    r2_linear: Optional[float] = None
-    r2_rf: Optional[float] = None
-    heteroscedasticity_p_value: Optional[float] = None
-    bimodal_stats: Optional[BimodalStats] = None
-    tail_asymmetry_tag: Optional[TailAsymmetryTag] = None
-    tail_asymmetry_share: Optional[float] = None
-    outlier_density: Optional[float] = None
+    nonlinearity_tag: NonlinearityTag | None = None
+    spearman_pearson_discrepancy: float | None = None
+    mean_mutual_information: float | None = None
+    max_mutual_information: float | None = None
+    r2_gap: float | None = None
+    r2_linear: float | None = None
+    r2_rf: float | None = None
+    heteroscedasticity_p_value: float | None = None
+    bimodal_stats: BimodalStats | None = None
+    tail_asymmetry_tag: TailAsymmetryTag | None = None
+    tail_asymmetry_share: float | None = None
+    outlier_density: float | None = None
 
     @property
-    def iqr(self) -> Optional[float]:
+    def iqr(self) -> float | None:
         """Compute the interquartile range (IQR) for the column.
 
         Returns
@@ -352,12 +351,12 @@ class NumericStats:
         return self.percentiles.iqr
 
     @property
-    def max_MI(self) -> Optional[float]:
+    def max_MI(self) -> float | None:
         """Alias for max_mutual_information (per-predictor max mutual information)."""
         return self.max_mutual_information
 
     @max_MI.setter
-    def max_MI(self, value: Optional[float]) -> None:
+    def max_MI(self, value: float | None) -> None:
         self.max_mutual_information = value
 
     def has_flag(self, flag: NumericFlag) -> bool:
@@ -416,7 +415,7 @@ class NumericStats:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "NumericStats":
+    def from_dict(cls, data: dict) -> NumericStats:
         """Reconstruct the numeric statistics from a dictionary.
 
         Parameters
@@ -542,7 +541,7 @@ class NonlinearityProfileConfig:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "NonlinearityProfileConfig":
+    def from_dict(cls, data: dict) -> NonlinearityProfileConfig:
         """
         Construct a ``NonlinearityProfileConfig`` from a plain dictionary.
 
@@ -613,15 +612,15 @@ class NonlinearitySignals:
 
     tag: NonlinearityTag
     spearman_pearson_discrepancy: float
-    mean_mutual_information: Optional[float]
-    max_mutual_information: Optional[float]
+    mean_mutual_information: float | None
+    max_mutual_information: float | None
     r2_gap: float
     r2_linear: float
     r2_rf: float
     heteroscedasticity_p_value: float
 
     @property
-    def max_MI(self) -> Optional[float]:
+    def max_MI(self) -> float | None:
         """Alias for max_mutual_information."""
         return self.max_mutual_information
 
@@ -674,7 +673,7 @@ class NonlinearityProfileResult:
         if self.columns:
             for name, signals in self.columns.items():
                 lines.append(
-                    f"| `{name}` | {str(signals.tag)} "
+                    f"| `{name}` | {signals.tag!s} "
                     f"| {signals.spearman_pearson_discrepancy:.4f} "
                     f"| {_fmt_mi(signals.mean_mutual_information)} "
                     f"| {_fmt_mi(signals.max_mutual_information)} "
@@ -848,7 +847,7 @@ def _fmt(value: object) -> str:
     return str(value)
 
 
-def _fmt_mi(value: Optional[float]) -> str:
+def _fmt_mi(value: float | None) -> str:
     return "not computed" if value is None else f"{value:.4f}"
 
 
@@ -856,7 +855,7 @@ def _fmt_seq(values: list) -> str:
     return ", ".join(str(v) for v in values) if values else "none"
 
 
-def _numeric_stats_lines(stats: "NumericStats") -> list[str]:
+def _numeric_stats_lines(stats: NumericStats) -> list[str]:
     """Build the ``####``-rooted body for one column's numeric statistics."""
     lines = [
         "| Field | Value |",

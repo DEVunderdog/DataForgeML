@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import polars as pl
-from sklearn.experimental import enable_iterative_imputer  # noqa: F401
+from sklearn.experimental import enable_iterative_imputer  # noqa: F401 - side effect
 from sklearn.impute import IterativeImputer, KNNImputer
 from sklearn.mixture import GaussianMixture
 from sklearn.pipeline import Pipeline

@@ -14,10 +14,14 @@ function it called.
 import numpy as np
 import polars as pl
 
-from dataforge_ml.imputation import RoutingReason
 from dataforge_ml import PipelineConfig, StructuralProfiler, derive_units, fit_unit
 from dataforge_ml.config import SemanticType
-from dataforge_ml.imputation import ImputationStrategy, resolve_recipe, route
+from dataforge_ml.imputation import (
+    ImputationStrategy,
+    RoutingReason,
+    resolve_recipe,
+    route,
+)
 from dataforge_ml.imputation._config import ColumnRouting, ImputationUnit
 from dataforge_ml.imputation._fitted_units import (
     FittedClusterConditional,
@@ -87,7 +91,7 @@ def _config(**per_column_strategy):
 
 def test_executor_trains_a_real_gmm_sampling_model():
     cfg = _config()
-    _, routing, units, train, results = _drive(_frame(bimodal=True), cfg)
+    _, _, units, train, results = _drive(_frame(bimodal=True), cfg)
     unit_id = "gmm_sampling:bi"
     assert any(u.unit_id == unit_id for u in units), "expected GMM routing"
 
@@ -107,7 +111,7 @@ def test_executor_trains_a_real_gmm_sampling_model():
 def test_executor_trains_a_real_cluster_conditional_model():
     cfg = _config()
     cfg.imputation.numeric.set_bimodal_grouping_variable("bi", "grp")
-    _, routing, units, train, results = _drive(_frame(bimodal=True, grouped=True), cfg)
+    _, _, units, train, results = _drive(_frame(bimodal=True, grouped=True), cfg)
     unit_id = "cluster_conditional:bi"
     assert any(u.unit_id == unit_id for u in units), "expected cluster routing"
 

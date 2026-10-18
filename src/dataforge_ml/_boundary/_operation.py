@@ -34,7 +34,11 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, create_model
 
 from ..observability import EventType, Observer, PipelineEvent, _emit
-from ..records import DataForgeError, OutputRecord, canonical_json  # noqa: F401
+from ..records import (  # noqa: F401 - re-exported for the Operation modules
+    DataForgeError,
+    OutputRecord,
+    canonical_json,
+)
 from . import _docstring
 from ._literal import withhold_literals
 from ._schema import to_strict_subset

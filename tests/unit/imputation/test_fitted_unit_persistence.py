@@ -17,7 +17,7 @@ import json
 import numpy as np
 import polars as pl
 import pytest
-from sklearn.experimental import enable_iterative_imputer  # noqa: F401
+from sklearn.experimental import enable_iterative_imputer  # noqa: F401 - side effect
 from sklearn.impute import IterativeImputer, KNNImputer
 from sklearn.linear_model import BayesianRidge
 
@@ -27,15 +27,14 @@ from dataforge_ml import (
     inspect,
     serialize,
 )
-from dataforge_ml.imputation._config import ImputationStrategy
 from dataforge_ml.imputation._fitted_imputer import FittedMICE, _FittedKNN
 from dataforge_ml.imputation._fitted_units import (
     FittedClusterConditional,
     FittedGMMSampling,
     FittedScalar,
 )
-from tests.conftest import raises_code
 from dataforge_ml.records import DataForgeError
+from tests.conftest import raises_code
 
 # --------------------------------------------------------------------------- #
 # Byte-level tampering helpers: a serialized unit is a JSON header line, a

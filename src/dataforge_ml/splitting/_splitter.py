@@ -7,7 +7,7 @@ profile_stratified_kfold implementations.
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Any, Optional, list
+from typing import TYPE_CHECKING, Any
 
 import polars as pl
 from sklearn.model_selection import (
@@ -155,9 +155,9 @@ class DataSplitter:
     def __init__(
         self,
         df: pl.DataFrame,
-        target: Optional[str] = None,
-        seed: Optional[int] = None,
-        config: Optional[SplitConfig] = None,
+        target: str | None = None,
+        seed: int | None = None,
+        config: SplitConfig | None = None,
     ) -> None:
         if not isinstance(df, pl.DataFrame):
             raise DataForgeError.from_code(
@@ -236,9 +236,9 @@ class DataSplitter:
     def time_split(
         self,
         time_column: str,
-        test_size: Optional[float] = None,
-        cutoff: Optional[Any] = None,
-        order: Optional[pl.Series] = None,
+        test_size: float | None = None,
+        cutoff: Any | None = None,
+        order: pl.Series | None = None,
     ) -> SplitResult:
         """
         Return a chronological train/test split with no temporal leakage.
@@ -633,7 +633,7 @@ class DataSplitter:
         self,
         profile: StructuralProfileResult,
         test_size: float,
-        report: Optional[SignalReport] = None,
+        report: SignalReport | None = None,
     ) -> SplitResult:
         """
         Return a train/test split stratified across all at-risk signals derived
@@ -727,7 +727,7 @@ class DataSplitter:
         self,
         profile: StructuralProfileResult,
         k: int,
-        report: Optional[SignalReport] = None,
+        report: SignalReport | None = None,
     ) -> list[FoldResult]:
         """
         Return k cross-validation folds stratified across all at-risk signals

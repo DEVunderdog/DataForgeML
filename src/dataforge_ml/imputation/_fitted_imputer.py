@@ -745,7 +745,7 @@ class FittedImputer:
             dtype = result_df.schema[col]
             fill_val = rec.fill_value
             if dtype in _INT_DTYPES:
-                fill_val = int(round(float(fill_val)))
+                fill_val = round(float(fill_val))
                 fill_exprs.append(pl.col(col).fill_null(fill_val))
             elif dtype in _FLOAT_DTYPES:
                 fill_exprs.append(pl.col(col).fill_null(float(fill_val)))

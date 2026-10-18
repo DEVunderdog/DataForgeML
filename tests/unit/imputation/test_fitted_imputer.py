@@ -134,7 +134,6 @@ def test_dropped_column_absent_from_output():
         "drop_me": _record("drop_me", ImputationStrategy.Dropped),
         "keep_me": _record("keep_me", ImputationStrategy.Mean, fill_value=1.0),
     })
-    n = 10
     df = pl.DataFrame({
         "drop_me": pl.Series([None] * 7 + [1.0] * 3, dtype=pl.Float64),
         "keep_me": pl.Series([1.0, None, 3.0] + [1.0] * 7, dtype=pl.Float64),
@@ -990,7 +989,7 @@ def test_fitted_knn_transform_produces_no_nulls():
     import numpy as np
     from sklearn.impute import KNNImputer
 
-    from dataforge_ml.imputation._fitted_imputer import FittedMICE, _FittedKNN
+    from dataforge_ml.imputation._fitted_imputer import _FittedKNN
 
     # Training matrix: 4 complete rows, 2 KNN columns.
     train = np.array([
@@ -1033,7 +1032,7 @@ def test_fitted_knn_scale_sensitive_imputed_value_not_dominated_by_large_column(
     import numpy as np
     from sklearn.impute import KNNImputer
 
-    from dataforge_ml.imputation._fitted_imputer import FittedMICE, _FittedKNN
+    from dataforge_ml.imputation._fitted_imputer import _FittedKNN
 
     # `small` in [0, 1]; `large` in [0, 1000]; perfect positive correlation.
     # Query: small=None, large=1000 → nearest scaled neighbour is row3 →
@@ -1077,7 +1076,7 @@ def test_fitted_knn_serialize_deserialize_round_trip():
     from sklearn.impute import KNNImputer
 
     from dataforge_ml import deserialize, serialize
-    from dataforge_ml.imputation._fitted_imputer import FittedMICE, _FittedKNN
+    from dataforge_ml.imputation._fitted_imputer import _FittedKNN
 
     train = np.array([[0.0, 1.0], [1.0, 0.0], [0.5, 0.5]], dtype=np.float64)
     col_means = np.nanmean(train, axis=0)

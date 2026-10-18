@@ -261,7 +261,7 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
             scores = mutual_info_regression(
                 X, y, n_neighbors=_MI_N_NEIGHBORS, random_state=seed
             )
-        except Exception:
+        except Exception:  # noqa: BLE001 - any MI failure is a refusal (ADR-0092), not a crash
             record_fallback("nonlinearity_probe_failed", col)
             return None, None, None
 
@@ -306,7 +306,7 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
             r2_linear = float(
                 np.mean(cross_val_score(LinearRegression(), X, y, cv=cv, scoring="r2"))
             )
-        except Exception:
+        except Exception:  # noqa: BLE001 - any CV failure leaves the score unmeasured, not a crash
             r2_linear = None
 
         try:
@@ -325,7 +325,7 @@ class NonlinearityProfiler(DatasetLevelProfiler[NonlinearityProfileResult]):
                     )
                 )
             )
-        except Exception:
+        except Exception:  # noqa: BLE001 - any CV failure leaves the score unmeasured, not a crash
             r2_rf = None
 
         return r2_linear, r2_rf

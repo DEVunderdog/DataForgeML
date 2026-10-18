@@ -330,7 +330,7 @@ class StructuralProfiler(_ObservabilityMixin):
                         result.columns[col_name].stats = batch.columns.get(col_name)
             except DataForgeError:
                 raise
-            except Exception:
+            except Exception:  # noqa: BLE001 - one batch failing must not sink the profile; DataForgeError re-raised above
                 # The batch's columns keep no stats; the caller learns which.
                 for col_name in cols:
                     record_fallback("column_profiling_failed", col_name)

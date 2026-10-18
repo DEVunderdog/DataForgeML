@@ -283,7 +283,7 @@ class CategoricalStats:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "CategoricalStats":
+    def from_dict(cls, data: dict) -> CategoricalStats:
         """
         Reconstruct this profile from a plain dictionary.
 
@@ -341,7 +341,7 @@ def _fmt_seq(values: list) -> str:
     return ", ".join(str(v) for v in values) if values else "none"
 
 
-def _categorical_stats_lines(stats: "CategoricalStats") -> list[str]:
+def _categorical_stats_lines(stats: CategoricalStats) -> list[str]:
     """Build the ``####``-rooted body for one column's categorical statistics."""
     lines = [
         "| Field | Value |",

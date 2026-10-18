@@ -225,7 +225,7 @@ def _authored_case():
     The guarantee lives inside each unit's own ``transform``, below the
     routing, so it must hold identically for a hand-authored one.
     """
-    from dataforge_ml import AuthoredColumn, ImputationStrategy, author
+    from dataforge_ml import ImputationStrategy, author
 
     df = _train_frame()
     profile = StructuralProfiler(config=PipelineConfig()).profile(df)

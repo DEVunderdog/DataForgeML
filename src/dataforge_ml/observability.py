@@ -18,7 +18,6 @@ import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Optional
 
 # ---------------------------------------------------------------------------
 # Trace sink: the named library logger, silent by default.
@@ -88,9 +87,9 @@ class PipelineEvent:
     phase: str
     stage: str
     message: str
-    column: Optional[str] = None
-    index: Optional[int] = None
-    total: Optional[int] = None
+    column: str | None = None
+    index: int | None = None
+    total: int | None = None
 
 
 # Progress Observer form: a plain callable handed each event as it happens.
@@ -153,10 +152,10 @@ class _ObservabilityMixin:
     def _emit_item(
         self,
         stage: str,
-        column: Optional[str],
+        column: str | None,
         index: int,
         total: int,
-        message: Optional[str] = None,
+        message: str | None = None,
     ) -> None:
         # ``column`` is None for a work unit that is not tied to a single column
         # (e.g. the one-time feature-feature correlation matrices); callers pass
@@ -283,7 +282,7 @@ class Emitter:
             self._observer,
         )
 
-    def item(self, column: Optional[str], message: Optional[str] = None) -> None:
+    def item(self, column: str | None, message: str | None = None) -> None:
         """Emit an ``item`` heartbeat for a column, auto-incrementing the index.
 
         Each call advances the Emitter's internal 1-based counter and stamps it,
@@ -319,9 +318,9 @@ class Emitter:
     def substep(
         self,
         message: str,
-        column: Optional[str] = None,
-        index: Optional[int] = None,
-        total: Optional[int] = None,
+        column: str | None = None,
+        index: int | None = None,
+        total: int | None = None,
     ) -> None:
         """Emit a ``substep`` heartbeat for sub-column work.
 

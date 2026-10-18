@@ -182,5 +182,5 @@ class BooleanProfiler(ColumnBatchProfiler[BooleanProfileResult]):
         # Fallback: attempt a cast and drop nulls (covers e.g. Categorical)
         try:
             return series.cast(pl.Boolean).drop_nulls()
-        except Exception:
+        except pl.exceptions.PolarsError:
             return pl.Series([], dtype=pl.Boolean)

@@ -20,14 +20,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Optional
 
 # ---------------------------------------------------------------------------
 # Rendering helpers
 # ---------------------------------------------------------------------------
 
 
-def _fmt_optional(value: Optional[float]) -> str:
+def _fmt_optional(value: float | None) -> str:
     return "not computed" if value is None else f"{value:.4f}"
 
 
@@ -169,8 +168,8 @@ class CorrelationPair:
 
     col_a: str
     col_b: str
-    pearson_r: Optional[float] = None
-    spearman_r: Optional[float] = None
+    pearson_r: float | None = None
+    spearman_r: float | None = None
     near_redundant: bool = False
 
     def to_dict(self) -> dict:
@@ -208,7 +207,7 @@ class CramerVPair:
 
     col_a: str = ""
     col_b: str = ""
-    cramer_v: Optional[float] = None
+    cramer_v: float | None = None
     near_redundant: bool = False
 
     def to_dict(self) -> dict:
@@ -246,7 +245,7 @@ class EtaSquaredPair:
 
     numeric_col: str = ""
     categorical_col: str = ""
-    eta_squared: Optional[float] = None
+    eta_squared: float | None = None
     near_redundant: bool = False
 
     def to_dict(self) -> dict:
@@ -284,7 +283,7 @@ class NumericTargetCorrelation:
     """
 
     feature: str
-    pearson_r: Optional[float] = None
+    pearson_r: float | None = None
 
     def to_dict(self) -> dict:
         """
@@ -318,9 +317,9 @@ class CategoricalTargetCorrelation:
     """
 
     feature: str
-    f_statistic: Optional[float] = None
-    p_value: Optional[float] = None
-    eta_squared: Optional[float] = None
+    f_statistic: float | None = None
+    p_value: float | None = None
+    eta_squared: float | None = None
 
     def to_dict(self) -> dict:
         """
@@ -469,8 +468,8 @@ class CorrelationProfileResult:
     near_redundant_eta_squared_pairs: list[EtaSquaredPair] = field(default_factory=list)
 
     # Target info
-    target_column: Optional[str] = None
-    target_type: Optional[TargetType] = None
+    target_column: str | None = None
+    target_type: TargetType | None = None
 
     # Feature–target correlations (top-10 each)
     feature_target_numeric: list[NumericTargetCorrelation] = field(default_factory=list)
@@ -502,7 +501,7 @@ class CorrelationProfileResult:
         """
         return self.mutual_information[:n]
 
-    def get_pearson(self, col_a: str, col_b: str) -> Optional[float]:
+    def get_pearson(self, col_a: str, col_b: str) -> float | None:
         """
         Look up the Pearson r between two numeric columns.
 
@@ -521,7 +520,7 @@ class CorrelationProfileResult:
         """
         return self.pearson_matrix.get(col_a, {}).get(col_b)
 
-    def get_spearman(self, col_a: str, col_b: str) -> Optional[float]:
+    def get_spearman(self, col_a: str, col_b: str) -> float | None:
         """
         Look up the Spearman r between two numeric columns.
 
@@ -581,7 +580,7 @@ class CorrelationProfileResult:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "CorrelationProfileResult":
+    def from_dict(cls, data: dict) -> CorrelationProfileResult:
         """
         Reconstruct the full correlation profile from a plain dictionary.
 

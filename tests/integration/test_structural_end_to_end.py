@@ -1,7 +1,7 @@
 import polars as pl
 import pytest
 
-from dataforge_ml.config import PipelineConfig, PipelinePhase, SemanticType
+from dataforge_ml.config import PipelineConfig, SemanticType
 from dataforge_ml.profiling._boolean_config import BooleanStats
 from dataforge_ml.profiling._categorical_config import CategoricalStats
 from dataforge_ml.profiling._config import ProfileConfig, StructuralProfileResult
@@ -294,7 +294,6 @@ def test_missingness_severity_override_via_profile_config():
     # Column with 12 % null ratio.
     # Default severity_high=0.20 → 0.12 < 0.20 → MissingSeverity.High
     # Override severity_high=0.10 → 0.12 >= 0.10 → MissingSeverity.Severe
-    n = 100
     values = [None] * 12 + [1.0] * 88
     df = pl.DataFrame({"x": pl.Series(values, dtype=pl.Float64)})
 

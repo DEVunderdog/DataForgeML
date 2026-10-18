@@ -10,7 +10,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
-from typing import Optional
 
 
 class InferredGranularity(StrEnum):
@@ -40,13 +39,13 @@ class DatetimeStats:
     range, gap regularity, and inferred granularity.
     """
 
-    min_date: Optional[datetime] = None
-    max_date: Optional[datetime] = None
-    date_range_days: Optional[float] = None
+    min_date: datetime | None = None
+    max_date: datetime | None = None
+    date_range_days: float | None = None
     future_date_count: int = 0
-    inferred_granularity: Optional[InferredGranularity] = None
-    median_gap_seconds: Optional[float] = None
-    gap_cv: Optional[float] = None
+    inferred_granularity: InferredGranularity | None = None
+    median_gap_seconds: float | None = None
+    gap_cv: float | None = None
     flags: list[DatetimeFlag] = field(default_factory=list)
 
     def has_flag(self, flag: DatetimeFlag) -> bool:
@@ -87,7 +86,7 @@ class DatetimeStats:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "DatetimeStats":
+    def from_dict(cls, data: dict) -> DatetimeStats:
         """Reconstruct the datetime statistics from a plain dictionary.
 
         Parameters

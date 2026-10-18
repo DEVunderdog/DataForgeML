@@ -18,10 +18,8 @@ from dataforge_ml import (
     PipelineConfig,
     PipelinePhase,
     StructuralProfiler,
-    derive_units,
-    fit_unit,
 )
-from dataforge_ml.imputation import ImputationStrategy, resolve_recipe, route
+from dataforge_ml.imputation import ImputationStrategy, route
 from dataforge_ml.imputation._config import ModelChoice, NumericImputationConfig
 from dataforge_ml.imputation._escalation import (
     _bottom_tier_fill,
@@ -42,14 +40,10 @@ from dataforge_ml.imputation._evidence import (
     SignalTier,
     TierFact,
 )
-from dataforge_ml.imputation._regression_estimator_factory import (
-    RegressionEstimatorFactory,
-)
 from dataforge_ml.profiling._config import ColumnProfile, NumericKind
 from dataforge_ml.profiling._correlation_config import CorrelationProfileResult
 from dataforge_ml.profiling._missingness_config import ColumnMissingnessProfile
 from dataforge_ml.profiling._numeric_config import (
-    BimodalStats,
     NumericFlag,
     NumericStats,
     SkewSeverity,
@@ -61,7 +55,7 @@ from dataforge_ml.profiling._numeric_config import (
 
 
 def _missingness(effective_null_ratio: float, total_rows: int) -> ColumnMissingnessProfile:
-    eff = int(round(effective_null_ratio * total_rows))
+    eff = round(effective_null_ratio * total_rows)
     return ColumnMissingnessProfile(
         column="x",
         total_rows=total_rows,
@@ -77,10 +71,10 @@ def _cp(
     null_ratio: float = 0.0,
     total_rows: int = 100,
     numeric_kind: NumericKind = NumericKind.Continuous,
-    r2_linear: "float | None" = None,
-    r2_rf: "float | None" = None,
-    max_mi: "float | None" = None,
-    skewness_severity: "SkewSeverity | None" = SkewSeverity.Normal,
+    r2_linear: float | None = None,
+    r2_rf: float | None = None,
+    max_mi: float | None = None,
+    skewness_severity: SkewSeverity | None = SkewSeverity.Normal,
 ) -> ColumnProfile:
     stats = NumericStats(
         r2_linear=r2_linear,

@@ -23,13 +23,13 @@ from dataforge_ml import (
     fit_unit,
     resolve_recipe,
 )
-from dataforge_ml.imputation import route
 from dataforge_ml.imputation import (
     FitSignals,
     ImputationFitWarning,  # noqa: F401 — re-exported, importability check
     ImputationStrategy,
     ImputationUnit,
     UnitFitResult,
+    route,
 )
 from dataforge_ml.imputation._fitted_units import FittedScalar
 from tests.conftest import raises_code
@@ -146,7 +146,7 @@ def test_application_order_is_routing_order():
 
     config = PipelineConfig()
     config.imputation.numeric.set_bimodal_grouping_variable("bi_grouped", "grp")
-    profile, routing, recipe = _routing_and_recipe(df, config)
+    _, routing, recipe = _routing_and_recipe(df, config)
     units = derive_units(routing)
     results = _fit_all(recipe, units, df)
     imputer = FittedImputer.compose(recipe, results)
@@ -209,7 +209,7 @@ def test_fit_result_carries_a_populated_fit_signals_record():
 
 def test_fit_signals_reports_the_estimator_for_a_gmm_unit():
     df = _bimodal_frame(grouped=False)
-    profile, routing, recipe = _routing_and_recipe(df)
+    _, routing, recipe = _routing_and_recipe(df)
     (unit,) = derive_units(routing, strategy=ImputationStrategy.GMMSampling)
 
     signals = fit_unit(recipe, unit, df, random_seed=3).signals

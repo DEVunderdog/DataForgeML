@@ -10,7 +10,7 @@ results.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from ._c2st import DEFAULT_MIN_SAMPLES_LEAF, MIN_SAMPLE_FLOOR, C2STScheme
 
@@ -112,8 +112,8 @@ class C2STConfig:
     low_power_below: int = _DEFAULT_LOW_POWER_BELOW
     imbalance_warn_ratio: float = _DEFAULT_IMBALANCE_WARN_RATIO
     fdr_alpha: float = _DEFAULT_FDR_ALPHA
-    random_state: Optional[int] = None
-    classifier: Optional[Any] = None
+    random_state: int | None = None
+    classifier: Any | None = None
 
     def to_dict(self) -> dict:
         """Serialise the dials to a plain dictionary.

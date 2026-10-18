@@ -20,16 +20,11 @@ Detection pipeline (in order, applied per column):
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import polars as pl
 
 from ..models._data_types import _INT_DTYPES, _NUMERIC_DTYPES
 from ._config import ColumnTypeInfo, NumericKind, SemanticType, TypeFlag
 from ._type_detection_config import TypeDetectionConfig
-
-if TYPE_CHECKING:
-    pass
 
 # Common boolean string values (lowercased)
 _BOOL_STRING_SET = {"true", "false", "yes", "no", "t", "f", "0", "1"}
@@ -189,7 +184,7 @@ class TypeDetector:
             return None, None
         try:
             cast = series.cast(pl.Float64, strict=False)
-        except Exception:
+        except pl.exceptions.PolarsError:
             return None, None
 
         non_null = cast.drop_nulls().len()
@@ -212,7 +207,7 @@ class TypeDetector:
 
         try:
             cast = series.str.to_datetime(strict=False)
-        except Exception:
+        except pl.exceptions.PolarsError:
             return None, None
 
         original_non_null = series.drop_nulls().len()
@@ -271,7 +266,7 @@ class TypeDetector:
         # Whole-number check: reject true floats like 1.5, 2.7
         try:
             as_int = valid.cast(pl.Int64, strict=False)
-        except Exception:
+        except pl.exceptions.PolarsError:
             return
         if not (valid == as_int.cast(pl.Float64, strict=False)).all():
             return
@@ -408,16 +403,15 @@ class TypeDetector:
 
         # Float pre-check: any fractional value → always Continuous.
         # The four-signal test assumes integer steps and is undefined for decimal spacing.
-        if series.dtype not in _INT_DTYPES:
-            if not (valid % 1 == 0).all():
-                info.numeric_kind = NumericKind.Continuous
-                return
+        if series.dtype not in _INT_DTYPES and not (valid % 1 == 0).all():
+            info.numeric_kind = NumericKind.Continuous
+            return
 
         min_val = float(valid.min())
         max_val = float(valid.max())
 
         # Signal 1: Tight sequence — every integer slot between min and max is present.
-        range_span = int(round(max_val - min_val)) + 1
+        range_span = round(max_val - min_val) + 1
         if range_span != n_unique:
             info.numeric_kind = NumericKind.Continuous
             return

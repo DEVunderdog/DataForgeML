@@ -5,7 +5,7 @@ Wire Records only it returns, and one call into internal code. Agents import
 Operations from ``dataforge_ml``.
 """
 
-from . import (  # noqa: F401
+from . import (  # noqa: F401 - importing each module registers its Operation
     describe_columns,
     describe_target,
     export_frame,

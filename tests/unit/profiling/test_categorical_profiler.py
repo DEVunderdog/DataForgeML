@@ -1,5 +1,4 @@
 import polars as pl
-import pytest
 
 from dataforge_ml.profiling._categorical import CategoricalProfiler
 from dataforge_ml.profiling._categorical_config import (
@@ -8,7 +7,6 @@ from dataforge_ml.profiling._categorical_config import (
     CategoricalProfileResult,
     CategoricalStats,
     ImbalanceMetrics,
-    RareCategoryStats,
     TopValueEntry,
 )
 

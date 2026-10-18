@@ -482,7 +482,7 @@ def test_profile_config_from_dict_restores_numeric_sentinels():
     assert cfg.numeric_sentinels == {"age": [-999.0], "score": [-999.0, 9999.0]}
 
 
-def test_profile_config_from_dict_missing_key_defaults_to_empty_dict():
+def test_profile_config_from_dict_missing_numeric_sentinels_defaults_to_empty_dict():
     cfg = ProfileConfig.from_dict({})
     assert cfg.numeric_sentinels == {}
 
@@ -532,7 +532,7 @@ def test_profile_config_from_dict_restores_string_sentinels():
     assert cfg.string_sentinels == {"status": ["N/A", "missing"], "grade": ["?"]}
 
 
-def test_profile_config_from_dict_missing_key_defaults_to_empty_dict():
+def test_profile_config_from_dict_missing_string_sentinels_defaults_to_empty_dict():
     cfg = ProfileConfig.from_dict({})
     assert cfg.string_sentinels == {}
 
@@ -615,7 +615,7 @@ def test_profile_config_from_dict_restores_datetime_epoch_units():
     assert cfg.datetime_epoch_units["ts_ms"].value == "ms"
 
 
-def test_profile_config_from_dict_missing_key_defaults_to_empty_dict():
+def test_profile_config_from_dict_missing_datetime_epoch_units_defaults_to_empty_dict():
     cfg = ProfileConfig.from_dict({})
     assert cfg.datetime_epoch_units == {}
 

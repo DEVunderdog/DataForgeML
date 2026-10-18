@@ -33,7 +33,6 @@ from typing import Any
 import polars as pl
 import pytest
 
-from dataforge_ml.imputation import RoutingReason
 from dataforge_ml.config import PipelineConfig, SemanticType
 from dataforge_ml.evaluation import (
     C2STConfig,
@@ -50,6 +49,7 @@ from dataforge_ml.imputation import (
     FittedImputer,
     ImputationRecipe,
     ImputationRouting,
+    RoutingReason,
     UnitFitResult,
     author,
     derive_units,
@@ -153,10 +153,10 @@ def _datetime_result() -> DatetimeProfileResult:
         {
             "event_at": pl.Series(
                 [
-                    datetime(2024, 1, 1),
-                    datetime(2024, 1, 2),
-                    datetime(2024, 1, 3),
-                    datetime(2024, 1, 5),
+                    datetime(2024, 1, 1),  # noqa: DTZ001 - naive by design
+                    datetime(2024, 1, 2),  # noqa: DTZ001 - naive by design
+                    datetime(2024, 1, 3),  # noqa: DTZ001 - naive by design
+                    datetime(2024, 1, 5),  # noqa: DTZ001 - naive by design
                 ],
                 dtype=pl.Datetime,
             )

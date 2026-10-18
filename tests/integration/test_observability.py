@@ -6,8 +6,6 @@ both proven end-to-end through ``StructuralProfiler``.
 
 import logging
 
-import pytest
-
 import dataforge_ml
 from dataforge_ml import (
     EventType,

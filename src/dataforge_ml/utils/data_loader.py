@@ -3,14 +3,13 @@ from __future__ import annotations
 import csv
 import io
 from pathlib import Path
-from typing import Union
 
 import chardet
 import polars as pl
 
 from ..records import DataForgeError
 
-PathOrBuffer = Union[str, Path, io.IOBase, io.RawIOBase, io.BufferedIOBase]
+PathOrBuffer = str | Path | io.IOBase | io.RawIOBase | io.BufferedIOBase
 
 
 def _read_raw(source: PathOrBuffer) -> tuple[bytes, str | None]:
@@ -32,7 +31,8 @@ def _read_raw(source: PathOrBuffer) -> tuple[bytes, str | None]:
     if pos is not None:
         try:
             source.seek(pos)
-        except Exception:
+        except (OSError, ValueError):
+            # A stream that cannot seek back stays at its end; the bytes are already read.
             pass
 
     return raw, None

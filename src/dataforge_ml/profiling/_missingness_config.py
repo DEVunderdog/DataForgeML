@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Optional
 
 # ---------------------------------------------------------------------------
 # Row-level distribution summary
@@ -83,7 +82,7 @@ class RowMissingnessDistribution:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "RowMissingnessDistribution":
+    def from_dict(cls, data: dict) -> RowMissingnessDistribution:
         """
         Reconstruct a distribution from a plain dictionary.
 
@@ -170,7 +169,7 @@ class ColumnMissingnessProfile:
     standard_null_ratio: float = 0.0
     effective_null_ratio: float = 0.0
 
-    severity: Optional[MissingSeverity] = None
+    severity: MissingSeverity | None = None
 
     flags: list[MissingnessFlag] = field(default_factory=list)
     correlated_with: list[str] = field(default_factory=list)
@@ -213,7 +212,7 @@ class ColumnMissingnessProfile:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "ColumnMissingnessProfile":
+    def from_dict(cls, data: dict) -> ColumnMissingnessProfile:
         """Reconstruct a column missingness profile from a plain dictionary.
 
         Parameters
