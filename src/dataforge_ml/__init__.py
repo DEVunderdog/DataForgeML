@@ -65,7 +65,6 @@ _EXPORTS: dict[str, tuple[str, ...]] = {
         "author",
         "derive_units",
         "fit_unit",
-        "resolve_recipe",
     ),
     # --- Observability: Pipeline Event stream + observers
     ".observability": ("EventType", "PipelineEvent", "stderr_observer"),
@@ -79,6 +78,7 @@ _EXPORTS: dict[str, tuple[str, ...]] = {
     ".operations.load": ("load",),
     ".operations.missingness": ("missingness",),
     ".operations.profile": ("profile",),
+    ".operations.resolve_recipe": ("resolve_recipe",),
     ".operations.route": ("route",),
     ".operations.split": ("split",),
     ".operations.top_associations": ("top_associations",),

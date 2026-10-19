@@ -25,8 +25,8 @@ from dataforge_ml import (
     author,
     derive_units,
     fit_unit,
-    resolve_recipe,
 )
+from dataforge_ml.imputation import resolve_recipe
 from tests.conftest import raises_code
 
 COLUMNS = ["score", "revenue", "rating", "label"]

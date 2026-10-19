@@ -14,6 +14,7 @@ from . import (  # noqa: F401 - importing each module registers its Operation
     load,
     missingness,
     profile,
+    resolve_recipe,
     route,
     split,
     top_associations,

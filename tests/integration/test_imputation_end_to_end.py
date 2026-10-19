@@ -443,9 +443,9 @@ def test_hand_authored_plan_drives_column_names_to_an_imputed_frame():
         derive_units,
         deserialize,
         fit_unit,
-        resolve_recipe,
         serialize,
     )
+    from dataforge_ml.imputation import resolve_recipe
 
     rng = np.random.default_rng(468)
     n = 300

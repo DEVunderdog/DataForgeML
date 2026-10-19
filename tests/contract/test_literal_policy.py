@@ -144,6 +144,10 @@ CALLS: dict[str, Callable[[Handles], list[Call]]] = {
         ("explain_routing", {"routing": h.routing}),
         ("explain_routing", {"routing": h.routing, "columns": ["citty"]}),
     ],
+    "resolve_recipe": lambda h: [
+        ("resolve_recipe", {"routing": h.routing}),
+        ("resolve_recipe", {"routing": h.profile}),
+    ],
     "split": lambda h: [
         ("split", {"profile": h.profile, "scheme": {"kind": "profile_stratified_kfold", "k": 3}}),
         ("split", {"profile": h.profile, "scheme": {"kind": "time", "time_column": "when"}}),

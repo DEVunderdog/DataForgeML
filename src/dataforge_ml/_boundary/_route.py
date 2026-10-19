@@ -65,6 +65,24 @@ def dial_defaults() -> dict[str, Any]:
     return {f"{DIAL_GROUP}.{name}": getattr(defaults, name) for name in ROUTING_DIALS}
 
 
+def numeric_dials(values: dict[str, Any]) -> dict[str, Any]:
+    """Return routing dial values keyed by their ``NumericImputationConfig`` field name.
+
+    Parameters
+    ----------
+    values : dict
+        Path such as ``numeric.knn_max_rows`` to its value, as a routing
+        Handle record stores them.
+
+    Returns
+    -------
+    dict
+        Field name such as ``knn_max_rows`` to its value.
+    """
+    prefix = f"{DIAL_GROUP}."
+    return {p[len(prefix) :]: v for p, v in values.items()}
+
+
 @dataclass(frozen=True)
 class _Dials:
     """Every routing dial's resolved value, and which ones the caller set."""
@@ -73,8 +91,7 @@ class _Dials:
     set_by_caller: frozenset[str]
 
     def numeric(self) -> dict[str, Any]:
-        prefix = f"{DIAL_GROUP}."
-        return {p[len(prefix) :]: v for p, v in self.values.items()}
+        return numeric_dials(self.values)
 
 
 def _resolve_dials(thresholds: Any) -> _Dials:

@@ -21,7 +21,6 @@ from dataforge_ml import (
     StructuralProfiler,
     derive_units,
     fit_unit,
-    resolve_recipe,
 )
 from dataforge_ml.imputation import (
     FitSignals,
@@ -29,6 +28,7 @@ from dataforge_ml.imputation import (
     ImputationStrategy,
     ImputationUnit,
     UnitFitResult,
+    resolve_recipe,
     route,
 )
 from dataforge_ml.imputation._fitted_units import FittedScalar

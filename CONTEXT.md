@@ -343,6 +343,7 @@ Everything a unit needs to train except what training learns: the Recipe half of
 - **Routing inside, never the reverse.** A recipe cannot be fitted against a routing it was not resolved from. A routing edit means resolving again, which starts with an empty override delta. The order is: edit routing, resolve, dial.
 - **Gates and operands.** Routing reads the config fields that gate a strategy; the recipe reads the ones its arithmetic starts from, floors or caps. `bimodal_correlation_threshold` is read by both on purpose, so the features routing counted are the features the recipe lists.
 - **Profile check is columns only.** A routed column missing from the profile raises. A profile of different rows is the user's topology choice.
+- **As an Operation, off a routing Handle.** The `resolve_recipe(routing)` Operation reads the routing Handle and the profile Handle it was routed from, and writes a recipe Handle. The recipe resolves with the dials stored on the routing, so a dial the Agent set on `route` holds here too; every other operand takes its default. The result lists the units by value (`unit_id`, `strategy`, `columns`), which is why `derive_units` is not an Operation (ADR-0110).
   _Avoid_: configuration, configured plan, resolved config
 
 ### ColumnEstimates

@@ -156,6 +156,14 @@ def _wide_explain_routing(harness: Harness, tmp_path: Path) -> dict[str, Any]:
     return harness.call("explain_routing", routing=routing).json
 
 
+def _wide_resolve_recipe(harness: Harness, tmp_path: Path) -> dict[str, Any]:
+    # 150 long-named columns, each its own unit: a full page of 100 units.
+    routing = harness.code_mode(
+        "route", profile=_wide_profile_handle(harness, tmp_path), default_strategy="median"
+    ).json["routing"]
+    return harness.call("resolve_recipe", routing=routing).json
+
+
 def _ames_repeated_kfold(harness: Harness, tmp_path: Path) -> dict[str, Any]:
     # The most folds a split may make, 100, each with two frame Handles.
     return harness.call(
@@ -175,6 +183,7 @@ WORST_CASE: dict[str, Callable[[Harness, Path], dict[str, Any]]] = {
     "load": _wide_load,
     "missingness": _wide_missingness,
     "profile": _wide_profile,
+    "resolve_recipe": _wide_resolve_recipe,
     "route": _wide_route,
     "split": _ames_repeated_kfold,
     "top_associations": _wide_top_associations,
