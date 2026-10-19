@@ -57,13 +57,37 @@ class _CoreInvariantRandomForest(BaseEstimator, RegressorMixin):
     during its own round-robin, long before the caller sees an estimator back.
     """
 
-    def __init__(self, n_jobs: int = 1, random_state: int = 0):
+    # The forest parameters default to None, meaning "leave sklearn's default".
+    def __init__(
+        self,
+        n_jobs: int = 1,
+        random_state: int = 0,
+        n_estimators: int | None = None,
+        max_depth: int | None = None,
+        min_samples_split: int | None = None,
+        min_samples_leaf: int | None = None,
+        max_features: float | str | None = None,
+    ):
         self.n_jobs = n_jobs
         self.random_state = random_state
+        self.n_estimators = n_estimators
+        self.max_depth = max_depth
+        self.min_samples_split = min_samples_split
+        self.min_samples_leaf = min_samples_leaf
+        self.max_features = max_features
 
     def fit(self, X, y):
+        params = {
+            "n_estimators": self.n_estimators,
+            "max_depth": self.max_depth,
+            "min_samples_split": self.min_samples_split,
+            "min_samples_leaf": self.min_samples_leaf,
+            "max_features": self.max_features,
+        }
         forest = RandomForestRegressor(
-            random_state=self.random_state, n_jobs=self.n_jobs
+            random_state=self.random_state,
+            n_jobs=self.n_jobs,
+            **{k: v for k, v in params.items() if v is not None},
         )
         forest.fit(X, y)
         forest.n_jobs = 1
@@ -120,6 +144,7 @@ class RegressionEstimatorFactory:
     def build_from_choice(
         choice: ModelChoice,
         n_jobs: int = 1,
+        params: dict[str, Any] | None = None,
     ) -> Any:
         """
         Return a fitted-ready sklearn estimator for an already-resolved choice.
@@ -147,6 +172,10 @@ class RegressionEstimatorFactory:
             value never reaches the result: the RandomForest branch is built as
             a :class:`_CoreInvariantRandomForest`, which spends the cores on tree
             building and predicts pinned regardless (ADR-0069).
+        params : dict, optional
+            Constructor parameters for the estimator, as an estimator record's
+            ``to_estimator()`` gives them. Omitted keys keep sklearn's
+            defaults; ``random_state`` and ``n_jobs`` are never among them.
 
         Returns
         -------
@@ -174,11 +203,12 @@ class RegressionEstimatorFactory:
                 "label with an empty slot; re-supply it with "
                 "routing.with_model_choice(estimator)."
             )
+        params = params or {}
         if choice == ModelChoice.BayesianRidge:
             return Pipeline([
                 ("scaler", StandardScaler()),
-                ("model", BayesianRidge(fit_intercept=True)),
+                ("model", BayesianRidge(fit_intercept=True, **params)),
             ])
         if choice == ModelChoice.RandomForestRegressor:
-            return _CoreInvariantRandomForest(random_state=0, n_jobs=n_jobs)
-        return GradientBoostingRegressor(random_state=0)
+            return _CoreInvariantRandomForest(random_state=0, n_jobs=n_jobs, **params)
+        return GradientBoostingRegressor(random_state=0, **params)

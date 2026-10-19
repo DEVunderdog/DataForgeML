@@ -9,6 +9,7 @@ from pydantic import Field
 from .._boundary._operation import operation
 from .._boundary._route import route_profile
 from ..records import ColumnKeyedResult, Table, WireRecord
+from ._hyperparameters import EstimatorName
 
 #: Every strategy a column can end up with, by value.
 StrategyName = Literal[
@@ -73,7 +74,6 @@ ReasonName = Literal[
     "no_feasible_model",
     "no_predictor_correlation",
 ]
-EstimatorName = Literal["bayesian_ridge", "random_forest_regressor", "gradient_boosting_regressor"]
 SemanticTypeName = Literal["numeric", "categorical", "datetime", "boolean", "text", "identifier"]
 
 Ratio = Annotated[float, Field(ge=0, le=1)]
