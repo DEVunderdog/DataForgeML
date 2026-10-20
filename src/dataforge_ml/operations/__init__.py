@@ -10,6 +10,7 @@ from . import (  # noqa: F401 - importing each module registers its Operation
     describe_target,
     explain_routing,
     export_frame,
+    fit_unit,
     list_handles,
     load,
     missingness,

@@ -478,3 +478,28 @@ def read_routing(handle: str, *, param: str) -> tuple[Any, dict[str, Any]]:
         As :func:`read_record`.
     """
     return _read_serialized(handle, "routing", param=param)
+
+
+def read_recipe(handle: str, *, param: str) -> tuple[Any, dict[str, Any]]:
+    """Read a recipe Handle and record it as an input of the current call.
+
+    Parameters
+    ----------
+    handle : str
+        The recipe Handle the Agent passed.
+    param : str
+        The argument path, for error records.
+
+    Returns
+    -------
+    tuple of (ImputationRecipe, dict)
+        The stored recipe, with its own copy of the routing, and its Handle
+        record, which holds the routing, profile and frame it was resolved
+        from, and the declarations.
+
+    Raises
+    ------
+    DataForgeError
+        As :func:`read_record`.
+    """
+    return _read_serialized(handle, "recipe", param=param)

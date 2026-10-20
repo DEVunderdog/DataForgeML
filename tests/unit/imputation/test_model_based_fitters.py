@@ -16,8 +16,8 @@ import polars as pl
 import pytest
 from sklearn.impute import KNNImputer
 
-from dataforge_ml import PipelineConfig, StructuralProfiler, derive_units, fit_unit
-from dataforge_ml.imputation import ImputationStrategy, resolve_recipe, route
+from dataforge_ml import PipelineConfig, StructuralProfiler, derive_units
+from dataforge_ml.imputation import ImputationStrategy, fit_unit, resolve_recipe, route
 from dataforge_ml.imputation._config import ModelChoice
 from dataforge_ml.utils._null_normalization import _resolve_effective_nulls
 

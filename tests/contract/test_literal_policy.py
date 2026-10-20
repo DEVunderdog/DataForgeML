@@ -94,6 +94,9 @@ class Handles:
     #: ``visits`` declared ``bounded_discrete`` and routed to ``knn``, so its
     #: snap bounds are canaries; ``amount`` on ``cluster_conditional``.
     estimates_routing: str
+    #: Resolved from ``estimates_routing``: ``knn`` trains, while
+    #: ``cluster_conditional:amount`` may lack the centres it needs.
+    recipe: str
 
 
 Call = tuple[str, dict[str, Any]]
@@ -176,6 +179,12 @@ CALLS: dict[str, Callable[[Handles], list[Call]]] = {
             },
         ),
     ],
+    "fit_unit": lambda h: [
+        ("fit_unit", {"recipe": h.recipe, "unit_id": "knn"}),
+        ("fit_unit", {"recipe": h.recipe, "unit_id": "cluster_conditional:amount"}),
+        ("fit_unit", {"recipe": h.recipe, "unit_id": "knn:visits"}),
+        ("fit_unit", {"recipe": h.routing, "unit_id": "knn"}),
+    ],
     "split": lambda h: [
         ("split", {"profile": h.profile, "scheme": {"kind": "profile_stratified_kfold", "k": 3}}),
         ("split", {"profile": h.profile, "scheme": {"kind": "time", "time_column": "when"}}),
@@ -218,9 +227,10 @@ def _handles(harness: Harness, canaries: Canaries) -> Handles:
             {"column": "amount", "strategy": "cluster_conditional"},
         ],
     ).json["routing"]
+    recipe = harness.code_mode("resolve_recipe", routing=estimates_routing).json["recipe"]
     return Handles(
         path=path, frame=frame, profile=profile, routing=routing,
-        estimates_routing=estimates_routing,
+        estimates_routing=estimates_routing, recipe=recipe,
     )
 
 

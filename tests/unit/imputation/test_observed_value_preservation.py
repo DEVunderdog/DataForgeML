@@ -28,9 +28,8 @@ from dataforge_ml import (
     PipelineConfig,
     StructuralProfiler,
     derive_units,
-    fit_unit,
 )
-from dataforge_ml.imputation import resolve_recipe, route
+from dataforge_ml.imputation import fit_unit, resolve_recipe, route
 
 STRATEGY_CASES = [
     pytest.param("median", id="scalar-control"),

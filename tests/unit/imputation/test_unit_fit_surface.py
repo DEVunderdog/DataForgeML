@@ -21,7 +21,6 @@ from dataforge_ml import (
     PipelineConfig,
     StructuralProfiler,
     derive_units,
-    fit_unit,
 )
 from dataforge_ml._boundary._error_codes import REGISTRY
 from dataforge_ml.imputation import (
@@ -29,6 +28,7 @@ from dataforge_ml.imputation import (
     ImputationStrategy,
     ImputationUnit,
     UnitFitResult,
+    fit_unit,
     resolve_recipe,
     route,
 )

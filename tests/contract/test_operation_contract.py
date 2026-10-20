@@ -168,6 +168,20 @@ def _wide_resolve_recipe(harness: Harness, tmp_path: Path) -> dict[str, Any]:
     return harness.call("resolve_recipe", routing=routing).json
 
 
+def _wide_fit_unit(harness: Harness, tmp_path: Path) -> dict[str, Any]:
+    # One MICE block over 150 long-named columns, capped at one round so it
+    # warns: full pages of the block's columns and of the warning's columns.
+    routing = harness.code_mode(
+        "route", profile=_wide_profile_handle(harness, tmp_path), default_strategy="mice"
+    ).json["routing"]
+    recipe = harness.code_mode(
+        "resolve_recipe",
+        routing=routing,
+        hyperparameters=[{"unit_id": "mice", "hyperparameters": {"kind": "mice", "max_iter": 1}}],
+    ).json["recipe"]
+    return harness.call("fit_unit", recipe=recipe, unit_id="mice").json
+
+
 def _ames_repeated_kfold(harness: Harness, tmp_path: Path) -> dict[str, Any]:
     # The most folds a split may make, 100, each with two frame Handles.
     return harness.call(
@@ -183,6 +197,7 @@ WORST_CASE: dict[str, Callable[[Harness, Path], dict[str, Any]]] = {
     "describe_target": _ames_describe_target,
     "explain_routing": _wide_explain_routing,
     "export_frame": _export,
+    "fit_unit": _wide_fit_unit,
     "list_handles": _full_page_of_handles,
     "load": _wide_load,
     "missingness": _wide_missingness,

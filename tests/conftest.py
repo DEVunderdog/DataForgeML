@@ -35,9 +35,8 @@ def fit_imputer(train_df, profile, config=None, observer=None):
         FittedImputer,
         PipelineConfig,
         derive_units,
-        fit_unit,
     )
-    from dataforge_ml.imputation import resolve_recipe, route
+    from dataforge_ml.imputation import fit_unit, resolve_recipe, route
 
     config = config or PipelineConfig()
     routing = route(profile, config)
