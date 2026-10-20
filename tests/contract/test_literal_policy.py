@@ -147,6 +147,13 @@ CALLS: dict[str, Callable[[Handles], list[Call]]] = {
     "resolve_recipe": lambda h: [
         ("resolve_recipe", {"routing": h.routing}),
         ("resolve_recipe", {"routing": h.profile}),
+        (
+            "resolve_recipe",
+            {
+                "routing": h.routing,
+                "hyperparameters": [{"unit_id": "mcie", "hyperparameters": {"kind": "mice"}}],
+            },
+        ),
     ],
     "split": lambda h: [
         ("split", {"profile": h.profile, "scheme": {"kind": "profile_stratified_kfold", "k": 3}}),

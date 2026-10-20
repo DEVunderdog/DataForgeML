@@ -143,8 +143,8 @@ _ENTRIES: tuple[ErrorCodeEntry, ...] = (
         code="duplicate_key",
         category="InvalidInput",
         hint=(
-            "A keyed list names the same key twice. Keep one entry per column "
-            "in each list named in `params`."
+            "A keyed list names the same key twice. Keep one entry per key, "
+            "such as a column or a unit, in each list named in `params`."
         ),
         fields=("param", "params", "columns", "issues"),
     ),
@@ -285,7 +285,7 @@ _ENTRIES: tuple[ErrorCodeEntry, ...] = (
             "Use a unit id the recipe's routing derives. `candidates` lists "
             "close matches."
         ),
-        fields=("param", "candidates"),
+        fields=("param", "params", "candidates", "issues"),
     ),
     ErrorCodeEntry(
         code="declaration_conflict",
