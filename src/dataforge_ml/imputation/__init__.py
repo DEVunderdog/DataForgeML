@@ -11,7 +11,7 @@ from ._config import (
     NumericImputationConfig,
 )
 from ._evidence import RoutingReason
-from ._fit_signals import FitSignals, ImputationFitWarning
+from ._fit_signals import FitSignals
 from ._fitted_imputer import (
     DroppedColumnAbsentWarning,
     FittedImputer,
@@ -32,7 +32,6 @@ __all__ = [
     "FittedImputer",
     "FittedUnit",
     "ImputationConfig",
-    "ImputationFitWarning",
     "ImputationRecipe",
     "ImputationResult",
     "ImputationRouting",

@@ -29,7 +29,8 @@ from sklearn.impute import IterativeImputer, KNNImputer
 from sklearn.mixture import GaussianMixture
 from sklearn.pipeline import Pipeline
 
-from ..records import DataForgeError
+from .._boundary._error_codes import entry_for
+from ..records import DataForgeError, ResultWarning
 from ._config import ColumnRouting, ImputationStrategy, ModelChoice
 from ._fit_signals import FitSignals
 from ._fitted_units import (
@@ -132,9 +133,8 @@ class UnitFitOutcome:
         The trained unit, or ``None`` when this unit cannot train.
     signals : FitSignals or None, optional
         The structured, ephemeral record of the fit (ADR-0074) — estimator,
-        convergence, notes, and any warnings. Its ``duration_s`` is left unset
-        here and stamped by the training surface, which owns the clock. ``None``
-        when ``fitted`` is ``None``: a failure produces no record.
+        convergence, notes, and any coded Result Warnings. ``None`` when
+        ``fitted`` is ``None``: a failure produces no record.
     fallback_reason : str or None, optional
         Why ``fitted`` is ``None``; always set when it is.
     """
@@ -510,11 +510,18 @@ def fit_mice_unit(
         initial_strategy_note = "initial_strategy: mean (all columns normal-skew)"
 
     converged = bool(model.n_iter_ < max_iter)
-    warnings_: tuple[str, ...] = ()
+    fit_warnings: tuple[ResultWarning, ...] = ()
     if not converged:
-        warnings_ = (
-            f"MICE hit its iteration cap without converging: max_iter={max_iter} ",
-            "reached; consider increasing base_max_iter",
+        fit_warnings = (
+            ResultWarning(
+                code="mice_not_converged",
+                message=(
+                    f"MICE unit '{unit.unit_id}' hit its iteration cap "
+                    f"(max_iter={max_iter}) without converging."
+                ),
+                columns=list(cols),
+                hint=entry_for("mice_not_converged").hint,
+            ),
         )
 
     return UnitFitOutcome(
@@ -530,7 +537,7 @@ def fit_mice_unit(
             estimator=_estimator_name(estimator),
             converged=converged,
             n_iter=int(model.n_iter_),
-            warnings=warnings_,
+            warnings=fit_warnings,
             notes=(
                 initial_strategy_note,
                 n_nearest_note,
@@ -693,6 +700,21 @@ def fit_gmm_unit(
     )
     gmm.fit(series.to_numpy().reshape(-1, 1))
 
+    converged = bool(gmm.converged_)
+    fit_warnings: tuple[ResultWarning, ...] = ()
+    if not converged:
+        fit_warnings = (
+            ResultWarning(
+                code="gmm_not_converged",
+                message=(
+                    f"GMM unit '{unit.unit_id}' hit its iteration cap "
+                    f"(max_iter={gmm.max_iter}) without converging."
+                ),
+                columns=[col],
+                hint=entry_for("gmm_not_converged").hint,
+            ),
+        )
+
     return UnitFitOutcome(
         fitted=FittedGMMSampling(
             center1=gmm.means_[0][0],
@@ -711,6 +733,9 @@ def fit_gmm_unit(
             unit_id=unit.unit_id,
             strategy=unit.strategy,
             estimator="GaussianMixture",
+            converged=converged,
+            n_iter=int(gmm.n_iter_),
+            warnings=fit_warnings,
             notes=("components: 2 (bimodal centres seeded from the recipe)",),
         ),
     )

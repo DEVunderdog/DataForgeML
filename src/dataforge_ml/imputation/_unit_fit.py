@@ -17,8 +17,7 @@ unit trains (ADR-0068), so a raw frame may be handed straight in.
 from __future__ import annotations
 
 import warnings
-from dataclasses import dataclass, replace
-from time import perf_counter
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import polars as pl
@@ -28,7 +27,7 @@ from ..records import DataForgeError
 from ..utils._dtype_floor import _apply_dtype_floor
 from ..utils._null_normalization import _resolve_effective_nulls
 from ._config import ImputationStrategy, ImputationUnit, _md_cell
-from ._fit_signals import FitSignals, ImputationFitWarning
+from ._fit_signals import FitSignals
 from ._fitters import UnitFitContext, _dispatch_unit_fit
 from ._units import derive_units
 
@@ -38,7 +37,6 @@ if TYPE_CHECKING:
 
 __all__ = [
     "FitSignals",
-    "ImputationFitWarning",
     "UnitFitResult",
     "fit_unit",
 ]
@@ -66,9 +64,8 @@ class UnitFitResult:
         requirement.
     signals : FitSignals
         The structured, ephemeral record of the fit — estimator, convergence,
-        duration, notes, and any warnings. Read it to answer "did this fit
-        converge? which estimator ran? how long did it take?" without parsing
-        strings.
+        notes, and any coded Result Warnings. Read it to answer "did this fit
+        converge? which estimator ran?" without parsing strings.
     """
 
     unit_id: str
@@ -177,17 +174,6 @@ def _resolve(recipe: ImputationRecipe, unit: ImputationUnit) -> ImputationUnit:
     return recipe_unit
 
 
-def _emit_warnings(signals: FitSignals) -> None:
-    """Dual-channel every recorded warning through the standard mechanism.
-
-    Each entry already sits in ``signals.warnings``; re-raising it under
-    :class:`ImputationFitWarning` (ADR-0074) gives a caller who never inspects
-    the record stderr visibility and the ordinary ``filterwarnings`` toolkit.
-    """
-    for message in signals.warnings:
-        warnings.warn(message, category=ImputationFitWarning, stacklevel=3)
-
-
 def fit_unit(
     recipe: ImputationRecipe,
     unit: ImputationUnit,
@@ -237,8 +223,9 @@ def fit_unit(
     Returns
     -------
     UnitFitResult
-        The trained unit plus its structured fit record. The record's
-        ``duration_s`` spans this whole call, normalisation included.
+        The trained unit plus its structured fit record. Caveats, such as
+        ``mice_not_converged``, are coded Result Warnings in
+        ``signals.warnings``; fitting emits no Python warnings.
 
     Raises
     ------
@@ -255,7 +242,6 @@ def fit_unit(
         ``unit_not_trainable`` if the unit cannot train, naming its columns
         and the fitter's reason — the sole failure track (ADR-0071).
     """
-    start = perf_counter()
     unit = _resolve(recipe, unit)
     # Phase entry: effective nulls first, then the Dtype Floor off the
     # routing's semantic types. The floor casts away the string namespace the
@@ -272,7 +258,11 @@ def fit_unit(
         },
     )
     ctx = _fit_context(recipe, random_seed)
-    outcome = _dispatch_unit_fit(unit, train_df, ctx, n_jobs_inner)
+    with warnings.catch_warnings():
+        # Fitting emits no Python warnings (ADR-0102). A caveat worth acting
+        # on, such as a hit iteration cap, comes back coded on signals.warnings.
+        warnings.simplefilter("ignore")
+        outcome = _dispatch_unit_fit(unit, train_df, ctx, n_jobs_inner)
     if outcome.fitted is None or outcome.signals is None:
         names = ", ".join(f"'{c}'" for c in unit.columns)
         reason = outcome.fallback_reason or str(unit.strategy)
@@ -282,13 +272,11 @@ def fit_unit(
             f"{names}: {reason}",
             columns=list(unit.columns),
         )
-    signals = replace(outcome.signals, duration_s=perf_counter() - start)
-    _emit_warnings(signals)
     return UnitFitResult(
         unit_id=unit.unit_id,
         strategy=unit.strategy,
         columns=unit.columns,
         fitted=outcome.fitted,
-        signals=signals,
+        signals=outcome.signals,
     )
 

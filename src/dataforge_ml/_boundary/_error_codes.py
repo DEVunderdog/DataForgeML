@@ -423,6 +423,27 @@ _ENTRIES: tuple[ErrorCodeEntry, ...] = (
         ),
     ),
     ErrorCodeEntry(
+        code="mice_not_converged",
+        category="warning",
+        hint=(
+            "The MICE block stopped at its iteration cap before it converged, "
+            "so its fills may still be moving. Raise `max_iter` or loosen `tol` "
+            "in the unit's hyperparameters and fit again."
+        ),
+        fields=("columns",),
+    ),
+    ErrorCodeEntry(
+        code="gmm_not_converged",
+        category="warning",
+        hint=(
+            "The two-component mixture stopped at its iteration cap before it "
+            "converged, so its sampled fills may sit off the real modes. Check "
+            "the column's bimodal centres and set better ones with "
+            "`with_estimates`, or pick another strategy for it."
+        ),
+        fields=("columns",),
+    ),
+    ErrorCodeEntry(
         code="non_numeric_missing_kept",
         category="warning",
         hint=(

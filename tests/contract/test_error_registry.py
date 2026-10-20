@@ -51,10 +51,9 @@ EXEMPT: dict[tuple[str, str], str] = {
 
 #: ``warnings.warn`` sites left from before Result Warnings, per file. Each is
 #: removed by the Operation ticket that moves its caveat into ``warnings``
-#: (#593 profile, #600 fit_unit, #601 impute, #606 old surface). The count may
-#: only go down; a new ``warnings.warn`` anywhere fails.
+#: (#593 profile, #601 impute, #606 old surface). The count may only go down;
+#: a new ``warnings.warn`` anywhere fails.
 LEGACY_WARN_SITES: dict[str, int] = {
-    "imputation/_unit_fit.py": 1,
     "imputation/_fitted_imputer.py": 1,
     "_serialization.py": 1,
 }

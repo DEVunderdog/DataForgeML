@@ -11,6 +11,7 @@ concern).
 from __future__ import annotations
 
 import inspect
+import warnings
 
 import numpy as np
 import polars as pl
@@ -22,9 +23,9 @@ from dataforge_ml import (
     derive_units,
     fit_unit,
 )
+from dataforge_ml._boundary._error_codes import REGISTRY
 from dataforge_ml.imputation import (
     FitSignals,
-    ImputationFitWarning,  # noqa: F401 — re-exported, importability check
     ImputationStrategy,
     ImputationUnit,
     UnitFitResult,
@@ -32,6 +33,7 @@ from dataforge_ml.imputation import (
     route,
 )
 from dataforge_ml.imputation._fitted_units import FittedScalar
+from dataforge_ml.records import ResultWarning
 from tests.conftest import raises_code
 
 
@@ -201,10 +203,43 @@ def test_fit_result_carries_a_populated_fit_signals_record():
         assert isinstance(signals, FitSignals)
         assert signals.unit_id == result.unit_id
         assert signals.strategy == result.strategy
-        # Duration is measured for every fit and is non-negative.
-        assert signals.duration_s >= 0.0
         assert isinstance(signals.warnings, tuple)
         assert isinstance(signals.notes, tuple)
+
+
+def test_fit_signals_carry_no_duration():
+    """Duration is not part of the Fit Signals' wire shape (ADR-0102)."""
+    assert "duration_s" not in FitSignals.__dataclass_fields__
+
+
+def test_imputation_fit_warning_is_gone_from_both_public_namespaces():
+    import dataforge_ml
+    import dataforge_ml.imputation
+
+    for namespace in (dataforge_ml, dataforge_ml.imputation):
+        assert "ImputationFitWarning" not in namespace.__all__
+        assert not hasattr(namespace, "ImputationFitWarning")
+
+
+def test_an_unconverged_mice_fit_returns_a_coded_warning_and_emits_none():
+    df = _holey_frame()
+    config = PipelineConfig()
+    config.imputation.numeric.set_per_column_strategy(["a", "b", "c"], "mice")
+    _, routing, recipe = _routing_and_recipe(df, config)
+    (unit,) = derive_units(routing, strategy=ImputationStrategy.MICE)
+    recipe = recipe.with_hyperparameters(unit.unit_id, {"max_iter": 1, "tol": 0.0})
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        signals = fit_unit(recipe, unit, df).signals
+
+    assert signals.converged is False
+    (warning,) = signals.warnings
+    assert isinstance(warning, ResultWarning)
+    assert warning.code == "mice_not_converged"
+    assert REGISTRY[warning.code].category == "warning"
+    assert warning.columns == ["a", "b", "c"]
+    assert warning.hint == REGISTRY[warning.code].hint
 
 
 def test_fit_signals_reports_the_estimator_for_a_gmm_unit():
@@ -214,6 +249,21 @@ def test_fit_signals_reports_the_estimator_for_a_gmm_unit():
 
     signals = fit_unit(recipe, unit, df, random_seed=3).signals
     assert signals.estimator == "GaussianMixture"
+    assert signals.converged is True
+    assert signals.warnings == ()
+
+
+def test_fitting_beside_an_all_null_column_emits_no_python_warning():
+    # An all-null column is the shape that makes numpy's nan-reductions warn.
+    df =_holey_frame().with_columns(pl.lit(None, dtype=pl.Float64).alias("empty"))
+    config = PipelineConfig()
+    config.imputation.numeric.set_per_column_strategy(["a", "b", "c"], "knn")
+    _, routing, recipe = _routing_and_recipe(df, config)
+    units = derive_units(routing)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        _fit_all(recipe, units, df)
 
 
 def test_scalar_units_land_on_records_and_bimodal_units_on_the_list():
