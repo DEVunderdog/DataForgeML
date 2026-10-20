@@ -157,10 +157,13 @@ def _wide_explain_routing(harness: Harness, tmp_path: Path) -> dict[str, Any]:
 
 
 def _wide_resolve_recipe(harness: Harness, tmp_path: Path) -> dict[str, Any]:
-    # 150 long-named columns, each its own unit with a hyperparameter record:
-    # a full page of 100 units.
+    # 150 long-named, mutually correlated columns, each its own
+    # ``cluster_conditional`` unit with a hyperparameter record and estimates
+    # resolving 149 features: full pages of units, estimates and features.
     routing = harness.code_mode(
-        "route", profile=_wide_profile_handle(harness, tmp_path), default_strategy="mnar"
+        "route",
+        profile=_wide_profile_handle(harness, tmp_path),
+        default_strategy="cluster_conditional",
     ).json["routing"]
     return harness.call("resolve_recipe", routing=routing).json
 

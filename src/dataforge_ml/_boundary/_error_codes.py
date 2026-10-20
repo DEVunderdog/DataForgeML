@@ -207,9 +207,10 @@ _ENTRIES: tuple[ErrorCodeEntry, ...] = (
         category="InvalidInput",
         hint=(
             "Only columns whose strategy reads estimates carry them: the bimodal "
-            "strategies and a BoundedDiscrete model-based one."
+            "strategies and a BoundedDiscrete model-based one. Drop the entry "
+            "or field named in `params`."
         ),
-        fields=("columns",),
+        fields=("param", "params", "columns", "issues"),
     ),
     ErrorCodeEntry(
         code="stratify_without_target",

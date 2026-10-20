@@ -91,6 +91,9 @@ class Handles:
     frame: str
     profile: str
     routing: str
+    #: ``visits`` declared ``bounded_discrete`` and routed to ``knn``, so its
+    #: snap bounds are canaries; ``amount`` on ``cluster_conditional``.
+    estimates_routing: str
 
 
 Call = tuple[str, dict[str, Any]]
@@ -154,6 +157,24 @@ CALLS: dict[str, Callable[[Handles], list[Call]]] = {
                 "hyperparameters": [{"unit_id": "mcie", "hyperparameters": {"kind": "mice"}}],
             },
         ),
+        ("resolve_recipe", {"routing": h.estimates_routing}),
+        (
+            "resolve_recipe",
+            {
+                "routing": h.estimates_routing,
+                "estimates": [{"column": "amount", "center1": 1.5, "center2": 2.5}],
+            },
+        ),
+        (
+            "resolve_recipe",
+            {
+                "routing": h.estimates_routing,
+                "estimates": [
+                    {"column": "visits", "domain_snap_bounds": {"low": 9, "high": 1}},
+                    {"column": "visitz", "center1": 1.0},
+                ],
+            },
+        ),
     ],
     "split": lambda h: [
         ("split", {"profile": h.profile, "scheme": {"kind": "profile_stratified_kfold", "k": 3}}),
@@ -183,7 +204,24 @@ def _handles(harness: Harness, canaries: Canaries) -> Handles:
         sentinels=[{"column": "amount", "values": [SENTINEL]}],
     ).json["profile"]
     routing = harness.code_mode("route", profile=profile).json["routing"]
-    return Handles(path=path, frame=frame, profile=profile, routing=routing)
+    bounded = harness.code_mode(
+        "profile",
+        frame=frame,
+        numeric_kinds=[{"column": "visits", "numeric_kind": "bounded_discrete"}],
+        sentinels=[{"column": "amount", "values": [SENTINEL]}],
+    ).json["profile"]
+    estimates_routing = harness.code_mode(
+        "route",
+        profile=bounded,
+        strategies=[
+            {"column": "visits", "strategy": "knn"},
+            {"column": "amount", "strategy": "cluster_conditional"},
+        ],
+    ).json["routing"]
+    return Handles(
+        path=path, frame=frame, profile=profile, routing=routing,
+        estimates_routing=estimates_routing,
+    )
 
 
 # --- Reading Literal Fields by their schema mark ---------------------------------------
@@ -290,6 +328,20 @@ def test_allow_returns_the_canaries_in_literal_fields(
         _, literals = split_literals(out.json, OPERATIONS["value_summary"].output_schema())
         assert canaries.found_in(canonical_json(literals)), column
         assert out.json["warnings"]["rows"] == []
+
+
+def test_snap_bounds_are_canaries_held_in_literal_fields(
+    harness: Harness, tmp_path: Path
+) -> None:
+    # The resolve_recipe calls prove containment only if a canary reaches a
+    # Literal Field: a bounded column's snap bounds are its observed range.
+    canaries = write_canaries(tmp_path)
+    handles = _handles(harness, canaries)
+
+    out = harness.call("resolve_recipe", routing=handles.estimates_routing)
+
+    _, literals = split_literals(out.json, OPERATIONS["resolve_recipe"].output_schema())
+    assert len(canaries.found_in(canonical_json(literals))) == 2
 
 
 def test_deny_withholds_literal_fields_and_keeps_the_rest(

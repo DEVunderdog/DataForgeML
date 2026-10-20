@@ -240,6 +240,213 @@ def test_every_problem_entry_comes_back_in_one_error(harness: Harness) -> None:
     assert _recipe_handles(harness) == []
 
 
+# --- Estimates --------------------------------------------------------------------
+
+
+def _estimates_routing(harness: Harness, **profile_arguments: Any) -> str:
+    # ``income`` is forced onto a bimodal strategy, so it carries estimates;
+    # ``age`` takes ``median``, which reads none.
+    return harness.code_mode(
+        "route",
+        profile=_profile(harness, **profile_arguments),
+        strategies=[
+            {"column": "income", "strategy": "cluster_conditional"},
+            {"column": "age", "strategy": "median"},
+        ],
+    ).json["routing"]
+
+
+def _estimate(harness: Harness, *entries: dict[str, Any]) -> Any:
+    return harness.call(
+        "resolve_recipe", routing=_estimates_routing(harness), estimates=list(entries)
+    )
+
+
+def test_estimates_land_on_the_recipe_and_show_in_the_result(harness: Harness) -> None:
+    out = _estimate(
+        harness,
+        {"column": "income", "center1": 45000.0, "center2": 60000, "feature_cols": ["age"]},
+    )
+
+    assert not out.is_error
+    assert records(out.json["estimates"]) == [
+        {"column": "income", "center1": 45000.0, "center2": 60000.0, "feature_cols": ["age"],
+         "domain_snap_bounds": None},
+    ]
+    stored = _stored_recipe(out.json["recipe"]).column_estimates["income"]
+    assert (stored.center1, stored.center2, stored.feature_cols) == (45000.0, 60000.0, ("age",))
+
+
+def test_a_field_left_null_keeps_its_resolved_value(harness: Harness) -> None:
+    routing = _estimates_routing(harness)
+    resolved = records(harness.call("resolve_recipe", routing=routing).json["estimates"])
+
+    out = harness.call(
+        "resolve_recipe",
+        routing=routing,
+        estimates=[{"column": "income", "center1": 1.5, "center2": 2.5}],
+    )
+
+    (row,) = records(out.json["estimates"])
+    assert row == {**resolved[0], "center1": 1.5, "center2": 2.5}
+
+
+def test_without_estimates_each_column_shows_its_resolved_ones(harness: Harness) -> None:
+    out = harness.call("resolve_recipe", routing=_estimates_routing(harness))
+
+    stored = _stored_recipe(out.json["recipe"]).column_estimates
+    rows = records(out.json["estimates"])
+    assert [r["column"] for r in rows] == list(stored) == ["income"]
+    assert rows[0]["feature_cols"] == list(stored["income"].feature_cols)
+
+
+def test_domain_snap_bounds_show_and_override_as_low_and_high(harness: Harness) -> None:
+    profile = _profile(
+        harness, numeric_kinds=[{"column": "income", "numeric_kind": "bounded_discrete"}]
+    )
+    routing = harness.code_mode(
+        "route",
+        profile=profile,
+        strategies=[
+            {"column": "income", "strategy": "mice"},
+            {"column": "age", "strategy": "median"},
+        ],
+    ).json["routing"]
+    resolved = records(harness.call("resolve_recipe", routing=routing).json["estimates"])
+    low, high = _stored_recipe(
+        harness.call("resolve_recipe", routing=routing).json["recipe"]
+    ).column_estimates["income"].domain_snap_bounds
+    assert resolved == [
+        {"column": "income", "center1": None, "center2": None, "feature_cols": None,
+         "domain_snap_bounds": {"low": low, "high": high}},
+    ]
+
+    out = harness.call(
+        "resolve_recipe",
+        routing=routing,
+        estimates=[{"column": "income", "domain_snap_bounds": {"low": 0, "high": 100000}}],
+    )
+
+    assert records(out.json["estimates"])[0]["domain_snap_bounds"] == {"low": 0.0, "high": 100000.0}
+    stored = _stored_recipe(out.json["recipe"]).column_estimates["income"]
+    assert stored.domain_snap_bounds == (0.0, 100000.0)
+
+
+def test_an_unknown_column_is_refused_with_candidates(harness: Harness) -> None:
+    out = _estimate(harness, {"column": "incme", "feature_cols": ["age"]})
+
+    assert out.code == "unknown_column"
+    assert out.json["param"] == "estimates[0].column"
+    assert out.json["candidates"] == ["income"]
+    assert _recipe_handles(harness) == []
+
+
+def test_a_column_named_twice_is_a_duplicate_key(harness: Harness) -> None:
+    entry = {"column": "income", "center1": 1.0, "center2": 2.0}
+
+    out = _estimate(harness, entry, entry)
+
+    assert out.code == "duplicate_key"
+    assert out.json["params"] == ["estimates[1].column"]
+    assert out.json["columns"] == ["income"]
+    assert _recipe_handles(harness) == []
+
+
+def test_a_column_that_reads_no_estimates_is_refused(harness: Harness) -> None:
+    out = _estimate(harness, {"column": "age", "center1": 1.0})
+
+    assert out.code == "estimates_not_applicable"
+    assert out.json["param"] == "estimates[0].column"
+    assert out.json["columns"] == ["age"]
+    assert _recipe_handles(harness) == []
+
+
+def test_a_field_the_strategy_does_not_read_is_refused(harness: Harness) -> None:
+    routing = harness.code_mode(
+        "route",
+        profile=_profile(harness),
+        strategies=[{"column": "income", "strategy": "gmm_sampling"}],
+    ).json["routing"]
+
+    out = harness.call(
+        "resolve_recipe",
+        routing=routing,
+        estimates=[
+            {"column": "income", "feature_cols": ["age"],
+             "domain_snap_bounds": {"low": 0, "high": 1}},
+        ],
+    )
+
+    assert out.code == "estimates_not_applicable"
+    assert out.json["params"] == [
+        "estimates[0].feature_cols",
+        "estimates[0].domain_snap_bounds",
+    ]
+    assert _recipe_handles(harness) == []
+
+
+def test_an_unknown_feature_column_is_refused(harness: Harness) -> None:
+    out = _estimate(harness, {"column": "income", "feature_cols": ["age", "agee"]})
+
+    assert out.code == "unknown_column"
+    assert out.json["param"] == "estimates[0].feature_cols[1]"
+    assert out.json["candidates"] == ["age"]
+    assert _recipe_handles(harness) == []
+
+
+def test_a_column_cannot_be_its_own_feature_or_a_non_numeric_one(harness: Harness) -> None:
+    out = _estimate(harness, {"column": "income", "feature_cols": ["income", "city"]})
+
+    assert out.code == "invalid_argument"
+    assert out.json["params"] == [
+        "estimates[0].feature_cols[0]",
+        "estimates[0].feature_cols[1]",
+    ]
+    assert _recipe_handles(harness) == []
+
+
+def test_bounds_with_low_above_high_are_refused(harness: Harness) -> None:
+    profile = _profile(
+        harness, numeric_kinds=[{"column": "income", "numeric_kind": "bounded_discrete"}]
+    )
+    routing = harness.code_mode(
+        "route", profile=profile, strategies=[{"column": "income", "strategy": "mice"}]
+    ).json["routing"]
+
+    out = harness.call(
+        "resolve_recipe",
+        routing=routing,
+        estimates=[{"column": "income", "domain_snap_bounds": {"low": 5, "high": 1}}],
+    )
+
+    assert out.code == "invalid_argument"
+    assert out.json["param"] == "estimates[0].domain_snap_bounds"
+    assert _recipe_handles(harness) == []
+
+
+def test_one_centre_over_a_missing_pair_is_refused(harness: Harness) -> None:
+    # The fixture's ``income`` has one mode, so a forced bimodal column has no centres.
+    out = _estimate(harness, {"column": "income", "center1": 1.0})
+
+    assert out.code == "invalid_argument"
+    assert out.json["param"] == "estimates[0].center2"
+    assert _recipe_handles(harness) == []
+
+
+def test_hyperparameter_and_estimate_problems_come_back_in_one_error(harness: Harness) -> None:
+    out = harness.call(
+        "resolve_recipe",
+        routing=_estimates_routing(harness),
+        hyperparameters=[{"unit_id": "mcie", "hyperparameters": {"kind": "mice"}}],
+        estimates=[{"column": "incme", "center1": 1.0}],
+    )
+
+    assert out.code == "unknown_unit"
+    assert out.json["params"] == ["hyperparameters[0].unit_id", "estimates[0].column"]
+    assert len(out.json["issues"]) == 2
+    assert _recipe_handles(harness) == []
+
+
 # --- Caps -------------------------------------------------------------------------
 
 
@@ -250,7 +457,7 @@ def _flagged_wide_profile(harness: Harness, tmp_path: Path) -> str:
     return harness.code_mode("profile", frame=frame).json["profile"]
 
 
-def test_units_are_capped_at_a_hundred(harness: Harness, tmp_path: Path) -> None:
+def test_units_are_capped_at_fifty(harness: Harness, tmp_path: Path) -> None:
     routing = harness.code_mode(
         "route", profile=_flagged_wide_profile(harness, tmp_path), default_strategy="median"
     ).json["routing"]
@@ -258,15 +465,38 @@ def test_units_are_capped_at_a_hundred(harness: Harness, tmp_path: Path) -> None
     out = harness.call("resolve_recipe", routing=routing)
 
     units = records(out.json["units"])
-    assert len(units) == 100
+    assert len(units) == 50
     assert units[0] == {
         "unit_id": "median:c0000_xx", "strategy": "median", "columns": ["c0000_xx"],
         "hyperparameters": None,
     }
     assert records(out.json["omitted"]) == [
-        {"field": "units", "shown": 100, "total": 150, "operation": "explain_routing",
+        {"field": "units", "shown": 50, "total": 150, "operation": "explain_routing",
          "reason": "cap"},
     ]
+
+
+def test_estimates_are_capped_at_fifteen_columns_of_ten_features(
+    harness: Harness, tmp_path: Path
+) -> None:
+    # Every column of the wide table correlates with every other, so each
+    # ``cluster_conditional`` column resolves 149 features.
+    routing = harness.code_mode(
+        "route",
+        profile=_flagged_wide_profile(harness, tmp_path),
+        default_strategy="cluster_conditional",
+    ).json["routing"]
+
+    out = harness.call("resolve_recipe", routing=routing)
+
+    rows = records(out.json["estimates"])
+    assert [r["column"] for r in rows] == [f"c{i:04d}_xx" for i in range(15)]
+    assert rows[0]["feature_cols"] == [f"c{i:04d}_xx" for i in range(1, 11)]
+    omitted = records(out.json["omitted"])
+    assert {"field": "estimates", "shown": 15, "total": 150, "operation": None,
+            "reason": "cap"} in omitted
+    assert {"field": "estimates[0].feature_cols", "shown": 10, "total": 149,
+            "operation": None, "reason": "cap"} in omitted
 
 
 def test_a_block_lists_at_most_a_hundred_columns(harness: Harness, tmp_path: Path) -> None:

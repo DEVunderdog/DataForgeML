@@ -23,7 +23,7 @@ def page(
     cap: int,
     *,
     field: str,
-    operation: str,
+    operation: str | None,
 ) -> tuple[list[Any], int, list[dict[str, Any]]]:
     """Cut one page out of a filtered, sorted list; count it when more remain.
 
@@ -37,8 +37,8 @@ def page(
         The Operation's item cap.
     field : str
         The result field the page fills, for the ``omitted`` entry.
-    operation : str
-        The Operation that returns the rest.
+    operation : str or None
+        The Operation that returns the rest; None when no Operation does.
 
     Returns
     -------

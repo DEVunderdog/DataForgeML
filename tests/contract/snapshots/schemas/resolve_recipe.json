@@ -223,11 +223,104 @@
           }
         ],
         "description": "Hyperparameters you set, one entry per unit. Null keeps every resolved value."
+      },
+      "estimates": {
+        "anyOf": [
+          {
+            "items": {
+              "additionalProperties": false,
+              "description": "Estimates you set on one column, over the ones the recipe resolves from the profile.",
+              "properties": {
+                "column": {
+                  "description": "The column, exactly as in the data. Its strategy must read estimates: ``cluster_conditional`` or ``gmm_sampling``, or ``knn`` or ``mice`` on a ``bounded_discrete`` column.",
+                  "type": "string"
+                },
+                "center1": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "First of the two mode centres a ``cluster_conditional`` or ``gmm_sampling`` column splits on. Null keeps the resolved value; when the column has none, set both centres."
+                },
+                "center2": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Second mode centre. Null keeps the resolved value."
+                },
+                "feature_cols": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Numeric columns a ``cluster_conditional`` column measures its cluster centroids over, replacing the resolved list. Null keeps the resolved list."
+                },
+                "domain_snap_bounds": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "description": "The range a column's predictions are rounded and clipped into.",
+                      "properties": {
+                        "low": {
+                          "description": "The smallest value a prediction may take.",
+                          "type": "number"
+                        },
+                        "high": {
+                          "description": "The largest value a prediction may take. At least ``low``.",
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "low",
+                        "high"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The range a ``bounded_discrete`` column on ``knn``, ``mice`` or ``gmm_sampling`` snaps its predictions into. Null keeps the resolved range, the column's observed one."
+                }
+              },
+              "required": [
+                "column",
+                "center1",
+                "center2",
+                "feature_cols",
+                "domain_snap_bounds"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Estimates you set, one entry per column. Null keeps every resolved estimate."
       }
     },
     "required": [
       "routing",
-      "hyperparameters"
+      "hyperparameters",
+      "estimates"
     ],
     "type": "object"
   },
@@ -396,7 +489,7 @@
       },
       "units": {
         "additionalProperties": false,
-        "description": "Every unit, in routing order: a joint block where its first column sits in the dataset. Empty when no column fills values. At most 100; past 100, ``omitted`` counts the rest and names ``explain_routing``, whose columns give each one's id as ``<strategy>:<column>``.",
+        "description": "Every unit, in routing order: a joint block where its first column sits in the dataset. Empty when no column fills values. At most 50; past 50, ``omitted`` counts the rest and names ``explain_routing``, whose columns give each one's id as ``<strategy>:<column>``.",
         "properties": {
           "fields": {
             "description": "Always exactly `unit_id`, `strategy`, `columns`, `hyperparameters`, in this order. A row's value at position i is the field named here at i.",
@@ -649,6 +742,125 @@
           "rows"
         ],
         "type": "object"
+      },
+      "estimates": {
+        "additionalProperties": false,
+        "description": "Every column that reads estimates, in routing order. Empty when none does. At most 15; past 15, ``omitted`` counts the rest.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `column`, `center1`, `center2`, `feature_cols`, `domain_snap_bounds`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "column",
+                "center1",
+                "center2",
+                "feature_cols",
+                "domain_snap_bounds"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "The estimates one column trains with: the resolved ones, or yours where you set one. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `column`: The column.",
+                    "type": "string"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 1, `center1`: First mode centre; null when the column has none, such as a forced bimodal column whose profile found one mode. Such a column fits only once you set both centres."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 2, `center2`: Second mode centre; null when the column has none."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `feature_cols`: Columns a ``cluster_conditional`` column measures centroids over, in dataset order; null for any other strategy. At most 10; past 10, ``omitted`` counts the rest."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "description": "The range a column's predictions are rounded and clipped into.",
+                        "properties": {
+                          "low": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The smallest value a prediction may take. A Literal Field.",
+                            "x-literal": true
+                          },
+                          "high": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The largest value a prediction may take. A Literal Field.",
+                            "x-literal": true
+                          }
+                        },
+                        "required": [
+                          "low",
+                          "high"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 4, `domain_snap_bounds`: The range predictions snap into; null unless the column is ``bounded_discrete`` on ``knn``, ``mice`` or ``gmm_sampling``."
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
       }
     },
     "required": [
@@ -657,7 +869,8 @@
       "recipe",
       "routing",
       "profile",
-      "units"
+      "units",
+      "estimates"
     ],
     "type": "object"
   }
