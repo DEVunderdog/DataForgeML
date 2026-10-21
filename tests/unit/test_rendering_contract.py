@@ -323,7 +323,6 @@ def _c2st_provenance() -> C2STProvenance:
     return C2STProvenance(
         classifier_class="sklearn.ensemble.HistGradientBoostingClassifier",
         classifier_params={"min_samples_leaf": "5", "early_stopping": "False"},
-        classifier_injected=False,
         sklearn_version="1.9.0",
         config=C2STConfig(),
     )

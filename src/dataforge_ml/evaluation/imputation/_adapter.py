@@ -27,7 +27,6 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
-from typing import Any
 
 import numpy as np
 import polars as pl
@@ -101,29 +100,21 @@ def _phase_entry(
     )
 
 
-def _resolve_classifier(config: C2STConfig) -> tuple[Any, bool]:
-    """Return the classifier for the run and whether the user supplied it."""
-    if config.classifier is not None:
-        return config.classifier, True
-    return (
-        _default_c2st_classifier(
-            min_samples_leaf=config.min_samples_leaf,
-            random_state=config.random_state,
-        ),
-        False,
+def _provenance(config: C2STConfig) -> C2STProvenance:
+    """Record what ran, from ``get_params()`` rather than from ``repr``.
+
+    The classifier is rebuilt from the same factory and dials every column's
+    test builds, so its parameters are exactly the ones that ran.
+    """
+    classifier = _default_c2st_classifier(
+        min_samples_leaf=config.min_samples_leaf,
+        random_state=config.random_state,
     )
-
-
-def _provenance(classifier: Any, injected: bool, config: C2STConfig) -> C2STProvenance:
-    """Record what ran, from ``get_params()`` rather than from ``repr``."""
-    get_params = getattr(classifier, "get_params", None)
-    params = get_params() if callable(get_params) else {}
     return C2STProvenance(
         classifier_class=(
             f"{type(classifier).__module__}.{type(classifier).__qualname__}"
         ),
-        classifier_params={k: str(v) for k, v in params.items()},
-        classifier_injected=injected,
+        classifier_params={k: str(v) for k, v in classifier.get_params().items()},
         sklearn_version=sklearn.__version__,
         config=config,
     )
@@ -325,7 +316,6 @@ def imputation_score_c2st(
         c for c in testable if orig.get_column(c).null_count() < orig.height
     ]
 
-    classifier, injected = _resolve_classifier(config)
     emitter = Emitter(_PHASE, _STAGE, observer, total=len(active))
     emitter.stage_start()
 
@@ -384,9 +374,9 @@ def imputation_score_c2st(
                 candidate,
                 repeats=config.repeats,
                 scheme=config.scheme,
-                classifier=classifier,
                 random_state=config.random_state,
                 min_rows=config.min_filled_cells,
+                min_samples_leaf=config.min_samples_leaf,
                 emitter=emitter,
             )
             for reference, candidate in piles
@@ -397,7 +387,7 @@ def imputation_score_c2st(
         # test set and would report z = 0.000 — a constant fill returned as a
         # perfect pass. There is no honest number left, so the score object is
         # withheld and the refusal is structural like every other. It is a
-        # safety net for an injected classifier and explicitly *not* the floor.
+        # runtime safety net and explicitly *not* the floor.
         degenerate = bool(results) and all(result.degenerate for result in results)
         records[column] = ColumnC2STResult(
             column=column,
@@ -411,5 +401,5 @@ def imputation_score_c2st(
     emitter.stage_end()
     return C2STReport(
         columns=records,
-        provenance=_provenance(classifier, injected, config),
+        provenance=_provenance(config),
     )

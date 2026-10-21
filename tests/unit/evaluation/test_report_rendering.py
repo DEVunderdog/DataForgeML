@@ -162,7 +162,7 @@ def test_the_mar_caveat_is_absent_when_nothing_is_flagged(clean_report):
 
 
 @pytest.mark.parametrize(
-    "field_name", [f.name for f in fields(C2STConfig) if f.name != "classifier"]
+    "field_name", [f.name for f in fields(C2STConfig)]
 )
 def test_no_dial_suppresses_the_mar_caveat(field_name):
     """Moving any dial off its default leaves the caveat exactly where it was.

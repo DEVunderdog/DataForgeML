@@ -14,12 +14,15 @@ chance.
 
 from __future__ import annotations
 
+import inspect
+
 import numpy as np
 import polars as pl
 import pytest
 from sklearn.dummy import DummyClassifier
 from sklearn.ensemble import HistGradientBoostingClassifier
 
+from dataforge_ml.evaluation import _c2st as c2st_module
 from dataforge_ml.evaluation._c2st import (
     MIN_SAMPLE_FLOOR,
     C2STScheme,
@@ -81,6 +84,17 @@ class _CountingClassifier(HistGradientBoostingClassifier):
 def _counting() -> _CountingClassifier:
     return _CountingClassifier(
         min_samples_leaf=5, early_stopping=False, random_state=0
+    )
+
+
+def _swap_factory(monkeypatch: pytest.MonkeyPatch, model) -> None:
+    """Make the library's classifier factory hand back ``model``.
+
+    No call takes a classifier in, so the factory is the only seam a test can
+    reach to watch or replace the model a repeat fits.
+    """
+    monkeypatch.setattr(
+        c2st_module, "_default_c2st_classifier", lambda **_: model
     )
 
 
@@ -307,16 +321,18 @@ def test_repeats_below_one_are_refused() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_split_runs_one_fit_per_repeat_with_n_test_exactly_known() -> None:
+def test_split_runs_one_fit_per_repeat_with_n_test_exactly_known(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     reference, candidate = _one_world(100, 19)
     model = _counting()
+    _swap_factory(monkeypatch, model)
 
     result = c2st(
         reference,
         candidate,
         repeats=3,
         scheme=C2STScheme.Split,
-        classifier=model,
         random_state=1,
     )
 
@@ -324,16 +340,18 @@ def test_split_runs_one_fit_per_repeat_with_n_test_exactly_known() -> None:
     assert result.n_test == 2 * round(100 * 0.3)
 
 
-def test_cross_validation_runs_five_fits_per_repeat_over_every_row() -> None:
+def test_cross_validation_runs_five_fits_per_repeat_over_every_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     reference, candidate = _one_world(100, 20)
     model = _counting()
+    _swap_factory(monkeypatch, model)
 
     result = c2st(
         reference,
         candidate,
         repeats=2,
         scheme=C2STScheme.CrossValidation,
-        classifier=model,
         random_state=1,
     )
 
@@ -343,7 +361,7 @@ def test_cross_validation_runs_five_fits_per_repeat_over_every_row() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Determinism and injection
+# Determinism, and no injected classifier
 # ---------------------------------------------------------------------------
 
 
@@ -357,42 +375,27 @@ def test_the_same_random_state_gives_the_same_result() -> None:
     assert first == second
 
 
-def test_an_injected_classifier_is_used_verbatim() -> None:
-    """Injection is total: no ``set_params`` reach-in, no clone."""
+def test_two_runs_with_no_seed_give_the_same_result() -> None:
+    """No seed means the fixed library default seed, never "random"."""
     reference, candidate = _one_world(120, 22)
-    injected = HistGradientBoostingClassifier(
-        max_iter=17, min_samples_leaf=9, early_stopping=False, random_state=3
-    )
-    before = injected.get_params()
+    kwargs = {"repeats": 3, "scheme": C2STScheme.Split}
 
-    c2st(
-        reference,
-        candidate,
-        repeats=2,
-        scheme=C2STScheme.Split,
-        classifier=injected,
-        random_state=0,
-    )
+    first = c2st(reference, candidate, **kwargs)
+    second = c2st(reference, candidate, **kwargs)
 
-    assert injected.get_params() == before
+    assert first == second
 
 
-def test_min_samples_leaf_with_an_injected_classifier_is_refused() -> None:
-    """``min_samples_leaf`` only tunes the *default* classifier; setting both is unrepresentable."""
-    reference, candidate = _one_world(120, 29)
-    injected = HistGradientBoostingClassifier(
-        min_samples_leaf=9, early_stopping=False, random_state=3
-    )
-
-    with raises_code("invalid_argument", match="min_samples_leaf"):
-        c2st(
-            reference,
-            candidate,
+@pytest.mark.parametrize("seam", [c2st, _c2st])
+def test_no_c2st_path_accepts_a_classifier(seam) -> None:
+    """The classifier is always the library's own; no call takes one in."""
+    assert "classifier" not in inspect.signature(seam).parameters
+    with pytest.raises(TypeError):
+        seam(
+            *_one_world(60, 29),
             repeats=1,
             scheme=C2STScheme.Split,
-            classifier=injected,
-            min_samples_leaf=7,
-            random_state=0,
+            classifier=DummyClassifier(),
         )
 
 
@@ -409,7 +412,7 @@ def test_min_samples_leaf_overrides_the_default_classifier_pin() -> None:
 
 
 def test_the_default_factory_carries_exactly_the_two_pins() -> None:
-    """``c2st(classifier=None)`` never builds a bare sklearn-default HGB."""
+    """No C2ST call ever builds a bare sklearn-default HGB."""
     params = _default_c2st_classifier(random_state=5).get_params()
     inherited = HistGradientBoostingClassifier().get_params()
 
@@ -428,15 +431,17 @@ def test_the_default_factory_carries_exactly_the_two_pins() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_a_single_class_predictor_every_repeat_is_reported_degenerate() -> None:
+def test_a_single_class_predictor_every_repeat_is_reported_degenerate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     reference, candidate = _one_world(80, 23)
+    _swap_factory(monkeypatch, DummyClassifier(strategy="constant", constant=0))
 
     result = c2st(
         reference,
         candidate,
         repeats=2,
         scheme=C2STScheme.Split,
-        classifier=DummyClassifier(strategy="constant", constant=0),
         random_state=0,
     )
 

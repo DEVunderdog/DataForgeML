@@ -22,6 +22,7 @@ from sklearn.dummy import DummyClassifier
 from sklearn.ensemble import HistGradientBoostingClassifier
 
 from dataforge_ml import evaluation
+from dataforge_ml._seed import DEFAULT_SEED
 from dataforge_ml.config import PipelineConfig, PipelinePhase, SemanticType
 from dataforge_ml.evaluation import (
     C2STAnnotation,
@@ -31,6 +32,7 @@ from dataforge_ml.evaluation import (
     C2STVerdict,
     imputation_score_c2st,
 )
+from dataforge_ml.evaluation import _c2st as c2st_module
 from dataforge_ml.evaluation.imputation import _adapter
 from dataforge_ml.observability import EventType
 from dataforge_ml.profiling._config import ProfileConfig
@@ -582,7 +584,6 @@ def test_evaluation_runs_end_to_end_on_a_real_imputed_table(real_df):
     assert record.score.frames[0].n_test > 0
     assert 0.0 <= record.score.p_value <= 1.0
     assert report.provenance.sklearn_version
-    assert report.provenance.classifier_injected is False
 
 
 # ---------------------------------------------------------------------------
@@ -742,21 +743,27 @@ def test_a_fill_reusing_observed_levels_carries_no_unseen_flag(report):
 # ---------------------------------------------------------------------------
 
 
+def _constant_predictor(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make every C2ST repeat fit a classifier that always answers one class."""
+    monkeypatch.setattr(
+        c2st_module,
+        "_default_c2st_classifier",
+        lambda **_: DummyClassifier(strategy="constant", constant=0),
+    )
+
+
 def test_a_classifier_predicting_one_class_every_repeat_is_uninformative(
-    eval_df, imputed_frame, eval_profile, eval_pipeline_config
+    eval_df, imputed_frame, eval_profile, eval_pipeline_config, monkeypatch
 ):
-    # The safety net for an injected classifier: a constant predictor scores
-    # exactly 0.5 against a balanced test set and would otherwise report
-    # z = 0.000 — a median fill returned as a perfect pass.
+    # The runtime safety net: a constant predictor scores exactly 0.5 against
+    # a balanced test set and would otherwise report z = 0.000 — a median fill
+    # returned as a perfect pass.
+    _constant_predictor(monkeypatch)
     degenerate = imputation_score_c2st(
         eval_df,
         [imputed_frame],
         eval_profile,
-        config=C2STConfig(
-            repeats=3,
-            random_state=0,
-            classifier=DummyClassifier(strategy="constant", constant=0),
-        ),
+        config=C2STConfig(repeats=3, random_state=0),
         pipeline_config=eval_pipeline_config,
     )
 
@@ -785,7 +792,8 @@ def test_the_degeneracy_net_is_not_the_floor(
 
 
 def test_all_seven_outcomes_are_reachable(report, eval_df, imputed_frame,
-                                          eval_profile, eval_pipeline_config):
+                                          eval_profile, eval_pipeline_config,
+                                          monkeypatch):
     seen = {record.outcome for record in report.columns.values()}
     unfilled = imputation_score_c2st(
         eval_df,
@@ -795,15 +803,12 @@ def test_all_seven_outcomes_are_reachable(report, eval_df, imputed_frame,
         pipeline_config=eval_pipeline_config,
     )
     seen |= {r.outcome for r in unfilled.columns.values()}
+    _constant_predictor(monkeypatch)
     degenerate = imputation_score_c2st(
         eval_df,
         [imputed_frame],
         eval_profile,
-        config=C2STConfig(
-            repeats=2,
-            random_state=0,
-            classifier=DummyClassifier(strategy="constant", constant=0),
-        ),
+        config=C2STConfig(repeats=2, random_state=0),
         pipeline_config=eval_pipeline_config,
     )
     seen |= {r.outcome for r in degenerate.columns.values()}
@@ -968,26 +973,42 @@ def test_train_accuracy_is_reported_beside_test_accuracy(baseline_frames):
 # ---------------------------------------------------------------------------
 
 
-def test_an_injected_classifier_flips_the_provenance_flag(
+def test_provenance_records_the_library_classifier_that_ran(
     eval_df, imputed_frame, eval_profile, eval_pipeline_config
 ):
-    injected = imputation_score_c2st(
+    report = imputation_score_c2st(
         eval_df,
         [imputed_frame],
         eval_profile,
-        config=C2STConfig(
-            repeats=2,
-            random_state=0,
-            classifier=HistGradientBoostingClassifier(min_samples_leaf=5),
-        ),
+        config=C2STConfig(repeats=2, min_samples_leaf=7),
         pipeline_config=eval_pipeline_config,
     )
 
-    provenance = injected.provenance
-    assert provenance.classifier_injected is True
+    provenance = report.provenance
+    assert not hasattr(provenance, "classifier_injected")
     assert provenance.classifier_class.endswith(
         "HistGradientBoostingClassifier"
     )
+    assert provenance.classifier_params["min_samples_leaf"] == "7"
+    # No seed given means the fixed library default, and the record says so.
+    assert provenance.classifier_params["random_state"] == str(DEFAULT_SEED)
+
+
+def test_two_unseeded_runs_give_the_same_report(
+    eval_df, imputed_frame, eval_profile, eval_pipeline_config
+):
+    first, second = (
+        imputation_score_c2st(
+            eval_df,
+            [imputed_frame],
+            eval_profile,
+            config=C2STConfig(repeats=2),
+            pipeline_config=eval_pipeline_config,
+        )
+        for _ in range(2)
+    )
+
+    assert first.columns == second.columns
 
 
 def test_provenance_params_come_from_get_params_not_repr(report):

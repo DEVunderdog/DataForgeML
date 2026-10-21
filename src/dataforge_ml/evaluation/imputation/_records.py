@@ -349,11 +349,6 @@ class C2STProvenance:
         Deliberately not its ``repr``, which elides every parameter left at its
         default — exactly the fact most needed when arguing with a report.
         Stringified because ``get_params()`` can hold live nested estimators.
-    classifier_injected : bool
-        Whether the classifier was the user's. Its own field rather than
-        something inferred from the class name: "the library's default" and "a
-        user-supplied instance that happens to look identical" answer different
-        questions, and only the first carries the pins.
     sklearn_version : str
         The scikit-learn version that produced the numbers, so a figure that
         changes after an upgrade is explicable.
@@ -364,7 +359,6 @@ class C2STProvenance:
 
     classifier_class: str
     classifier_params: dict[str, str] = field(default_factory=dict)
-    classifier_injected: bool = False
     sklearn_version: str = ""
     config: C2STConfig = field(default_factory=C2STConfig)
 
@@ -383,7 +377,6 @@ class C2STProvenance:
             "| Field | Value |",
             "|---|---|",
             f"| classifier_class | {_md_cell(self.classifier_class)} |",
-            f"| classifier_injected | {_md_cell(self.classifier_injected)} |",
             f"| sklearn_version | {_md_cell(self.sklearn_version)} |",
             "\n#### Classifier parameters\n",
             "| Parameter | Value |",

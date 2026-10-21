@@ -10,7 +10,6 @@ results.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 from ._c2st import DEFAULT_MIN_SAMPLES_LEAF, MIN_SAMPLE_FLOOR, C2STScheme
 
@@ -51,8 +50,8 @@ class C2STConfig:
     are *not* dials and never will be: balancing, because unequal piles break
     the ``Binomial(n_test, ½)`` null outright, and the classifier's
     ``early_stopping`` pin, which is a structural correction to a dataset-size
-    assumption rather than a threshold — a user wanting different classifier
-    internals has the wider :attr:`classifier` door.
+    assumption rather than a threshold. The classifier itself is always the
+    library's own: no field takes one in.
 
     Parameters
     ----------
@@ -70,8 +69,7 @@ class C2STConfig:
         cannot split fewer than 40 training rows, so the classifier
         constant-predicts and reports a constant fill as a perfect pass. Fixed,
         never scaled to pile size — a scaled setting would make the score a
-        function of the column's missingness rate. Ignored when
-        :attr:`classifier` is supplied, since injection is total.
+        function of the column's missingness rate.
     min_filled_cells : int
         The hard refusal floor, applied to the **smaller** pile
         (``min(n_observed, n_filled)``) before balancing, because every
@@ -91,18 +89,9 @@ class C2STConfig:
         below it is ``Flagged``. It moves the **shortlist** only: the raw
         ``z`` is never corrected, because the ``z`` is the score.
     random_state : int, optional
-        Seed for the subsampling, the train/test carve and the default
-        classifier. The same seed on the same frames gives the same report.
-    classifier : Any, optional
-        An unfitted classifier to use **verbatim** for every column of the run
-        — no ``set_params`` reach-in and no clone, mirroring how
-        ``ImputationRouting.mice_estimator`` holds the user's live object.
-        ``None`` builds the library's default, pins included. Stated hole
-        (ADR-0087): an injected *bare*
-        :class:`~sklearn.ensemble.HistGradientBoostingClassifier` reintroduces
-        the constant-predictor pathology at 30–60 rows per pile, and only
-        ``classifier_injected`` in the provenance warns the reader. Being a
-        live object it is the one field :meth:`to_dict` cannot carry.
+        Seed for the subsampling, the train/test carve and the classifier. The
+        same seed on the same frames gives the same report. ``None`` means the
+        fixed library default seed, never "random".
     """
 
     repeats: int = _DEFAULT_REPEATS
@@ -113,21 +102,14 @@ class C2STConfig:
     imbalance_warn_ratio: float = _DEFAULT_IMBALANCE_WARN_RATIO
     fdr_alpha: float = _DEFAULT_FDR_ALPHA
     random_state: int | None = None
-    classifier: Any | None = None
 
     def to_dict(self) -> dict:
         """Serialise the dials to a plain dictionary.
 
-        :attr:`classifier` is deliberately absent: it is a live estimator
-        instance, and a config that is serialisable except for one field that
-        silently degrades on the round trip is worse than one that states the
-        omission. The report's ``C2STProvenance`` is where a run's classifier
-        is recorded.
-
         Returns
         -------
         dict
-            Every dial except :attr:`classifier`, keyed by field name.
+            Every dial, keyed by field name.
         """
         return {
             "repeats": self.repeats,
@@ -145,8 +127,7 @@ class C2STConfig:
         """Reconstruct a ``C2STConfig`` from a plain dictionary.
 
         Missing keys fall back to field defaults, so a serialised config
-        written against an earlier version loads rather than raising. The
-        reconstructed config carries ``classifier=None``; see :meth:`to_dict`.
+        written against an earlier version loads rather than raising.
 
         Parameters
         ----------
