@@ -101,6 +101,8 @@ class Handles:
     #: unit of it fitted, so the units compose.
     median_recipe: str
     median_units: tuple[str, ...]
+    #: Composed from ``median_units``.
+    median_imputer: str
 
 
 Call = tuple[str, dict[str, Any]]
@@ -194,6 +196,10 @@ CALLS: dict[str, Callable[[Handles], list[Call]]] = {
         ("compose_imputer", {"recipe": h.median_recipe, "units": list(h.median_units[1:])}),
         ("compose_imputer", {"recipe": h.recipe, "units": list(h.median_units)}),
     ],
+    "impute": lambda h: [
+        ("impute", {"imputer": h.median_imputer, "frame": h.frame}),
+        ("impute", {"imputer": h.median_imputer, "frame": h.median_imputer}),
+    ],
     "split": lambda h: [
         ("split", {"profile": h.profile, "scheme": {"kind": "profile_stratified_kfold", "k": 3}}),
         ("split", {"profile": h.profile, "scheme": {"kind": "time", "time_column": "when"}}),
@@ -247,10 +253,14 @@ def _handles(harness: Harness, canaries: Canaries) -> Handles:
         ).json["unit"]
         for unit in _from_table(resolved["units"])
     )
+    median_imputer = harness.code_mode(
+        "compose_imputer", recipe=resolved["recipe"], units=list(median_units)
+    ).json["imputer"]
     return Handles(
         path=path, frame=frame, profile=profile, routing=routing,
         estimates_routing=estimates_routing, recipe=recipe,
         median_recipe=resolved["recipe"], median_units=median_units,
+        median_imputer=median_imputer,
     )
 
 

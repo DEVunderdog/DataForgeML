@@ -1,0 +1,286 @@
+{
+  "input": {
+    "additionalProperties": false,
+    "properties": {
+      "imputer": {
+        "description": "An imputer Handle, such as ``imputer_7f3a9c2e``.",
+        "type": "string"
+      },
+      "frame": {
+        "description": "A frame Handle to fill, such as ``frame_7f3a9c2e``.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "imputer",
+      "frame"
+    ],
+    "type": "object"
+  },
+  "output": {
+    "additionalProperties": false,
+    "description": "The model-ready frame Handle and what was done to each column. ``result.get(name)`` finds one column.",
+    "properties": {
+      "warnings": {
+        "additionalProperties": false,
+        "description": "Caveats on this result, most actionable first. Empty when there are none.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `code`, `message`, `columns`, `param`, `hint`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "code",
+                "message",
+                "columns",
+                "param",
+                "hint"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "A caveat on a successful result: it worked, but read this first. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `code`: The warning's Error Code. Branch on this, not on ``message``.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `message`: What happened and what to do, in one or two sentences.",
+                    "type": "string"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 2, `columns`: Columns the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `param`: The argument the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 4, `hint`: Library-written advice, or null."
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "omitted": {
+        "additionalProperties": false,
+        "description": "One entry per list that was cut, naming the Operation that returns the rest. Empty when nothing was cut.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `field`, `shown`, `total`, `operation`, `reason`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "field",
+                "shown",
+                "total",
+                "operation",
+                "reason"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "Something left out of a result: a capped list was cut, or a Literal Field withheld. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `field`: Name of the list field that was cut, or the path of the Literal Field withheld, such as ``top_values[].value``.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `shown`: How many items the list holds; 0 for a withheld Literal Field.",
+                    "type": "integer"
+                  },
+                  {
+                    "description": "Position 2, `total`: How many items exist; for a withheld Literal Field, how many values at that path are null.",
+                    "type": "integer"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `operation`: The Operation that returns the rest, or null when no Operation does."
+                  },
+                  {
+                    "description": "Position 4, `reason`: ``cap`` when a list was cut to its cap; ``literal_policy`` when the Operator's Literal Policy is ``deny``.",
+                    "enum": [
+                      "cap",
+                      "literal_policy"
+                    ],
+                    "type": "string"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "frame": {
+        "description": "The new frame Handle, such as ``frame_5b6c7d8e``. It lacks hard-excluded and ``dropped`` columns, has the indicator columns, and inherits the source frame's declarations.",
+        "type": "string"
+      },
+      "imputer": {
+        "description": "The imputer Handle read.",
+        "type": "string"
+      },
+      "source_frame": {
+        "description": "The frame Handle filled. It stays as it was, excluded columns included.",
+        "type": "string"
+      },
+      "rows": {
+        "description": "Rows of the new frame: as many as the source frame.",
+        "type": "integer"
+      },
+      "columns": {
+        "additionalProperties": false,
+        "description": "Every column the imputer was fitted on: those that fill or drop first, then ``passthrough``, each group in dataset order. At most 100; past 100, ``omitted`` counts the rest.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `column`, `strategy`, `missing`, `filled`, `fill_value`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "column",
+                "strategy",
+                "missing",
+                "filled",
+                "fill_value"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "What ``impute`` did to one column. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `column`: Column name. A ``<column>_missing`` row is the indicator an ``mnar`` column adds.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `strategy`: The column's strategy. A ``dropped`` column is not in the new frame.",
+                    "enum": [
+                      "mean",
+                      "median",
+                      "mode",
+                      "knn",
+                      "mice",
+                      "mnar",
+                      "constant",
+                      "dropped",
+                      "passthrough",
+                      "cluster_conditional",
+                      "gmm_sampling",
+                      "indicator"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 2, `missing`: Cells missing in the source frame, sentinels included; 0 for an indicator.",
+                    "type": "integer"
+                  },
+                  {
+                    "description": "Position 3, `filled`: Cells the strategy filled. ``missing - filled`` cells are still missing: those of an ``mnar`` or ``passthrough`` column, and any a model left. 0 for a ``dropped`` column.",
+                    "type": "integer"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 4, `fill_value`: The one value a ``mean``, ``median``, ``mode``, ``constant`` or ``mnar`` column fills with. An ``mnar`` column keeps its nulls: its fill is on record here, not applied. Null for every other strategy. A Literal Field.",
+                    "x-literal": true
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "warnings",
+      "omitted",
+      "frame",
+      "imputer",
+      "source_frame",
+      "rows",
+      "columns"
+    ],
+    "type": "object"
+  }
+}

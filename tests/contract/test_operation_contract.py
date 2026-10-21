@@ -199,6 +199,21 @@ def _wide_compose_imputer(harness: Harness, tmp_path: Path) -> dict[str, Any]:
     return harness.call("compose_imputer", recipe=recipe, units=units).json
 
 
+def _wide_impute(harness: Harness, tmp_path: Path) -> dict[str, Any]:
+    # 150 long-named columns, each on ``mnar``: past the 100-row cap, every
+    # row with a fill value and an indicator row beside it.
+    profile = _wide_profile_handle(harness, tmp_path)
+    routing = harness.code_mode("route", profile=profile, default_strategy="mnar").json["routing"]
+    recipe = harness.code_mode("resolve_recipe", routing=routing).json["recipe"]
+    stored, record = read_recipe(recipe, param="recipe")
+    units = [
+        harness.code_mode("fit_unit", recipe=recipe, unit_id=u.unit_id).json["unit"]
+        for u in derive_units(stored.routing)
+    ]
+    imputer = harness.code_mode("compose_imputer", recipe=recipe, units=units).json["imputer"]
+    return harness.call("impute", imputer=imputer, frame=record["frame"]).json
+
+
 def _ames_repeated_kfold(harness: Harness, tmp_path: Path) -> dict[str, Any]:
     # The most folds a split may make, 100, each with two frame Handles.
     return harness.call(
@@ -216,6 +231,7 @@ WORST_CASE: dict[str, Callable[[Harness, Path], dict[str, Any]]] = {
     "explain_routing": _wide_explain_routing,
     "export_frame": _export,
     "fit_unit": _wide_fit_unit,
+    "impute": _wide_impute,
     "list_handles": _full_page_of_handles,
     "load": _wide_load,
     "missingness": _wide_missingness,
