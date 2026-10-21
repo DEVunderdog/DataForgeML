@@ -10,6 +10,17 @@
         "description": "The unit to train, as ``resolve_recipe`` lists it: ``mice`` or ``knn`` for a joint block, ``<strategy>:<column>`` for one column, such as ``median:age``.",
         "type": "string"
       },
+      "frame": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "A frame Handle to train on, such as a ``split`` fold. It must have every column of the recipe's routing. Null uses the frame the recipe's profile was made from."
+      },
       "seed": {
         "anyOf": [
           {
@@ -25,6 +36,7 @@
     "required": [
       "recipe",
       "unit_id",
+      "frame",
       "seed"
     ],
     "type": "object"
@@ -189,7 +201,7 @@
         "type": "string"
       },
       "frame": {
-        "description": "The frame Handle the unit trained on: the frame the recipe's profile was made from.",
+        "description": "The frame Handle the unit trained on: yours, or the frame the recipe's profile was made from.",
         "type": "string"
       },
       "unit_id": {

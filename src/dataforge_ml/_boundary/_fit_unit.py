@@ -1,7 +1,8 @@
 """Internal code behind the ``fit_unit`` Operation (ADR-0071, ADR-0110).
 
-It reads the recipe Handle and the frame its profile was made from, trains one
-unit on that frame, writes the fitted unit as a ``unit`` Handle, and returns
+It reads the recipe Handle and a frame (the one its profile was made from, or
+a column-matched one the Agent passes, such as a split fold), trains one unit
+on that frame, writes the fitted unit as a ``unit`` Handle, and returns
 the unit's typed Fit Signals. There is no convenience chain: training a whole
 recipe is one call per unit (ADR-0075).
 
@@ -37,8 +38,19 @@ def _unknown_unit(unit_id: str, unit_ids: list[str]) -> DataForgeError:
     )
 
 
-def fit_recipe_unit(*, recipe: str, unit_id: str, seed: int | None) -> dict[str, Any]:
-    """Fit one unit of a recipe Handle on its profile's frame and build the ``fit_unit`` result.
+def _missing_fitted_columns(missing: list[str]) -> DataForgeError:
+    names = ", ".join(f"`{c}`" for c in missing)
+    return DataForgeError.from_code(
+        "missing_fitted_columns",
+        f"`frame`: lacks column(s) {names} of the recipe's routing.",
+        columns=missing,
+    )
+
+
+def fit_recipe_unit(
+    *, recipe: str, unit_id: str, frame: str | None, seed: int | None
+) -> dict[str, Any]:
+    """Fit one unit of a recipe Handle on a frame and build the ``fit_unit`` result.
 
     Parameters
     ----------
@@ -46,6 +58,9 @@ def fit_recipe_unit(*, recipe: str, unit_id: str, seed: int | None) -> dict[str,
         The recipe Handle.
     unit_id : str
         The unit to fit, as ``resolve_recipe`` lists it.
+    frame : str or None
+        The frame Handle to fit on, such as a split fold; None means the
+        frame the recipe's profile was made from.
     seed : int or None
         The seed of the stochastic strategies; None means the fixed default.
 
@@ -58,9 +73,10 @@ def fit_recipe_unit(*, recipe: str, unit_id: str, seed: int | None) -> dict[str,
     ------
     DataForgeError
         ``unknown_unit`` with ``candidates`` when the recipe has no such
-        unit, raised before the frame is read; ``unit_not_trainable`` when
-        the unit cannot train on the frame; the recipe and frame Handles'
-        own errors.
+        unit, raised before the frame is read; ``missing_fitted_columns``
+        when ``frame`` lacks a column of the recipe's routing;
+        ``unit_not_trainable`` when the unit cannot train on the frame; the
+        recipe and frame Handles' own errors.
     """
     from .._seed import DEFAULT_SEED
     from ..imputation._unit_fit import fit_unit
@@ -71,9 +87,16 @@ def fit_recipe_unit(*, recipe: str, unit_id: str, seed: int | None) -> dict[str,
     if unit_id not in units:
         raise _unknown_unit(unit_id, list(units))
     unit = units[unit_id]
-    frame, _ = read_frame(record["frame"], param="recipe")
+    if frame is None:
+        frame = record["frame"]
+        data, _ = read_frame(frame, param="recipe")
+    else:
+        data, _ = read_frame(frame, param="frame")
+        missing = [c for c in stored.routing.column_routings if c not in data.columns]
+        if missing:
+            raise _missing_fitted_columns(missing)
     seed = DEFAULT_SEED if seed is None else seed
-    fit = fit_unit(stored, unit, frame, random_seed=seed, n_jobs_inner=settings().core_budget)
+    fit = fit_unit(stored, unit, data, random_seed=seed, n_jobs_inner=settings().core_budget)
 
     handle = write_handle(
         "unit",
@@ -84,7 +107,7 @@ def fit_recipe_unit(*, recipe: str, unit_id: str, seed: int | None) -> dict[str,
         declarations=InheritedDeclarations.from_dict(record["declarations"]),
         extra={
             "recipe": recipe,
-            "frame": record["frame"],
+            "frame": frame,
             "unit_id": unit_id,
             "strategy": unit.strategy.value,
         },
@@ -106,7 +129,7 @@ def fit_recipe_unit(*, recipe: str, unit_id: str, seed: int | None) -> dict[str,
         "omitted": omitted,
         "unit": handle,
         "recipe": recipe,
-        "frame": record["frame"],
+        "frame": frame,
         "unit_id": unit_id,
         "strategy": unit.strategy.value,
         "columns": columns,

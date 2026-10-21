@@ -106,6 +106,53 @@ def test_the_unit_handle_holds_the_fitted_unit_and_its_lineage(harness: Harness)
     assert _stored_unit(unit).target_columns == ["age"]
 
 
+# --- Another frame ----------------------------------------------------------------
+
+
+def test_a_unit_trains_on_a_column_matched_fold(harness: Harness) -> None:
+    profile = _profile(harness)
+    (fold, *_) = records(
+        harness.code_mode("split", profile=profile, scheme={"kind": "kfold", "k": 3}).json["folds"]
+    )
+    routing = harness.code_mode(
+        "route", profile=profile, strategies=[{"column": "age", "strategy": "median"}]
+    ).json["routing"]
+    recipe = harness.code_mode("resolve_recipe", routing=routing).json["recipe"]
+
+    out = harness.call("fit_unit", recipe=recipe, unit_id="median:age", frame=fold["train"])
+
+    assert not out.is_error, out.json
+    assert out.json["frame"] == fold["train"]
+    record = read_record(out.json["unit"], "unit", param="unit")
+    assert record["frame"] == fold["train"]
+    assert record["lineage"]["inputs"] == [recipe, fold["train"]]
+
+
+def test_a_frame_missing_routed_columns_is_refused(harness: Harness) -> None:
+    recipe = _mice_and_median_recipe(harness)
+    csv = harness.inputs / "no_city.csv"
+    csv.write_text("age,income\n" + "".join(f"{20 + i},{40000 + i}\n" for i in range(30)))
+    harness.declare(csv)
+    frame = harness.code_mode("load", path=str(csv)).json["frame"]
+
+    out = harness.call("fit_unit", recipe=recipe, unit_id="median:age", frame=frame)
+
+    assert out.code == "missing_fitted_columns"
+    assert out.json["columns"] == ["city"]
+    assert _unit_handles(harness) == []
+
+
+def test_a_frame_argument_of_another_kind_is_refused(harness: Harness) -> None:
+    out = harness.call(
+        "fit_unit", recipe=_mice_and_median_recipe(harness), unit_id="median:age",
+        frame=_profile(harness),
+    )
+
+    assert out.code == "wrong_handle_kind"
+    assert out.json["param"] == "frame"
+    assert _unit_handles(harness) == []
+
+
 # --- Warnings ---------------------------------------------------------------------
 
 

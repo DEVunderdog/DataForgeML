@@ -231,9 +231,9 @@ _ENTRIES: tuple[ErrorCodeEntry, ...] = (
         code="missing_fitted_columns",
         category="InvalidInput",
         hint=(
-            "The frame lacks columns the imputer or unit was fitted to fill. "
-            "Pass a frame with every column in `columns`, or fit again on the "
-            "columns this frame has."
+            "The frame lacks columns the imputer or unit was fitted to fill, "
+            "or the recipe's routing names. Pass a frame with every column in "
+            "`columns`, or route and fit again on the columns this frame has."
         ),
         fields=("columns",),
     ),
