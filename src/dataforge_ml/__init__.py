@@ -68,6 +68,7 @@ _EXPORTS: dict[str, tuple[str, ...]] = {
     ".observability": ("EventType", "PipelineEvent", "stderr_observer"),
     # --- Operations: the Agent-facing surface (ADR-0099). Every other name
     # here is today's door, and becomes internal as the Operations land.
+    ".operations.compose_imputer": ("compose_imputer",),
     ".operations.describe_columns": ("describe_columns",),
     ".operations.describe_target": ("describe_target",),
     ".operations.explain_routing": ("explain_routing",),
@@ -164,6 +165,7 @@ __all__ = [
     "UnitFitResult",
     "author",
     "c2st",
+    "compose_imputer",
     "derive_units",
     "describe_columns",
     "describe_target",

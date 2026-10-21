@@ -97,6 +97,10 @@ class Handles:
     #: Resolved from ``estimates_routing``: ``knn`` trains, while
     #: ``cluster_conditional:amount`` may lack the centres it needs.
     recipe: str
+    #: Resolved from ``routing`` with every column on ``median``, and every
+    #: unit of it fitted, so the units compose.
+    median_recipe: str
+    median_units: tuple[str, ...]
 
 
 Call = tuple[str, dict[str, Any]]
@@ -185,6 +189,11 @@ CALLS: dict[str, Callable[[Handles], list[Call]]] = {
         ("fit_unit", {"recipe": h.recipe, "unit_id": "knn:visits"}),
         ("fit_unit", {"recipe": h.routing, "unit_id": "knn"}),
     ],
+    "compose_imputer": lambda h: [
+        ("compose_imputer", {"recipe": h.median_recipe, "units": list(h.median_units)}),
+        ("compose_imputer", {"recipe": h.median_recipe, "units": list(h.median_units[1:])}),
+        ("compose_imputer", {"recipe": h.recipe, "units": list(h.median_units)}),
+    ],
     "split": lambda h: [
         ("split", {"profile": h.profile, "scheme": {"kind": "profile_stratified_kfold", "k": 3}}),
         ("split", {"profile": h.profile, "scheme": {"kind": "time", "time_column": "when"}}),
@@ -228,9 +237,20 @@ def _handles(harness: Harness, canaries: Canaries) -> Handles:
         ],
     ).json["routing"]
     recipe = harness.code_mode("resolve_recipe", routing=estimates_routing).json["recipe"]
+    median_routing = harness.code_mode(
+        "route", profile=profile, default_strategy="median"
+    ).json["routing"]
+    resolved = harness.code_mode("resolve_recipe", routing=median_routing).json
+    median_units = tuple(
+        harness.code_mode(
+            "fit_unit", recipe=resolved["recipe"], unit_id=unit["unit_id"]
+        ).json["unit"]
+        for unit in _from_table(resolved["units"])
+    )
     return Handles(
         path=path, frame=frame, profile=profile, routing=routing,
         estimates_routing=estimates_routing, recipe=recipe,
+        median_recipe=resolved["recipe"], median_units=median_units,
     )
 
 

@@ -307,6 +307,16 @@ _ENTRIES: tuple[ErrorCodeEntry, ...] = (
         fields=("param", "columns"),
     ),
     ErrorCodeEntry(
+        code="unit_recipe_mismatch",
+        category="Conflict",
+        hint=(
+            "The units in `params` were fitted from another recipe. Compose "
+            "units only with the recipe they were fitted from: fit the "
+            "recipe's units with `fit_unit`, or pass the units' own recipe."
+        ),
+        fields=("param", "params", "issues"),
+    ),
+    ErrorCodeEntry(
         code="unit_not_trainable",
         category="Infeasible",
         hint=(

@@ -29,6 +29,8 @@ from dataforge_ml._boundary._operation import (
     operations,
 )
 from dataforge_ml._boundary._schema import strict_subset_problems
+from dataforge_ml._boundary._workspace import read_recipe
+from dataforge_ml.imputation._units import derive_units
 from dataforge_ml.records import MAX_ROW_FIELDS
 
 from .conftest import (
@@ -182,6 +184,21 @@ def _wide_fit_unit(harness: Harness, tmp_path: Path) -> dict[str, Any]:
     return harness.call("fit_unit", recipe=recipe, unit_id="mice").json
 
 
+def _wide_compose_imputer(harness: Harness, tmp_path: Path) -> dict[str, Any]:
+    # 150 long-named columns, each its own ``median`` unit: a full page of units.
+    routing = harness.code_mode(
+        "route", profile=_wide_profile_handle(harness, tmp_path), default_strategy="median"
+    ).json["routing"]
+    recipe = harness.code_mode("resolve_recipe", routing=routing).json["recipe"]
+    # ``resolve_recipe`` lists only 50 units, so read every one off the stored recipe.
+    stored, _ = read_recipe(recipe, param="recipe")
+    units = [
+        harness.code_mode("fit_unit", recipe=recipe, unit_id=u.unit_id).json["unit"]
+        for u in derive_units(stored.routing)
+    ]
+    return harness.call("compose_imputer", recipe=recipe, units=units).json
+
+
 def _ames_repeated_kfold(harness: Harness, tmp_path: Path) -> dict[str, Any]:
     # The most folds a split may make, 100, each with two frame Handles.
     return harness.call(
@@ -193,6 +210,7 @@ def _ames_repeated_kfold(harness: Harness, tmp_path: Path) -> dict[str, Any]:
 
 #: Per Operation, a call producing its largest result on the supported fixtures.
 WORST_CASE: dict[str, Callable[[Harness, Path], dict[str, Any]]] = {
+    "compose_imputer": _wide_compose_imputer,
     "describe_columns": _wide_describe_columns,
     "describe_target": _ames_describe_target,
     "explain_routing": _wide_explain_routing,

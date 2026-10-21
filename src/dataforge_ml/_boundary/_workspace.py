@@ -383,6 +383,13 @@ def cache(handle: str, obj: Any) -> None:
     _CACHE[(str(workspace_root()), handle)] = obj
 
 
+def _record_input(handle: str) -> None:
+    # A Handle read during an Operation call joins that call's Lineage inputs, once.
+    call = _CALL.get()
+    if call is not None and handle not in call.inputs:
+        call.inputs.append(handle)
+
+
 def read_frame(handle: str, *, param: str) -> tuple[Any, InheritedDeclarations]:
     """Read a frame Handle and record it as an input of the current call.
 
@@ -406,9 +413,7 @@ def read_frame(handle: str, *, param: str) -> tuple[Any, InheritedDeclarations]:
     import polars as pl
 
     record = read_record(handle, "frame", param=param)
-    call = _CALL.get()
-    if call is not None and handle not in call.inputs:
-        call.inputs.append(handle)
+    _record_input(handle)
     frame = cached(handle)
     if frame is None:
         frame = pl.read_parquet(payload_path(handle, record))
@@ -421,9 +426,7 @@ def _read_serialized(handle: str, kind: str, *, param: str) -> tuple[Any, dict[s
     from .._serialization import deserialize
 
     record = read_record(handle, kind, param=param)
-    call = _CALL.get()
-    if call is not None and handle not in call.inputs:
-        call.inputs.append(handle)
+    _record_input(handle)
     obj = cached(handle)
     if obj is None:
         obj = deserialize(payload_path(handle, record).read_bytes())
@@ -503,3 +506,70 @@ def read_recipe(handle: str, *, param: str) -> tuple[Any, dict[str, Any]]:
         As :func:`read_record`.
     """
     return _read_serialized(handle, "recipe", param=param)
+
+
+def read_unit_record(handle: str, *, param: str) -> dict[str, Any]:
+    """Read a unit Handle's record, not its payload, and record it as an input.
+
+    Parameters
+    ----------
+    handle : str
+        The unit Handle the Agent passed.
+    param : str
+        The argument path, for error records.
+
+    Returns
+    -------
+    dict
+        The unit's Handle record, which holds the recipe, frame, unit id and
+        strategy it was fitted from.
+
+    Raises
+    ------
+    DataForgeError
+        As :func:`read_record`.
+    """
+    record = read_record(handle, "unit", param=param)
+    _record_input(handle)
+    return record
+
+
+def read_imputer(handle: str, *, param: str) -> tuple[Any, dict[str, Any]]:
+    """Read an imputer Handle, composing its recipe and units again (ADR-0103).
+
+    The imputer Handle is a manifest: nothing aggregate is stored, so the
+    imputer is composed from the recipe and unit Handles it names, once per
+    process.
+
+    Parameters
+    ----------
+    handle : str
+        The imputer Handle the Agent passed.
+    param : str
+        The argument path, for error records.
+
+    Returns
+    -------
+    tuple of (FittedImputer, dict)
+        The composed imputer and its Handle record, which holds the recipe
+        and the unit Handles by unit id.
+
+    Raises
+    ------
+    DataForgeError
+        As :func:`read_record`, for the imputer and every Handle it names.
+    """
+    from ..imputation._fitted_imputer import FittedImputer
+
+    record = read_record(handle, "imputer", param=param)
+    _record_input(handle)
+    imputer = cached(handle)
+    if imputer is None:
+        recipe, _ = _read_serialized(record["recipe"], "recipe", param=param)
+        units = {
+            entry["unit_id"]: _read_serialized(entry["unit"], "unit", param=param)[0]
+            for entry in record["units"]
+        }
+        imputer = FittedImputer.compose(recipe, units)
+        cache(handle, imputer)
+    return imputer, record
