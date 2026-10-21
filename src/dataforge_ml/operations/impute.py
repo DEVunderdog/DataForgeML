@@ -6,7 +6,7 @@ from typing import Annotated
 
 from .._boundary._impute import impute_frame
 from .._boundary._operation import operation
-from ..records import LITERAL, ColumnKeyedResult, Table, WireRecord
+from ..records import LITERAL, ColumnKeyedResult, DialPointer, Table, WireRecord
 from .describe_target import CellValue
 from .route import StrategyName
 
@@ -17,7 +17,7 @@ class ImputedColumn(WireRecord):
     column: str
     """Column name. A ``<column>_missing`` row is the indicator an ``mnar`` column adds."""
     strategy: StrategyName
-    """The column's strategy. A ``dropped`` column is not in the new frame."""
+    """The column's strategy. A ``dropped`` column is not in the new frame, unless it is a Drop Candidate: see ``drop_candidates``."""
     missing: int
     """Cells missing in the source frame, sentinels included; 0 for an indicator."""
     filled: int
@@ -26,11 +26,20 @@ class ImputedColumn(WireRecord):
     """The one value a ``mean``, ``median``, ``mode``, ``constant`` or ``mnar`` column fills with. An ``mnar`` column keeps its nulls: its fill is on record here, not applied. Null for every other strategy. A Literal Field."""
 
 
+class DropCandidates(WireRecord):
+    """The columns routing marked ``dropped`` because profiling flagged them ``missingness.drop_candidate``."""
+
+    columns: list[str]
+    """The Drop Candidates, in dataset order. They stay in the new frame with their missing values. At most 100; past 100, ``omitted`` counts the rest."""
+    dial: DialPointer
+    """The profiling threshold that flagged them. Raise it to flag fewer."""
+
+
 class ImputeResult(ColumnKeyedResult):
     """The model-ready frame Handle and what was done to each column. ``result.get(name)`` finds one column."""
 
     frame: str
-    """The new frame Handle, such as ``frame_5b6c7d8e``. It lacks hard-excluded and ``dropped`` columns, has the indicator columns as Soft Exclusions later phases skip, and inherits the source frame's declarations."""
+    """The new frame Handle, such as ``frame_5b6c7d8e``. It lacks hard-excluded and ``dropped`` columns other than Drop Candidates, has the indicator columns as Soft Exclusions later phases skip, and inherits the source frame's declarations."""
     imputer: str
     """The imputer Handle read."""
     source_frame: str
@@ -39,6 +48,8 @@ class ImputeResult(ColumnKeyedResult):
     """Rows of the new frame: as many as the source frame."""
     columns: Table[ImputedColumn]
     """Every column the imputer was fitted on: those that fill or drop first, then ``passthrough``, each group in dataset order. At most 100; past 100, ``omitted`` counts the rest."""
+    drop_candidates: DropCandidates | None
+    """Columns the library would drop, kept in the new frame: every drop is the Agent's own. To drop them, pass them to ``route`` as ``exclude_columns`` and build the imputer again from there. Null when there are none."""
 
 
 @operation(effect="create", phase="impute", scales_with_data=True)
@@ -51,8 +62,11 @@ def impute(imputer: str, frame: str) -> ImputeResult:
     the units were fitted on, a ``split`` fold or the test frame. The
     imputer applies what it learned and learns nothing from ``frame``, so
     filling a test frame leaks nothing. The new frame leaves out
-    hard-excluded and ``dropped`` columns and has every indicator column, so
-    you drop nothing yourself; the source frame keeps them. An ``mnar``
+    hard-excluded columns and the ``dropped`` columns you declared, and has
+    every indicator column; the source frame keeps them. A Drop Candidate,
+    a column routing marked ``dropped`` for its missing share, stays in the
+    new frame with its missing values: ``drop_candidates`` lists them and
+    the dial that flagged them, and dropping one is your call. An ``mnar``
     column keeps its nulls beside its ``<column>_missing`` indicator: its
     fill is on record in ``columns`` and is not applied. ``passthrough``
     columns keep their missing values too. ``frame`` must have every column
@@ -73,7 +87,8 @@ def impute(imputer: str, frame: str) -> ImputeResult:
     ImputeResult
         ``frame`` (the new Handle), ``imputer`` and ``source_frame``
         Handles, ``rows``, and ``columns``: each column's ``strategy``,
-        ``missing`` and ``filled`` cell counts and ``fill_value``.
+        ``missing`` and ``filled`` cell counts and ``fill_value``, and
+        ``drop_candidates`` with their Dial Pointer.
 
     Errors
     ------

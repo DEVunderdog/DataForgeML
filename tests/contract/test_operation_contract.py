@@ -200,10 +200,12 @@ def _wide_compose_imputer(harness: Harness, tmp_path: Path) -> dict[str, Any]:
 
 
 def _wide_impute(harness: Harness, tmp_path: Path) -> dict[str, Any]:
-    # 150 long-named columns, each on ``mnar``: past the 100-row cap, every
-    # row with a fill value and an indicator row beside it.
+    # 150 long-named columns, all flagged Drop Candidates: 40 declared
+    # ``mnar``, each with a fill value and an indicator, and 110 routed
+    # ``dropped``. Both lists are past their 100 cap and cut.
     profile = _wide_profile_handle(harness, tmp_path)
-    routing = harness.code_mode("route", profile=profile, default_strategy="mnar").json["routing"]
+    mnar = [{"column": f"c{i:04d}_".ljust(64, "x"), "strategy": "mnar"} for i in range(40)]
+    routing = harness.code_mode("route", profile=profile, strategies=mnar).json["routing"]
     recipe = harness.code_mode("resolve_recipe", routing=routing).json["recipe"]
     stored, record = read_recipe(recipe, param="recipe")
     units = [

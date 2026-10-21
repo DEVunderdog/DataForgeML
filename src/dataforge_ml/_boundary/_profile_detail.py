@@ -75,16 +75,12 @@ class _Stored:
 
 def _read(handle: str) -> _Stored:
     profile, record = read_profile(handle, param="profile")
-    dials = record["dials"]
     declarations = record["declarations"]
     return _Stored(
         handle=handle,
         profile=profile,
         columns=list(record["columns"]),
-        dials=_Dials(
-            values=dict(dials["values"]),
-            set_by_caller=frozenset(dials["set_by_caller"]),
-        ),
+        dials=_Dials.from_record(record),
         targets=list(declarations["targets"]),
         skipped=frozenset(record["skip_columns"]),
         excluded=frozenset(declarations["exclusions"]),

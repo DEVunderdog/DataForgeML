@@ -129,6 +129,15 @@ class _Dials:
     values: dict[str, Any]
     set_by_caller: frozenset[str]
 
+    @classmethod
+    def from_record(cls, record: dict[str, Any]) -> _Dials:
+        # The dials a profile Handle's record stored.
+        dials = record["dials"]
+        return cls(
+            values=dict(dials["values"]),
+            set_by_caller=frozenset(dials["set_by_caller"]),
+        )
+
     def pointer(self, path: str) -> dict[str, Any]:
         return {
             "operation": OPERATION,

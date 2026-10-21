@@ -103,6 +103,9 @@ class Handles:
     median_units: tuple[str, ...]
     #: Composed from ``median_units``.
     median_imputer: str
+    #: Composed from a profile whose ``col_drop_threshold`` makes ``amount``
+    #: a Drop Candidate, routed with no declarations.
+    drop_imputer: str
 
 
 Call = tuple[str, dict[str, Any]]
@@ -198,6 +201,7 @@ CALLS: dict[str, Callable[[Handles], list[Call]]] = {
     ],
     "impute": lambda h: [
         ("impute", {"imputer": h.median_imputer, "frame": h.frame}),
+        ("impute", {"imputer": h.drop_imputer, "frame": h.frame}),
         ("impute", {"imputer": h.median_imputer, "frame": h.median_imputer}),
     ],
     "split": lambda h: [
@@ -246,22 +250,36 @@ def _handles(harness: Harness, canaries: Canaries) -> Handles:
     median_routing = harness.code_mode(
         "route", profile=profile, default_strategy="median"
     ).json["routing"]
-    resolved = harness.code_mode("resolve_recipe", routing=median_routing).json
-    median_units = tuple(
-        harness.code_mode(
-            "fit_unit", recipe=resolved["recipe"], unit_id=unit["unit_id"]
-        ).json["unit"]
-        for unit in _from_table(resolved["units"])
-    )
-    median_imputer = harness.code_mode(
-        "compose_imputer", recipe=resolved["recipe"], units=list(median_units)
-    ).json["imputer"]
+    median_recipe, median_units, median_imputer = _compose(harness, median_routing)
+    drop_profile = harness.code_mode(
+        "profile",
+        frame=frame,
+        targets=["label"],
+        sentinels=[{"column": "amount", "values": [SENTINEL]}],
+        thresholds={"missingness": {"col_drop_threshold": 0.2}},
+    ).json["profile"]
+    drop_routing = harness.code_mode("route", profile=drop_profile).json["routing"]
+    _, _, drop_imputer = _compose(harness, drop_routing)
     return Handles(
         path=path, frame=frame, profile=profile, routing=routing,
         estimates_routing=estimates_routing, recipe=recipe,
-        median_recipe=resolved["recipe"], median_units=median_units,
-        median_imputer=median_imputer,
+        median_recipe=median_recipe, median_units=median_units,
+        median_imputer=median_imputer, drop_imputer=drop_imputer,
     )
+
+
+def _compose(harness: Harness, routing: str) -> tuple[str, tuple[str, ...], str]:
+    # Resolve ``routing``, fit every unit and compose: the recipe, unit and imputer Handles.
+    resolved = harness.code_mode("resolve_recipe", routing=routing).json
+    recipe = resolved["recipe"]
+    units = tuple(
+        harness.code_mode("fit_unit", recipe=recipe, unit_id=unit["unit_id"]).json["unit"]
+        for unit in _from_table(resolved["units"])
+    )
+    imputer = harness.code_mode("compose_imputer", recipe=recipe, units=list(units)).json[
+        "imputer"
+    ]
+    return recipe, units, imputer
 
 
 # --- Reading Literal Fields by their schema mark ---------------------------------------
@@ -382,6 +400,15 @@ def test_snap_bounds_are_canaries_held_in_literal_fields(
 
     _, literals = split_literals(out.json, OPERATIONS["resolve_recipe"].output_schema())
     assert len(canaries.found_in(canonical_json(literals))) == 2
+
+
+def test_the_drop_candidate_impute_call_lists_one(harness: Harness, tmp_path: Path) -> None:
+    # Its containment call proves nothing about Drop Candidates unless it has one.
+    handles = _handles(harness, write_canaries(tmp_path))
+
+    out = harness.call("impute", imputer=handles.drop_imputer, frame=handles.frame)
+
+    assert out.json["drop_candidates"]["columns"] == ["amount"]
 
 
 def test_deny_withholds_literal_fields_and_keeps_the_rest(

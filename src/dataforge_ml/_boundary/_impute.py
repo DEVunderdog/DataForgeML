@@ -4,9 +4,10 @@ It reads an imputer Handle, composes the imputer again (ADR-0103), and fills
 a frame Handle with it into a new frame Handle that is ready to model on:
 hard-excluded and ``Dropped`` columns are left out, indicator columns are
 added, and an ``MNAR`` column keeps its nulls with its fill on record
-(ADR-0098). The new frame inherits the source frame's declarations, plus the
-exclusions the imputer's routing added, and records its indicator columns as
-Soft Exclusions for later phases (ADR-0110).
+(ADR-0098). Drop Candidates stay in, listed with a Dial Pointer to the
+threshold that flagged them (ADR-0106). The new frame inherits the source
+frame's declarations, plus the exclusions the imputer's routing added, and
+records its indicator columns as Soft Exclusions for later phases (ADR-0110).
 """
 
 from __future__ import annotations
@@ -17,9 +18,16 @@ from typing import Any
 
 from ..records import DataForgeError
 from ._detail import page
+from ._profile import FLAG_DIALS, _Dials
 from ._profile_detail import _scalar
 from ._route import ordered_columns
-from ._workspace import InheritedDeclarations, read_frame, read_imputer, write_handle
+from ._workspace import (
+    InheritedDeclarations,
+    read_frame,
+    read_imputer,
+    read_record,
+    write_handle,
+)
 
 #: Most per-column records one ``impute`` result lists (ADR-0102).
 COLUMNS_CAP = 100
@@ -70,6 +78,7 @@ def impute_frame(*, imputer: str, frame: str) -> dict[str, Any]:
         ``frame`` lacks; the imputer and frame Handles' own errors.
     """
     from ..imputation._config import ImputationStrategy
+    from ..imputation._evidence import RoutingReason
     from ..imputation._fitted_imputer import DroppedColumnAbsentWarning
     from ..utils._null_normalization import _resolve_effective_nulls
 
@@ -113,12 +122,28 @@ def impute_frame(*, imputer: str, frame: str) -> dict[str, Any]:
         warnings.simplefilter("ignore", DroppedColumnAbsentWarning)
         out = composed.transform(data).dataframe
 
-    before = _resolve_effective_nulls(
+    resolved = _resolve_effective_nulls(
         data,
         numeric_sentinels=composed.numeric_sentinels,
         string_sentinels=composed.string_sentinels,
-    ).null_count()
+    )
+    before = resolved.null_count()
     after = out.null_count()
+
+    # Drop Candidates are reported, never applied (ADR-0106): each goes back
+    # in its source place, sentinels read as missing like every other column.
+    candidates = [
+        c
+        for c in data.columns
+        if c in composed.records
+        and composed.records[c].decision.strategy == ImputationStrategy.Dropped
+        and composed.records[c].decision.reason == RoutingReason.drop_candidate
+    ]
+    if candidates:
+        kept = set(out.columns) | set(candidates)
+        order = [c for c in data.columns if c in kept]
+        order += [c for c in out.columns if c not in data.columns]
+        out = out.with_columns(resolved.select(candidates)).select(order)
 
     # Indicator columns stay in the frame, but Phases 3–6 skip them (ADR-0110).
     indicators = tuple(
@@ -158,6 +183,24 @@ def impute_frame(*, imputer: str, frame: str) -> dict[str, Any]:
     shown, _, omitted = page(
         rows, None, None, COLUMNS_CAP, field="columns", operation=None
     )
+    drop_candidates = None
+    if candidates:
+        recipe_record = read_record(imputer_record["recipe"], "recipe", param="imputer")
+        profile_record = read_record(recipe_record["profile"], "profile", param="imputer")
+        listed, _, cut = page(
+            candidates,
+            None,
+            None,
+            COLUMNS_CAP,
+            field="drop_candidates.columns",
+            operation=None,
+        )
+        omitted += cut
+        (path,) = FLAG_DIALS["missingness.drop_candidate"]
+        drop_candidates = {
+            "columns": listed,
+            "dial": _Dials.from_record(profile_record).pointer(path),
+        }
     return {
         "warnings": [],
         "omitted": omitted,
@@ -166,4 +209,5 @@ def impute_frame(*, imputer: str, frame: str) -> dict[str, Any]:
         "source_frame": frame,
         "rows": out.height,
         "columns": shown,
+        "drop_candidates": drop_candidates,
     }

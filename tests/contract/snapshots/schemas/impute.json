@@ -169,7 +169,7 @@
         "type": "object"
       },
       "frame": {
-        "description": "The new frame Handle, such as ``frame_5b6c7d8e``. It lacks hard-excluded and ``dropped`` columns, has the indicator columns as Soft Exclusions later phases skip, and inherits the source frame's declarations.",
+        "description": "The new frame Handle, such as ``frame_5b6c7d8e``. It lacks hard-excluded and ``dropped`` columns other than Drop Candidates, has the indicator columns as Soft Exclusions later phases skip, and inherits the source frame's declarations.",
         "type": "string"
       },
       "imputer": {
@@ -212,7 +212,7 @@
                     "type": "string"
                   },
                   {
-                    "description": "Position 1, `strategy`: The column's strategy. A ``dropped`` column is not in the new frame.",
+                    "description": "Position 1, `strategy`: The column's strategy. A ``dropped`` column is not in the new frame, unless it is a Drop Candidate: see ``drop_candidates``.",
                     "enum": [
                       "mean",
                       "median",
@@ -270,6 +270,81 @@
           "rows"
         ],
         "type": "object"
+      },
+      "drop_candidates": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "description": "The columns routing marked ``dropped`` because profiling flagged them ``missingness.drop_candidate``.",
+            "properties": {
+              "columns": {
+                "description": "The Drop Candidates, in dataset order. They stay in the new frame with their missing values. At most 100; past 100, ``omitted`` counts the rest.",
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "dial": {
+                "additionalProperties": false,
+                "description": "The profiling threshold that flagged them. Raise it to flag fewer.",
+                "properties": {
+                  "operation": {
+                    "description": "The Operation that takes the dial.",
+                    "type": "string"
+                  },
+                  "dial": {
+                    "description": "The dial's argument path, such as ``thresholds.missingness.high_null_ratio``.",
+                    "type": "string"
+                  },
+                  "value": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The dial's resolved value."
+                  },
+                  "source": {
+                    "description": "``default`` when the library default decided, ``argument`` when the caller set it.",
+                    "enum": [
+                      "default",
+                      "argument"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "operation",
+                  "dial",
+                  "value",
+                  "source"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "columns",
+              "dial"
+            ],
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Columns the library would drop, kept in the new frame: every drop is the Agent's own. To drop them, pass them to ``route`` as ``exclude_columns`` and build the imputer again from there. Null when there are none."
       }
     },
     "required": [
@@ -279,7 +354,8 @@
       "imputer",
       "source_frame",
       "rows",
-      "columns"
+      "columns",
+      "drop_candidates"
     ],
     "type": "object"
   }

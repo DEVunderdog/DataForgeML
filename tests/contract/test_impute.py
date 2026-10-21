@@ -109,6 +109,57 @@ def test_hard_excluded_and_dropped_columns_are_not_in_the_frame(harness: Harness
         "column": "income", "strategy": "dropped", "missing": INCOME_MISSING,
         "filled": 0, "fill_value": None,
     }
+    assert out.json["drop_candidates"] is None  # a drop the Agent declared is no candidate
+
+
+# --- Drop Candidates ----------------------------------------------------------------
+
+#: ``income`` misses 20% of rows and ``city`` about 14%: only ``income`` is over it.
+DROP_THRESHOLD = 0.15
+
+
+def test_drop_candidates_are_listed_with_a_dial_pointer_and_stay_in_the_frame(
+    harness: Harness,
+) -> None:
+    profile = _profile(
+        harness, thresholds={"missingness": {"col_drop_threshold": DROP_THRESHOLD}}
+    )
+    imputer = _imputer(harness, profile)
+
+    out = harness.call("impute", imputer=imputer, frame=_source(profile))
+
+    assert not out.is_error, out.json
+    assert out.json["drop_candidates"] == {
+        "columns": ["income"],
+        "dial": {
+            "operation": "profile",
+            "dial": "thresholds.missingness.col_drop_threshold",
+            "value": DROP_THRESHOLD,
+            "source": "argument",
+        },
+    }
+    filled, declarations = read_frame(out.json["frame"], param="frame")
+    assert filled.columns == ["age", "city", "income"]
+    assert filled["income"].null_count() == INCOME_MISSING
+    assert declarations.exclusions == ()
+    assert _by_column(out)["income"] == {
+        "column": "income", "strategy": "dropped", "missing": INCOME_MISSING,
+        "filled": 0, "fill_value": None,
+    }
+
+
+def test_a_drop_candidate_the_agent_excludes_downstream_is_gone(harness: Harness) -> None:
+    profile = _profile(
+        harness, thresholds={"missingness": {"col_drop_threshold": DROP_THRESHOLD}}
+    )
+    imputer = _imputer(harness, profile, exclude_columns=["income"])
+
+    out = harness.call("impute", imputer=imputer, frame=_source(profile))
+
+    assert not out.is_error, out.json
+    assert out.json["drop_candidates"] is None
+    filled, _ = read_frame(out.json["frame"], param="frame")
+    assert filled.columns == ["age", "city"]
 
 
 def test_a_column_the_routing_excludes_is_not_in_the_frame(harness: Harness) -> None:
