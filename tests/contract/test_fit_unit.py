@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
+from dataforge_ml._boundary._settings import CORE_BUDGET_ENV, _default_core_budget
 from dataforge_ml._boundary._workspace import payload_path, read_record
 from dataforge_ml._serialization import deserialize
 
-from .conftest import Harness, records
+from .conftest import Harness, records, run_dataforge
 from .test_route import _profile
 
 
@@ -104,6 +107,42 @@ def test_the_unit_handle_holds_the_fitted_unit_and_its_lineage(harness: Harness)
     assert record["lineage"]["inputs"] == [recipe, frame]
     assert (record["unit_id"], record["strategy"], record["frame"]) == ("median:age", "median", frame)
     assert _stored_unit(unit).target_columns == ["age"]
+
+
+# --- The core budget --------------------------------------------------------------
+
+
+@pytest.mark.parametrize("top", ["flag", "env", "config", "default"])
+def test_the_fit_spends_the_core_budget_resolved_flag_then_env_then_config_then_default(
+    top: str, harness: Harness, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Every source below ``top`` is set too, so ``top`` must win over each of them.
+    monkeypatch.delenv(CORE_BUDGET_ENV, raising=False)
+    # A random forest takes ``n_jobs``, so the stored unit shows the budget spent.
+    routing = harness.code_mode(
+        "route",
+        profile=_profile(harness),
+        strategies=[{"column": "income", "strategy": "mice"}],
+        model_choice="random_forest_regressor",
+    ).json["routing"]
+    recipe = harness.code_mode("resolve_recipe", routing=routing).json["recipe"]
+    # Each layer's value differs from the default and the others, so no layer passes by chance.
+    default = _default_core_budget()
+    budgets = {"flag": default + 1, "env": default + 2, "config": default + 3, "default": default}
+    order = list(budgets)
+    layers = order[order.index(top):]
+    if "config" in layers:
+        (harness.workspace / "config.toml").write_text(f"core_budget = {budgets['config']}\n")
+    if "env" in layers:
+        monkeypatch.setenv(CORE_BUDGET_ENV, str(budgets["env"]))
+    argv = ["fit-unit", "--recipe", recipe, "--unit-id", "mice"]
+    if "flag" in layers:
+        argv += ["--core-budget", str(budgets["flag"])]
+
+    out = run_dataforge(argv)
+
+    assert out.exit_code == 0, out.json
+    assert _stored_unit(out.json["unit"]).model.estimator.n_jobs == budgets[top]
 
 
 # --- Another frame ----------------------------------------------------------------
