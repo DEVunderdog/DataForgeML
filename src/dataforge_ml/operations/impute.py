@@ -30,7 +30,7 @@ class ImputeResult(ColumnKeyedResult):
     """The model-ready frame Handle and what was done to each column. ``result.get(name)`` finds one column."""
 
     frame: str
-    """The new frame Handle, such as ``frame_5b6c7d8e``. It lacks hard-excluded and ``dropped`` columns, has the indicator columns, and inherits the source frame's declarations."""
+    """The new frame Handle, such as ``frame_5b6c7d8e``. It lacks hard-excluded and ``dropped`` columns, has the indicator columns as Soft Exclusions later phases skip, and inherits the source frame's declarations."""
     imputer: str
     """The imputer Handle read."""
     source_frame: str
@@ -58,7 +58,8 @@ def impute(imputer: str, frame: str) -> ImputeResult:
     columns keep their missing values too. ``frame`` must have every column
     the imputer fills or leaves as it is, and no column it was not fitted
     on, other than excluded ones. The new frame inherits the source frame's
-    declarations and the exclusions the routing added.
+    declarations and the exclusions the routing added, and declares each
+    indicator column a Soft Exclusion: later phases keep it but skip it.
 
     Parameters
     ----------

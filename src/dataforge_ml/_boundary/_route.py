@@ -587,11 +587,8 @@ def route_profile(
         payload_name="routing.bin",
         write_payload=lambda tmp: tmp.write_bytes(serialize(routing)),
         obj=routing,
-        declarations=InheritedDeclarations(
-            targets=inherited.targets,
-            type_overrides=inherited.type_overrides,
-            sentinels=inherited.sentinels,
-            exclusions=(*inherited.exclusions, *exclude_columns),
+        declarations=dataclasses.replace(
+            inherited, exclusions=(*inherited.exclusions, *exclude_columns)
         ),
         extra={
             "profile": profile,

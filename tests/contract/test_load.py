@@ -254,6 +254,7 @@ def test_frame_handle_is_written_once_with_lineage(harness: Harness) -> None:
         "type_overrides": [],
         "sentinels": [],
         "exclusions": [],
+        "soft_exclusions": [],
     }
 
 

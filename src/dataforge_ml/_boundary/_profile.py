@@ -179,11 +179,15 @@ class _Declared:
     )
     targets: list[str] = field(default_factory=list)
     exclusions: list[str] = field(default_factory=list)
+    # Carried as they are: no profile argument declares or reads them.
+    soft_exclusions: list[str] = field(default_factory=list)
 
     @classmethod
     def from_inherited(cls, inherited: InheritedDeclarations) -> _Declared:
         out = cls(
-            targets=list(inherited.targets), exclusions=list(inherited.exclusions)
+            targets=list(inherited.targets),
+            exclusions=list(inherited.exclusions),
+            soft_exclusions=list(inherited.soft_exclusions),
         )
         for entry in inherited.type_overrides:
             column = entry["column"]
@@ -225,6 +229,7 @@ class _Declared:
                 {"column": c, "values": v} for c, v in self.sentinels.items()
             ),
             exclusions=tuple(self.exclusions),
+            soft_exclusions=tuple(self.soft_exclusions),
         )
 
 
@@ -251,6 +256,7 @@ def _check_arguments(
         datetime_formats=dict(inherited.datetime_formats),
         targets=list(inherited.targets),
         exclusions=list(inherited.exclusions),
+        soft_exclusions=list(inherited.soft_exclusions),
     )
 
     def keyed(

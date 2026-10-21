@@ -169,7 +169,7 @@
         "type": "object"
       },
       "frame": {
-        "description": "The new frame Handle, such as ``frame_5b6c7d8e``. It lacks hard-excluded and ``dropped`` columns, has the indicator columns, and inherits the source frame's declarations.",
+        "description": "The new frame Handle, such as ``frame_5b6c7d8e``. It lacks hard-excluded and ``dropped`` columns, has the indicator columns as Soft Exclusions later phases skip, and inherits the source frame's declarations.",
         "type": "string"
       },
       "imputer": {

@@ -52,13 +52,15 @@ class InheritedDeclarations:
     """The declarations a frame Handle carries down the Handle chain.
 
     Empty on a loaded frame. Later Operations may add to them, never remove
-    them (ADR-0110).
+    them (ADR-0110). ``soft_exclusions`` are the columns Phases 3–6 skip but
+    keep: the indicator columns ``impute`` adds.
     """
 
     targets: tuple[str, ...] = ()
     type_overrides: tuple[dict[str, Any], ...] = ()
     sentinels: tuple[dict[str, Any], ...] = ()
     exclusions: tuple[str, ...] = ()
+    soft_exclusions: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -66,6 +68,7 @@ class InheritedDeclarations:
             "type_overrides": list(self.type_overrides),
             "sentinels": list(self.sentinels),
             "exclusions": list(self.exclusions),
+            "soft_exclusions": list(self.soft_exclusions),
         }
 
     @classmethod
@@ -75,6 +78,7 @@ class InheritedDeclarations:
             type_overrides=tuple(data["type_overrides"]),
             sentinels=tuple(data["sentinels"]),
             exclusions=tuple(data["exclusions"]),
+            soft_exclusions=tuple(data["soft_exclusions"]),
         )
 
 

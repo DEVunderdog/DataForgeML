@@ -150,6 +150,54 @@ def test_an_mnar_column_keeps_its_nulls_with_its_fill_on_record(harness: Harness
     }
 
 
+def test_indicator_columns_are_soft_exclusions_on_the_new_frame(harness: Harness) -> None:
+    profile = _profile(harness)
+    imputer = _imputer(harness, profile, strategies=[{"column": "income", "strategy": "mnar"}])
+
+    out = harness.call("impute", imputer=imputer, frame=_source(profile))
+
+    assert not out.is_error, out.json
+    filled, declarations = read_frame(out.json["frame"], param="frame")
+    assert "income_missing" in filled.columns
+    assert declarations.soft_exclusions == ("income_missing",)
+    assert declarations.exclusions == ()
+    record = read_record(out.json["frame"], "frame", param="frame")
+    assert record["declarations"]["soft_exclusions"] == ["income_missing"]
+
+
+def test_soft_exclusions_carry_down_the_handle_chain(harness: Harness) -> None:
+    profile = _profile(harness)
+    imputer = _imputer(harness, profile, strategies=[{"column": "income", "strategy": "mnar"}])
+    filled = harness.code_mode("impute", imputer=imputer, frame=_source(profile)).json["frame"]
+
+    again = harness.code_mode("profile", frame=filled)
+    assert not again.is_error, again.json
+    split = harness.code_mode(
+        "split", profile=again.json["profile"], scheme={"kind": "kfold", "k": 3}
+    )
+    assert not split.is_error, split.json
+    routing = harness.code_mode(
+        "route", profile=again.json["profile"], default_strategy="median"
+    )
+    assert not routing.is_error, routing.json
+
+    _, fold = read_frame(records(split.json["folds"])[0]["validation"], param="frame")
+    assert fold.soft_exclusions == ("income_missing",)
+    for handle, kind in ((again.json["profile"], "profile"), (routing.json["routing"], "routing")):
+        record = read_record(handle, kind, param=kind)
+        assert record["declarations"]["soft_exclusions"] == ["income_missing"]
+
+
+def test_a_frame_without_indicators_has_no_soft_exclusions(harness: Harness) -> None:
+    profile = _profile(harness)
+    imputer = _imputer(harness, profile, default_strategy="median")
+
+    frame = harness.code_mode("impute", imputer=imputer, frame=_source(profile)).json["frame"]
+
+    _, declarations = read_frame(frame, param="frame")
+    assert declarations.soft_exclusions == ()
+
+
 # --- Inherited Declarations ---------------------------------------------------------
 
 

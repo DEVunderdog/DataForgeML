@@ -5,12 +5,14 @@ a frame Handle with it into a new frame Handle that is ready to model on:
 hard-excluded and ``Dropped`` columns are left out, indicator columns are
 added, and an ``MNAR`` column keeps its nulls with its fill on record
 (ADR-0098). The new frame inherits the source frame's declarations, plus the
-exclusions the imputer's routing added.
+exclusions the imputer's routing added, and records its indicator columns as
+Soft Exclusions for later phases (ADR-0110).
 """
 
 from __future__ import annotations
 
 import warnings
+from dataclasses import replace
 from typing import Any
 
 from ..records import DataForgeError
@@ -23,16 +25,19 @@ from ._workspace import InheritedDeclarations, read_frame, read_imputer, write_h
 COLUMNS_CAP = 100
 
 
+def _union(first: tuple[Any, ...], second: tuple[Any, ...]) -> tuple[Any, ...]:
+    # ``first`` in order, then each item of ``second`` it lacks.
+    return (*first, *(item for item in second if item not in first))
+
+
 def _merged(frame: InheritedDeclarations, imputer: InheritedDeclarations) -> InheritedDeclarations:
     # The frame's declarations first, then each one the imputer's chain added.
-    def union(first: tuple[Any, ...], second: tuple[Any, ...]) -> tuple[Any, ...]:
-        return (*first, *(item for item in second if item not in first))
-
     return InheritedDeclarations(
-        targets=union(frame.targets, imputer.targets),
-        type_overrides=union(frame.type_overrides, imputer.type_overrides),
-        sentinels=union(frame.sentinels, imputer.sentinels),
-        exclusions=union(frame.exclusions, imputer.exclusions),
+        targets=_union(frame.targets, imputer.targets),
+        type_overrides=_union(frame.type_overrides, imputer.type_overrides),
+        sentinels=_union(frame.sentinels, imputer.sentinels),
+        exclusions=_union(frame.exclusions, imputer.exclusions),
+        soft_exclusions=_union(frame.soft_exclusions, imputer.soft_exclusions),
     )
 
 
@@ -114,6 +119,16 @@ def impute_frame(*, imputer: str, frame: str) -> dict[str, Any]:
         string_sentinels=composed.string_sentinels,
     ).null_count()
     after = out.null_count()
+
+    # Indicator columns stay in the frame, but Phases 3–6 skip them (ADR-0110).
+    indicators = tuple(
+        c
+        for c, rec in composed.records.items()
+        if rec.decision.strategy == ImputationStrategy.Indicator and c in out.columns
+    )
+    declarations = replace(
+        declarations, soft_exclusions=_union(declarations.soft_exclusions, indicators)
+    )
 
     handle = write_handle(
         "frame",
