@@ -6,6 +6,7 @@ Operations from ``dataforge_ml``.
 """
 
 from . import (  # noqa: F401 - importing each module registers its Operation
+    c2st,
     compose_imputer,
     describe_columns,
     describe_target,

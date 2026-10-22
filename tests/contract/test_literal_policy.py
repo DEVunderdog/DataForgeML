@@ -106,6 +106,10 @@ class Handles:
     #: Composed from a profile whose ``col_drop_threshold`` makes ``amount``
     #: a Drop Candidate, routed with no declarations.
     drop_imputer: str
+    #: A ``split`` of the frame into 20 training and 20 test rows, from a
+    #: profile that excludes every string column, so ``c2st`` can read them.
+    numeric_train: str
+    numeric_test: str
 
 
 Call = tuple[str, dict[str, Any]]
@@ -210,6 +214,18 @@ CALLS: dict[str, Callable[[Handles], list[Call]]] = {
         ("split", {"profile": h.profile, "scheme": {"kind": "kfold", "k": 40}}),
         ("split", {"profile": h.profile, "scheme": {"kind": "group", "group_column": "citty"}}),
     ],
+    "c2st": lambda h: [
+        (
+            "c2st",
+            {
+                "reference": h.numeric_train,
+                "candidate": h.numeric_test,
+                "thresholds": {"min_rows": 20},
+            },
+        ),
+        ("c2st", {"reference": h.numeric_train, "candidate": h.numeric_test}),
+        ("c2st", {"reference": h.frame, "candidate": h.frame}),
+    ],
     "export_frame": lambda h: [
         ("export_frame", {"frame": h.frame}),
         ("export_frame", {"frame": h.profile}),
@@ -260,11 +276,22 @@ def _handles(harness: Harness, canaries: Canaries) -> Handles:
     ).json["profile"]
     drop_routing = harness.code_mode("route", profile=drop_profile).json["routing"]
     _, _, drop_imputer = _compose(harness, drop_routing)
+    numeric_profile = harness.code_mode(
+        "profile",
+        frame=frame,
+        sentinels=[{"column": "amount", "values": [SENTINEL]}],
+        exclude_columns=["city", "label", "when", "ident"],
+    ).json["profile"]
+    numeric_split = harness.code_mode(
+        "split", profile=numeric_profile, scheme={"kind": "random", "test_size": 0.5}
+    ).json
     return Handles(
         path=path, frame=frame, profile=profile, routing=routing,
         estimates_routing=estimates_routing, recipe=recipe,
         median_recipe=median_recipe, median_units=median_units,
         median_imputer=median_imputer, drop_imputer=drop_imputer,
+        numeric_train=_from_table(numeric_split["folds"])[0]["train"],
+        numeric_test=numeric_split["test"],
     )
 
 

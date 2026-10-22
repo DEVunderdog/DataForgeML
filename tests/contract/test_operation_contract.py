@@ -225,8 +225,19 @@ def _ames_repeated_kfold(harness: Harness, tmp_path: Path) -> dict[str, Any]:
     ).json
 
 
+def _most_repeats_c2st(harness: Harness, tmp_path: Path) -> dict[str, Any]:
+    # The most repeats a call may run, 100, each with its own ``z``. The result
+    # lists nothing else that grows, so the frames' size does not matter.
+    csv = tmp_path / "numeric.csv"
+    csv.write_text("a,b\n" + "\n".join(f"{i % 17},{(i * 7) % 23}" for i in range(80)) + "\n")
+    harness.declare(csv)
+    frame = harness.code_mode("load", path=str(csv)).json["frame"]
+    return harness.call("c2st", reference=frame, candidate=frame, repeats=100).json
+
+
 #: Per Operation, a call producing its largest result on the supported fixtures.
 WORST_CASE: dict[str, Callable[[Harness, Path], dict[str, Any]]] = {
+    "c2st": _most_repeats_c2st,
     "compose_imputer": _wide_compose_imputer,
     "describe_columns": _wide_describe_columns,
     "describe_target": _ames_describe_target,

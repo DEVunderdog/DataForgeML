@@ -22,7 +22,8 @@ _EXPORTS: dict[str, tuple[str, ...]] = {
     "._serialization": ("ArtifactPythonVersionWarning", "deserialize", "inspect", "serialize"),
     # --- Pipeline-level config and shared enums
     ".config": ("Modality", "PipelineConfig", "PipelinePhase", "SemanticType"),
-    # --- Evaluation: c2st is public; the umbrella is gone (ADR-0087 amended).
+    # --- Evaluation: the ``c2st`` name at the root is the Operation below; the
+    # generic seam stays importable from ``dataforge_ml.evaluation``.
     # ``C2STOutcome`` / ``C2STAnnotation`` / ``C2STVerdict`` classify output and
     # are never user-supplied, a stated exception to ADR-0050 (ADR-0087):
     # reading the report *is* branching on them, so the handling half of the
@@ -38,7 +39,6 @@ _EXPORTS: dict[str, tuple[str, ...]] = {
         "C2STScore",
         "C2STVerdict",
         "ColumnC2STResult",
-        "c2st",
         "imputation_score_c2st",
     ),
     # --- The layered imputation door (ADR-0088/0089/0090)
@@ -68,6 +68,7 @@ _EXPORTS: dict[str, tuple[str, ...]] = {
     ".observability": ("EventType", "PipelineEvent", "stderr_observer"),
     # --- Operations: the Agent-facing surface (ADR-0099). Every other name
     # here is today's door, and becomes internal as the Operations land.
+    ".operations.c2st": ("c2st",),
     ".operations.compose_imputer": ("compose_imputer",),
     ".operations.describe_columns": ("describe_columns",),
     ".operations.describe_target": ("describe_target",),

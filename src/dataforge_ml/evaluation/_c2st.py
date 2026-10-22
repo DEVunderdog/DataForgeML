@@ -375,6 +375,7 @@ def _run_c2st(
     min_rows: int,
     min_samples_leaf: int,
     on_repeat: Callable[[int, int], None] | None,
+    floor_param: str = "min_rows",
 ) -> C2STResult:
     """Run the repeat loop shared by the public and adapter-facing seams.
 
@@ -382,6 +383,8 @@ def _run_c2st(
     wrappers differ only in how they resolve the classifier's leaf size and how
     they report ``on_repeat``. ``random_state=None`` resolves to the fixed
     library default seed, so two unseeded calls give the same result.
+    ``floor_param`` is the argument path ``c2st_sample_floor`` names, so the
+    ``c2st`` Operation can name its own dial.
     """
     if repeats < 1:
         raise DataForgeError.from_code(
@@ -396,7 +399,7 @@ def _run_c2st(
             "C2ST refuses samples below the size floor: the smaller of "
             f"{reference.height} reference and {candidate.height} candidate "
             f"rows is under {min_rows}.",
-            param="min_rows",
+            param=floor_param,
         )
 
     pooled = _align(reference, candidate)

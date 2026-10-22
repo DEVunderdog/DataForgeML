@@ -365,8 +365,9 @@ _ENTRIES: tuple[ErrorCodeEntry, ...] = (
         code="c2st_string_column",
         category="Infeasible",
         hint=(
-            "The C2ST classifier cannot read string columns. Cast the columns "
-            "in `columns` to categorical, or leave them out of both samples."
+            "The C2ST classifier cannot read string columns. Leave the columns "
+            "in `columns` out of both samples: declare them excluded on "
+            "`profile` before `split`, or cast them to categorical."
         ),
         fields=("columns",),
     ),

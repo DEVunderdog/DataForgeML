@@ -27,7 +27,6 @@ EXPECTED = [
     "C2STOutcome",
     "C2STAnnotation",
     "C2STVerdict",
-    "c2st",
 ]
 
 
@@ -48,8 +47,13 @@ def test_the_three_outcome_enums_are_the_stated_adr_0050_exception():
         assert name in dataforge_ml.__all__
 
 
-def test_the_generic_seam_is_public_and_its_errors_are_codes():
-    assert callable(dataforge_ml.c2st)
+def test_the_root_c2st_is_the_operation_and_its_errors_are_codes():
+    # The generic seam stays in ``dataforge_ml.evaluation``; the root name is
+    # the ``c2st`` Operation, which runs it over two frame Handles (ADR-0110).
+    from dataforge_ml.operations.c2st import c2st as operation
+
+    assert dataforge_ml.c2st is operation
+    assert callable(evaluation.c2st) and evaluation.c2st is not operation
     # The two named refusals became Error Codes (ADR-0100); no class is exported.
     for err in ("C2STSampleFloorError", "C2STDtypeError"):
         assert not hasattr(dataforge_ml, err)
