@@ -110,6 +110,8 @@ class Handles:
     #: profile that excludes every string column, so ``c2st`` can read them.
     numeric_train: str
     numeric_test: str
+    #: ``frame`` filled by ``median_imputer``, for ``evaluate_imputation``.
+    median_imputed: str
 
 
 Call = tuple[str, dict[str, Any]]
@@ -226,6 +228,18 @@ CALLS: dict[str, Callable[[Handles], list[Call]]] = {
         ("c2st", {"reference": h.numeric_train, "candidate": h.numeric_test}),
         ("c2st", {"reference": h.frame, "candidate": h.frame}),
     ],
+    "evaluate_imputation": lambda h: [
+        ("evaluate_imputation", {"profile": h.profile, "imputed": h.median_imputed}),
+        (
+            "evaluate_imputation",
+            {
+                "profile": h.profile,
+                "imputed": h.median_imputed,
+                "thresholds": {"min_filled_cells": 2},
+            },
+        ),
+        ("evaluate_imputation", {"profile": h.profile, "imputed": h.frame}),
+    ],
     "export_frame": lambda h: [
         ("export_frame", {"frame": h.frame}),
         ("export_frame", {"frame": h.profile}),
@@ -292,6 +306,9 @@ def _handles(harness: Harness, canaries: Canaries) -> Handles:
         median_imputer=median_imputer, drop_imputer=drop_imputer,
         numeric_train=_from_table(numeric_split["folds"])[0]["train"],
         numeric_test=numeric_split["test"],
+        median_imputed=harness.code_mode(
+            "impute", imputer=median_imputer, frame=frame
+        ).json["frame"],
     )
 
 

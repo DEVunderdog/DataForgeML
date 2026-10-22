@@ -10,6 +10,7 @@ from . import (  # noqa: F401 - importing each module registers its Operation
     compose_imputer,
     describe_columns,
     describe_target,
+    evaluate_imputation,
     explain_routing,
     export_frame,
     fit_unit,

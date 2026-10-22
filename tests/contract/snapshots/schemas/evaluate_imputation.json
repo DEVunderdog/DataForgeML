@@ -1,0 +1,577 @@
+{
+  "input": {
+    "additionalProperties": false,
+    "properties": {
+      "profile": {
+        "description": "A profile Handle, such as ``profile_7f3a9c2e``: the one the imputer was routed on. Its sentinels and semantic types decide which cells were filled and which columns can be tested.",
+        "type": "string"
+      },
+      "imputed": {
+        "description": "A frame Handle ``impute`` made, such as ``frame_5b6c7d8e``.",
+        "type": "string"
+      },
+      "seed": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Seed of the subsampling, the carve and the classifier. Null means a fixed default, so the same call gives the same result. Constraints: at least 0; at most 4294967295."
+      },
+      "thresholds": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "description": "Every ``evaluate_imputation`` dial. Null keeps every default.",
+            "properties": {
+              "min_filled_cells": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The size floor: a column whose smaller pile, observed or filled rows, is under it is ``below_sample_floor`` and not tested. Null means 30. Constraints: at least 2."
+              },
+              "min_samples_leaf": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Fewest rows in a leaf of the classifier. Larger is smoother and harder to fool by memorising rows; too large and it predicts one pile for every row, which is ``uninformative``. Null means 5. Constraints: at least 1."
+              },
+              "low_power_below": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "A tested column whose smaller pile is under this many rows is annotated ``low_power``: a pass there means not enough data to tell. Null means 250. Constraints: at least 0."
+              },
+              "imbalance_warn_ratio": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "A tested column whose smaller pile over its larger one is under this ratio is annotated ``imbalanced_piles``. Null means 0.5. Constraints: at least 0; at most 1."
+              },
+              "fdr_alpha": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The false discovery rate across the tested columns: a column whose Benjamini-Hochberg adjusted p-value is at or below it is ``flagged``. Raise it to flag more. Null means 0.05. Constraints: at most 1; greater than 0."
+              }
+            },
+            "type": "object",
+            "required": [
+              "min_filled_cells",
+              "min_samples_leaf",
+              "low_power_below",
+              "imbalance_warn_ratio",
+              "fdr_alpha"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The size floor, the classifier's leaf size, the annotation bands and the false discovery rate, each with its default and range. Null keeps every default."
+      }
+    },
+    "required": [
+      "profile",
+      "imputed",
+      "seed",
+      "thresholds"
+    ],
+    "type": "object"
+  },
+  "output": {
+    "additionalProperties": false,
+    "description": "The C2ST report Handle, the outcome census and each column's outcome. ``result.get(name)`` finds one column.",
+    "properties": {
+      "warnings": {
+        "additionalProperties": false,
+        "description": "Caveats on this result, most actionable first. Empty when there are none.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `code`, `message`, `columns`, `param`, `hint`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "code",
+                "message",
+                "columns",
+                "param",
+                "hint"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "A caveat on a successful result: it worked, but read this first. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `code`: The warning's Error Code. Branch on this, not on ``message``.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `message`: What happened and what to do, in one or two sentences.",
+                    "type": "string"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 2, `columns`: Columns the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `param`: The argument the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 4, `hint`: Library-written advice, or null."
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "omitted": {
+        "additionalProperties": false,
+        "description": "One entry per list that was cut, naming the Operation that returns the rest. Empty when nothing was cut.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `field`, `shown`, `total`, `operation`, `reason`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "field",
+                "shown",
+                "total",
+                "operation",
+                "reason"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "Something left out of a result: a capped list was cut, or a Literal Field withheld. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `field`: Name of the list field that was cut, or the path of the Literal Field withheld, such as ``top_values[].value``.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `shown`: How many items the list holds; 0 for a withheld Literal Field.",
+                    "type": "integer"
+                  },
+                  {
+                    "description": "Position 2, `total`: How many items exist; for a withheld Literal Field, how many values at that path are null.",
+                    "type": "integer"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `operation`: The Operation that returns the rest, or null when no Operation does."
+                  },
+                  {
+                    "description": "Position 4, `reason`: ``cap`` when a list was cut to its cap; ``literal_policy`` when the Operator's Literal Policy is ``deny``.",
+                    "enum": [
+                      "cap",
+                      "literal_policy"
+                    ],
+                    "type": "string"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "c2st": {
+        "description": "The new C2ST report Handle, such as ``c2st_7f3a9c2e``. It holds every column's per-frame results and the provenance.",
+        "type": "string"
+      },
+      "profile": {
+        "description": "The profile Handle read.",
+        "type": "string"
+      },
+      "imputed": {
+        "description": "The imputed frame Handle read.",
+        "type": "string"
+      },
+      "source_frame": {
+        "description": "The frame Handle ``imputed`` was filled from: the observed values it is scored against.",
+        "type": "string"
+      },
+      "rows": {
+        "description": "Rows of ``imputed``.",
+        "type": "integer"
+      },
+      "seed": {
+        "description": "The seed used: yours, or the fixed default when you passed null.",
+        "type": "integer"
+      },
+      "census": {
+        "additionalProperties": false,
+        "description": "Columns per outcome and verdict, over every evaluated column. Read it first.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `outcome`, `verdict`, `count`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "outcome",
+                "verdict",
+                "count"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "How many columns had one outcome and verdict. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `outcome`: The outcome.",
+                    "enum": [
+                      "tested",
+                      "no_filled_cells",
+                      "no_observed_cells",
+                      "unfilled",
+                      "type_not_testable",
+                      "below_sample_floor",
+                      "uninformative"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `verdict`: The verdict.",
+                    "enum": [
+                      "flagged",
+                      "not_flagged",
+                      "no_verdict"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 2, `count`: Number of columns with both.",
+                    "type": "integer"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "columns": {
+        "additionalProperties": false,
+        "description": "Every evaluated column: ``flagged`` ones first, then dataset order. Excluded and ``dropped`` columns are not evaluated. At most 100; past 100, ``omitted`` counts the rest and names ``describe_c2st_columns``.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `column`, `outcome`, `verdict`, `mean_frame_z`, `p_adjusted`, `annotations`, `n_observed`, `n_filled`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "column",
+                "outcome",
+                "verdict",
+                "mean_frame_z",
+                "p_adjusted",
+                "annotations",
+                "n_observed",
+                "n_filled"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "One column's C2ST outcome and score. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `column`: Column name.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `outcome`: What happened: ``tested``, or why the test could not run. ``no_filled_cells``: nothing was missing. ``no_observed_cells``: nothing was observed. ``unfilled``: the imputed frame is still missing where the source was, as for an ``mnar``, ``passthrough`` or Drop Candidate column. ``type_not_testable``: a text or identifier column. ``below_sample_floor``: too few rows in the smaller pile. ``uninformative``: the classifier predicted one pile for every row.",
+                    "enum": [
+                      "tested",
+                      "no_filled_cells",
+                      "no_observed_cells",
+                      "unfilled",
+                      "type_not_testable",
+                      "below_sample_floor",
+                      "uninformative"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 2, `verdict`: ``flagged`` when the filled rows are told apart from the observed ones beyond the false discovery rate: go look at this column. ``not_flagged`` when tested and not flagged. ``no_verdict`` when not tested.",
+                    "enum": [
+                      "flagged",
+                      "not_flagged",
+                      "no_verdict"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `mean_frame_z`: The score: how well a classifier tells the column's filled rows from its observed rows, as a ``z``. Near 0 means it could not; about 2 or more means it could. Null unless ``tested``."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 4, `p_adjusted`: The Benjamini-Hochberg adjusted one-sided p-value of ``mean_frame_z`` across the tested columns. Null unless ``tested``."
+                  },
+                  {
+                    "description": "Position 5, `annotations`: Facts qualifying a tested column's score, which they never suppress: ``low_power``, ``imbalanced_piles``, ``degenerate`` (some repeats predicted one pile) and ``unseen_category`` (a filled row holds a category no observed row does). Empty when not tested.",
+                    "items": {
+                      "enum": [
+                        "low_power",
+                        "imbalanced_piles",
+                        "degenerate",
+                        "unseen_category"
+                      ],
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "description": "Position 6, `n_observed`: Rows where the column was observed in the source frame.",
+                    "type": "integer"
+                  },
+                  {
+                    "description": "Position 7, `n_filled`: Rows where the column was missing in the source frame, sentinels included: the rows the imputation filled.",
+                    "type": "integer"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "outcome_dials": {
+        "additionalProperties": false,
+        "description": "One entry per threshold-decided outcome, verdict or annotation any evaluated column has, with the dials that decide it.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `outcome`, `dials`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "outcome",
+                "dials"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "The dials that decide one outcome, verdict or annotation. Turn one to change which columns get it. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `outcome`: The outcome, verdict or annotation, as in ``columns``.",
+                    "type": "string"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "Position 1, `dials`: Every dial its rule reads, with its resolved value.",
+                    "properties": {
+                      "fields": {
+                        "description": "Always exactly `operation`, `dial`, `value`, `source`, in this order. A row's value at position i is the field named here at i.",
+                        "items": {
+                          "enum": [
+                            "operation",
+                            "dial",
+                            "value",
+                            "source"
+                          ],
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "rows": {
+                        "description": "The dial whose value decided a threshold outcome. Turn it to change the outcome. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+                        "items": {
+                          "items": {
+                            "anyOf": [
+                              {
+                                "description": "Position 0, `operation`: The Operation that takes the dial.",
+                                "type": "string"
+                              },
+                              {
+                                "description": "Position 1, `dial`: The dial's argument path, such as ``thresholds.missingness.high_null_ratio``.",
+                                "type": "string"
+                              },
+                              {
+                                "anyOf": [
+                                  {
+                                    "type": "boolean"
+                                  },
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Position 2, `value`: The dial's resolved value."
+                              },
+                              {
+                                "description": "Position 3, `source`: ``default`` when the library default decided, ``argument`` when the caller set it.",
+                                "enum": [
+                                  "default",
+                                  "argument"
+                                ],
+                                "type": "string"
+                              }
+                            ]
+                          },
+                          "type": "array"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "fields",
+                      "rows"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "warnings",
+      "omitted",
+      "c2st",
+      "profile",
+      "imputed",
+      "source_frame",
+      "rows",
+      "seed",
+      "census",
+      "columns",
+      "outcome_dials"
+    ],
+    "type": "object"
+  }
+}

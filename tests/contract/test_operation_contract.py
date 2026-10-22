@@ -235,12 +235,45 @@ def _most_repeats_c2st(harness: Harness, tmp_path: Path) -> dict[str, Any]:
     return harness.call("c2st", reference=frame, candidate=frame, repeats=100).json
 
 
+def _wide_evaluate_imputation(harness: Harness, tmp_path: Path) -> dict[str, Any]:
+    # 101 long-named columns, each missing on a third of 90 rows and median
+    # filled: past the 100-row cap, every row tested, flagged and carrying both
+    # pile annotations, so each row holds its longest values.
+    names = [f"c{i:04d}_".ljust(64, "x") for i in range(101)]
+    lines = [",".join(names)]
+    for r in range(90):
+        lines.append(",".join("" if r % 3 == 1 else f"{r + i / 1000}" for i in range(101)))
+    csv = tmp_path / "evaluate.csv"
+    csv.write_text("\n".join(lines) + "\n")
+    harness.declare(csv)
+    frame = harness.code_mode("load", path=str(csv)).json["frame"]
+    profile = harness.code_mode("profile", frame=frame).json["profile"]
+    routing = harness.code_mode("route", profile=profile, default_strategy="median").json[
+        "routing"
+    ]
+    recipe = harness.code_mode("resolve_recipe", routing=routing).json["recipe"]
+    stored, _ = read_recipe(recipe, param="recipe")
+    units = [
+        harness.code_mode("fit_unit", recipe=recipe, unit_id=u.unit_id).json["unit"]
+        for u in derive_units(stored.routing)
+    ]
+    imputer = harness.code_mode("compose_imputer", recipe=recipe, units=units).json["imputer"]
+    imputed = harness.code_mode("impute", imputer=imputer, frame=frame).json["frame"]
+    return harness.call(
+        "evaluate_imputation",
+        profile=profile,
+        imputed=imputed,
+        thresholds={"imbalance_warn_ratio": 1.0},
+    ).json
+
+
 #: Per Operation, a call producing its largest result on the supported fixtures.
 WORST_CASE: dict[str, Callable[[Harness, Path], dict[str, Any]]] = {
     "c2st": _most_repeats_c2st,
     "compose_imputer": _wide_compose_imputer,
     "describe_columns": _wide_describe_columns,
     "describe_target": _ames_describe_target,
+    "evaluate_imputation": _wide_evaluate_imputation,
     "explain_routing": _wide_explain_routing,
     "export_frame": _export,
     "fit_unit": _wide_fit_unit,
@@ -258,7 +291,10 @@ WORST_CASE: dict[str, Callable[[Harness, Path], dict[str, Any]]] = {
 
 #: Operations an ``omitted`` entry may already name before they exist, each
 #: with the ticket that adds it. Remove an entry when its Operation lands.
-PENDING_OPERATIONS: dict[str, str] = {"query_frame": "#603"}
+PENDING_OPERATIONS: dict[str, str] = {
+    "describe_c2st_columns": "#629",
+    "query_frame": "#603",
+}
 
 
 def _schemas(spec: OperationSpec) -> dict[str, Any]:
