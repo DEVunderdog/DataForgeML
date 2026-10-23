@@ -235,14 +235,15 @@ def _most_repeats_c2st(harness: Harness, tmp_path: Path) -> dict[str, Any]:
     return harness.call("c2st", reference=frame, candidate=frame, repeats=100).json
 
 
-def _wide_evaluate_imputation(harness: Harness, tmp_path: Path) -> dict[str, Any]:
-    # 101 long-named columns, each missing on a third of 90 rows and median
-    # filled: past the 100-row cap, every row tested, flagged and carrying both
-    # pile annotations, so each row holds its longest values.
-    names = [f"c{i:04d}_".ljust(64, "x") for i in range(101)]
+def _median_imputed(harness: Harness, tmp_path: Path, width: int) -> tuple[str, str]:
+    # ``width`` long-named columns, each missing on a third of 90 rows and
+    # median filled: every column tested, flagged and carrying both pile
+    # annotations under ``imbalance_warn_ratio`` 1, so each holds its longest
+    # values. Returns the profile and the imputed frame Handles.
+    names = [f"c{i:04d}_".ljust(64, "x") for i in range(width)]
     lines = [",".join(names)]
     for r in range(90):
-        lines.append(",".join("" if r % 3 == 1 else f"{r + i / 1000}" for i in range(101)))
+        lines.append(",".join("" if r % 3 == 1 else f"{r + i / 1000}" for i in range(width)))
     csv = tmp_path / "evaluate.csv"
     csv.write_text("\n".join(lines) + "\n")
     harness.declare(csv)
@@ -259,6 +260,12 @@ def _wide_evaluate_imputation(harness: Harness, tmp_path: Path) -> dict[str, Any
     ]
     imputer = harness.code_mode("compose_imputer", recipe=recipe, units=units).json["imputer"]
     imputed = harness.code_mode("impute", imputer=imputer, frame=frame).json["frame"]
+    return profile, imputed
+
+
+def _wide_evaluate_imputation(harness: Harness, tmp_path: Path) -> dict[str, Any]:
+    # 101 columns: past the 100-row cap.
+    profile, imputed = _median_imputed(harness, tmp_path, 101)
     return harness.call(
         "evaluate_imputation",
         profile=profile,
@@ -267,10 +274,24 @@ def _wide_evaluate_imputation(harness: Harness, tmp_path: Path) -> dict[str, Any
     ).json
 
 
+def _wide_describe_c2st_columns(harness: Harness, tmp_path: Path) -> dict[str, Any]:
+    # 21 columns: a full page of 20, each with its per-frame results, and the
+    # provenance. The report is made in Code Mode only, as setup.
+    profile, imputed = _median_imputed(harness, tmp_path, 21)
+    report = harness.code_mode(
+        "evaluate_imputation",
+        profile=profile,
+        imputed=imputed,
+        thresholds={"imbalance_warn_ratio": 1.0},
+    ).json["c2st"]
+    return harness.call("describe_c2st_columns", report=report).json
+
+
 #: Per Operation, a call producing its largest result on the supported fixtures.
 WORST_CASE: dict[str, Callable[[Harness, Path], dict[str, Any]]] = {
     "c2st": _most_repeats_c2st,
     "compose_imputer": _wide_compose_imputer,
+    "describe_c2st_columns": _wide_describe_c2st_columns,
     "describe_columns": _wide_describe_columns,
     "describe_target": _ames_describe_target,
     "evaluate_imputation": _wide_evaluate_imputation,
@@ -292,7 +313,6 @@ WORST_CASE: dict[str, Callable[[Harness, Path], dict[str, Any]]] = {
 #: Operations an ``omitted`` entry may already name before they exist, each
 #: with the ticket that adds it. Remove an entry when its Operation lands.
 PENDING_OPERATIONS: dict[str, str] = {
-    "describe_c2st_columns": "#629",
     "query_frame": "#603",
 }
 

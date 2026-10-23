@@ -22,6 +22,7 @@ import random
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 from typing import Any
 
@@ -112,6 +113,18 @@ class Handles:
     numeric_test: str
     #: ``frame`` filled by ``median_imputer``, for ``evaluate_imputation``.
     median_imputed: str
+    #: Makes ``median_c2st`` on first read.
+    harness: Harness
+
+    @cached_property
+    def median_c2st(self) -> str:
+        """``median_imputed`` scored by ``evaluate_imputation``, for ``describe_c2st_columns``.
+
+        Made on first read, so only the tests that need it run the C2ST.
+        """
+        return self.harness.code_mode(
+            "evaluate_imputation", profile=self.profile, imputed=self.median_imputed
+        ).json["c2st"]
 
 
 Call = tuple[str, dict[str, Any]]
@@ -240,6 +253,10 @@ CALLS: dict[str, Callable[[Handles], list[Call]]] = {
         ),
         ("evaluate_imputation", {"profile": h.profile, "imputed": h.frame}),
     ],
+    "describe_c2st_columns": lambda h: [
+        ("describe_c2st_columns", {"report": h.median_c2st}),
+        ("describe_c2st_columns", {"report": h.median_c2st, "names": ["amout"]}),
+    ],
     "export_frame": lambda h: [
         ("export_frame", {"frame": h.frame}),
         ("export_frame", {"frame": h.profile}),
@@ -309,6 +326,7 @@ def _handles(harness: Harness, canaries: Canaries) -> Handles:
         median_imputed=harness.code_mode(
             "impute", imputer=median_imputer, frame=frame
         ).json["frame"],
+        harness=harness,
     )
 
 

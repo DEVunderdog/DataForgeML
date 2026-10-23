@@ -538,6 +538,36 @@ def read_unit_record(handle: str, *, param: str) -> dict[str, Any]:
     return record
 
 
+def read_c2st(handle: str, *, param: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Read a C2ST report Handle's stored JSON report and record it as an input.
+
+    The payload is read from disk every time: the in-memory cache holds the
+    live report ``evaluate_imputation`` wrote, not its JSON form.
+
+    Parameters
+    ----------
+    handle : str
+        The c2st Handle the Agent passed.
+    param : str
+        The argument path, for error records.
+
+    Returns
+    -------
+    tuple of (dict, dict)
+        The stored report, every column with its per-frame results and the
+        provenance, and the Handle record.
+
+    Raises
+    ------
+    DataForgeError
+        As :func:`read_record`.
+    """
+    record = read_record(handle, "c2st", param=param)
+    _record_input(handle)
+    report = json.loads(payload_path(handle, record).read_text("utf-8"))
+    return report, record
+
+
 def read_imputer(handle: str, *, param: str) -> tuple[Any, dict[str, Any]]:
     """Read an imputer Handle, composing its recipe and units again (ADR-0103).
 

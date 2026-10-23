@@ -70,6 +70,7 @@ _EXPORTS: dict[str, tuple[str, ...]] = {
     # here is today's door, and becomes internal as the Operations land.
     ".operations.c2st": ("c2st",),
     ".operations.compose_imputer": ("compose_imputer",),
+    ".operations.describe_c2st_columns": ("describe_c2st_columns",),
     ".operations.describe_columns": ("describe_columns",),
     ".operations.describe_target": ("describe_target",),
     ".operations.evaluate_imputation": ("evaluate_imputation",),
@@ -170,6 +171,7 @@ __all__ = [
     "c2st",
     "compose_imputer",
     "derive_units",
+    "describe_c2st_columns",
     "describe_columns",
     "describe_target",
     "deserialize",
