@@ -46,6 +46,7 @@ EXEMPT: dict[tuple[str, str], str] = {
     ("_boundary/_operation.py", "_build_spec"): "an Operation defined outside the Strict Subset",
     ("_boundary/_operation.py", "decorate"): "an Operation registered twice",
     ("_boundary/_schema.py", "_inline"): "a recursive schema, found at definition time",
+    ("_boundary/_skill_build.py", "skill_text"): "a Skill without its index markers, found at build time",
     ("_cli.py", "main"): "the console script's exit status, not an error",
     ("__init__.py", "__getattr__"): "Python's module attribute protocol needs AttributeError",
 }

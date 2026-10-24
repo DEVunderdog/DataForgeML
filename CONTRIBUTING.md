@@ -267,14 +267,17 @@ contract test, but you only learn that after a long run. Work down this list ins
 
 **Regenerate the derived files**
 
-Both are committed, and a contract test fails when either is stale. Run them after the
+All three are committed, and a contract test fails when any is stale. Run them after the
 Operation's signature and docstring are final.
 
 ```bash
 # The committed CLI help, src/dataforge_ml/_help.json
 uv run python -m dataforge_ml._boundary._help_build
 
-# The schema snapshots, tests/contract/snapshots/schemas/<name>.json (also refreshes the help)
+# The command index in the package Skill, src/dataforge_ml/skill/SKILL.md
+uv run python -m dataforge_ml._boundary._skill_build
+
+# The schema snapshots, tests/contract/snapshots/schemas/<name>.json (also refreshes the help and the Skill index)
 DATAFORGE_ML_UPDATE_SNAPSHOTS=1 uv run pytest -n 0 tests/contract
 ```
 
