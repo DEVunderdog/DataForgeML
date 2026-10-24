@@ -30,7 +30,6 @@ from ._config import (
     ImputationStrategy,
     NumericImputationConfig,
     _dial_defaults,
-    _md_cell,
 )
 from ._escalation import _mice_winning_tag, _resolve_nonlinearity_tag
 
@@ -88,34 +87,6 @@ class ColumnEstimates:
     center2: float | None = None
     feature_cols: tuple[str, ...] | None = None
     domain_snap_bounds: tuple[float, float] | None = None
-
-    def to_markdown(self) -> str:
-        """Render the estimates as a ``####``-rooted Markdown fragment.
-
-        Returns
-        -------
-        str
-            Markdown subsection with a field table.
-        """
-        lines = [
-            "| Field | Value |",
-            "|---|---|",
-            f"| center1 | {_md_cell(self.center1)} |",
-            f"| center2 | {_md_cell(self.center2)} |",
-            f"| feature_cols | {_md_cell(self.feature_cols)} |",
-            f"| domain_snap_bounds | {_md_cell(self.domain_snap_bounds)} |",
-        ]
-        return "\n".join(lines)
-
-    def __str__(self) -> str:
-        """Return the fragment, per rule 2 of the Rendering Contract.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise the column estimates to a plain dictionary.
@@ -767,65 +738,6 @@ class ImputationRecipe:
             numeric_sentinels=self.numeric_sentinels,
             string_sentinels=self.string_sentinels,
         )
-
-    def to_markdown(self) -> str:
-        """Render the whole recipe as a Markdown document.
-
-        Returns
-        -------
-        str
-            Markdown document with a summary, the hyperparameter table, and
-            the per-column estimates.
-        """
-        lines = ["# Imputation Recipe\n"]
-
-        lines.append("## Summary\n")
-        lines.append("| Field | Value |")
-        lines.append("|---|---|")
-        lines.append(f"| columns | {len(self.routing.column_routings)} |")
-        lines.append(f"| column_estimates | {len(self.column_estimates)} |")
-        lines.append("")
-
-        lines.append("## Hyperparameters\n")
-        lines.append("| Unit | Decided base | Override delta |")
-        lines.append("|---|---|---|")
-        unit_ids = list(
-            dict.fromkeys(
-                list(self.decided_hyperparameters) + list(self.hyperparameter_overrides)
-            )
-        )
-        if unit_ids:
-            for unit_id in unit_ids:
-                decided = dict(self.decided_hyperparameters.get(unit_id, ()))
-                override = dict(self.hyperparameter_overrides.get(unit_id, ()))
-                lines.append(
-                    f"| `{unit_id}` | {_md_cell(decided)} | {_md_cell(override)} |"
-                )
-        else:
-            lines.append("| none | | |")
-        lines.append("")
-
-        lines.append("## Column Estimates\n")
-        if self.column_estimates:
-            for col, estimates in self.column_estimates.items():
-                lines.append(f"### `{col}`\n")
-                lines.append(estimates.to_markdown())
-                lines.append("")
-        else:
-            lines.append("none")
-            lines.append("")
-
-        return "\n".join(lines).strip() + "\n"
-
-    def __str__(self) -> str:
-        """Return the Imputation Recipe document, per rule 2 of the contract.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()
 
     def to_dict(self) -> dict:
         """Serialise the recipe to a plain, JSON-friendly dictionary.

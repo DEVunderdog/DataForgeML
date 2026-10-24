@@ -35,7 +35,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from enum import Enum, StrEnum
+from enum import StrEnum
 from typing import Any
 
 import numpy as np
@@ -95,24 +95,6 @@ class C2STScheme(StrEnum):
     CrossValidation = "cross_validation"
 
 
-def _md_cell(value: Any) -> str:
-    """Render one value as a Markdown table cell.
-
-    Absence is stated rather than left as a bare ``None``, enums render by their
-    string form, and any pipe or newline is neutralised so it cannot break the
-    surrounding table.
-    """
-    if value is None:
-        return "none"
-    if isinstance(value, Enum):
-        text = str(value)
-    elif isinstance(value, (list, tuple)):
-        text = ", ".join(_md_cell(v) for v in value) if value else "none"
-    else:
-        text = str(value)
-    return text.replace("|", "\\|").replace("\n", " ")
-
-
 @dataclass(frozen=True)
 class C2STResult:
     """What the generic test returns for one pair of samples.
@@ -162,46 +144,6 @@ class C2STResult:
     n_test: int = 0
     degenerate: bool = False
     unseen_category: bool = False
-
-    def to_markdown(self) -> str:
-        """Render the result as a ``###``-rooted Markdown fragment.
-
-        A fragment per rule 5 of the Rendering Contract (ADR-0086): it carries
-        no ``#`` or ``##`` heading, so an owning document composes it without a
-        heading collision.
-
-        Returns
-        -------
-        str
-            Markdown subsection headed by ``### C2ST Sample-Pair Result``,
-            holding the pooled figures and the two runtime flags.
-        """
-        return "\n".join(
-            [
-                "### C2ST Sample-Pair Result\n",
-                "| Field | Value |",
-                "|---|---|",
-                f"| mean_repeat_z | {self.mean_repeat_z:.4f} |",
-                f"| repeat_z_spread | {self.repeat_z_spread:.4f} |",
-                f"| repeats | {len(self.repeat_z)} |",
-                "| repeat_z | " + _md_cell([f"{z:.4f}" for z in self.repeat_z]) + " |",
-                f"| train_accuracy | {self.train_accuracy:.4f} |",
-                f"| test_accuracy | {self.test_accuracy:.4f} |",
-                f"| n_test | {self.n_test} |",
-                f"| degenerate | {_md_cell(self.degenerate)} |",
-                f"| unseen_category | {_md_cell(self.unseen_category)} |",
-            ]
-        )
-
-    def __str__(self) -> str:
-        """Return the fragment, per rule 2 of the Rendering Contract.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()
 
 
 def _default_c2st_classifier(

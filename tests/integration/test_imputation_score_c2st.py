@@ -965,7 +965,6 @@ def test_train_accuracy_is_reported_beside_test_accuracy(baseline_frames):
     # one lucky draw is visible.
     assert len(frame.repeat_z) == 3
     assert frame.repeat_z_spread >= 0.0
-    assert "train_accuracy" in score.to_markdown()
 
 
 # ---------------------------------------------------------------------------

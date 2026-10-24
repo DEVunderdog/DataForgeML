@@ -11,7 +11,7 @@ per-column audit trail and the imputed DataFrame produced by
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum, StrEnum
+from enum import StrEnum
 from types import MappingProxyType
 from typing import Any
 
@@ -868,57 +868,6 @@ class ImputationConfig:
         return config
 
 
-def _md_cell(value: Any) -> str:
-    """Render one value as a Markdown table cell.
-
-    Absence is stated rather than left as a bare ``None``, enums render by
-    their string form (matching ``to_dict``), and any pipe or newline in the
-    value is neutralised so it cannot break the surrounding table.
-    """
-    if value is None:
-        return "none"
-    if isinstance(value, Enum):
-        text = str(value)
-    elif isinstance(value, (list, tuple)):
-        text = ", ".join(_md_cell(v) for v in value) if value else "none"
-    elif isinstance(value, dict):
-        text = (
-            ", ".join(f"{k}={_md_cell(v)}" for k, v in value.items())
-            if value
-            else "none"
-        )
-    else:
-        text = str(value)
-    return text.replace("|", "\\|").replace("\n", " ")
-
-
-def _frame_lines(frame: pl.DataFrame) -> list[str]:
-    """Render a Payload Frame's shape and dtypes, never its rows (ADR-0086)."""
-    lines = [
-        f"Shape: {frame.height:,} rows x {frame.width:,} columns\n",
-        "| Column | Dtype |",
-        "|---|---|",
-    ]
-    if frame.width:
-        for name, dtype in frame.schema.items():
-            lines.append(f"| `{name}` | {dtype} |")
-    else:
-        lines.append("| none | |")
-    return lines
-
-
-def _flatten_snapshot(value: Any, prefix: str = "") -> list[tuple[str, Any]]:
-    """Flatten a nested config snapshot into dotted-key / value rows."""
-    rows: list[tuple[str, Any]] = []
-    if isinstance(value, dict):
-        for key, sub in value.items():
-            path = f"{prefix}.{key}" if prefix else str(key)
-            rows.extend(_flatten_snapshot(sub, path))
-    else:
-        rows.append((prefix, value))
-    return rows
-
-
 @dataclass(frozen=True)
 class ColumnRouting:
     """One column's routed imputation strategy, and nothing computed from it.
@@ -1047,45 +996,6 @@ class ColumnRouting:
             drop=bool(data.get("drop", False)),
             excluded=bool(data.get("excluded", False)),
         )
-
-    def to_markdown(self) -> str:
-        """Render the column routing as a ``###``-rooted Markdown fragment.
-
-        A fragment per rule 5 of the Rendering Contract (ADR-0086): it carries
-        no ``#`` or ``##`` heading, so the owning document composes it without
-        a heading collision.
-
-        Returns
-        -------
-        str
-            Markdown subsection headed by ``### `<column>``` and a field table.
-        """
-        lines = [
-            f"### `{self.column}`\n",
-            "| Field | Value |",
-            "|---|---|",
-            f"| semantic_type | {_md_cell(self.semantic_type)} |",
-            f"| strategy | {_md_cell(self.strategy)} |",
-            f"| reason | {_md_cell(self.reason)} |",
-            f"| evidence | {_md_cell([fact.kind for fact in self.evidence])} |",
-            f"| constant_fill | {_md_cell(self.constant_fill)} |",
-            f"| grouping_variable | {_md_cell(self.grouping_variable)} |",
-            f"| indicator_flag | {_md_cell(self.indicator_flag)} |",
-            f"| mnar | {_md_cell(self.mnar)} |",
-            f"| drop | {_md_cell(self.drop)} |",
-            f"| excluded | {_md_cell(self.excluded)} |",
-        ]
-        return "\n".join(lines)
-
-    def __str__(self) -> str:
-        """Return the fragment, per rule 2 of the Rendering Contract.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()
 
 
 @dataclass(frozen=True)
@@ -1240,62 +1150,6 @@ class ImputationRouting:
             ),
         )
 
-    def to_markdown(self) -> str:
-        """Render the whole routing as a Markdown document.
-
-        A document per rule 5 of the Rendering Contract (ADR-0086): it owns
-        the ``#`` and ``##`` heading levels and delegates to the
-        :class:`ColumnRouting` fragments beneath them.
-
-        Returns
-        -------
-        str
-            Markdown document with a summary and the per-column routings.
-        """
-        lines = ["# Imputation Routing\n"]
-
-        lines.append("## Summary\n")
-        lines.append("| Field | Value |")
-        lines.append("|---|---|")
-        lines.append(f"| columns | {len(self.column_routings)} |")
-        lines.append(f"| mice_model_choice | {_md_cell(self.mice_model_choice)} |")
-        lines.append(
-            f"| mice_estimator | "
-            f"{_md_cell(type(self.mice_estimator).__name__ if self.mice_estimator is not None else None)} |"
-        )
-        lines.append("")
-
-        lines.append("## Column Routings\n")
-        lines.append("| Column | Semantic type | Strategy | Indicator | MNAR | Drop |")
-        lines.append("|---|---|---|---|---|---|")
-        if self.column_routings:
-            for routing in self.column_routings.values():
-                lines.append(
-                    f"| `{routing.column}` | {_md_cell(routing.semantic_type)} "
-                    f"| {_md_cell(routing.strategy)} "
-                    f"| {_md_cell(routing.indicator_flag)} "
-                    f"| {_md_cell(routing.mnar)} | {_md_cell(routing.drop)} |"
-                )
-        else:
-            lines.append("| none | | | | | |")
-        lines.append("")
-        if self.column_routings:
-            for routing in self.column_routings.values():
-                lines.append(routing.to_markdown())
-                lines.append("")
-
-        return "\n".join(lines).strip() + "\n"
-
-    def __str__(self) -> str:
-        """Return the Imputation Routing document, per rule 2 of the contract.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()
-
 
 # ---------------------------------------------------------------------------
 # ImputationUnit — the plan's execution units (ADR-0084)
@@ -1390,38 +1244,6 @@ class ImputationUnit:
             is_block=strategy in _JOINT_BLOCK_STRATEGIES,
         )
 
-    def to_markdown(self) -> str:
-        """Render the execution unit as a ``###``-rooted Markdown fragment.
-
-        A fragment per rule 5 of the Rendering Contract (ADR-0086): it carries
-        no ``#`` or ``##`` heading, so the owning document composes it without
-        a heading collision.
-
-        Returns
-        -------
-        str
-            Markdown subsection headed by ``### `<unit_id>``` and a field table.
-        """
-        lines = [
-            f"### `{self.unit_id}`\n",
-            "| Field | Value |",
-            "|---|---|",
-            f"| strategy | {_md_cell(self.strategy)} |",
-            f"| columns | {_md_cell(self.columns)} |",
-            f"| is_block | {_md_cell(self.is_block)} |",
-        ]
-        return "\n".join(lines)
-
-    def __str__(self) -> str:
-        """Return the fragment, per rule 2 of the Rendering Contract.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()
-
 
 @dataclass
 class ColumnImputationRecord:
@@ -1499,38 +1321,6 @@ class ColumnImputationRecord:
             indicator_added=bool(data.get("indicator_added", False)),
         )
 
-    def to_markdown(self) -> str:
-        """Render the audit record as a ``###``-rooted Markdown fragment.
-
-        A fragment per rule 5 of the Rendering Contract (ADR-0086): it carries
-        no ``#`` or ``##`` heading, so the owning result document composes it
-        without a heading collision. The composed :class:`ColumnRouting`
-        renders its own table — *what was routed* — and the learned
-        ``fill_value`` and ``indicator_added`` continue it.
-
-        Returns
-        -------
-        str
-            Markdown subsection headed by ``### `<column>``` and a field table
-            covering the routing's fields plus the learned ones.
-        """
-        lines = [
-            self.decision.to_markdown(),
-            f"| fill_value | {_md_cell(self.fill_value)} |",
-            f"| indicator_added | {_md_cell(self.indicator_added)} |",
-        ]
-        return "\n".join(lines)
-
-    def __str__(self) -> str:
-        """Return the fragment, per rule 2 of the Rendering Contract.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()
-
 
 @dataclass
 class ImputationResult:
@@ -1550,66 +1340,3 @@ class ImputationResult:
     dataframe: pl.DataFrame
     records: dict[str, ColumnImputationRecord] = field(default_factory=dict)
     dropped_columns: list[str] = field(default_factory=list)
-
-    def to_markdown(self) -> str:
-        """Render the transform result as a Markdown document.
-
-        A document per rule 5 of the Rendering Contract (ADR-0086): it owns the
-        ``#`` and ``##`` heading levels and delegates to the
-        :class:`ColumnImputationRecord` fragments beneath them. ``dataframe`` is
-        a Payload Frame — its shape and dtypes are reported and its rows never
-        are — so the output stays bounded in the number of rows imputed.
-
-        Returns
-        -------
-        str
-            Markdown document with a summary, the dropped columns, the imputed
-            frame's shape and dtypes, and the per-column audit records.
-        """
-        lines = ["# Imputation Result\n"]
-
-        lines.append("## Summary\n")
-        lines.append("| Field | Value |")
-        lines.append("|---|---|")
-        lines.append(f"| records | {len(self.records)} |")
-        lines.append(f"| dropped_columns | {_md_cell(self.dropped_columns)} |")
-        lines.append(
-            "| indicators_added | "
-            + _md_cell(sum(1 for r in self.records.values() if r.indicator_added))
-            + " |"
-        )
-        lines.append("")
-
-        lines.append("## Imputed Frame\n")
-        lines.extend(_frame_lines(self.dataframe))
-        lines.append("")
-
-        lines.append("## Column Records\n")
-        lines.append("| Column | Strategy | Fill value | Indicator added |")
-        lines.append("|---|---|---|---|")
-        if self.records:
-            for record in self.records.values():
-                lines.append(
-                    f"| `{record.decision.column}` "
-                    f"| {_md_cell(record.decision.strategy)} "
-                    f"| {_md_cell(record.fill_value)} "
-                    f"| {_md_cell(record.indicator_added)} |"
-                )
-        else:
-            lines.append("| none | | | |")
-        lines.append("")
-        for record in self.records.values():
-            lines.append(record.to_markdown())
-            lines.append("")
-
-        return "\n".join(lines).strip() + "\n"
-
-    def __str__(self) -> str:
-        """Return the Imputation Result document, per rule 2 of the contract.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()

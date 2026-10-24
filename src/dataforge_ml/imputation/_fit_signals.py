@@ -19,7 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from ..records import ResultWarning
-from ._config import ImputationStrategy, _md_cell
+from ._config import ImputationStrategy
 
 __all__ = [
     "FitSignals",
@@ -76,53 +76,3 @@ class FitSignals:
     n_iter: int | None = None
     warnings: tuple[ResultWarning, ...] = field(default_factory=tuple)
     notes: tuple[str, ...] = field(default_factory=tuple)
-
-    def to_markdown(self) -> str:
-        """Render the fit record as a ``###``-rooted Markdown fragment.
-
-        A fragment per rule 5 of the Rendering Contract (ADR-0086): it carries
-        no ``#`` or ``##`` heading, so the owning
-        :class:`~dataforge_ml.imputation.UnitFitResult` document composes it
-        without a heading collision. The typed core renders as a field table;
-        ``warnings`` and ``notes`` render as two separate ``####`` sections,
-        preserving the separation ADR-0074 built into the type — "did anything
-        go wrong?" is answered by reading the warnings section alone.
-
-        Returns
-        -------
-        str
-            Markdown subsection headed by ``### Fit Signals`` with the typed
-            core, then a warnings section and a notes section.
-        """
-        lines = [
-            f"### Fit Signals — `{self.unit_id}`\n",
-            "| Field | Value |",
-            "|---|---|",
-            f"| strategy | {_md_cell(self.strategy)} |",
-            f"| estimator | {_md_cell(self.estimator)} |",
-            f"| converged | {_md_cell(self.converged)} |",
-            f"| n_iter | {_md_cell(self.n_iter)} |",
-            "",
-            "#### Warnings\n",
-        ]
-        if self.warnings:
-            lines.extend(f"- `{w.code}`: {w.message}" for w in self.warnings)
-        else:
-            lines.append("none")
-        lines.append("")
-        lines.append("#### Notes\n")
-        if self.notes:
-            lines.extend(f"- {note}" for note in self.notes)
-        else:
-            lines.append("none")
-        return "\n".join(lines)
-
-    def __str__(self) -> str:
-        """Return the fragment, per rule 2 of the Rendering Contract.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()

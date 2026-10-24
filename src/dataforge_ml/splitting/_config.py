@@ -103,21 +103,6 @@ class SplitConfig:
 # ---------------------------------------------------------------------------
 
 
-def _frame_lines(frame: pl.DataFrame, n_rows: int) -> list[str]:
-    """Render a Payload Frame's shape and dtypes, never its rows (ADR-0086)."""
-    lines = [
-        f"Shape: {n_rows:,} rows x {frame.width:,} columns\n",
-        "| Column | Dtype |",
-        "|---|---|",
-    ]
-    if frame.width:
-        for name, dtype in frame.schema.items():
-            lines.append(f"| `{name}` | {dtype} |")
-    else:
-        lines.append("| none | |")
-    return lines
-
-
 @dataclass
 class SplitResult:
     """
@@ -145,45 +130,6 @@ class SplitResult:
     test_size: int
     train_ratio: float
     test_ratio: float
-
-    def to_markdown(self) -> str:
-        """Render the train/test split as a Markdown document.
-
-        A document per rule 5 of the Rendering Contract (ADR-0086). Both
-        partitions are Payload Frames: their shape and dtypes are reported and
-        their rows never are, so the output stays bounded in the number of rows
-        the split carries.
-
-        Returns
-        -------
-        str
-            Markdown document with the partition sizes and ratios, followed by
-            the shape and dtypes of the train and test frames.
-        """
-        total = self.train_size + self.test_size
-        lines = ["# Train/Test Split\n"]
-        lines.append("| Partition | Rows | Ratio |")
-        lines.append("|---|---|---|")
-        lines.append(f"| train | {self.train_size:,} | {self.train_ratio:.2%} |")
-        lines.append(f"| test | {self.test_size:,} | {self.test_ratio:.2%} |")
-        lines.append(f"| total | {total:,} | |")
-        lines.append("")
-        lines.append("## Train Frame\n")
-        lines.extend(_frame_lines(self.train, self.train_size))
-        lines.append("")
-        lines.append("## Test Frame\n")
-        lines.extend(_frame_lines(self.test, self.test_size))
-        return "\n".join(lines).strip() + "\n"
-
-    def __str__(self) -> str:
-        """Return the Train/Test Split document, per rule 2 of the contract.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()
 
 
 @dataclass
@@ -216,48 +162,6 @@ class FoldResult:
     val_size: int
     repeat_index: int = 0
 
-    def to_markdown(self) -> str:
-        """Render the fold as a Markdown document.
-
-        A document, not a fragment: ``kfold``, ``group_kfold``,
-        ``repeated_kfold`` and ``profile_stratified_kfold`` hand a
-        ``list[FoldResult]`` back directly, so a single fold is something the
-        library returns and ``print(folds[0])`` must read as a complete report
-        (ADR-0086). Both partitions are Payload Frames: shape and dtypes are
-        reported, rows never are.
-
-        Returns
-        -------
-        str
-            Markdown document with the fold's position, its partition sizes,
-            and the shape and dtypes of the train and validation frames.
-        """
-        total = self.train_size + self.val_size
-        lines = [f"# Fold {self.fold_index} (repeat {self.repeat_index})\n"]
-        lines.append("| Partition | Rows |")
-        lines.append("|---|---|")
-        lines.append(f"| train | {self.train_size:,} |")
-        lines.append(f"| validation | {self.val_size:,} |")
-        lines.append(f"| total | {total:,} |")
-        lines.append("")
-        lines.append("## Train Frame\n")
-        lines.extend(_frame_lines(self.train, self.train_size))
-        lines.append("")
-        lines.append("## Validation Frame\n")
-        lines.extend(_frame_lines(self.val, self.val_size))
-        return "\n".join(lines).strip() + "\n"
-
-    def __str__(self) -> str:
-        """Return the Fold document, per rule 2 of the contract.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()
-
-
 
 @dataclass
 class HoldoutCVResult:
@@ -275,46 +179,3 @@ class HoldoutCVResult:
 
     test: pl.DataFrame
     folds: list[FoldResult]
-
-    def to_markdown(self) -> str:
-        """Render the holdout-plus-CV split as a Markdown document.
-
-        The fold summary table is formatted inline rather than delegated to
-        :meth:`FoldResult.to_markdown`, because ``FoldResult`` is itself a
-        document and rule 5 of the Rendering Contract (ADR-0086) does not let
-        one type be both document and fragment. The test partition is a Payload
-        Frame: its shape and dtypes are reported and its rows never are.
-
-        Returns
-        -------
-        str
-            Markdown document with the test frame's shape and dtypes followed
-            by a one-row-per-fold summary table.
-        """
-        lines = ["# Holdout + Cross-Validation Split\n"]
-        lines.append("## Test Frame\n")
-        lines.extend(_frame_lines(self.test, self.test.height))
-        lines.append("")
-        lines.append(f"## Folds ({len(self.folds)})\n")
-        lines.append("| Fold | Repeat | Train rows | Validation rows | Columns |")
-        lines.append("|---|---|---|---|---|")
-        if self.folds:
-            for fold in self.folds:
-                lines.append(
-                    f"| {fold.fold_index} | {fold.repeat_index} "
-                    f"| {fold.train_size:,} | {fold.val_size:,} "
-                    f"| {fold.train.width:,} |"
-                )
-        else:
-            lines.append("| none | | | | |")
-        return "\n".join(lines).strip() + "\n"
-
-    def __str__(self) -> str:
-        """Return the Holdout + Cross-Validation document, per rule 2.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()

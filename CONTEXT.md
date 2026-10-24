@@ -587,8 +587,7 @@ A runtime **degeneracy check** — every repeat's classifier predicting a single
 
 ### C2ST Records
 
-One record per **active** column, always: *untestable is a result, never an absence*. The `m` frames nest **inside** the column record rather than forming a second key, because the missingness mask is `m`-invariant — pile sizes, floors and annotations are column-level facts that cannot differ between frames. `report[col]` and `col in report` work as they did on the old surface; an excluded column raises `KeyError`, since it is not in the census at all. All of these are Result Types and render under the **Rendering Contract** from birth.
-
+One record per **active** column, always: *untestable is a result, never an absence*. The `m` frames nest **inside** the column record rather than forming a second key, because the missingness mask is `m`-invariant — pile sizes, floors and annotations are column-level facts that cannot differ between frames. `report[col]` and `col in report` work as they did on the old surface; an excluded column raises `KeyError`, since it is not in the census at all.
 - **C2STReport** — the column-keyed report: `columns`, `provenance`, `__getitem__` / `__contains__`. 
 - **ColumnC2STResult** — one column's result: `outcome`, the two raw pile sizes, `annotations`, `verdict`, and `score`.
 - **C2STScore** — the single **nullable** object holding every number that exists only when the test ran: `mean_frame_z`, `frame_z_spread`, `p_value`, `p_adjusted`, and the per-frame `C2STResult`s. Its nullability is the whole point: `result.score.mean_frame_z` on a refused column raises `AttributeError` on the spot instead of feeding a `0.0` or a `None` into a mean, a plot or a comparison. A refused column and a chance-scoring column differ by *having or not having a score object*.
