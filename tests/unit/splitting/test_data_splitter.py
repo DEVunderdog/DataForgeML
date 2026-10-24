@@ -2326,9 +2326,3 @@ def test_holdout_cv_different_seeds_differ(kfold_df):
     r1 = s1.holdout_cv(test_size=_HCV_TEST_SIZE, k=_HCV_K)
     r2 = s2.holdout_cv(test_size=_HCV_TEST_SIZE, k=_HCV_K)
     assert not r1.test.equals(r2.test)
-
-
-def test_holdout_cv_exported_from_top_level():
-    import dataforge_ml
-
-    assert dataforge_ml.HoldoutCVResult is HoldoutCVResult

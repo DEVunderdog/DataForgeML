@@ -100,7 +100,7 @@ class UnitFitContext:
         The owning routing's user-supplied MICE estimator
         (:attr:`~dataforge_ml.imputation.ImputationRouting.mice_estimator`),
         held by identity and never cloned. Read only when the block's
-        ``model_choice`` is :attr:`~dataforge_ml.ModelChoice.Custom`.
+        ``model_choice`` is :attr:`~dataforge_ml.imputation.ModelChoice.Custom`.
     random_seed : int, optional
         Seed for the stochastic strategies (GMM sampling).
     mice_model_choice : ModelChoice, optional
@@ -381,7 +381,7 @@ def fit_mice_unit(
     The block trains a single estimator, built from ``ctx.mice_model_choice``
     — the choice :func:`~dataforge_ml.imputation.route` resolved off the
     Estimator Ladder (ADR-0094), or that ``with_model_choice`` set explicitly.
-    :attr:`~dataforge_ml.ModelChoice.Custom` is the one choice nothing is
+    :attr:`~dataforge_ml.imputation.ModelChoice.Custom` is the one choice nothing is
     built for: the user's own estimator is taken off ``ctx.mice_estimator``
     and used as-is (ADR-0090). It is not cloned, its ``n_jobs`` is not set,
     and a pre-fitted one is accepted without a raise or a warning —

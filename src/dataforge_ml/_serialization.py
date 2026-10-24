@@ -12,7 +12,7 @@ Wire format
 Every serialized object is a **JSON header line** — a compact, newline-free JSON
 object carrying a ``kind`` tag, the format-schema version, and the installed
 ``library_version`` — optionally followed by ``b"\\n"`` and an **opaque joblib
-payload**. Only the :class:`~dataforge_ml.FittedUnit` has a payload (its learned
+payload**. Only the :class:`~dataforge_ml.imputation.FittedUnit` has a payload (its learned
 state); a routing, a recipe, and a profile are pure data structures whose whole
 ``to_dict()`` rides inside the header under ``"data"``. Because ``json.dumps``
 escapes newlines inside strings, the first raw ``b"\\n"`` byte unambiguously ends

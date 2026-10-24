@@ -1,6 +1,6 @@
 """The manual authoring door — ``author()`` builds a real routing (ADR-0090).
 
-Every assertion drives the public API only: ``author`` in, an
+Every assertion drives the imputation package's surface: ``author`` in, an
 ``ImputationRouting`` out, and where a routing has to *work* it is worked
 through ``resolve_recipe`` → ``derive_units`` → ``fit_unit`` → ``compose`` →
 ``transform``. The door's promise is that a hand-authored routing is
@@ -13,7 +13,6 @@ import numpy as np
 import polars as pl
 import pytest
 
-import dataforge_ml
 from dataforge_ml.config import PipelineConfig, SemanticType
 from dataforge_ml.imputation import (
     AuthoredColumn,
@@ -71,17 +70,17 @@ def _drive(routing, df, config=None):
 
 
 # ---------------------------------------------------------------------------
-# The door is part of the Public API (ADR-0050)
+# The door is internal: the package root exports the Operations only
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("name", ["author", "AuthoredColumn"])
-def test_exported_from_package_root_and_subpackage(name):
+def test_exported_from_the_subpackage_not_the_package_root(name):
+    import dataforge_ml
     from dataforge_ml import imputation
 
-    assert name in dataforge_ml.__all__
     assert name in imputation.__all__
-    assert getattr(dataforge_ml, name) is getattr(imputation, name)
+    assert not hasattr(dataforge_ml, name)
 
 
 # ---------------------------------------------------------------------------

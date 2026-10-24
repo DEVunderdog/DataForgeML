@@ -541,7 +541,12 @@ def test_result_json_is_byte_stable(name: str, harness: Harness, tmp_path: Path)
     keys_in_schema_order(json.loads(first), spec.output_schema())
 
 
-def test_every_operation_is_exported_from_the_package() -> None:
+def test_the_package_root_exports_the_operations_and_nothing_else() -> None:
+    assert sorted(dataforge_ml.__all__) == NAMES
     for name in NAMES:
-        assert name in dataforge_ml.__all__
         assert getattr(dataforge_ml, name).__operation__ is OPERATIONS[name]
+
+
+@pytest.mark.parametrize("name", ["DataSplitter", "FittedImputer", "PipelineConfig", "author"])
+def test_the_old_door_is_not_reachable_from_the_package_root(name: str) -> None:
+    assert not hasattr(dataforge_ml, name)

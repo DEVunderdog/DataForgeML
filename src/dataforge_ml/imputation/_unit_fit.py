@@ -233,7 +233,7 @@ def fit_unit(
         ``unknown_unit`` if ``unit`` names no unit in the recipe's routing.
     InvalidInput
         ``invalid_argument`` if ``unit`` is a unit id string rather than an
-        :class:`~dataforge_ml.ImputationUnit` — the pre-4.x signature.
+        :class:`~dataforge_ml.imputation.ImputationUnit` — the pre-4.x signature.
     Conflict
         ``unit_routing_mismatch`` if ``unit``'s ``strategy`` or ``columns``
         differ from the recipe's own unit of the same id — it was derived from

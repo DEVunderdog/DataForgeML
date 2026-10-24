@@ -10,7 +10,7 @@ Estimator Ladder — a flat map, no bounds, no downgrade:
 through :meth:`~dataforge_ml.imputation.ImputationRouting.with_model_choice`
 (an explicit user choice, ADR-0090). ``resolve_choice`` is total: every
 ``NonlinearityTag`` — including ``Unpredictable`` — resolves to a
-:class:`~dataforge_ml.ModelChoice`, never ``None`` (ADR-0094 deleted the
+:class:`~dataforge_ml.imputation.ModelChoice`, never ``None`` (ADR-0094 deleted the
 ``None``/skip branch the ``Unpredictable`` tag used to take).
 
 The RandomForest branch is built as a ``_CoreInvariantRandomForest`` rather than
@@ -186,7 +186,7 @@ class RegressionEstimatorFactory:
         ------
         Infeasible
             ``custom_estimator_missing`` if ``choice`` is
-            :attr:`~dataforge_ml.ModelChoice.Custom`.  That
+            :attr:`~dataforge_ml.imputation.ModelChoice.Custom`.  That
             member names an estimator the library did not build, so there is
             nothing here to construct; the instance travels on the routing's
             ``mice_estimator`` slot and the caller reads it from there

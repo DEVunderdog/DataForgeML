@@ -68,10 +68,8 @@ _MAR_CAVEAT: str = (
 class C2STOutcome(StrEnum):
     """What happened to one column — the closed seven-member vocabulary.
 
-    A further member is a breaking change. Exported despite classifying output
-    and never being supplied, a stated exception to ADR-0050: reading the
-    report *is* comparing against it (``rec.outcome is C2STOutcome.Tested``),
-    so the handling half of the export rule reaches it.
+    A further member is a breaking change: reading the report *is* comparing
+    against it (``rec.outcome is C2STOutcome.Tested``).
 
     ``Tested`` is the only member carrying a :class:`C2STScore`; the other six
     are refusals, each naming why the test could not produce an honest number.

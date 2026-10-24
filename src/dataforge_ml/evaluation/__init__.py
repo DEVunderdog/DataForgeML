@@ -12,10 +12,10 @@ takes two frames and returns a
 adapt a phase's artefacts to that layer; ``evaluation/imputation/`` is the
 first of them.
 
-Public exports land with the entry point ``imputation_score_c2st``. The generic
-seam ``c2st`` is public too (ADR-0087's amendment, #537): the umbrella that
-justified keeping it private under ADR-0050 is deleted, and a user can run it
-directly as an ad hoc distributional check on any two frames.
+The package exports the entry point ``imputation_score_c2st`` and the generic
+seam ``c2st``. Neither reaches the package root, which exports the Operations
+only (ADR-0099); the root ``c2st`` is the Operation that runs this seam over
+two frame Handles.
 """
 
 from __future__ import annotations

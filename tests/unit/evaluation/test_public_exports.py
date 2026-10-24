@@ -1,15 +1,9 @@
-"""What the evaluation module ships from the package root.
+"""What the evaluation module ships, and what the package root does not.
 
-The export rule is ADR-0050's: a symbol lands at the root iff the user must
-reference it to configure, drive, or handle the pipeline. Two things about the
-evaluation module's list need a test rather than a reading.
-
-The three outcome enums are a **stated exception** (ADR-0087): they classify
-output and are never user-supplied — the exact test that keeps ``TypeFlag``
-internal — but reading the report *is* branching on them, so the handling half
-of the rule reaches them. The generic seam ``c2st`` is Public as of ADR-0087's
-amendment (#537): the umbrella that justified its privacy is gone, so it lands
-at the package root alongside the two errors it raises (spec #563).
+The package root exports the Operations only (ADR-0099). The evaluation
+module's records and the generic C2ST seam stay importable from
+``dataforge_ml.evaluation``; the root ``c2st`` is the Operation that runs the
+seam over two frame Handles (ADR-0110).
 """
 
 import dataforge_ml
@@ -30,21 +24,14 @@ EXPECTED = [
 ]
 
 
-def test_every_evaluation_symbol_lands_at_the_package_root():
-    missing = [name for name in EXPECTED if name not in dataforge_ml.__all__]
-    assert not missing, f"not exported from the package root: {missing}"
+def test_every_evaluation_symbol_ships_from_the_evaluation_module():
+    missing = [name for name in EXPECTED if name not in evaluation.__all__]
+    assert not missing, f"not exported from dataforge_ml.evaluation: {missing}"
 
 
-def test_the_exported_names_are_reachable_and_are_the_module_s_own():
-    for name in EXPECTED:
-        assert getattr(dataforge_ml, name) is getattr(evaluation, name)
-
-
-def test_the_three_outcome_enums_are_the_stated_adr_0050_exception():
-    # Never user-supplied, exported anyway because reading the report is
-    # comparing against them.
-    for name in ("C2STOutcome", "C2STAnnotation", "C2STVerdict"):
-        assert name in dataforge_ml.__all__
+def test_no_evaluation_symbol_reaches_the_package_root():
+    leaked = [name for name in EXPECTED if hasattr(dataforge_ml, name)]
+    assert not leaked, f"reachable from the package root: {leaked}"
 
 
 def test_the_root_c2st_is_the_operation_and_its_errors_are_codes():

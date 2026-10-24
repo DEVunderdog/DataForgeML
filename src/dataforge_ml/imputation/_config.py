@@ -1134,7 +1134,7 @@ class ImputationRouting:
         family or a foreign one: pass a :class:`ModelChoice` member to pick a
         family the factory builds, or a live sklearn-compatible estimator
         instance to use as-is. An instance sets ``mice_model_choice`` to
-        :attr:`~dataforge_ml.ModelChoice.Custom` and holds the instance by
+        :attr:`~dataforge_ml.imputation.ModelChoice.Custom` and holds the instance by
         identity, never cloned — this is the only way
         ``GradientBoostingRegressor`` is reachable, since it is off the
         Estimator Ladder (ADR-0094).
@@ -1143,7 +1143,7 @@ class ImputationRouting:
         ----------
         choice : ModelChoice or estimator instance
             A :class:`ModelChoice` member naming a library estimator family
-            (every member except :attr:`~dataforge_ml.ModelChoice.Custom`),
+            (every member except :attr:`~dataforge_ml.imputation.ModelChoice.Custom`),
             or a live, unfitted sklearn-compatible estimator instance.
 
         Returns
@@ -1157,7 +1157,7 @@ class ImputationRouting:
         ------
         InvalidInput
             ``invalid_argument`` if ``choice`` is the bare
-            :attr:`~dataforge_ml.ModelChoice.Custom` label with no estimator
+            :attr:`~dataforge_ml.imputation.ModelChoice.Custom` label with no estimator
             instance.
         Infeasible
             ``no_mice_block`` if this routing has no MICE block to set an

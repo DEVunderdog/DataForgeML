@@ -4,7 +4,7 @@ FittedImputer — stateless object assembled by FittedImputer.compose().
 transform(df) applies train-time fill parameters and fitted models to any
 DataFrame. The imputer has no aggregate serialize format of its own (ADR-0072):
 a whole imputer is persisted as its recipe plus its fitted units — each a
-single ``dataforge_ml.serialize`` blob — and rehydrated through
+single ``dataforge_ml._serialization.serialize`` blob — and rehydrated through
 :meth:`FittedImputer.compose`, whose exact-coverage check guarantees the
 reconstructed imputer is structurally complete.
 """

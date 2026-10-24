@@ -6,7 +6,6 @@ both proven end-to-end through ``StructuralProfiler``.
 
 import logging
 
-import dataforge_ml
 from dataforge_ml.config import PipelineConfig
 from dataforge_ml.observability import EventType, PipelineEvent, stderr_observer
 from dataforge_ml.profiling._config import ProfileConfig
@@ -24,14 +23,8 @@ class _Recorder:
 
 
 # ---------------------------------------------------------------------------
-# Public interface / exports
+# Public interface
 # ---------------------------------------------------------------------------
-
-def test_exports_present():
-    for name in ("PipelineEvent", "EventType", "stderr_observer"):
-        assert name in dataforge_ml.__all__
-        assert hasattr(dataforge_ml, name)
-
 
 def test_event_type_is_enum_not_str():
     # event_type carries the enum, never a bare string.

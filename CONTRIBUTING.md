@@ -254,8 +254,7 @@ contract test, but you only learn that after a long run. Work down this list ins
 | Where | What goes there |
 |---|---|
 | `src/dataforge_ml/operations/__init__.py` | The module name, in the alphabetical import list. Importing the package registers every Operation. |
-| `src/dataforge_ml/__init__.py`, `_EXPORTS` | `".operations.<name>": ("<name>",),` |
-| `src/dataforge_ml/__init__.py`, `__all__` | `"<name>",`. Both lists need the entry. |
+| `src/dataforge_ml/__init__.py`, `__all__` | `"<name>",`, in alphabetical order. The package root exports the Operations and nothing else; `test_operation_contract.py` fails when the list and the registered Operations differ. |
 
 **Join the contract tests**
 
