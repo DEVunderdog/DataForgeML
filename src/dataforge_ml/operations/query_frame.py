@@ -9,11 +9,14 @@ from pydantic import Field, model_validator
 from .._boundary._operation import operation
 from .._boundary._query_frame import (
     AND_CAP,
+    GROUP_BY_CAP,
     IN_CAP,
     LIST_OPS,
+    MEASURES_CAP,
     OR_CAP,
     ROWS_CAP,
     SCALAR_OPS,
+    query_aggregate,
     query_rows,
 )
 from ..records import LITERAL, OutputRecord, Table, WireRecord
@@ -100,8 +103,32 @@ class RowsMode(WireRecord):
     """Which matching rows to return: ``dataset`` takes the first, ``random`` a seeded sample, ``sort`` the top by one column. Null means ``dataset``."""
 
 
+class Measure(WireRecord):
+    """One measure of one column, taken over each group's rows."""
+
+    column: str
+    """The column measured."""
+    fn: Literal["count", "null_count", "nunique", "sum", "mean", "std", "min", "max", "median"]
+    """``count`` counts the cells that are not null, ``null_count`` those that are, ``nunique`` the distinct values that are not null. ``sum``, ``mean``, ``std`` (sample), ``min``, ``max`` and ``median`` read numeric columns only and skip null cells. NaN counts as null."""
+
+
+class AggregateMode(WireRecord):
+    """Return measures of the matching rows, one value per group."""
+
+    kind: Literal["aggregate"]
+    """Always ``aggregate``."""
+    group_by: Annotated[list[str], Field(max_length=GROUP_BY_CAP)] | None = None
+    """Up to 3 key columns; each distinct combination of their values is a group, a null key included. Null or empty means the matching rows are one group."""
+    measures: Annotated[list[Measure], Field(max_length=MEASURES_CAP)] | None = None
+    """Up to 5 measures, returned in this order within ``measures`` and ``literal_measures``. Null means none: only the group sizes."""
+
+
+#: How ``query_frame`` reads the matching rows: as rows or as grouped measures.
+Mode = Annotated[RowsMode | AggregateMode, Field(discriminator="kind")]
+
+
 class CellsColumn(WireRecord):
-    """One column's raw cells, one per returned row."""
+    """One column's raw cells: one per returned row, or one group key per group."""
 
     kind: Literal["cells"]
     """Always ``cells``: raw cells of a column."""
@@ -110,33 +137,67 @@ class CellsColumn(WireRecord):
     dtype: str
     """The column's storage type, such as ``Int64``, ``Float64`` or ``String``."""
     values: Annotated[list[CellValue] | None, LITERAL]
-    """The cells as stored, one per entry of ``row_positions``, in that order. Missing cells and NaN are null; datetimes are ISO text; text over 64 characters is cut and counted in ``omitted``. A Literal Field."""
+    """The cells as stored, one per entry of ``row_positions`` or ``group_sizes``, in that order. Missing cells and NaN are null; datetimes are ISO text; text over 64 characters is cut and counted in ``omitted``. A Literal Field."""
+
+
+class MeasureColumn(WireRecord):
+    """One measure that is a count or a statistic no cell need equal, one value per group."""
+
+    kind: Literal["measure"]
+    """Always ``measure``: ``count``, ``null_count``, ``nunique``, ``sum``, ``mean`` or ``std``."""
+    column: str
+    """The column measured."""
+    fn: Literal["count", "null_count", "nunique", "sum", "mean", "std"]
+    """The measure."""
+    values: list[int | float | None]
+    """One value per entry of ``group_sizes``, in that order. Null when the group has no value to measure, such as ``std`` of one cell."""
+
+
+class LiteralMeasureColumn(WireRecord):
+    """One measure whose value can equal a cell, one value per group."""
+
+    kind: Literal["literal_measure"]
+    """Always ``literal_measure``: ``min``, ``max`` or ``median``."""
+    column: str
+    """The column measured."""
+    fn: Literal["min", "max", "median"]
+    """The measure."""
+    values: Annotated[list[CellValue] | None, LITERAL]
+    """One value per entry of ``group_sizes``, in that order. Null when the group has no cell to measure. A Literal Field."""
 
 
 class QueryFrameResult(OutputRecord):
-    """Raw cells from a frame, laid out by column. Read row ``i`` as ``values[i]`` of every column."""
+    """Raw cells or grouped measures from a frame, laid out by column. Read row or group ``i`` as ``values[i]`` of every column."""
 
     frame: str
     """The frame Handle read."""
-    mode: Literal["rows"]
+    mode: Literal["rows", "aggregate"]
     """The mode that ran."""
     total_rows: int
     """Rows in the frame."""
     matched_rows: int
     """Rows that match the filter, counted exactly over every row, past any cap. With no filter, every row matches."""
-    row_positions: list[int]
-    """Each returned row's position in the frame, from 0, in returned order. When more rows match, ``omitted`` counts them."""
+    row_positions: list[int] | None
+    """Rows mode: each returned row's position in the frame, from 0, in returned order. When more rows match, ``omitted`` counts them. Null in aggregate mode."""
+    group_count: int | None
+    """Aggregate mode: how many groups the matching rows form, counted exactly, past the cap of 100. Null in rows mode."""
+    group_sizes: list[int] | None
+    """Aggregate mode: each returned group's row count, largest first, ties in key order with null keys last. At most 100; ``omitted`` counts the rest. Null in rows mode."""
     columns: Table[CellsColumn]
-    """The chosen columns, in the order asked, or in dataset order. At most 10; ``omitted`` counts the rest."""
+    """Rows mode: the chosen columns, in the order asked, or in dataset order, at most 10; ``omitted`` counts the rest. Aggregate mode: the ``group_by`` keys, one value per group."""
+    measures: Table[MeasureColumn]
+    """Aggregate mode: the counts and statistics asked for, in the order asked. Empty in rows mode."""
+    literal_measures: Table[LiteralMeasureColumn]
+    """Aggregate mode: the ``min``, ``max`` and ``median`` measures asked for, in the order asked. Empty in rows mode."""
 
 
 @operation(effect="read", phase="workspace", scales_with_data=True)
 def query_frame(
     frame: str,
     filter: Annotated[list[AndList], Field(min_length=1, max_length=OR_CAP)] | None = None,
-    mode: RowsMode | None = None,
+    mode: Mode | None = None,
 ) -> QueryFrameResult:
-    """Read raw cells from any frame Handle: a loaded frame, a split fold or an imputed frame.
+    """Read raw cells, or measures of them per group, from any frame Handle: a loaded frame, a split fold or an imputed frame.
 
     Use when
     --------
@@ -149,9 +210,11 @@ def query_frame(
     is ``-999``. Rows mode returns up to ``limit`` matching rows, each
     with its position in the frame: the first ones in dataset order, a
     seeded ``random`` sample, or the extremes of one column in ``sort``
-    order.
-    The cells are in Literal Fields. It never makes a Handle and never
-    changes the frame.
+    order. Aggregate mode summarises the matching rows instead: counts
+    and statistics per group of up to 3 key columns, such as the mean
+    ``income`` per ``city``.
+    The cells, group keys, ``min``, ``max`` and ``median`` are in Literal
+    Fields. It never makes a Handle and never changes the frame.
 
     Parameters
     ----------
@@ -166,7 +229,8 @@ def query_frame(
         cell passes only ``is_null``. A declared sentinel is a value like
         any other, so ``is_null`` can disagree with the profile's null
         ratio. Null keeps every row.
-    mode : RowsMode or None
+    mode : RowsMode, AggregateMode or None
+        Rows mode is
         ``{"kind": "rows", "columns": [...], "limit": n, "order": {...}}``.
         ``columns`` null means every column, at most 10 returned; ``limit``
         null means 20, at most 50. ``order`` is ``{"kind": "dataset"}``
@@ -174,17 +238,27 @@ def query_frame(
         a fixed default, so the same call draws the same rows) or
         ``{"kind": "sort", "column": ..., "direction": "descending"}``
         (null direction means ascending; null and NaN cells last, ties in
-        dataset order). Null means rows mode with every default.
+        dataset order). Aggregate mode is
+        ``{"kind": "aggregate", "group_by": [...], "measures": [{"column": ..., "fn": ...}]}``
+        with up to 3 ``group_by`` columns (empty means one group of every
+        matching row) and up to 5 measures: ``count``, ``null_count``,
+        ``nunique``, and on numeric columns ``sum``, ``mean``, ``std``,
+        ``min``, ``max`` and ``median``. NaN counts as null. Null means
+        rows mode with every default.
 
     Returns
     -------
     QueryFrameResult
         ``total_rows`` and ``matched_rows``, the exact count of rows the
-        filter keeps, ``row_positions`` of the rows
+        filter keeps. Rows mode adds ``row_positions`` of the rows
         returned, and ``columns``: per column its ``name``, ``dtype`` and
         ``values``, one per row position. Row ``i`` is ``values[i]`` of
-        every column. ``omitted`` counts rows and columns past the caps and
-        text cells cut at 64 characters.
+        every column. Aggregate mode adds ``group_count``, the exact
+        number of groups, and per returned group, largest first, its size
+        in ``group_sizes``, its keys in ``columns`` and its measures in
+        ``measures`` and ``literal_measures``: group ``i`` is
+        ``values[i]`` of each. ``omitted`` counts rows, columns and groups
+        past the caps and text cells cut at 64 characters.
 
     Errors
     ------
@@ -194,14 +268,16 @@ def query_frame(
     wrong_handle_kind
         ``frame`` is a Handle of another kind. ``allowed`` names ``frame``.
     unknown_column
-        A name in ``filter``, ``mode.columns`` or ``mode.order.column`` is
-        not a column of the frame.
+        A name in ``filter``, ``mode.columns``, ``mode.order.column``,
+        ``mode.group_by`` or ``mode.measures`` is not a column of the frame.
         ``candidates`` lists close matches; ``issues`` lists every unknown
         name.
     invalid_argument
-        An argument has the wrong type or is out of its range: a filter
-        past its caps, a value that does not fit its op, or a value whose
-        type does not fit its column. ``issues`` lists every one.
+        An argument has the wrong type or is out of its range: a filter,
+        ``group_by`` or ``measures`` past its caps, a value that does not
+        fit its op, a value whose type does not fit its column, or a
+        numeric measure on a column that is not numeric. ``issues`` lists
+        every one.
     incompatible_artifact
         Another library format version wrote ``frame``. Load it again.
     invalid_setting
@@ -218,9 +294,17 @@ def query_frame(
     $ dataforge load --path train.csv
     {...,"frame":"frame_7f3a9c2e",...}
     $ dataforge query-frame --frame frame_7f3a9c2e --filter '[[{"column":"age","op":"gt","value":40}]]' --mode '{"kind":"rows","columns":["age","city"],"limit":2}'
-    {...,"frame":"frame_7f3a9c2e","mode":"rows","total_rows":6,"matched_rows":3,"row_positions":[1,3],"columns":{"fields":["kind","name","dtype","values"],"rows":[["cells","age","Int64",[41,55]],["cells","city","String",["south","east"]]]}}
+    {...,"frame":"frame_7f3a9c2e","mode":"rows","total_rows":6,"matched_rows":3,"row_positions":[1,3],"group_count":null,"group_sizes":null,"columns":{"fields":["kind","name","dtype","values"],"rows":[["cells","age","Int64",[41,55]],["cells","city","String",["south","east"]]]},...}
+    $ dataforge query-frame --frame frame_7f3a9c2e --mode '{"kind":"aggregate","group_by":["city"],"measures":[{"column":"income","fn":"mean"}]}'
+    {...,"mode":"aggregate","total_rows":6,"matched_rows":6,"row_positions":null,"group_count":4,"group_sizes":[2,2,1,1],"columns":{"fields":["kind","name","dtype","values"],"rows":[["cells","city","String",["north","south","east",null]]]},"measures":{"fields":["kind","column","fn","values"],"rows":[["measure","income","mean",[52000.5,63500.375,73000.25,48000.0]]]},...}
     """
     mode = mode or RowsMode(kind="rows")
+    if mode.kind == "aggregate":
+        return QueryFrameResult.model_validate(
+            query_aggregate(
+                frame=frame, filter=filter, group_by=mode.group_by, measures=mode.measures
+            )
+        )
     return QueryFrameResult.model_validate(
         query_rows(
             frame=frame, filter=filter, columns=mode.columns, limit=mode.limit, order=mode.order

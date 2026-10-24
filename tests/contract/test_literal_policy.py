@@ -277,6 +277,43 @@ CALLS: dict[str, Callable[[Handles], list[Call]]] = {
             },
         ),
         ("query_frame", {"frame": h.frame, "filter": [[{"column": "city", "op": "eq", "value": 3}]]}),
+        # Groups of 13 or more rows, so no measure lands on one cell's value.
+        (
+            "query_frame",
+            {
+                "frame": h.frame,
+                "mode": {
+                    "kind": "aggregate",
+                    "group_by": ["label"],
+                    "measures": [
+                        {"column": "amount", "fn": "median"},
+                        {"column": "amount", "fn": "mean"},
+                        {"column": "visits", "fn": "max"},
+                        {"column": "city", "fn": "nunique"},
+                        {"column": "visits", "fn": "std"},
+                    ],
+                },
+            },
+        ),
+        (
+            "query_frame",
+            {
+                "frame": h.median_imputed,
+                "filter": [[{"column": "amount", "op": "ne", "value": SENTINEL}]],
+                "mode": {
+                    "kind": "aggregate",
+                    "group_by": ["label", "when"],
+                    "measures": [{"column": "visits", "fn": "count"}],
+                },
+            },
+        ),
+        (
+            "query_frame",
+            {
+                "frame": h.frame,
+                "mode": {"kind": "aggregate", "measures": [{"column": "ident", "fn": "sum"}]},
+            },
+        ),
     ],
     "list_handles": lambda h: [
         ("list_handles", {}),

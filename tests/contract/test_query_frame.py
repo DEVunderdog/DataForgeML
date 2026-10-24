@@ -1,4 +1,4 @@
-"""``query_frame`` in rows mode: raw cells of any frame Handle, filtered, in dataset order (ADR-0111)."""
+"""``query_frame``: raw cells of any frame Handle, filtered, as rows or grouped measures (ADR-0111)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import pytest
 
 from dataforge_ml._boundary._settings import LITERAL_POLICY_ENV
 
-from .conftest import Harness, records
+from .conftest import AMES, Harness, assert_within_budget, records
 
 
 def _load(harness: Harness, path: str = "train.csv") -> str:
@@ -464,6 +464,258 @@ def test_an_unknown_sort_column_is_named(harness: Harness) -> None:
     assert out.code == "unknown_column"
     assert out.json["params"] == ["mode.order.column"]
     assert "age" in out.json["candidates"]
+
+
+# --- Aggregate mode --------------------------------------------------------------
+
+
+def _aggregate(group_by: list[str] | None = None, *measures: tuple[str, str]) -> dict:
+    return {
+        "kind": "aggregate",
+        "group_by": group_by,
+        "measures": [{"column": c, "fn": fn} for c, fn in measures],
+    }
+
+
+def _measures(json: dict) -> dict[tuple[str, str], list]:
+    every = [*records(json["measures"]), *records(json["literal_measures"])]
+    return {(m["column"], m["fn"]): m["values"] for m in every}
+
+
+def test_aggregate_mode_measures_each_group_largest_first(harness: Harness) -> None:
+    frame = _load(harness)
+
+    out = harness.call(
+        "query_frame",
+        frame=frame,
+        mode=_aggregate(
+            ["city"],
+            ("income", "count"),
+            ("income", "null_count"),
+            ("income", "mean"),
+            ("age", "max"),
+            ("age", "median"),
+        ),
+    )
+
+    assert out.json["mode"] == "aggregate" and out.json["row_positions"] is None
+    assert out.json["total_rows"] == 6 and out.json["matched_rows"] == 6
+    assert out.json["group_count"] == 4 and out.json["group_sizes"] == [2, 2, 1, 1]
+    assert records(out.json["columns"]) == [
+        {"kind": "cells", "name": "city", "dtype": "String", "values": ["north", "south", "east", None]}
+    ]
+    assert [m["kind"] for m in records(out.json["measures"])] == ["measure"] * 3
+    assert [m["kind"] for m in records(out.json["literal_measures"])] == ["literal_measure"] * 2
+    assert _measures(out.json) == {
+        ("income", "count"): [1, 2, 1, 1],
+        ("income", "null_count"): [1, 0, 0, 0],
+        ("income", "mean"): [52000.5, 63500.375, 73000.25, 48000.0],
+        ("age", "max"): [34, 47, 55, 38],
+        ("age", "median"): [31.5, 44.0, 55.0, 38.0],
+    }
+    assert records(out.json["omitted"]) == []
+
+
+def test_every_measure_is_computed_over_the_whole_frame_with_no_group_by(
+    harness: Harness,
+) -> None:
+    frame = _load(harness)
+    fns = ("count", "null_count", "nunique", "sum", "mean", "std", "min", "max", "median")
+
+    outs = [
+        harness.call(
+            "query_frame",
+            frame=frame,
+            mode=_aggregate([], *(("age", fn) for fn in fns[i : i + 5])),
+        )
+        for i in (0, 5)
+    ]
+
+    assert all(o.json["group_count"] == 1 and o.json["group_sizes"] == [6] for o in outs)
+    assert all(records(o.json["columns"]) == [] for o in outs)
+    measured = _measures(outs[0].json) | _measures(outs[1].json)
+    ages = [34, 41, 29, 55, 38, 47]
+    assert measured[("age", "count")] == [6] and measured[("age", "null_count")] == [0]
+    assert measured[("age", "nunique")] == [6] and measured[("age", "sum")] == [sum(ages)]
+    assert measured[("age", "mean")] == [pytest.approx(sum(ages) / 6)]
+    assert measured[("age", "std")] == [pytest.approx(9.3095, abs=1e-4)]
+    assert measured[("age", "min")] == [29] and measured[("age", "max")] == [55]
+    assert measured[("age", "median")] == [39.5]
+    assert harness.call(
+        "query_frame", frame=frame, mode={"kind": "aggregate"}
+    ).json["group_sizes"] == [6]
+
+
+def test_aggregate_mode_measures_only_the_rows_the_filter_keeps(harness: Harness) -> None:
+    frame = _load(harness)
+
+    out = harness.call(
+        "query_frame",
+        frame=frame,
+        filter=[[_where("age", "gt", 35)]],
+        mode=_aggregate(["city"], ("age", "sum"), ("age", "min")),
+    )
+    nothing = harness.call(
+        "query_frame",
+        frame=frame,
+        filter=[[_where("age", "gt", 100)]],
+        mode=_aggregate([], ("age", "count"), ("age", "mean")),
+    )
+
+    assert out.json["matched_rows"] == 4 and out.json["group_count"] == 3
+    assert out.json["group_sizes"] == [2, 1, 1]
+    assert _columns(out.json)["city"] == ["south", "east", None]
+    assert _measures(out.json) == {("age", "sum"): [88, 55, 38], ("age", "min"): [41, 55, 38]}
+    assert nothing.json["matched_rows"] == 0 and nothing.json["group_sizes"] == [0]
+    assert _measures(nothing.json) == {("age", "count"): [0], ("age", "mean"): [None]}
+
+
+def test_nan_counts_as_null_in_measures_and_keys(harness: Harness) -> None:
+    frame = _csv(harness, "nan.csv", ["x,k", "1.0,1.5", "NaN,NaN", ",", "3.0,1.5", "NaN,2.5"])
+
+    out = harness.call(
+        "query_frame",
+        frame=frame,
+        mode=_aggregate(["k"], ("x", "null_count"), ("x", "nunique"), ("x", "mean")),
+    )
+
+    assert out.json["group_sizes"] == [2, 2, 1]
+    assert _columns(out.json)["k"] == [1.5, None, 2.5]
+    assert _measures(out.json) == {
+        ("x", "null_count"): [0, 2, 1],
+        ("x", "nunique"): [2, 0, 0],
+        ("x", "mean"): [2.0, None, None],
+    }
+
+
+def test_groups_over_several_keys_tie_in_key_order(harness: Harness) -> None:
+    frame = _csv(
+        harness, "keys.csv", ["a,b,n", "y,2,1", "x,2,1", "y,1,1", "x,1,1", "x,1,1", ",1,1"]
+    )
+
+    out = harness.call("query_frame", frame=frame, mode=_aggregate(["a", "b"], ("n", "sum")))
+
+    assert out.json["group_sizes"] == [2, 1, 1, 1, 1]
+    assert _columns(out.json) == {"a": ["x", "x", "y", "y", None], "b": [1, 2, 1, 2, 1]}
+    assert _measures(out.json) == {("n", "sum"): [2, 1, 1, 1, 1]}
+
+
+def test_at_most_100_groups_are_returned_and_group_count_is_exact(harness: Harness) -> None:
+    lines = ["g,v"] + [f"{i},{i}" for i in range(130)] + [f"{i},{i}" for i in range(5)]
+    frame = _csv(harness, "groups.csv", lines)
+
+    out = harness.call("query_frame", frame=frame, mode=_aggregate(["g"], ("v", "count")))
+
+    assert out.json["group_count"] == 130
+    assert out.json["group_sizes"] == [2] * 5 + [1] * 95
+    assert _columns(out.json)["g"] == list(range(100))
+    assert _measures(out.json)[("v", "count")] == [2] * 5 + [1] * 95
+    assert records(out.json["omitted"]) == [
+        {"field": "group_sizes", "shown": 100, "total": 130, "operation": None, "reason": "cap"}
+    ]
+
+
+def test_long_text_group_keys_are_cut_at_64_characters(harness: Harness) -> None:
+    frame = _csv(harness, "keys.csv", ["k", "x" * 100, "x" * 100, "short"])
+
+    out = harness.call("query_frame", frame=frame, mode=_aggregate(["k"]))
+
+    assert _columns(out.json)["k"] == ["x" * 63 + "…", "short"]
+    assert records(out.json["omitted"]) == [
+        {"field": "columns[].values", "shown": 0, "total": 1, "operation": None, "reason": "truncated"}
+    ]
+
+
+@pytest.mark.parametrize(
+    ("mode", "param"),
+    [
+        (_aggregate(["age", "city", "income", "age"]), "mode.aggregate.group_by"),
+        (_aggregate([], *[("age", "count")] * 6), "mode.aggregate.measures"),
+        (_aggregate([], ("age", "mode")), "mode.aggregate.measures[0].fn"),
+    ],
+)
+def test_an_over_cap_or_unknown_aggregate_argument_is_refused(
+    harness: Harness, mode: dict, param: str
+) -> None:
+    frame = _load(harness)
+
+    out = harness.call("query_frame", frame=frame, mode=mode)
+
+    assert out.code == "invalid_argument"
+    assert out.json["params"] == [param]
+
+
+def test_a_numeric_measure_on_a_text_column_names_every_one(harness: Harness) -> None:
+    frame = _load(harness)
+
+    out = harness.call(
+        "query_frame",
+        frame=frame,
+        mode=_aggregate([], ("city", "nunique"), ("city", "mean"), ("city", "max")),
+    )
+
+    assert out.code == "invalid_argument"
+    assert out.json["params"] == ["mode.measures[1].fn", "mode.measures[2].fn"]
+
+
+def test_unknown_group_and_measure_columns_are_named(harness: Harness) -> None:
+    frame = _load(harness)
+
+    out = harness.call(
+        "query_frame",
+        frame=frame,
+        filter=[[_where("agee", "eq", 1)]],
+        mode=_aggregate(["citty"], ("incme", "sum")),
+    )
+
+    assert out.code == "unknown_column"
+    assert out.json["params"] == [
+        "filter[0][0].column",
+        "mode.group_by[0]",
+        "mode.measures[0].column",
+    ]
+
+
+def test_deny_withholds_group_keys_and_literal_measures_and_keeps_counts(
+    harness: Harness, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    frame = _load(harness)
+    monkeypatch.setenv(LITERAL_POLICY_ENV, "deny")
+
+    out = harness.call(
+        "query_frame",
+        frame=frame,
+        mode=_aggregate(["city"], ("income", "mean"), ("age", "min")),
+    )
+
+    assert out.json["group_count"] == 4 and out.json["group_sizes"] == [2, 2, 1, 1]
+    assert records(out.json["columns"])[0]["values"] is None
+    assert _measures(out.json) == {
+        ("income", "mean"): [52000.5, 63500.375, 73000.25, 48000.0],
+        ("age", "min"): None,
+    }
+    assert [o["field"] for o in records(out.json["omitted"])] == [
+        "columns[].values",
+        "literal_measures[].values",
+    ]
+
+
+def test_aggregate_worst_case_is_under_the_result_budget(harness: Harness) -> None:
+    # The largest aggregate result on Ames, the supported fixture rows mode's
+    # worst case also uses: 100 groups of three text keys, and five measures
+    # of long-fractioned numbers. Keys the full 64 characters long would
+    # overrun the character budget, as 50 rows of ten such cells would.
+    harness.declare(AMES)
+    frame = _load(harness, str(AMES))
+    keys = ["Neighborhood", "Exterior 1st", "Exterior 2nd"]
+    fns = ("mean", "std", "median", "min", "max")
+
+    out = harness.call(
+        "query_frame", frame=frame, mode=_aggregate(keys, *(("SalePrice", f) for f in fns))
+    )
+
+    assert out.json["group_count"] > 100 and len(out.json["group_sizes"]) == 100
+    assert_within_budget("query_frame", out.json, is_error=False)
 
 
 def test_query_frame_never_writes_a_handle(harness: Harness, tmp_path: Path) -> None:
