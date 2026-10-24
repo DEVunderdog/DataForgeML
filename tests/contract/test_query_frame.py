@@ -360,6 +360,112 @@ def test_unknown_filter_columns_are_named_with_the_mode_columns(harness: Harness
     assert "age" in out.json["candidates"] and "income" in out.json["candidates"]
 
 
+# --- The order -------------------------------------------------------------------
+
+
+def _order(**order: object) -> dict:
+    return {"kind": "rows", "order": order}
+
+
+def test_seeded_random_order_is_repeatable_and_samples_the_matches(harness: Harness) -> None:
+    frame = _csv(harness, "long.csv", ["n", *map(str, range(60))])
+    matches = [[_where("n", "ge", 10)]]
+
+    first = harness.call(
+        "query_frame", frame=frame, filter=matches, mode=_order(kind="random", seed=7) | {"limit": 8}
+    )
+    again = harness.call(
+        "query_frame", frame=frame, filter=matches, mode=_order(kind="random", seed=7) | {"limit": 8}
+    )
+    other = harness.call(
+        "query_frame", frame=frame, filter=matches, mode=_order(kind="random", seed=8) | {"limit": 8}
+    )
+    default = harness.call("query_frame", frame=frame, mode=_order(kind="random"))
+    default_again = harness.call("query_frame", frame=frame, mode=_order(kind="random"))
+
+    positions = first.json["row_positions"]
+    assert positions == again.json["row_positions"] != other.json["row_positions"]
+    assert len(set(positions)) == 8 and all(p >= 10 for p in positions)
+    assert positions != sorted(positions)
+    assert _columns(first.json)["n"] == positions  # cells line up with source positions
+    assert first.json["matched_rows"] == 50
+    assert records(first.json["omitted"]) == [
+        {"field": "row_positions", "shown": 8, "total": 50, "operation": None, "reason": "cap"}
+    ]
+    assert default.json["row_positions"] == default_again.json["row_positions"]
+    assert len(default.json["row_positions"]) == 20
+
+
+def test_random_order_returns_every_match_when_fewer_than_the_limit(harness: Harness) -> None:
+    frame = _load(harness)
+
+    out = harness.call("query_frame", frame=frame, mode=_order(kind="random", seed=1))
+
+    assert sorted(out.json["row_positions"]) == [0, 1, 2, 3, 4, 5]
+    ages = [34, 41, 29, 55, 38, 47]
+    assert _columns(out.json)["age"] == [ages[p] for p in out.json["row_positions"]]
+
+
+@pytest.mark.parametrize(
+    ("direction", "positions"),
+    [
+        (None, [2, 0, 4, 1, 5, 3]),
+        ("ascending", [2, 0, 4, 1, 5, 3]),
+        ("descending", [3, 5, 1, 4, 0, 2]),
+    ],
+)
+def test_sort_orders_by_the_named_column_and_direction(
+    harness: Harness, direction: str | None, positions: list[int]
+) -> None:
+    frame = _load(harness)
+
+    out = harness.call(
+        "query_frame", frame=frame, mode=_order(kind="sort", column="age", direction=direction)
+    )
+
+    assert out.json["row_positions"] == positions
+    ages = [34, 41, 29, 55, 38, 47]
+    assert _columns(out.json)["age"] == [ages[p] for p in positions]
+
+
+def test_sort_puts_null_and_nan_last_and_keeps_ties_in_dataset_order(harness: Harness) -> None:
+    frame = _csv(harness, "ties.csv", ["x,tag", "2.0,a", "NaN,b", "1.0,c", ",d", "2.0,e", "1.0,f"])
+
+    up = harness.call("query_frame", frame=frame, mode=_order(kind="sort", column="x"))
+    down = harness.call(
+        "query_frame", frame=frame, mode=_order(kind="sort", column="x", direction="descending")
+    )
+
+    assert up.json["row_positions"] == [2, 5, 0, 4, 1, 3]
+    assert down.json["row_positions"] == [0, 4, 2, 5, 1, 3]
+    assert _columns(up.json)["tag"] == ["c", "f", "a", "e", "b", "d"]
+
+
+def test_sort_applies_after_the_filter_and_before_the_limit(harness: Harness) -> None:
+    frame = _csv(harness, "long.csv", ["n", *map(str, range(60))])
+
+    out = harness.call(
+        "query_frame",
+        frame=frame,
+        filter=[[_where("n", "lt", 30)]],
+        mode=_order(kind="sort", column="n", direction="descending") | {"limit": 3},
+    )
+
+    assert out.json["row_positions"] == [29, 28, 27]
+    assert _columns(out.json)["n"] == [29, 28, 27]
+    assert out.json["matched_rows"] == 30
+
+
+def test_an_unknown_sort_column_is_named(harness: Harness) -> None:
+    frame = _load(harness)
+
+    out = harness.call("query_frame", frame=frame, mode=_order(kind="sort", column="agee"))
+
+    assert out.code == "unknown_column"
+    assert out.json["params"] == ["mode.order.column"]
+    assert "age" in out.json["candidates"]
+
+
 def test_query_frame_never_writes_a_handle(harness: Harness, tmp_path: Path) -> None:
     frame = _load(harness)
     before = harness.handles()

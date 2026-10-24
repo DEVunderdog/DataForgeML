@@ -105,14 +105,48 @@ def _cell(value: Any) -> tuple[Any, bool]:
     return value, False
 
 
+def _ordered(data: pl.DataFrame, matched: list[int], order: Any) -> list[int]:
+    # The matching positions in the order the rows are returned in. ``random``
+    # draws a permutation of them; ``sort`` is stable, so ties keep dataset
+    # order, and a null or NaN key comes last either way.
+    if order is None or order.kind == "dataset":
+        return matched
+    if order.kind == "random":
+        import numpy as np
+
+        from .._seed import DEFAULT_SEED
+
+        seed = DEFAULT_SEED if order.seed is None else order.seed
+        return [matched[i] for i in np.random.default_rng(seed).permutation(len(matched))]
+    dtype = data.schema[order.column]
+    key = pl.col(order.column)
+    if dtype.is_float():
+        key = pl.when(key.is_nan()).then(None).otherwise(key)
+    elif dtype == pl.Categorical:
+        key = key.cast(pl.String)  # by label, not by when the label was first seen
+    at = pl.Series("position", matched, dtype=pl.UInt32)
+    keys = data.select(key.alias("key"))[at].with_columns(at)
+    return (
+        keys.sort(
+            "key",
+            descending=order.direction == "descending",
+            nulls_last=True,
+            maintain_order=True,
+        )
+        .get_column("position")
+        .to_list()
+    )
+
+
 def query_rows(
     *,
     frame: str,
     filter: Sequence[Sequence[Any]] | None,
     columns: Sequence[str] | None,
     limit: int | None,
+    order: Any = None,
 ) -> dict[str, Any]:
-    """Return the first matching rows of a frame Handle, in dataset order, laid out by column.
+    """Return matching rows of a frame Handle in the asked order, laid out by column.
 
     Parameters
     ----------
@@ -127,6 +161,10 @@ def query_rows(
         Either way at most :data:`COLUMNS_CAP` are returned.
     limit : int or None
         Most rows to return; None means :data:`ROWS_DEFAULT`.
+    order : DatasetOrder, RandomOrder, SortOrder or None
+        Which matching rows to return: the first (None or ``dataset``), a
+        permutation seeded by ``seed`` (``random``), or sorted by ``column``
+        in ``direction`` (``sort``). The limit cuts after the order.
 
     Returns
     -------
@@ -136,8 +174,8 @@ def query_rows(
     Raises
     ------
     DataForgeError
-        ``unknown_column`` naming every name in ``filter`` or ``columns`` not
-        in the frame; ``invalid_argument`` naming every filter value whose
+        ``unknown_column`` naming every name in ``filter``, ``columns`` or
+        ``order`` not in the frame; ``invalid_argument`` naming every filter value whose
         type does not fit its column; plus the frame Handle's own errors.
         Both are raised before any row is read.
     """
@@ -158,6 +196,8 @@ def query_rows(
     else:
         chosen = list(dict.fromkeys(columns))
         unknown += [(f"mode.columns[{i}]", c) for i, c in enumerate(columns) if c not in names]
+    if order is not None and order.kind == "sort" and order.column not in names:
+        unknown.append(("mode.order.column", order.column))
     if unknown:
         raise unknown_columns(unknown, pool=names, excluded=(), holder="frame")
     issues = [
@@ -185,12 +225,11 @@ def query_rows(
         )
         mask = data.select(keep.alias("keep")).to_series()
         matched = mask.arg_true().to_list()  # counted over every row, before any cap
-        data = data.filter(mask)
     else:
         matched = list(range(total_rows))
     # No offset and a hard row cap, so no Operation returns the rows cut here.
     positions, _, omitted = page(
-        matched,
+        _ordered(data, matched, order),
         None,
         ROWS_DEFAULT if limit is None else limit,
         ROWS_CAP,
@@ -202,7 +241,7 @@ def query_rows(
     )
     omitted += cut_columns
 
-    head = data.head(len(positions))
+    head = data.select(chosen)[pl.Series(positions, dtype=pl.UInt32)]
     cut = 0
     records = []
     for name in chosen:

@@ -149,10 +149,77 @@
                     "type": "object"
                   },
                   {
+                    "additionalProperties": false,
+                    "description": "A seeded random sample of the matching rows, in drawn order.",
+                    "properties": {
+                      "kind": {
+                        "description": "Always ``random``.",
+                        "type": "string",
+                        "enum": [
+                          "random"
+                        ]
+                      },
+                      "seed": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Seed of the draw, from 0 to 4294967295. The same seed on the same frame and filter draws the same rows. Null means a fixed default. Constraints: at least 0; at most 4294967295."
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "seed"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "The matching rows sorted by one column. Null and NaN cells come last; ties keep dataset order.",
+                    "properties": {
+                      "kind": {
+                        "description": "Always ``sort``.",
+                        "type": "string",
+                        "enum": [
+                          "sort"
+                        ]
+                      },
+                      "column": {
+                        "description": "The column to sort by.",
+                        "type": "string"
+                      },
+                      "direction": {
+                        "anyOf": [
+                          {
+                            "enum": [
+                              "ascending",
+                              "descending"
+                            ],
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "``ascending`` puts the smallest first, ``descending`` the largest. Null means ``ascending``."
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "column",
+                      "direction"
+                    ],
+                    "type": "object"
+                  },
+                  {
                     "type": "null"
                   }
                 ],
-                "description": "Which rows to return. Null means ``dataset``."
+                "description": "Which matching rows to return: ``dataset`` takes the first, ``random`` a seeded sample, ``sort`` the top by one column. Null means ``dataset``."
               }
             },
             "required": [
@@ -167,7 +234,7 @@
             "type": "null"
           }
         ],
-        "description": "``{\"kind\": \"rows\", \"columns\": [...], \"limit\": n}``. ``columns`` null means every column, at most 10 returned; ``limit`` null means 20, at most 50. Null means rows mode with every default."
+        "description": "``{\"kind\": \"rows\", \"columns\": [...], \"limit\": n, \"order\": {...}}``. ``columns`` null means every column, at most 10 returned; ``limit`` null means 20, at most 50. ``order`` is ``{\"kind\": \"dataset\"}`` (the default), ``{\"kind\": \"random\", \"seed\": n}`` (null seed means a fixed default, so the same call draws the same rows) or ``{\"kind\": \"sort\", \"column\": ..., \"direction\": \"descending\"}`` (null direction means ascending; null and NaN cells last, ties in dataset order). Null means rows mode with every default."
       }
     },
     "required": [

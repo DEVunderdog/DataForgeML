@@ -63,6 +63,30 @@ class DatasetOrder(WireRecord):
     """Always ``dataset``."""
 
 
+class RandomOrder(WireRecord):
+    """A seeded random sample of the matching rows, in drawn order."""
+
+    kind: Literal["random"]
+    """Always ``random``."""
+    seed: Annotated[int, Field(ge=0, le=2**32 - 1)] | None = None
+    """Seed of the draw, from 0 to 4294967295. The same seed on the same frame and filter draws the same rows. Null means a fixed default."""
+
+
+class SortOrder(WireRecord):
+    """The matching rows sorted by one column. Null and NaN cells come last; ties keep dataset order."""
+
+    kind: Literal["sort"]
+    """Always ``sort``."""
+    column: str
+    """The column to sort by."""
+    direction: Literal["ascending", "descending"] | None = None
+    """``ascending`` puts the smallest first, ``descending`` the largest. Null means ``ascending``."""
+
+
+#: Which matching rows rows mode returns.
+Order = Annotated[DatasetOrder | RandomOrder | SortOrder, Field(discriminator="kind")]
+
+
 class RowsMode(WireRecord):
     """Return rows: each chosen column's cells, one per returned row."""
 
@@ -72,8 +96,8 @@ class RowsMode(WireRecord):
     """The columns to return, in this order. Null means every column. At most 10 are returned, the first 10 named; ``omitted`` counts the rest."""
     limit: Annotated[int, Field(ge=1, le=ROWS_CAP)] | None = None
     """Most rows to return, from 1 to 50. Null means 20."""
-    order: DatasetOrder | None = None
-    """Which rows to return. Null means ``dataset``."""
+    order: Order | None = None
+    """Which matching rows to return: ``dataset`` takes the first, ``random`` a seeded sample, ``sort`` the top by one column. Null means ``dataset``."""
 
 
 class CellsColumn(WireRecord):
@@ -122,8 +146,10 @@ def query_frame(
     are not read as missing, so ``-999`` shows as ``-999``; ``missingness``
     gives the profile's view of what is missing. ``filter`` keeps the rows
     that pass any one of its AND-lists, such as every row where ``amount``
-    is ``-999``. Rows mode returns the first ``limit`` matching rows in
-    dataset order, each with its position in the frame.
+    is ``-999``. Rows mode returns up to ``limit`` matching rows, each
+    with its position in the frame: the first ones in dataset order, a
+    seeded ``random`` sample, or the extremes of one column in ``sort``
+    order.
     The cells are in Literal Fields. It never makes a Handle and never
     changes the frame.
 
@@ -141,9 +167,14 @@ def query_frame(
         any other, so ``is_null`` can disagree with the profile's null
         ratio. Null keeps every row.
     mode : RowsMode or None
-        ``{"kind": "rows", "columns": [...], "limit": n}``. ``columns`` null
-        means every column, at most 10 returned; ``limit`` null means 20, at
-        most 50. Null means rows mode with every default.
+        ``{"kind": "rows", "columns": [...], "limit": n, "order": {...}}``.
+        ``columns`` null means every column, at most 10 returned; ``limit``
+        null means 20, at most 50. ``order`` is ``{"kind": "dataset"}``
+        (the default), ``{"kind": "random", "seed": n}`` (null seed means
+        a fixed default, so the same call draws the same rows) or
+        ``{"kind": "sort", "column": ..., "direction": "descending"}``
+        (null direction means ascending; null and NaN cells last, ties in
+        dataset order). Null means rows mode with every default.
 
     Returns
     -------
@@ -163,7 +194,8 @@ def query_frame(
     wrong_handle_kind
         ``frame`` is a Handle of another kind. ``allowed`` names ``frame``.
     unknown_column
-        A name in ``filter`` or ``mode.columns`` is not a column of the frame.
+        A name in ``filter``, ``mode.columns`` or ``mode.order.column`` is
+        not a column of the frame.
         ``candidates`` lists close matches; ``issues`` lists every unknown
         name.
     invalid_argument
@@ -190,5 +222,7 @@ def query_frame(
     """
     mode = mode or RowsMode(kind="rows")
     return QueryFrameResult.model_validate(
-        query_rows(frame=frame, filter=filter, columns=mode.columns, limit=mode.limit)
+        query_rows(
+            frame=frame, filter=filter, columns=mode.columns, limit=mode.limit, order=mode.order
+        )
     )
