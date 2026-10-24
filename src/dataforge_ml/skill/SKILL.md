@@ -102,8 +102,12 @@ A failure prints a Library Error: `code`, `message`, and fields such as `param`,
 
 ## Workspace Settings
 
-The Operator, the person who set up the library, sets four guardrails in `.dataforge/config.toml` or in env vars: `workspace`, `literal_policy`, `declared_inputs` and `core_budget`. Their flags (`--workspace`, `--literal-policy`, `--declared-inputs`, `--core-budget`) would override the Operator's choice, so leave them out.
+The Operator, the person who set up the library, sets four guardrails in `.dataforge/config.toml` or in env vars: `workspace`, `literal_policy`, `declared_inputs` and `core_budget`. Their flags (each name in kebab-case) would override the Operator's choice, so leave them out. They are guardrails, not a boundary: the [Harness contract](references/harness.md) says which hold where.
 
 - Literal Policy `deny`: fields that hold cell values, such as labels, bounds and percentiles, come back `null` and are listed in `omitted` with reason `literal_policy`. Work from the counts and shares.
 - Declared Inputs: once the Operator lists any, `load` reads only those paths and refuses others with `input_not_declared`. Ask the Operator to declare a new file.
 - Core budget: the most CPU cores one command uses.
+
+## References
+
+Read a phase's file before its first command: [load](references/load.md), [profile](references/profile.md), [split](references/split.md), [impute](references/impute.md), [evaluate](references/evaluate.md), [workspace](references/workspace.md). Python glue code: [python.md](references/python.md).

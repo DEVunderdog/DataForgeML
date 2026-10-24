@@ -1,4 +1,4 @@
-"""The package Skill, ``skill/SKILL.md``: shipped, fresh and small (ADR-0108, ADR-0112).
+"""The package Skill, ``skill/SKILL.md`` and ``skill/references/``: shipped, fresh and small (ADR-0108, ADR-0112).
 
 The command index between the markers is generated from the Operation
 registry, so an Operation added later shows up in the Skill with no change
@@ -17,6 +17,7 @@ import pytest
 import tiktoken
 
 from dataforge_ml import _help
+from dataforge_ml._boundary._help_build import PHASE_ORDER
 from dataforge_ml._boundary._operation import operations
 from dataforge_ml._boundary._skill_build import (
     BACKGROUND_MARK,
@@ -29,7 +30,11 @@ from dataforge_ml._boundary._skill_build import (
 )
 from dataforge_ml._cli import kebab
 
+from .conftest import Harness
+
 OPERATIONS = operations()
+#: The Skill's reference files: one per phase, ``python.md`` and ``harness.md``.
+REFERENCES_DIR = SKILL_FILE.parent / "references"
 
 
 def _skill() -> str:
@@ -87,6 +92,64 @@ def test_the_skill_is_about_2k_tokens() -> None:
 def test_every_command_the_skill_names_is_real() -> None:
     named = set(re.findall(r"dataforge ([a-z][a-z0-9-]*)", _skill()))
     assert named - {_help.SCHEMA_COMMAND} <= set(_help.commands())
+
+
+def _references() -> dict[str, str]:
+    return {path.name: path.read_text("utf-8") for path in REFERENCES_DIR.glob("*.md")}
+
+
+def test_references_ship_one_file_per_phase_plus_python_and_harness() -> None:
+    expected = {f"{phase}.md" for phase in PHASE_ORDER} | {"python.md", "harness.md"}
+    assert set(_references()) == expected
+    shipped = importlib.resources.files("dataforge_ml") / "skill" / "references"
+    assert {p.name for p in shipped.iterdir() if p.name.endswith(".md")} == expected
+
+
+def test_the_skill_links_every_reference() -> None:
+    linked = set(re.findall(r"\]\(references/([a-z]+\.md)\)", _skill()))
+    assert linked == set(_references())
+
+
+def test_every_command_the_references_name_is_real() -> None:
+    real = set(_help.commands()) | {_help.SCHEMA_COMMAND}
+    for name, text in _references().items():
+        named = set(re.findall(r"dataforge ([a-z][a-z0-9-]*)", text))
+        assert named <= real, (name, named - real)
+
+
+def test_the_harness_contract_states_the_guardrails() -> None:
+    contract = _references()["harness.md"]
+    # What the Harness provides (ADR-0112).
+    for term in ("Python 3.11", "`dataforge` on the PATH", "This Skill installed"):
+        assert term in contract, term
+    # Workspace Settings are guardrails, `deny` holds only under Harness
+    # permission rules, and `query_frame` still leaks through counts.
+    for term in ("guardrails, not a boundary", "permission rules", "query-frame", "counts"):
+        assert term in contract, term
+    # SKILL.md reaches the contract from its Workspace Settings section.
+    settings = _skill().split("## Workspace Settings", 1)[1]
+    assert "(references/harness.md)" in settings.split("\n## ", 1)[0]
+
+
+def test_the_python_reference_example_runs(
+    harness: Harness, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # A frame with gaps for the example to fill, under the name it loads.
+    lines = ["a,b,c,city"]
+    for i in range(150):
+        a = (i * 13) % 47 + 0.5
+        b = "" if i % 3 == 1 else f"{2 * a + (i % 5)}"
+        c = "" if i % 7 == 3 else f"{a / 2 + (i % 11)}"
+        city = "" if i % 10 == 7 else "nse"[i % 3]
+        lines.append(f"{a},{b},{c},{city}")
+    (harness.inputs / "train.csv").write_text("\n".join(lines) + "\n")
+    blocks = re.findall(r"```python\n(.*?)```", _references()["python.md"], re.DOTALL)
+    assert len(blocks) == 1
+    exec(compile(blocks[0], "python.md", "exec"), {})  # noqa: S102 - runs the shipped example
+    printed = capsys.readouterr().out.splitlines()
+    # One census line per fold, then the caught error's code and candidates.
+    assert [line.split()[0] for line in printed[:3]] == ["0", "1", "2"]
+    assert printed[3].startswith("unknown_handle ")
 
 
 def test_regenerating_needs_both_markers() -> None:

@@ -247,6 +247,7 @@ contract test, but you only learn that after a long run. Work down this list ins
 | `src/dataforge_ml/_boundary/_error_codes.py` | One `ErrorCodeEntry` (code, category, hint, and `fields` if any) for every new error or warning code the Operation raises. `test_error_registry.py` fails on a raise with no registered code. |
 | `CONTEXT.md` | Any new domain term the Operation introduces. Skip this if there is none. |
 | `_boundary/_operation.py` `PHASES` and `_boundary/_help_build.py` `PHASE_ORDER` | Only when the Operation needs a phase that does not exist yet. Add it to both. `test_help.py` fails when a phase is missing from `PHASE_ORDER`. |
+| `src/dataforge_ml/skill/references/<phase>.md` | When to reach for the new command, and any judgement call `--help` leaves out. A new phase needs its own file, linked from `SKILL.md`; `test_skill.py` fails without both. |
 
 **Register it**
 
