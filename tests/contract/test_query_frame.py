@@ -1,4 +1,4 @@
-"""``query_frame`` in rows mode: raw cells of any frame Handle, in dataset order (ADR-0111)."""
+"""``query_frame`` in rows mode: raw cells of any frame Handle, filtered, in dataset order (ADR-0111)."""
 
 from __future__ import annotations
 
@@ -199,6 +199,165 @@ def test_deny_withholds_the_cells_and_keeps_counts_and_positions(
         },
     ]
     assert [w["code"] for w in records(out.json["warnings"])] == ["literal_policy"]
+
+
+# --- The filter ------------------------------------------------------------------
+
+
+def _where(column: str, op: str, value: object = None) -> dict:
+    return {"column": column, "op": op, "value": value}
+
+
+@pytest.mark.parametrize(
+    ("predicate", "positions"),
+    [
+        (_where("age", "eq", 41), [1]),
+        (_where("city", "ne", "north"), [1, 3, 5]),
+        (_where("age", "lt", 38), [0, 2]),
+        (_where("age", "le", 38), [0, 2, 4]),
+        (_where("income", "gt", 61000.0), [3, 5]),
+        (_where("income", "ge", 61000), [1, 3, 5]),
+        (_where("city", "in", ["east", "south"]), [1, 3, 5]),
+        (_where("city", "not_in", ["north"]), [1, 3, 5]),
+        (_where("income", "is_null"), [2]),
+        (_where("city", "not_null"), [0, 1, 2, 3, 5]),
+    ],
+)
+def test_every_op_filters_the_rows(
+    harness: Harness, predicate: dict, positions: list[int]
+) -> None:
+    frame = _load(harness)
+
+    out = harness.call("query_frame", frame=frame, filter=[[predicate]])
+
+    assert out.json["row_positions"] == positions
+    assert out.json["matched_rows"] == len(positions) and out.json["total_rows"] == 6
+    ages = [34, 41, 29, 55, 38, 47]
+    assert _columns(out.json)["age"] == [ages[p] for p in positions]
+
+
+def test_the_filter_is_an_or_of_and_lists(harness: Harness) -> None:
+    frame = _load(harness)
+
+    out = harness.call(
+        "query_frame",
+        frame=frame,
+        filter=[
+            [_where("age", "gt", 40), _where("city", "eq", "south")],
+            [_where("income", "is_null")],
+        ],
+    )
+
+    assert out.json["row_positions"] == [1, 2, 5]
+    assert _columns(out.json)["age"] == [41, 29, 47]
+
+
+def test_nan_and_booleans_filter_like_the_cells_read(harness: Harness) -> None:
+    frame = _csv(harness, "nan.csv", ["x,flag", "1.0,true", "NaN,false", ",true", "3.0,false"])
+
+    missing = harness.call("query_frame", frame=frame, filter=[[_where("x", "is_null")]])
+    above = harness.call("query_frame", frame=frame, filter=[[_where("x", "ge", 0)]])
+    flagged = harness.call("query_frame", frame=frame, filter=[[_where("flag", "eq", True)]])
+
+    assert missing.json["row_positions"] == [1, 2]
+    assert above.json["row_positions"] == [0, 3]
+    assert flagged.json["row_positions"] == [0, 2]
+
+
+def test_matched_rows_is_exact_when_the_rows_are_capped(harness: Harness) -> None:
+    frame = _csv(harness, "long.csv", ["n", *map(str, range(60))])
+
+    out = harness.call(
+        "query_frame",
+        frame=frame,
+        filter=[[_where("n", "ge", 10)]],
+        mode={"kind": "rows", "limit": 5},
+    )
+
+    assert out.json["matched_rows"] == 50 and out.json["total_rows"] == 60
+    assert out.json["row_positions"] == [10, 11, 12, 13, 14]
+    assert _columns(out.json)["n"] == [10, 11, 12, 13, 14]
+    assert records(out.json["omitted"]) == [
+        {"field": "row_positions", "shown": 5, "total": 50, "operation": None, "reason": "cap"}
+    ]
+
+
+def test_a_filter_matching_nothing_returns_no_rows(harness: Harness) -> None:
+    frame = _load(harness)
+
+    out = harness.call("query_frame", frame=frame, filter=[[_where("age", "gt", 100)]])
+
+    assert out.json["matched_rows"] == 0 and out.json["row_positions"] == []
+    assert _columns(out.json)["age"] == []
+
+
+@pytest.mark.parametrize(
+    ("filter", "param"),
+    [
+        ([[_where("age", "eq", 1)]] * 6, "filter"),
+        ([[_where("age", "eq", 1)] * 11], "filter[0]"),
+        ([[_where("age", "in", list(range(101)))]], "filter[0][0]"),
+    ],
+)
+def test_an_over_cap_filter_is_refused_before_any_work(
+    harness: Harness, filter: list, param: str
+) -> None:
+    frame = _load(harness)
+
+    out = harness.call("query_frame", frame=frame, filter=filter)
+
+    assert out.code == "invalid_argument"
+    assert out.json["params"] == [param]
+    assert any(cap in out.json["issues"][0]["problem"] for cap in ("5", "10", "100"))
+
+
+@pytest.mark.parametrize(
+    "predicate",
+    [
+        _where("age", "in", 41),
+        _where("age", "eq", [41]),
+        _where("age", "eq"),
+        _where("age", "is_null", 41),
+    ],
+)
+def test_a_value_that_does_not_fit_its_op_is_refused(harness: Harness, predicate: dict) -> None:
+    frame = _load(harness)
+
+    out = harness.call("query_frame", frame=frame, filter=[[predicate]])
+
+    assert out.code == "invalid_argument"
+    assert out.json["params"] == ["filter[0][0]"]
+
+
+def test_a_value_that_does_not_fit_its_column_names_every_one(harness: Harness) -> None:
+    frame = _load(harness)
+
+    out = harness.call(
+        "query_frame",
+        frame=frame,
+        filter=[
+            [_where("age", "eq", "old"), _where("city", "lt", 3)],
+            [_where("income", "in", [1.5, True])],
+        ],
+    )
+
+    assert out.code == "invalid_argument"
+    assert out.json["params"] == ["filter[0][0].value", "filter[0][1].value", "filter[1][0].value"]
+
+
+def test_unknown_filter_columns_are_named_with_the_mode_columns(harness: Harness) -> None:
+    frame = _load(harness)
+
+    out = harness.call(
+        "query_frame",
+        frame=frame,
+        filter=[[_where("agee", "eq", 1)], [_where("city", "is_null")]],
+        mode={"kind": "rows", "columns": ["incme"]},
+    )
+
+    assert out.code == "unknown_column"
+    assert out.json["params"] == ["filter[0][0].column", "mode.columns[0]"]
+    assert "age" in out.json["candidates"] and "income" in out.json["candidates"]
 
 
 def test_query_frame_never_writes_a_handle(harness: Harness, tmp_path: Path) -> None:

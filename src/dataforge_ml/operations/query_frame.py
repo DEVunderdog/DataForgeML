@@ -4,12 +4,56 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from .._boundary._operation import operation
-from .._boundary._query_frame import ROWS_CAP, query_rows
+from .._boundary._query_frame import (
+    AND_CAP,
+    IN_CAP,
+    LIST_OPS,
+    OR_CAP,
+    ROWS_CAP,
+    SCALAR_OPS,
+    query_rows,
+)
 from ..records import LITERAL, OutputRecord, Table, WireRecord
 from .describe_target import CellValue
+
+#: A filter value: a number, a string or a bool.
+FilterScalar = bool | int | float | str
+
+
+class Predicate(WireRecord):
+    """One test on one column's raw cells. A null or NaN cell passes only ``is_null``."""
+
+    column: str
+    """The column the test reads."""
+    op: Literal["eq", "ne", "lt", "le", "gt", "ge", "in", "not_in", "is_null", "not_null"]
+    """The test. ``eq`` to ``ge`` compare each cell with ``value``; ``in`` and ``not_in`` check it against a list; ``is_null`` and ``not_null`` read no value. No string matching or regex."""
+    value: FilterScalar | list[FilterScalar] | None = None
+    """What the cells are tested against. One value for ``eq`` to ``ge``, a list of up to 100 for ``in`` and ``not_in``, null for ``is_null`` and ``not_null``. A numeric column takes numbers, a text column strings, a bool column bools; other columns take only ``is_null`` and ``not_null``."""
+
+    @model_validator(mode="after")
+    def _value_fits_op(self) -> Predicate:
+        # The list cap is checked here, not on the union, so a long list is
+        # one issue that names the cap rather than one per union branch.
+        if self.op in SCALAR_OPS:
+            if self.value is None or isinstance(self.value, list):
+                raise ValueError(f"`{self.op}` takes one value, not a list or null")
+        elif self.op in LIST_OPS:
+            if not isinstance(self.value, list):
+                raise ValueError(f"`{self.op}` takes a list of values")
+            if len(self.value) > IN_CAP:
+                raise ValueError(
+                    f"`{self.op}` lists at most {IN_CAP} values, not {len(self.value)}"
+                )
+        elif self.value is not None:
+            raise ValueError(f"`{self.op}` takes no value; set `value` to null")
+        return self
+
+
+#: Predicates that must all pass.
+AndList = Annotated[list[Predicate], Field(min_length=1, max_length=AND_CAP)]
 
 
 class DatasetOrder(WireRecord):
@@ -55,7 +99,7 @@ class QueryFrameResult(OutputRecord):
     total_rows: int
     """Rows in the frame."""
     matched_rows: int
-    """Rows that match, counted over every row. With no filter, every row matches."""
+    """Rows that match the filter, counted exactly over every row, past any cap. With no filter, every row matches."""
     row_positions: list[int]
     """Each returned row's position in the frame, from 0, in returned order. When more rows match, ``omitted`` counts them."""
     columns: Table[CellsColumn]
@@ -63,7 +107,11 @@ class QueryFrameResult(OutputRecord):
 
 
 @operation(effect="read", phase="workspace", scales_with_data=True)
-def query_frame(frame: str, mode: RowsMode | None = None) -> QueryFrameResult:
+def query_frame(
+    frame: str,
+    filter: Annotated[list[AndList], Field(min_length=1, max_length=OR_CAP)] | None = None,
+    mode: RowsMode | None = None,
+) -> QueryFrameResult:
     """Read raw cells from any frame Handle: a loaded frame, a split fold or an imputed frame.
 
     Use when
@@ -72,8 +120,10 @@ def query_frame(frame: str, mode: RowsMode | None = None) -> QueryFrameResult:
     ``-999`` is where you think, to see what an imputation filled, or to
     eyeball a fold. Cells come back exactly as stored. Declared sentinels
     are not read as missing, so ``-999`` shows as ``-999``; ``missingness``
-    gives the profile's view of what is missing. Rows mode returns the first
-    ``limit`` rows in dataset order, each with its position in the frame.
+    gives the profile's view of what is missing. ``filter`` keeps the rows
+    that pass any one of its AND-lists, such as every row where ``amount``
+    is ``-999``. Rows mode returns the first ``limit`` matching rows in
+    dataset order, each with its position in the frame.
     The cells are in Literal Fields. It never makes a Handle and never
     changes the frame.
 
@@ -81,6 +131,15 @@ def query_frame(frame: str, mode: RowsMode | None = None) -> QueryFrameResult:
     ----------
     frame : str
         A frame Handle, such as ``frame_7f3a9c2e``.
+    filter : list of list of Predicate or None
+        An OR of up to 5 AND-lists, each of 1 to 10
+        ``{"column": ..., "op": ..., "value": ...}`` predicates. A row
+        matches when every predicate of any one list passes. The ops are
+        ``eq``, ``ne``, ``lt``, ``le``, ``gt``, ``ge``, ``in`` (up to 100
+        values), ``not_in``, ``is_null`` and ``not_null``. A null or NaN
+        cell passes only ``is_null``. A declared sentinel is a value like
+        any other, so ``is_null`` can disagree with the profile's null
+        ratio. Null keeps every row.
     mode : RowsMode or None
         ``{"kind": "rows", "columns": [...], "limit": n}``. ``columns`` null
         means every column, at most 10 returned; ``limit`` null means 20, at
@@ -89,7 +148,8 @@ def query_frame(frame: str, mode: RowsMode | None = None) -> QueryFrameResult:
     Returns
     -------
     QueryFrameResult
-        ``total_rows`` and ``matched_rows``, ``row_positions`` of the rows
+        ``total_rows`` and ``matched_rows``, the exact count of rows the
+        filter keeps, ``row_positions`` of the rows
         returned, and ``columns``: per column its ``name``, ``dtype`` and
         ``values``, one per row position. Row ``i`` is ``values[i]`` of
         every column. ``omitted`` counts rows and columns past the caps and
@@ -103,11 +163,13 @@ def query_frame(frame: str, mode: RowsMode | None = None) -> QueryFrameResult:
     wrong_handle_kind
         ``frame`` is a Handle of another kind. ``allowed`` names ``frame``.
     unknown_column
-        A name in ``mode.columns`` is not a column of the frame.
+        A name in ``filter`` or ``mode.columns`` is not a column of the frame.
         ``candidates`` lists close matches; ``issues`` lists every unknown
         name.
     invalid_argument
-        An argument has the wrong type or is out of its range.
+        An argument has the wrong type or is out of its range: a filter
+        past its caps, a value that does not fit its op, or a value whose
+        type does not fit its column. ``issues`` lists every one.
     incompatible_artifact
         Another library format version wrote ``frame``. Load it again.
     invalid_setting
@@ -123,10 +185,10 @@ def query_frame(frame: str, mode: RowsMode | None = None) -> QueryFrameResult:
     -------
     $ dataforge load --path train.csv
     {...,"frame":"frame_7f3a9c2e",...}
-    $ dataforge query-frame --frame frame_7f3a9c2e --mode '{"kind":"rows","columns":["age","city"],"limit":2}'
-    {...,"frame":"frame_7f3a9c2e","mode":"rows","total_rows":6,"matched_rows":6,"row_positions":[0,1],"columns":{"fields":["kind","name","dtype","values"],"rows":[["cells","age","Int64",[34,41]],["cells","city","String",["north","south"]]]}}
+    $ dataforge query-frame --frame frame_7f3a9c2e --filter '[[{"column":"age","op":"gt","value":40}]]' --mode '{"kind":"rows","columns":["age","city"],"limit":2}'
+    {...,"frame":"frame_7f3a9c2e","mode":"rows","total_rows":6,"matched_rows":3,"row_positions":[1,3],"columns":{"fields":["kind","name","dtype","values"],"rows":[["cells","age","Int64",[41,55]],["cells","city","String",["south","east"]]]}}
     """
     mode = mode or RowsMode(kind="rows")
     return QueryFrameResult.model_validate(
-        query_rows(frame=frame, columns=mode.columns, limit=mode.limit)
+        query_rows(frame=frame, filter=filter, columns=mode.columns, limit=mode.limit)
     )

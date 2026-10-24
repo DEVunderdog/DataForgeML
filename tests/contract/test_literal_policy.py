@@ -266,6 +266,17 @@ CALLS: dict[str, Callable[[Handles], list[Call]]] = {
         ("query_frame", {"frame": h.median_imputed}),
         ("query_frame", {"frame": h.numeric_train, "mode": {"kind": "rows", "columns": ["amount"]}}),
         ("query_frame", {"frame": h.frame, "mode": {"kind": "rows", "columns": ["citty"]}}),
+        (
+            "query_frame",
+            {
+                "frame": h.frame,
+                "filter": [
+                    [{"column": "amount", "op": "eq", "value": SENTINEL}],
+                    [{"column": "city", "op": "is_null", "value": None}],
+                ],
+            },
+        ),
+        ("query_frame", {"frame": h.frame, "filter": [[{"column": "city", "op": "eq", "value": 3}]]}),
     ],
     "list_handles": lambda h: [
         ("list_handles", {}),

@@ -6,6 +6,91 @@
         "description": "A frame Handle, such as ``frame_7f3a9c2e``.",
         "type": "string"
       },
+      "filter": {
+        "anyOf": [
+          {
+            "items": {
+              "items": {
+                "additionalProperties": false,
+                "description": "One test on one column's raw cells. A null or NaN cell passes only ``is_null``.",
+                "properties": {
+                  "column": {
+                    "description": "The column the test reads.",
+                    "type": "string"
+                  },
+                  "op": {
+                    "description": "The test. ``eq`` to ``ge`` compare each cell with ``value``; ``in`` and ``not_in`` check it against a list; ``is_null`` and ``not_null`` read no value. No string matching or regex.",
+                    "enum": [
+                      "eq",
+                      "ne",
+                      "lt",
+                      "le",
+                      "gt",
+                      "ge",
+                      "in",
+                      "not_in",
+                      "is_null",
+                      "not_null"
+                    ],
+                    "type": "string"
+                  },
+                  "value": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "items": {
+                          "anyOf": [
+                            {
+                              "type": "boolean"
+                            },
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "What the cells are tested against. One value for ``eq`` to ``ge``, a list of up to 100 for ``in`` and ``not_in``, null for ``is_null`` and ``not_null``. A numeric column takes numbers, a text column strings, a bool column bools; other columns take only ``is_null`` and ``not_null``."
+                  }
+                },
+                "required": [
+                  "column",
+                  "op",
+                  "value"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "An OR of up to 5 AND-lists, each of 1 to 10 ``{\"column\": ..., \"op\": ..., \"value\": ...}`` predicates. A row matches when every predicate of any one list passes. The ops are ``eq``, ``ne``, ``lt``, ``le``, ``gt``, ``ge``, ``in`` (up to 100 values), ``not_in``, ``is_null`` and ``not_null``. A null or NaN cell passes only ``is_null``. A declared sentinel is a value like any other, so ``is_null`` can disagree with the profile's null ratio. Null keeps every row. Constraints: at least 1 items; at most 5 items; at least 1 items; at most 10 items."
+      },
       "mode": {
         "anyOf": [
           {
@@ -87,6 +172,7 @@
     },
     "required": [
       "frame",
+      "filter",
       "mode"
     ],
     "type": "object"
@@ -259,7 +345,7 @@
         "type": "integer"
       },
       "matched_rows": {
-        "description": "Rows that match, counted over every row. With no filter, every row matches.",
+        "description": "Rows that match the filter, counted exactly over every row, past any cap. With no filter, every row matches.",
         "type": "integer"
       },
       "row_positions": {

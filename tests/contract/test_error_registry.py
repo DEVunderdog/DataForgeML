@@ -41,6 +41,7 @@ EXEMPT: dict[tuple[str, str], str] = {
     ("records.py", "__get_pydantic_core_schema__"): "a Table declared outside Table Layout",
     ("records.py", "from_wire"): "Pydantic's validator protocol needs ValueError",
     ("operations/profile.py", "_exactly_one"): "Pydantic's validator protocol needs ValueError",
+    ("operations/query_frame.py", "_value_fits_op"): "Pydantic's validator protocol needs ValueError",
     ("_boundary/_error_codes.py", "entry_for"): "an unregistered code",
     ("_boundary/_operation.py", "_build_spec"): "an Operation defined outside the Strict Subset",
     ("_boundary/_operation.py", "decorate"): "an Operation registered twice",
