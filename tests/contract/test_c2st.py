@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
+import pytest
+from threadpoolctl import threadpool_info
+
+from dataforge_ml._boundary._settings import CORE_BUDGET_ENV
 from dataforge_ml._seed import DEFAULT_SEED
 
 from .conftest import Harness, records
@@ -44,6 +49,21 @@ def _train_and_test(harness: Harness) -> tuple[str, str]:
         "split", profile=profile, scheme={"kind": "random", "test_size": 0.3}
     ).json
     return records(out["folds"])[0]["train"], out["test"]
+
+
+def _spy_threads(monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    # Each repeat's OpenMP thread cap, read while the classifier fits.
+    from dataforge_ml.evaluation import _c2st
+
+    seen: list[int] = []
+    run_repeat = _c2st._run_repeat
+
+    def spy(*args: Any, **kwargs: Any) -> Any:
+        seen.extend(i["num_threads"] for i in threadpool_info() if i["user_api"] == "openmp")
+        return run_repeat(*args, **kwargs)
+
+    monkeypatch.setattr(_c2st, "_run_repeat", spy)
+    return seen
 
 
 # --- The result ---------------------------------------------------------------------
@@ -177,3 +197,20 @@ def test_a_handle_of_another_kind_is_refused(harness: Harness) -> None:
     out = harness.call("c2st", reference=train, candidate=profile)
 
     assert out.code == "wrong_handle_kind"
+
+
+# --- The core budget ----------------------------------------------------------------
+
+
+def test_the_classifier_spends_the_core_budget_in_openmp_threads(
+    harness: Harness, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The classifier has no ``n_jobs``; uncapped, concurrent calls oversubscribe the cores.
+    train, test = _train_and_test(harness)
+    monkeypatch.setenv(CORE_BUDGET_ENV, "1")
+    seen = _spy_threads(monkeypatch)
+
+    out = harness.code_mode("c2st", reference=train, candidate=test, repeats=2)
+
+    assert not out.is_error, out.json
+    assert seen and set(seen) == {1}

@@ -16,9 +16,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from threadpoolctl import threadpool_limits
+
 from ..records import DataForgeError
 from ._operation import progress_observer
-from ._workspace import read_frame
+from ._workspace import read_frame, settings
 
 #: The stage name the repeat progress is stamped with.
 OPERATION = "c2st"
@@ -125,17 +127,20 @@ def run_c2st(
     resolved_scheme = C2STScheme.Split if scheme is None else C2STScheme(scheme)
     seed = DEFAULT_SEED if seed is None else seed
     emitter = Emitter("evaluate", OPERATION, progress_observer(), total=repeats)
-    result = _run_c2st(
-        reference_frame,
-        candidate_frame,
-        repeats=repeats,
-        scheme=resolved_scheme,
-        random_state=seed,
-        min_rows=dials["min_rows"],
-        min_samples_leaf=dials["min_samples_leaf"],
-        on_repeat=lambda index, total: emitter.item(None, f"repeat {index} of {total}"),
-        floor_param="thresholds.min_rows",
-    )
+    # The classifier has no ``n_jobs``; it takes an OpenMP thread per core
+    # unless capped, so concurrent calls oversubscribe the cores (ADR-0081).
+    with threadpool_limits(limits=settings().core_budget, user_api="openmp"):
+        result = _run_c2st(
+            reference_frame,
+            candidate_frame,
+            repeats=repeats,
+            scheme=resolved_scheme,
+            random_state=seed,
+            min_rows=dials["min_rows"],
+            min_samples_leaf=dials["min_samples_leaf"],
+            on_repeat=lambda index, total: emitter.item(None, f"repeat {index} of {total}"),
+            floor_param="thresholds.min_rows",
+        )
     return {
         "warnings": [],
         "omitted": [],

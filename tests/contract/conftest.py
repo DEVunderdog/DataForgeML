@@ -12,9 +12,9 @@ A test that patches library internals cannot reach a subprocess, so
 ``harness.call_in_process`` runs the CLI's ``run`` in this process instead.
 
 The Workspace Settings are set the way an Operator sets them, through env
-vars: a temporary Workspace, and every CSV under the fixture directory
-(copied to a temporary input directory, which is also the working directory)
-as a Declared Input.
+vars: a temporary Workspace, every CSV under the fixture directory (copied to
+a temporary input directory, which is also the working directory) as a
+Declared Input, and a core budget of this xdist worker's share of the cores.
 """
 
 from __future__ import annotations
@@ -41,7 +41,12 @@ from dataforge_ml._boundary._operation import (
     canonical_json,
     operations,
 )
-from dataforge_ml._boundary._settings import DECLARED_INPUTS_ENV, WORKSPACE_ENV
+from dataforge_ml._boundary._settings import (
+    CORE_BUDGET_ENV,
+    DECLARED_INPUTS_ENV,
+    WORKSPACE_ENV,
+    _default_core_budget,
+)
 from dataforge_ml._boundary._workspace import HANDLE_KINDS
 from dataforge_ml._cli import EXIT_CODES, kebab, run
 from dataforge_ml.records import DataForgeError
@@ -232,6 +237,10 @@ def harness(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Harness:
     inputs = tmp_path / "inputs"
     shutil.copytree(FIXTURES, inputs)
     monkeypatch.setenv(WORKSPACE_ENV, str(workspace))
+    # Each xdist worker gets its share of the cores, so the workers' threads
+    # do not oversubscribe them.
+    workers = int(os.environ.get("PYTEST_XDIST_WORKER_COUNT", "1"))
+    monkeypatch.setenv(CORE_BUDGET_ENV, str(max(1, _default_core_budget() // workers)))
     monkeypatch.setenv(
         DECLARED_INPUTS_ENV,
         os.pathsep.join(str(p) for p in sorted(inputs.glob("*.csv"))),

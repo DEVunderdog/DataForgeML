@@ -6,10 +6,14 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
+from dataforge_ml._boundary._settings import CORE_BUDGET_ENV
 from dataforge_ml._boundary._workspace import payload_path, read_record
 from dataforge_ml._seed import DEFAULT_SEED
 
 from .conftest import Harness, records, write_wide_csv
+from .test_c2st import _spy_threads
 
 #: Rows in the evaluation fixture.
 N_ROWS = 150
@@ -278,3 +282,19 @@ def test_a_handle_of_another_kind_is_refused(harness: Harness) -> None:
     out = harness.call("evaluate_imputation", profile=imputed, imputed=profile)
 
     assert out.code == "wrong_handle_kind"
+
+
+# --- The core budget ----------------------------------------------------------------
+
+
+def test_the_classifier_spends_the_core_budget_in_openmp_threads(
+    harness: Harness, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    profile, imputed = _median(harness)
+    monkeypatch.setenv(CORE_BUDGET_ENV, "1")
+    seen = _spy_threads(monkeypatch)
+
+    out = harness.code_mode("evaluate_imputation", profile=profile, imputed=imputed)
+
+    assert not out.is_error, out.json
+    assert seen and set(seen) == {1}

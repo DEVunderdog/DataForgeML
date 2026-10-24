@@ -20,10 +20,12 @@ import json
 from dataclasses import asdict
 from typing import Any
 
+from threadpoolctl import threadpool_limits
+
 from ..records import DataForgeError
 from ._detail import page
 from ._operation import progress_observer
-from ._workspace import read_frame, read_profile, read_record, write_handle
+from ._workspace import read_frame, read_profile, read_record, settings, write_handle
 
 #: The Operation dial paths are relative to.
 OPERATION = "evaluate_imputation"
@@ -209,14 +211,16 @@ def evaluate_imputation(
                 values[name] = value
                 given.add(name)
     seed = DEFAULT_SEED if seed is None else seed
-    report = imputation_score_c2st(
-        original,
-        [imputed_frame],
-        stored_profile,
-        pipeline_config=pipeline_config,
-        config=C2STConfig(random_state=seed, **values),
-        observer=progress_observer(),
-    )
+    # The C2ST classifier's OpenMP threads, capped as in ``c2st`` (ADR-0081).
+    with threadpool_limits(limits=settings().core_budget, user_api="openmp"):
+        report = imputation_score_c2st(
+            original,
+            [imputed_frame],
+            stored_profile,
+            pipeline_config=pipeline_config,
+            config=C2STConfig(random_state=seed, **values),
+            observer=progress_observer(),
+        )
 
     stored = _stored(report)
     handle = write_handle(
