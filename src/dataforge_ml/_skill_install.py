@@ -8,7 +8,7 @@ in :data:`STAMP_FILE`.
 
 Every other command checks the copies under both roots. When a stamp differs
 from the library version, it prints one line to stderr, then notes the version
-it warned about in :data:`WARNED_FILE` so the next command stays quiet. The
+and stamp it warned about in :data:`WARNED_FILE` so the next command stays quiet. The
 warning comes back after the next upgrade, and a fresh install clears it.
 
 This module imports nothing but the standard library, so the check costs a
@@ -38,7 +38,9 @@ SKILL_SOURCE = Path(__file__).with_name("skill")
 SKILL_DIRS = (Path(".claude/skills/dataforge"), Path(".agents/skills/dataforge"))
 #: The file in an installed copy that holds the library version it came from.
 STAMP_FILE = ".dataforge-version"
-#: The file in an installed copy that holds the library version last warned about.
+#: The flags ``dataforge install`` takes.
+INSTALL_FLAGS = ("--skills", "--global")
+#: The file in an installed copy that holds the stamp and library version last warned about.
 WARNED_FILE = ".dataforge-version-warned"
 
 
@@ -79,11 +81,12 @@ def _read(path: Path) -> str | None:
         return None
 
 
-def stale_skill_warning(roots: list[Path] | None = None) -> str | None:
+def stale_skill_warning_once(roots: list[Path] | None = None) -> str | None:
     """Return the one-line warning for installed Skills stamped another version.
 
-    A copy already warned about for this library version is skipped, and each
-    copy warned about now is marked so, so the warning prints once.
+    A copy already warned about for this stamp and library version is skipped,
+    and each copy warned about now is marked in :data:`WARNED_FILE`, so the
+    warning prints once.
 
     Parameters
     ----------
@@ -109,11 +112,12 @@ def stale_skill_warning(roots: list[Path] | None = None) -> str | None:
         for relative in SKILL_DIRS:
             folder = root / relative
             stamp = _read(folder / STAMP_FILE)
-            if stamp is None or stamp == current or _read(folder / WARNED_FILE) == current:
+            warned = f"{stamp} {current}"
+            if stamp is None or stamp == current or _read(folder / WARNED_FILE) == warned:
                 continue
             stale.append((folder, stamp))
             try:
-                (folder / WARNED_FILE).write_text(current + "\n", "utf-8")
+                (folder / WARNED_FILE).write_text(warned + "\n", "utf-8")
             except OSError:
                 pass  # cannot mark it: it warns again next time
     if not stale:

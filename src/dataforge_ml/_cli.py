@@ -14,7 +14,8 @@ exit code names the error's category. stderr stays empty unless
 installed Skill is stamped with another library version, which warns once.
 
 ``dataforge install --skills [--global]`` installs the Skill
-(``_skill_install.py``). It is the one command that is no Operation.
+(``_skill_install.py``). It is the one command that is no Operation, so its
+JSON is a plain object of the library version and the installed folders.
 
 The Workspace Setting flags (``--workspace``, ``--literal-policy``,
 ``--declared-inputs``, ``--core-budget``) and ``--progress`` go before or
@@ -38,6 +39,7 @@ from typing import TYPE_CHECKING, Any, TextIO
 
 from . import _help, _skill_install
 from ._boundary._settings import SETTING_NAMES, flag_overrides
+from ._version import library_version
 from .records import DataForgeError, canonical_json
 
 if TYPE_CHECKING:
@@ -332,7 +334,7 @@ def _install(tokens: Sequence[str], help_asked: bool, stdout: TextIO) -> int:
     if help_asked:
         _write(stdout, _skill_install.INSTALL_USAGE.rstrip("\n"))
         return 0
-    allowed = ["--skills", "--global"]
+    allowed = list(_skill_install.INSTALL_FLAGS)
     unknown = [token for token in tokens if token not in allowed]
     if unknown:
         raise DataForgeError.from_code(
@@ -349,7 +351,7 @@ def _install(tokens: Sequence[str], help_asked: bool, stdout: TextIO) -> int:
     root = Path.home() if "--global" in tokens else Path.cwd()
     installed = _skill_install.install_skills(root)
     result = {
-        "library_version": _skill_install.library_version(),
+        "library_version": library_version(),
         "installed": [str(folder) for folder in installed],
     }
     _write(stdout, canonical_json(result))
@@ -360,7 +362,7 @@ def _dispatch(argv: Sequence[str], stdout: TextIO, stderr: TextIO) -> int:
     settings, progress, help_asked, rest = _split_globals(argv)
     if rest and rest[0] == _skill_install.INSTALL_COMMAND:
         return _install(rest[1:], help_asked, stdout)
-    warning = _skill_install.stale_skill_warning()
+    warning = _skill_install.stale_skill_warning_once()
     if warning is not None:
         _write(stderr, warning)
     if not rest:

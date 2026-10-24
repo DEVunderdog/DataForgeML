@@ -88,6 +88,11 @@ def test_a_mismatched_stamp_warns_once(harness: Harness) -> None:
     assert str(harness.inputs / SKILL_DIRS[0]) not in line  # its stamp is current
     assert second.stderr == ""
 
+    # Another stale stamp is news, so it warns once more.
+    (stale / STAMP_FILE).write_text("0.0.3\n")
+    assert "0.0.3" in run_dataforge(["list-handles"]).stderr
+    assert run_dataforge(["list-handles"]).stderr == ""
+
 
 def test_a_stale_global_copy_warns_too_and_reinstalling_clears_it(
     harness: Harness, home: Path
