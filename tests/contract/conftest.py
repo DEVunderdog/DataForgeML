@@ -207,7 +207,8 @@ class Harness:
             stderr="",
         )
 
-    def _compare(self, name: str, code: Outcome, cli: CliOutcome) -> Outcome:
+    def compare(self, name: str, code: Outcome, cli: CliOutcome) -> Outcome:
+        """Assert one call's two deliveries agree, as :meth:`call` does; return Code Mode's."""
         assert_within_budget(name, code.json, is_error=code.is_error)
         assert code.is_error == cli.is_error
         assert cli.exit_code == expected_exit_code(code.code)
@@ -220,13 +221,13 @@ class Harness:
 
     def call(self, name: str, /, **arguments: Any) -> Outcome:
         """Call through both deliveries, assert identical JSON, return Code Mode's."""
-        return self._compare(
+        return self.compare(
             name, self.code_mode(name, **arguments), self.cli(name, **arguments)
         )
 
     def call_in_process(self, name: str, /, **arguments: Any) -> Outcome:
         """As :meth:`call`, with the CLI run in this process."""
-        return self._compare(
+        return self.compare(
             name, self.code_mode(name, **arguments), self.cli_in_process(name, **arguments)
         )
 
