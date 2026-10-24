@@ -14,11 +14,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from dataforge_ml import (
-    PipelineConfig,
-    PipelinePhase,
-    StructuralProfiler,
-)
+from dataforge_ml.config import PipelineConfig, PipelinePhase
 from dataforge_ml.imputation import ImputationStrategy, route
 from dataforge_ml.imputation._config import ModelChoice, NumericImputationConfig
 from dataforge_ml.imputation._escalation import (
@@ -48,6 +44,7 @@ from dataforge_ml.profiling._numeric_config import (
     NumericStats,
     SkewSeverity,
 )
+from dataforge_ml.profiling.orchestrator import StructuralProfiler
 
 # ---------------------------------------------------------------------------
 # Construction helpers

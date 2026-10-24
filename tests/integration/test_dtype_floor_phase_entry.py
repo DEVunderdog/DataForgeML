@@ -17,12 +17,9 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
-from dataforge_ml import (
-    PipelineConfig,
-    StructuralProfiler,
-    derive_units,
-)
-from dataforge_ml.imputation import fit_unit, resolve_recipe, route
+from dataforge_ml.config import PipelineConfig
+from dataforge_ml.imputation import derive_units, fit_unit, resolve_recipe, route
+from dataforge_ml.profiling.orchestrator import StructuralProfiler
 from tests.conftest import fit_imputer
 
 # ---------------------------------------------------------------------------

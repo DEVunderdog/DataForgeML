@@ -24,12 +24,9 @@ import numpy as np
 import polars as pl
 import pytest
 
-from dataforge_ml import (
-    PipelineConfig,
-    StructuralProfiler,
-    derive_units,
-)
-from dataforge_ml.imputation import fit_unit, resolve_recipe, route
+from dataforge_ml.config import PipelineConfig
+from dataforge_ml.imputation import derive_units, fit_unit, resolve_recipe, route
+from dataforge_ml.profiling.orchestrator import StructuralProfiler
 
 STRATEGY_CASES = [
     pytest.param("median", id="scalar-control"),
@@ -223,7 +220,7 @@ def _authored_case():
     The guarantee lives inside each unit's own ``transform``, below the
     routing, so it must hold identically for a hand-authored one.
     """
-    from dataforge_ml import ImputationStrategy, author
+    from dataforge_ml.imputation import ImputationStrategy, author
 
     df = _train_frame()
     profile = StructuralProfiler(config=PipelineConfig()).profile(df)

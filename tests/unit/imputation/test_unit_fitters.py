@@ -14,11 +14,11 @@ function it called.
 import numpy as np
 import polars as pl
 
-from dataforge_ml import PipelineConfig, StructuralProfiler, derive_units
-from dataforge_ml.config import SemanticType
+from dataforge_ml.config import PipelineConfig, SemanticType
 from dataforge_ml.imputation import (
     ImputationStrategy,
     RoutingReason,
+    derive_units,
     fit_unit,
     resolve_recipe,
     route,
@@ -36,6 +36,7 @@ from dataforge_ml.imputation._fitters import (
     fit_scalar_unit,
 )
 from dataforge_ml.imputation._recipe import ColumnEstimates
+from dataforge_ml.profiling.orchestrator import StructuralProfiler
 from dataforge_ml.utils._null_normalization import _resolve_effective_nulls
 
 

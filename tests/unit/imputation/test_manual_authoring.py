@@ -14,18 +14,18 @@ import polars as pl
 import pytest
 
 import dataforge_ml
-from dataforge_ml import (
+from dataforge_ml.config import PipelineConfig, SemanticType
+from dataforge_ml.imputation import (
     AuthoredColumn,
     FittedImputer,
     ImputationRouting,
     ImputationStrategy,
-    PipelineConfig,
-    SemanticType,
-    StructuralProfiler,
     author,
     derive_units,
+    fit_unit,
+    resolve_recipe,
 )
-from dataforge_ml.imputation import fit_unit, resolve_recipe
+from dataforge_ml.profiling.orchestrator import StructuralProfiler
 from tests.conftest import raises_code
 
 COLUMNS = ["score", "revenue", "rating", "label"]

@@ -31,12 +31,14 @@ def fit_imputer(train_df, profile, config=None, observer=None):
     contents, per-unit training) should drive the steps directly rather than
     call this.
     """
-    from dataforge_ml import (
+    from dataforge_ml.config import PipelineConfig
+    from dataforge_ml.imputation import (
         FittedImputer,
-        PipelineConfig,
         derive_units,
+        fit_unit,
+        resolve_recipe,
+        route,
     )
-    from dataforge_ml.imputation import fit_unit, resolve_recipe, route
 
     config = config or PipelineConfig()
     routing = route(profile, config)

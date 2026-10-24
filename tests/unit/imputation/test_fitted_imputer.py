@@ -1075,7 +1075,7 @@ def test_fitted_knn_serialize_deserialize_round_trip():
     import numpy as np
     from sklearn.impute import KNNImputer
 
-    from dataforge_ml import deserialize, serialize
+    from dataforge_ml._serialization import deserialize, serialize
     from dataforge_ml.imputation._fitted_imputer import _FittedKNN
 
     train = np.array([[0.0, 1.0], [1.0, 0.0], [0.5, 0.5]], dtype=np.float64)

@@ -436,15 +436,15 @@ def test_hand_authored_plan_drives_column_names_to_an_imputed_frame():
     """
     import numpy as np
 
-    from dataforge_ml import (
+    from dataforge_ml._serialization import deserialize, serialize
+    from dataforge_ml.imputation import (
         AuthoredColumn,
         ImputationStrategy,
         author,
         derive_units,
-        deserialize,
-        serialize,
+        fit_unit,
+        resolve_recipe,
     )
-    from dataforge_ml.imputation import fit_unit, resolve_recipe
 
     rng = np.random.default_rng(468)
     n = 300
@@ -609,7 +609,7 @@ def test_fit_records_carry_no_diagnostics(purity_df, purity_profile):
 
 def test_fit_event_stream_has_no_diagnostics_fold_substeps(purity_df, purity_profile):
     """Fitting only learns models — no cross-validated fold work happens."""
-    from dataforge_ml import EventType
+    from dataforge_ml.observability import EventType
 
     recorder = _Recorder()
     fit_imputer(purity_df, purity_profile, observer=recorder)

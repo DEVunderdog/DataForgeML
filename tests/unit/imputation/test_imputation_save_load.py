@@ -16,13 +16,8 @@ import polars as pl
 import pytest
 from sklearn.tree import DecisionTreeRegressor
 
-from dataforge_ml import (
-    PipelineConfig,
-    StructuralProfiler,
-    deserialize,
-    inspect,
-    serialize,
-)
+from dataforge_ml._serialization import deserialize, inspect, serialize
+from dataforge_ml.config import PipelineConfig
 from dataforge_ml.imputation import (
     FittedImputer,
     ImputationRecipe,
@@ -36,6 +31,7 @@ from dataforge_ml.imputation import (
     route,
 )
 from dataforge_ml.profiling._config import StructuralProfileResult
+from dataforge_ml.profiling.orchestrator import StructuralProfiler
 from tests.conftest import raises_code
 
 # --------------------------------------------------------------------------- #

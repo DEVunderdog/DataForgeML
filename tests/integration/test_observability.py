@@ -7,14 +7,10 @@ both proven end-to-end through ``StructuralProfiler``.
 import logging
 
 import dataforge_ml
-from dataforge_ml import (
-    EventType,
-    PipelineConfig,
-    PipelineEvent,
-    StructuralProfiler,
-    stderr_observer,
-)
+from dataforge_ml.config import PipelineConfig
+from dataforge_ml.observability import EventType, PipelineEvent, stderr_observer
 from dataforge_ml.profiling._config import ProfileConfig
+from dataforge_ml.profiling.orchestrator import StructuralProfiler
 
 
 class _Recorder:

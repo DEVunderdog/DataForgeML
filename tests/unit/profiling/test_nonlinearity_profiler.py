@@ -236,8 +236,9 @@ def test_structural_profiler_populates_numericstats(complex_nonlinear_df):
     After profiling with compute_nonlinearity=True, NumericStats for the
     target column must have nonlinearity_tag and all four signal fields set.
     """
-    from dataforge_ml import PipelineConfig, StructuralProfiler
+    from dataforge_ml.config import PipelineConfig
     from dataforge_ml.profiling._config import ProfileConfig
+    from dataforge_ml.profiling.orchestrator import StructuralProfiler
 
     pc = ProfileConfig(compute_nonlinearity=True)
     pipeline_cfg = PipelineConfig(profiling=pc)
@@ -259,8 +260,9 @@ def test_structural_profiler_reads_nan_as_missing_for_signals():
     """NaN-encoded missing values are resolved at phase entry, so the
     correlation and nonlinearity signals match a null-encoded copy of the same
     frame instead of collapsing to r = 0 and an Unpredictable tag."""
-    from dataforge_ml import PipelineConfig, StructuralProfiler
+    from dataforge_ml.config import PipelineConfig
     from dataforge_ml.profiling._config import ProfileConfig
+    from dataforge_ml.profiling.orchestrator import StructuralProfiler
 
     rng = np.random.default_rng(0)
     n = 400

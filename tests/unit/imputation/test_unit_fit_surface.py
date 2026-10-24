@@ -16,23 +16,21 @@ import warnings
 import numpy as np
 import polars as pl
 
-from dataforge_ml import (
-    FittedImputer,
-    PipelineConfig,
-    StructuralProfiler,
-    derive_units,
-)
 from dataforge_ml._boundary._error_codes import REGISTRY
+from dataforge_ml.config import PipelineConfig
 from dataforge_ml.imputation import (
     FitSignals,
+    FittedImputer,
     ImputationStrategy,
     ImputationUnit,
     UnitFitResult,
+    derive_units,
     fit_unit,
     resolve_recipe,
     route,
 )
 from dataforge_ml.imputation._fitted_units import FittedScalar
+from dataforge_ml.profiling.orchestrator import StructuralProfiler
 from dataforge_ml.records import ResultWarning
 from tests.conftest import raises_code
 
@@ -175,7 +173,7 @@ def test_untrainable_unit_raises_with_structured_payload():
     # A hand-authored ClusterConditional column with no grouping variable and
     # no profile-measured bimodal centres cannot train: resolve_recipe never
     # raises over the missing estimate, so the failure surfaces at fit_unit.
-    from dataforge_ml import author
+    from dataforge_ml.imputation import author
 
     df = pl.DataFrame({"x": [1.0, None, 3.0, None, 5.0]})
     profile, _, _ = _routing_and_recipe(df)
@@ -435,7 +433,7 @@ def test_a_reloaded_routing_resolves_and_fits_identically():
     recipe against the same profile and fitting from that reproduces the
     in-process fit exactly.
     """
-    from dataforge_ml import deserialize, serialize
+    from dataforge_ml._serialization import deserialize, serialize
 
     rng = np.random.default_rng(3)
     n = 300

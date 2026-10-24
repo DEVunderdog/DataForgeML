@@ -18,7 +18,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from dataforge_ml import deserialize, inspect, serialize
+from dataforge_ml._serialization import deserialize, inspect, serialize
 from dataforge_ml.config import PipelineConfig
 from dataforge_ml.profiling._config import ProfileConfig, StructuralProfileResult
 from dataforge_ml.profiling._missingness_config import MissingSeverity

@@ -21,7 +21,7 @@ from sklearn.experimental import enable_iterative_imputer  # noqa: F401 - side e
 from sklearn.impute import IterativeImputer, KNNImputer
 from sklearn.linear_model import BayesianRidge
 
-from dataforge_ml import (
+from dataforge_ml._serialization import (
     ArtifactPythonVersionWarning,
     deserialize,
     inspect,
@@ -315,7 +315,7 @@ def test_genuine_joblib_load_failure_propagates() -> None:
 
 
 def test_whole_imputer_round_trips_via_routing_plus_units() -> None:
-    from dataforge_ml import PipelineConfig, StructuralProfiler
+    from dataforge_ml.config import PipelineConfig
     from dataforge_ml.imputation import (
         FittedImputer,
         derive_units,
@@ -323,6 +323,7 @@ def test_whole_imputer_round_trips_via_routing_plus_units() -> None:
         resolve_recipe,
         route,
     )
+    from dataforge_ml.profiling.orchestrator import StructuralProfiler
 
     df = pl.DataFrame(
         {
