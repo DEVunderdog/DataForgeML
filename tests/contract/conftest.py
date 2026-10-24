@@ -232,6 +232,14 @@ class Harness:
         )
 
 
+@pytest.fixture(autouse=True)
+def home(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """An empty home folder, so a Skill installed in the real one cannot warn on stderr."""
+    folder = tmp_path_factory.mktemp("home")
+    monkeypatch.setenv("HOME", str(folder))
+    return folder
+
+
 @pytest.fixture
 def harness(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Harness:
     workspace = tmp_path / "workspace"

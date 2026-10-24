@@ -42,6 +42,7 @@ from typing import Any
 
 import joblib
 
+from ._version import library_version
 from .imputation import ImputationRecipe, ImputationRouting
 from .profiling import StructuralProfileResult
 from .records import DataForgeError
@@ -75,22 +76,6 @@ def _incompatible(message: str) -> DataForgeError:
     # A reconstruction/correctness failure (ADR-0063): the saved bytes cannot
     # be rebuilt faithfully under the format schema and libraries installed now.
     return DataForgeError.from_code("incompatible_artifact", message)
-
-
-def library_version() -> str:
-    """Return the installed DataForgeML version, or a dev placeholder.
-
-    Returns
-    -------
-    str
-        The ``dataforge-ml`` distribution version, or ``"0.0.0-dev"`` when
-        the package metadata is unavailable (e.g. running from a source
-        checkout with no installed distribution).
-    """
-    try:
-        return version("dataforge-ml")
-    except PackageNotFoundError:
-        return "0.0.0-dev"
 
 
 def _distribution_version(name: str) -> str:

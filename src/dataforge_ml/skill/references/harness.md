@@ -6,7 +6,7 @@ The Harness is the program that runs the Agent and gives it a shell, such as Cla
 
 - A shell with Python 3.11 or later.
 - The library installed, with `dataforge` on the PATH.
-- This Skill installed: the package's `skill/` folder, `SKILL.md` and `references/`, copied into the Harness's skills folder under the name `dataforge`, such as `.claude/skills/dataforge/` or `.agents/skills/dataforge/`.
+- This Skill installed: the package's `skill/` folder, `SKILL.md` and `references/`, copied into the Harness's skills folder under the name `dataforge`. `dataforge install --skills` copies it into `.claude/skills/dataforge/` and `.agents/skills/dataforge/` under the working directory, or under the home folder with `--global`. The copy is stamped with the library version; after an upgrade, the first command warns once on stderr until the install is run again.
 
 Resource limits (CPU, memory, disk, shell timeouts) stay the Harness's. The library assumes no sandbox, no network limit and no read-only mount.
 

@@ -10,7 +10,11 @@ by the same args model as Code Mode, so ``param`` paths are the same.
 stdout carries exactly one JSON value: the Wire Record on success, the Library
 Error on failure, byte-stable and identical to Code Mode's ``to_dict()``. The
 exit code names the error's category. stderr stays empty unless
-``--progress`` is passed, which prints one line per Pipeline Event.
+``--progress`` is passed, which prints one line per Pipeline Event, or an
+installed Skill is stamped with another library version, which warns once.
+
+``dataforge install --skills [--global]`` installs the Skill
+(``_skill_install.py``). It is the one command that is no Operation.
 
 The Workspace Setting flags (``--workspace``, ``--literal-policy``,
 ``--declared-inputs``, ``--core-budget``) and ``--progress`` go before or
@@ -32,7 +36,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TextIO
 
-from . import _help
+from . import _help, _skill_install
 from ._boundary._settings import SETTING_NAMES, flag_overrides
 from .records import DataForgeError, canonical_json
 
@@ -323,8 +327,42 @@ def _schema(tokens: Sequence[str], help_asked: bool, stdout: TextIO) -> int:
     return 0
 
 
-def _dispatch(argv: Sequence[str], stdout: TextIO) -> int:
+def _install(tokens: Sequence[str], help_asked: bool, stdout: TextIO) -> int:
+    # dataforge install --skills [--global]: not an Operation, so no Handle.
+    if help_asked:
+        _write(stdout, _skill_install.INSTALL_USAGE.rstrip("\n"))
+        return 0
+    allowed = ["--skills", "--global"]
+    unknown = [token for token in tokens if token not in allowed]
+    if unknown:
+        raise DataForgeError.from_code(
+            "invalid_argument",
+            f"`dataforge install` takes no `{unknown[0]}`.",
+            allowed=allowed,
+        )
+    if "--skills" not in tokens:
+        raise DataForgeError.from_code(
+            "invalid_argument",
+            "Name what to install, as in `dataforge install --skills`.",
+            allowed=allowed,
+        )
+    root = Path.home() if "--global" in tokens else Path.cwd()
+    installed = _skill_install.install_skills(root)
+    result = {
+        "library_version": _skill_install.library_version(),
+        "installed": [str(folder) for folder in installed],
+    }
+    _write(stdout, canonical_json(result))
+    return 0
+
+
+def _dispatch(argv: Sequence[str], stdout: TextIO, stderr: TextIO) -> int:
     settings, progress, help_asked, rest = _split_globals(argv)
+    if rest and rest[0] == _skill_install.INSTALL_COMMAND:
+        return _install(rest[1:], help_asked, stdout)
+    warning = _skill_install.stale_skill_warning()
+    if warning is not None:
+        _write(stderr, warning)
     if not rest:
         if help_asked:
             _write(stdout, _help.overview())
@@ -357,7 +395,7 @@ def _dispatch(argv: Sequence[str], stdout: TextIO) -> int:
     return 0
 
 
-def run(argv: Sequence[str], stdout: TextIO | None = None) -> int:
+def run(argv: Sequence[str], stdout: TextIO | None = None, stderr: TextIO | None = None) -> int:
     """Run one ``dataforge`` command and return its exit code.
 
     Parameters
@@ -366,6 +404,8 @@ def run(argv: Sequence[str], stdout: TextIO | None = None) -> int:
         The arguments after ``dataforge``.
     stdout : TextIO, optional
         Where the JSON goes; ``sys.stdout`` by default.
+    stderr : TextIO, optional
+        Where the stale-Skill warning goes; ``sys.stderr`` by default.
 
     Returns
     -------
@@ -375,11 +415,13 @@ def run(argv: Sequence[str], stdout: TextIO | None = None) -> int:
         propagate.
     """
     stdout = stdout if stdout is not None else sys.stdout
+    stderr = stderr if stderr is not None else sys.stderr
     try:
         with warnings.catch_warnings():
-            # stderr carries progress only; library caveats travel in the JSON.
+            # stderr carries progress and the stale-Skill line only; library
+            # caveats travel in the JSON.
             warnings.simplefilter("ignore")
-            return _dispatch(argv, stdout)
+            return _dispatch(argv, stdout, stderr)
     except DataForgeError as err:
         _write(stdout, canonical_json(err.to_dict()))
         return EXIT_CODES[err.category]

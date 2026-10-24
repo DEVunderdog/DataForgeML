@@ -29,6 +29,7 @@ from dataforge_ml._boundary._skill_build import (
     skill_text,
 )
 from dataforge_ml._cli import kebab
+from dataforge_ml._skill_install import INSTALL_COMMAND
 
 from .conftest import Harness
 
@@ -91,7 +92,7 @@ def test_the_skill_is_about_2k_tokens() -> None:
 
 def test_every_command_the_skill_names_is_real() -> None:
     named = set(re.findall(r"dataforge ([a-z][a-z0-9-]*)", _skill()))
-    assert named - {_help.SCHEMA_COMMAND} <= set(_help.commands())
+    assert named - {_help.SCHEMA_COMMAND, INSTALL_COMMAND} <= set(_help.commands())
 
 
 def _references() -> dict[str, str]:
@@ -111,7 +112,7 @@ def test_the_skill_links_every_reference() -> None:
 
 
 def test_every_command_the_references_name_is_real() -> None:
-    real = set(_help.commands()) | {_help.SCHEMA_COMMAND}
+    real = set(_help.commands()) | {_help.SCHEMA_COMMAND, INSTALL_COMMAND}
     for name, text in _references().items():
         named = set(re.findall(r"dataforge ([a-z][a-z0-9-]*)", text))
         assert named <= real, (name, named - real)

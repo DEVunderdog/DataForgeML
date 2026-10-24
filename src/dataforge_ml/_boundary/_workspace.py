@@ -26,7 +26,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .._serialization import FORMAT_SCHEMA_VERSION, library_version
+from .._serialization import FORMAT_SCHEMA_VERSION
+from .._version import library_version
 from ..records import DataForgeError
 from ._settings import WorkspaceSettings, resolve_settings
 

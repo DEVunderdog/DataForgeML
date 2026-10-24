@@ -30,6 +30,7 @@ from typing import Any
 
 from .._cli import EXIT_CODES, kebab, takes_json
 from .._help import HELP_FILE, SCHEMA_COMMAND, schema_pointer
+from .._skill_install import INSTALL_COMMAND
 from ._error_codes import REGISTRY
 from ._operation import OperationSpec, operations
 
@@ -130,6 +131,8 @@ def _overview(specs: Mapping[str, OperationSpec]) -> str:
         f"  dataforge {SCHEMA_COMMAND} <command> <argument> [path]",
         "                                one nested argument's schema, one level at a time",
         "  The `dataforge` Skill (SKILL.md) teaches the workflow and what each exit code asks.",
+        f"  dataforge {INSTALL_COMMAND} --skills [--global]",
+        "                                install the Skill for Claude Code, Codex, Gemini CLI, Cursor",
         "",
         "Every command prints one JSON value on stdout, errors too. Exit codes: 0 success,",
         "2 InvalidInput, 3 UnknownName, 4 Conflict, 5 Infeasible, 6 IncompatibleArtifact,",
