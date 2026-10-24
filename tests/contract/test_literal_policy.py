@@ -261,6 +261,12 @@ CALLS: dict[str, Callable[[Handles], list[Call]]] = {
         ("export_frame", {"frame": h.frame}),
         ("export_frame", {"frame": h.profile}),
     ],
+    "query_frame": lambda h: [
+        ("query_frame", {"frame": h.frame, "mode": {"kind": "rows", "limit": 50}}),
+        ("query_frame", {"frame": h.median_imputed}),
+        ("query_frame", {"frame": h.numeric_train, "mode": {"kind": "rows", "columns": ["amount"]}}),
+        ("query_frame", {"frame": h.frame, "mode": {"kind": "rows", "columns": ["citty"]}}),
+    ],
     "list_handles": lambda h: [
         ("list_handles", {}),
         ("list_handles", {"kind": "routing", "limit": 0}),

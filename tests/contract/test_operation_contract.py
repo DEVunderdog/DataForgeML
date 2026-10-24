@@ -74,6 +74,20 @@ def _export(harness: Harness, tmp_path: Path) -> dict[str, Any]:
     return harness.call("export_frame", frame=frame).json
 
 
+def _ames_query_frame(harness: Harness, tmp_path: Path) -> dict[str, Any]:
+    # Every cap at its largest on Ames: 50 rows of its 10 widest text columns.
+    import polars as pl
+
+    ames = pl.read_csv(AMES, infer_schema_length=None)
+    text = [c for c, t in ames.schema.items() if t == pl.String]
+    widest = sorted(text, key=lambda c: -(ames[c].str.len_chars().max() or 0))[:10]
+    harness.declare(AMES)
+    frame = harness.code_mode("load", path=str(AMES)).json["frame"]
+    return harness.call(
+        "query_frame", frame=frame, mode={"kind": "rows", "columns": widest, "limit": 50}
+    ).json
+
+
 def _wide_profile(harness: Harness, tmp_path: Path) -> dict[str, Any]:
     # 150 long-named columns, each flagged twice, past the digest's 100-row
     # cap, with a fallback warning whose column list is at its cap.
@@ -303,6 +317,7 @@ WORST_CASE: dict[str, Callable[[Harness, Path], dict[str, Any]]] = {
     "load": _wide_load,
     "missingness": _wide_missingness,
     "profile": _wide_profile,
+    "query_frame": _ames_query_frame,
     "resolve_recipe": _wide_resolve_recipe,
     "route": _wide_route,
     "split": _ames_repeated_kfold,
@@ -312,9 +327,7 @@ WORST_CASE: dict[str, Callable[[Harness, Path], dict[str, Any]]] = {
 
 #: Operations an ``omitted`` entry may already name before they exist, each
 #: with the ticket that adds it. Remove an entry when its Operation lands.
-PENDING_OPERATIONS: dict[str, str] = {
-    "query_frame": "#603",
-}
+PENDING_OPERATIONS: dict[str, str] = {}
 
 
 def _schemas(spec: OperationSpec) -> dict[str, Any]:

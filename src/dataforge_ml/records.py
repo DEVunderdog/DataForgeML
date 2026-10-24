@@ -329,13 +329,13 @@ class Omission(WireRecord):
     field: str
     """Name of the list field that was cut, or the path of the Literal Field withheld, such as ``top_values[].value``."""
     shown: int
-    """How many items the list holds; 0 for a withheld Literal Field."""
+    """How many items the list holds; 0 for a withheld Literal Field or cut cells."""
     total: int
-    """How many items exist; for a withheld Literal Field, how many values at that path are null."""
+    """How many items exist; for a withheld Literal Field, how many values at that path are null; for cut cells, how many were cut."""
     operation: str | None
     """The Operation that returns the rest, or null when no Operation does."""
-    reason: Literal["cap", "literal_policy"] = "cap"
-    """``cap`` when a list was cut to its cap; ``literal_policy`` when the Operator's Literal Policy is ``deny``."""
+    reason: Literal["cap", "literal_policy", "truncated"] = "cap"
+    """``cap`` when a list was cut to its cap; ``literal_policy`` when the Operator's Literal Policy is ``deny``; ``truncated`` when long text cells were cut to their character cap."""
 
 
 class ResultWarning(WireRecord):

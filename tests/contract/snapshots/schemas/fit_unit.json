@@ -153,11 +153,11 @@
                     "type": "string"
                   },
                   {
-                    "description": "Position 1, `shown`: How many items the list holds; 0 for a withheld Literal Field.",
+                    "description": "Position 1, `shown`: How many items the list holds; 0 for a withheld Literal Field or cut cells.",
                     "type": "integer"
                   },
                   {
-                    "description": "Position 2, `total`: How many items exist; for a withheld Literal Field, how many values at that path are null.",
+                    "description": "Position 2, `total`: How many items exist; for a withheld Literal Field, how many values at that path are null; for cut cells, how many were cut.",
                     "type": "integer"
                   },
                   {
@@ -172,10 +172,11 @@
                     "description": "Position 3, `operation`: The Operation that returns the rest, or null when no Operation does."
                   },
                   {
-                    "description": "Position 4, `reason`: ``cap`` when a list was cut to its cap; ``literal_policy`` when the Operator's Literal Policy is ``deny``.",
+                    "description": "Position 4, `reason`: ``cap`` when a list was cut to its cap; ``literal_policy`` when the Operator's Literal Policy is ``deny``; ``truncated`` when long text cells were cut to their character cap.",
                     "enum": [
                       "cap",
-                      "literal_policy"
+                      "literal_policy",
+                      "truncated"
                     ],
                     "type": "string"
                   }

@@ -20,6 +20,7 @@ from . import (  # noqa: F401 - importing each module registers its Operation
     load,
     missingness,
     profile,
+    query_frame,
     resolve_recipe,
     route,
     split,
