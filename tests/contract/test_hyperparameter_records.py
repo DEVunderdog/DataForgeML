@@ -96,8 +96,8 @@ def test_the_record_rejects_what_its_strategy_does_not_have(payload: dict[str, A
 # --- Estimators -------------------------------------------------------------------
 
 
-def test_the_estimator_enum_is_every_library_built_model_choice() -> None:
-    assert set(get_args(EstimatorName)) == {c.value for c in ModelChoice} - {"custom"}
+def test_the_estimator_enum_is_every_model_choice() -> None:
+    assert set(get_args(EstimatorName)) == {c.value for c in ModelChoice}
     assert set(_ESTIMATORS) == {ModelChoice(name) for name in get_args(EstimatorName)}
 
 

@@ -4,7 +4,6 @@ Persisting routing or recipe uses bare-bytes serialization:
 - Four independent kinds: profile, routing, recipe, fitted unit.
 - Schema version 3 is strictly checked across every kind.
 - Gap-fill is deleted: missing or unknown dial keys/rows or unit-id mismatches fail loudly at load.
-- Live custom estimators are dropped at save, reloading as ModelChoice.Custom with an empty slot.
 - Header inspection stays lightweight and header-only.
 """
 
@@ -15,7 +14,6 @@ import json
 
 import polars as pl
 import pytest
-from sklearn.tree import DecisionTreeRegressor
 
 from dataforge_ml._serialization import deserialize, inspect, serialize
 from dataforge_ml.imputation import (
@@ -24,7 +22,6 @@ from dataforge_ml.imputation import (
     ImputationRecipe,
     ImputationRouting,
     ImputationStrategy,
-    ModelChoice,
     author,
     derive_units,
     fit_unit,
@@ -124,7 +121,6 @@ def test_serialize_routing_round_trips_correctly(rich_routing: ImputationRouting
     assert reloaded == rich_routing
     assert reloaded.column_routings == rich_routing.column_routings
     assert reloaded.mice_model_choice == rich_routing.mice_model_choice
-    assert reloaded.mice_estimator is None
 
 
 def test_serialize_recipe_round_trips_correctly(rich_recipe: ImputationRecipe) -> None:
@@ -373,63 +369,6 @@ def test_decided_base_missing_entire_hyperparameters_block_raises(
         ImputationRecipe.from_dict(data)
 
     assert "decided_hyperparameters" in str(exc_info.value)
-
-
-# --------------------------------------------------------------------------- #
-# Acceptance Criterion 5: Round-trip test for a custom MICE estimator
-# --------------------------------------------------------------------------- #
-
-
-def test_custom_estimator_round_trip(
-    rich_routing: ImputationRouting,
-    rich_profile_and_df: tuple[StructuralProfileResult, pl.DataFrame],
-) -> None:
-    profile, df = rich_profile_and_df
-
-    custom_estimator = DecisionTreeRegressor(max_depth=3, random_state=42)
-    routing_custom = dataclasses.replace(
-        rich_routing, mice_model_choice=ModelChoice.Custom, mice_estimator=custom_estimator
-    )
-
-    assert routing_custom.mice_model_choice == ModelChoice.Custom
-    assert routing_custom.mice_estimator is custom_estimator
-
-    # 1. Round-trip routing:
-    blob_routing = serialize(routing_custom)
-    reloaded_routing = deserialize(blob_routing)
-
-    assert reloaded_routing.mice_model_choice == ModelChoice.Custom
-    assert reloaded_routing.mice_estimator is None
-
-    # 2. Round-trip recipe:
-    recipe_custom = resolve_recipe(routing_custom, profile)
-    assert recipe_custom.routing.mice_model_choice == ModelChoice.Custom
-    assert recipe_custom.routing.mice_estimator is custom_estimator
-
-    blob_recipe = serialize(recipe_custom)
-    reloaded_recipe = deserialize(blob_recipe)
-
-    assert reloaded_recipe.routing.mice_model_choice == ModelChoice.Custom
-    assert reloaded_recipe.routing.mice_estimator is None
-
-    # 3. Fitting the reloaded recipe fails loudly with clear message:
-    (mice_unit,) = derive_units(reloaded_recipe.routing, strategy=ImputationStrategy.MICE)
-    with raises_code("unit_not_trainable") as exc_info:
-        fit_unit(reloaded_recipe, mice_unit, df)
-
-    reason = exc_info.value.message
-    assert "ModelChoice.Custom" in reason
-    assert "no estimator is carried" in reason
-    assert "mice_estimator" in reason
-
-    # 4. Re-supplying the custom estimator on the routing allows fitting to succeed:
-    fixed_routing = dataclasses.replace(
-        reloaded_recipe.routing, mice_estimator=custom_estimator
-    )
-    fixed_recipe = resolve_recipe(fixed_routing, profile)
-    (fixed_mice_unit,) = derive_units(fixed_recipe.routing, strategy=ImputationStrategy.MICE)
-    fit_result = fit_unit(fixed_recipe, fixed_mice_unit, df)
-    assert fit_result.fitted is not None
 
 
 # --------------------------------------------------------------------------- #

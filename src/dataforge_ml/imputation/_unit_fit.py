@@ -90,7 +90,6 @@ def _fit_context(
             for unit in derive_units(recipe.routing)
         },
         feature_columns=tuple(_active_numeric_columns(recipe.routing)),
-        mice_estimator=recipe.routing.mice_estimator,
         seed=seed,
         mice_model_choice=recipe.routing.mice_model_choice,
     )

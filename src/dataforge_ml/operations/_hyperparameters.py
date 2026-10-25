@@ -238,7 +238,7 @@ def estimator_record(choice: ModelChoice, params: dict[str, Any]) -> _EstimatorR
     Parameters
     ----------
     choice : ModelChoice
-        The estimator family. ``ModelChoice.Custom`` has no record.
+        The estimator family.
     params : dict
         Constructor parameters, as :meth:`_EstimatorRecord.to_estimator` gives them.
 
@@ -249,8 +249,6 @@ def estimator_record(choice: ModelChoice, params: dict[str, Any]) -> _EstimatorR
 
     Raises
     ------
-    KeyError
-        If ``choice`` is ``ModelChoice.Custom``.
     ValidationError
         If ``params`` holds a key or value the record does not accept.
     """

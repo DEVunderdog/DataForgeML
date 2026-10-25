@@ -32,7 +32,6 @@ from sklearn.preprocessing import StandardScaler
 
 from .._seed import DEFAULT_SEED
 from ..profiling._numeric_config import NonlinearityTag
-from ..records import DataForgeError
 from ._config import ModelChoice
 
 
@@ -187,28 +186,7 @@ class RegressionEstimatorFactory:
         -------
         sklearn estimator
             A freshly constructed, unfitted sklearn-compatible estimator.
-
-        Raises
-        ------
-        Infeasible
-            ``custom_estimator_missing`` if ``choice`` is
-            :attr:`~dataforge_ml.imputation.ModelChoice.Custom`.  That
-            member names an estimator the library did not build, so there is
-            nothing here to construct; the instance travels on the routing's
-            ``mice_estimator`` slot and the caller reads it from there
-            (ADR-0090).  A routing reloaded from bytes has the slot empty — the
-            estimator is never serialized — and this raise is what stops such a
-            routing silently imputing with a library default instead.
         """
-        if choice == ModelChoice.Custom:
-            raise DataForgeError.from_code(
-                "custom_estimator_missing",
-                "ModelChoice.Custom names a user-supplied estimator, which this "
-                "factory did not build and cannot reconstruct. The instance is "
-                "not serialized, so a routing reloaded from bytes carries the "
-                "label with an empty slot; re-supply it by rebuilding the "
-                "routing with mice_estimator set."
-            )
         params = params or {}
         if choice == ModelChoice.BayesianRidge:
             return Pipeline([

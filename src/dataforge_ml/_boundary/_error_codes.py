@@ -354,14 +354,6 @@ _ENTRIES: tuple[ErrorCodeEntry, ...] = (
         fields=("param",),
     ),
     ErrorCodeEntry(
-        code="custom_estimator_missing",
-        category="Infeasible",
-        hint=(
-            "A custom estimator is never stored, so a reloaded routing has none. "
-            "Set the estimator on the routing again before fitting."
-        ),
-    ),
-    ErrorCodeEntry(
         code="c2st_string_column",
         category="Infeasible",
         hint=(

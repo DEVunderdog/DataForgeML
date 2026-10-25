@@ -21,7 +21,6 @@ from dataforge_ml.imputation._regression_estimator_factory import (
     RegressionEstimatorFactory,
 )
 from dataforge_ml.profiling._numeric_config import NonlinearityTag
-from tests.conftest import raises_code
 
 # ---------------------------------------------------------------------------
 # Shared toy dataset helpers
@@ -164,13 +163,8 @@ def test_complex_nonlinear_produces_non_null_predictions_at_any_size():
 
 
 # ---------------------------------------------------------------------------
-# build_from_choice: Custom raises, every real choice builds
+# build_from_choice: every choice builds
 # ---------------------------------------------------------------------------
-
-
-def test_build_from_choice_custom_raises():
-    with raises_code("custom_estimator_missing", match="Custom"):
-        RegressionEstimatorFactory.build_from_choice(ModelChoice.Custom)
 
 
 def test_build_from_choice_gradient_boosting_still_buildable_explicitly():

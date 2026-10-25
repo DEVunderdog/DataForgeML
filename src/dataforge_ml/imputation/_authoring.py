@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from .._boundary._error_codes import close_matches
 from ..config import SemanticType
@@ -194,12 +194,9 @@ def author(
     **The door resolves no MICE model choice for fresh authoring.** ``MICE``
     may still be declared for two or more columns — the door refuses only a
     single-column block — but every fresh routing :func:`author` returns carries
-    ``mice_model_choice=None`` and ``mice_estimator=None``. When re-authoring with
-    ``base=``, MICE membership carries/creates/dissolves the estimator
-    (ADR-0090): if MICE columns remain, ``mice_model_choice`` and the estimator
-    carry; if the edit creates the block, it is stamped ``BayesianRidge``; if
-    the edit dissolves it, both go. The Feasibility Floor, Signal Score, and
-    Estimator Ladder (ADR-0091, ADR-0092, ADR-0094) are computed only in
+    ``mice_model_choice=None``; re-authoring with ``base=`` carries, creates
+    or dissolves it as described below. The Feasibility Floor, Signal Score,
+    and Estimator Ladder (ADR-0091, ADR-0092, ADR-0094) are computed only in
     :func:`~dataforge_ml.imputation.route`: forcing a strategy by hand is
     informed consent, the same rule ADR-0090 set for a missing profile
     estimate.
@@ -212,9 +209,9 @@ def author(
     other column of the base's universe keeps its
     :class:`~dataforge_ml.imputation.ColumnRouting` verbatim, reason and
     evidence included.
-    If MICE columns remain, ``mice_model_choice`` and the estimator carry; if
-    the edit creates the block, it is stamped ``BayesianRidge``; if the edit
-    dissolves it, both go.
+    If MICE columns remain, ``mice_model_choice`` carries; if the edit
+    creates the block, it is stamped ``BayesianRidge``; if the edit dissolves
+    it, it goes.
 
     Parameters
     ----------
@@ -352,28 +349,16 @@ def author(
         )
 
     mice_model_choice: ModelChoice | None = None
-    mice_estimator: Any = None
-    if base is not None:
+    if base is not None and mice_cols:
         base_has_mice = any(
             r.strategy == ImputationStrategy.MICE
             for r in base.column_routings.values()
         )
-        if mice_cols:
-            if base_has_mice:
-                # MICE columns remain: carry over mice_model_choice and mice_estimator
-                mice_model_choice = base.mice_model_choice
-                mice_estimator = base.mice_estimator
-            else:
-                # The edit creates the block: stamp BayesianRidge
-                mice_model_choice = ModelChoice.BayesianRidge
-                mice_estimator = None
-        else:
-            # The edit dissolves it: both go
-            mice_model_choice = None
-            mice_estimator = None
+        mice_model_choice = (
+            base.mice_model_choice if base_has_mice else ModelChoice.BayesianRidge
+        )
 
     return ImputationRouting(
         column_routings=routings,
         mice_model_choice=mice_model_choice,
-        mice_estimator=mice_estimator,
     )

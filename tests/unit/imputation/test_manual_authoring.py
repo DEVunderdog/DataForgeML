@@ -330,9 +330,7 @@ def test_reauthoring_non_numeric_column_with_invalid_strategy_raises():
         author({"label": ImputationStrategy.Mean}, base=base)
 
 
-def test_reauthoring_carries_mice_estimator_when_mice_columns_remain():
-    from sklearn.linear_model import Ridge
-
+def test_reauthoring_carries_mice_model_choice_when_mice_columns_remain():
     from dataforge_ml.imputation._config import ModelChoice
 
     profile = _profile()
@@ -347,16 +345,6 @@ def test_reauthoring_carries_mice_estimator_when_mice_columns_remain():
     # Edit an unrelated column: MICE columns remain
     edited = author({"rating": ImputationStrategy.Mean}, base=base)
     assert edited.mice_model_choice == ModelChoice.RandomForestRegressor
-    assert edited.mice_estimator is None
-
-    # Custom estimator instance carries by identity
-    estimator = Ridge()
-    base_custom = dataclasses.replace(
-        base, mice_model_choice=ModelChoice.Custom, mice_estimator=estimator
-    )
-    edited_custom = author({"rating": ImputationStrategy.Mean}, base=base_custom)
-    assert edited_custom.mice_model_choice == ModelChoice.Custom
-    assert edited_custom.mice_estimator is estimator
 
 
 def test_reauthoring_creates_mice_block_stamped_bayesian_ridge():
@@ -372,10 +360,9 @@ def test_reauthoring_creates_mice_block_stamped_bayesian_ridge():
         base=base,
     )
     assert edited.mice_model_choice == ModelChoice.BayesianRidge
-    assert edited.mice_estimator is None
 
 
-def test_reauthoring_dissolves_mice_block_clears_estimator():
+def test_reauthoring_dissolves_mice_block_clears_model_choice():
     from dataforge_ml.imputation._config import ModelChoice
 
     profile = _profile()
@@ -393,7 +380,6 @@ def test_reauthoring_dissolves_mice_block_clears_estimator():
         base=base,
     )
     assert edited.mice_model_choice is None
-    assert edited.mice_estimator is None
 
 
 def test_base_edited_routing_round_trips_through_resolve_recipe():
@@ -477,8 +463,6 @@ def test_a_bare_mice_declaration_structurally_survives_authoring_but_cannot_fit(
 
 
 def test_hand_authored_routing_with_forced_mice_and_bimodal_estimates_end_to_end():
-    from sklearn.linear_model import Ridge
-
     from dataforge_ml.imputation._config import ModelChoice
 
     df = _frame()
@@ -497,12 +481,9 @@ def test_hand_authored_routing_with_forced_mice_and_bimodal_estimates_end_to_end
         profile=profile,
     )
     # Force the MICE estimator
-    custom_estimator = Ridge()
     routing = dataclasses.replace(
-        routing, mice_model_choice=ModelChoice.Custom, mice_estimator=custom_estimator
+        routing, mice_model_choice=ModelChoice.RandomForestRegressor
     )
-    assert routing.mice_model_choice == ModelChoice.Custom
-    assert routing.mice_estimator is custom_estimator
 
     # resolve_recipe leaves bimodal centres as None
     recipe = resolve_recipe(routing, profile, ImputationConfig())

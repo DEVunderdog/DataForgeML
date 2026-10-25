@@ -99,9 +99,8 @@ class ModelChoice(StrEnum):
     """Concrete estimator family for a model-based imputation column.
 
     A value-free *name* for the sklearn estimator family a block trains with.
-    It is a label, never a live or fitted estimator object. ``Custom`` marks a
-    unit whose estimator the user supplied; the instance itself is held
-    elsewhere, by identity, so this enum stays a label.
+    It is a label, never a live or fitted estimator object. The enum is
+    closed: every estimator a block trains with is one the library builds.
 
     :func:`~dataforge_ml.imputation.route` resolves the ``MICE`` block's
     choice off the Estimator Ladder (ADR-0094) — the most complex
@@ -112,7 +111,6 @@ class ModelChoice(StrEnum):
     BayesianRidge = "bayesian_ridge"
     RandomForestRegressor = "random_forest_regressor"
     GradientBoostingRegressor = "gradient_boosting_regressor"
-    Custom = "custom"
 
 
 # ---------------------------------------------------------------------------
@@ -1020,15 +1018,10 @@ class ImputationRouting:
         column is routed to MICE. :func:`~dataforge_ml.imputation.route`
         resolves it off the Estimator Ladder (ADR-0094) whenever the block is
         non-empty; :func:`~dataforge_ml.imputation.author` leaves it ``None``.
-    mice_estimator : Any, optional
-        A user-supplied estimator instance for the MICE block, held by
-        identity and never cloned. ``None`` unless the block trains with a
-        foreign estimator.
     """
 
     column_routings: dict[str, ColumnRouting]
     mice_model_choice: ModelChoice | None = None
-    mice_estimator: Any = None
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -1037,10 +1030,6 @@ class ImputationRouting:
 
     def to_dict(self) -> dict:
         """Serialise the routing to a plain, JSON-friendly dictionary.
-
-        ``mice_estimator`` is **omitted**: a user-supplied estimator is a live
-        object, not data. The reloaded routing keeps ``mice_model_choice`` as
-        recorded and an empty ``mice_estimator`` slot.
 
         Returns
         -------
@@ -1070,8 +1059,7 @@ class ImputationRouting:
         Returns
         -------
         ImputationRouting
-            Reconstructed routing instance. ``mice_estimator`` is never
-            carried by the wire format and comes back ``None``.
+            Reconstructed routing instance.
         """
         raw_choice = data.get("mice_model_choice")
         return cls(

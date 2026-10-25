@@ -97,11 +97,6 @@ class UnitFitContext:
         The active numeric column population MICE and KNN both widen their
         predictor set into (ADR-0079, ADR-0093) — every active
         ``SemanticType.Numeric`` column, not just a block's own membership.
-    mice_estimator : Any, optional
-        The owning routing's user-supplied MICE estimator
-        (:attr:`~dataforge_ml.imputation.ImputationRouting.mice_estimator`),
-        held by identity and never cloned. Read only when the block's
-        ``model_choice`` is :attr:`~dataforge_ml.imputation.ModelChoice.Custom`.
     seed : int, default DEFAULT_SEED
         Seed for every stochastic fit — the MICE imputer and its estimator,
         and GMM sampling — taken from the Operation's ``seed`` argument
@@ -117,7 +112,6 @@ class UnitFitContext:
     column_estimates: Mapping[str, ColumnEstimates] = field(default_factory=dict)
     unit_hyperparameters: Mapping[str, dict[str, Any]] = field(default_factory=dict)
     feature_columns: tuple[str, ...] = ()
-    mice_estimator: Any = None
     seed: int = DEFAULT_SEED
     mice_model_choice: ModelChoice | None = None
 
@@ -383,14 +377,6 @@ def fit_mice_unit(
     The block trains a single estimator, built from ``ctx.mice_model_choice``
     — the choice :func:`~dataforge_ml.imputation.route` resolved off the
     Estimator Ladder (ADR-0094), or that its ``model_choice`` argument set.
-    :attr:`~dataforge_ml.imputation.ModelChoice.Custom` is the one choice nothing is
-    built for: the user's own estimator is taken off ``ctx.mice_estimator``
-    and used as-is (ADR-0090). It is not cloned, its ``n_jobs`` is not set,
-    and a pre-fitted one is accepted without a raise or a warning —
-    ``IterativeImputer`` clones it per column and refits from scratch, so its
-    prior state is inert. A ``Custom`` block whose slot is empty — every
-    routing reloaded from bytes — reports a reason rather than falling back
-    to a library estimator.
 
     The predictor set is widened past the block's own membership to every
     column in ``ctx.feature_columns`` — every active
@@ -415,8 +401,7 @@ def fit_mice_unit(
         Training split.
     ctx : UnitFitContext
         Recipe-derived context. ``feature_columns`` supplies the widened
-        predictor set; ``mice_model_choice`` and ``mice_estimator`` the
-        estimator to build.
+        predictor set; ``mice_model_choice`` the estimator to build.
     n_jobs_inner : int, default 1
         Inner estimator ``n_jobs`` (ADR-0056).
 
@@ -426,8 +411,7 @@ def fit_mice_unit(
         A :class:`~dataforge_ml.imputation._fitted_imputer.FittedMICE` plus the
         estimator / initial-strategy / predictor / convergence signals, or no
         fit when the routing carries no ``mice_model_choice`` at all (a bare
-        ``author()`` declaration), or is
-        planned ``Custom`` with no estimator carried.
+        ``author()`` declaration).
     """
     from ._fitted_imputer import FittedMICE
 
@@ -469,28 +453,9 @@ def fit_mice_unit(
     # must be filled exactly as the serve-time pre-model snapshot fills them.
     fit_df, scalar_filled_cols = _fill_scalar_predictors(train_df, ctx, extra_cols)
 
-    if model_choice == ModelChoice.Custom:
-        # The label says "look elsewhere": the instance rides on the
-        # routing's mice_estimator slot and is used as-is, never cloned and
-        # never reconfigured (ADR-0090). An empty slot means this routing
-        # was reloaded from bytes, which never carries the estimator — that
-        # cannot train, and saying so is the whole point of the label being
-        # a value rather than None.
-        estimator = ctx.mice_estimator
-        if estimator is None:
-            return UnitFitOutcome(
-                fallback_reason=(
-                    f"mice: the block is routed with ModelChoice.Custom but no "
-                    f"estimator is carried for unit '{unit.unit_id}'. A "
-                    f"user-supplied estimator is never serialized, so a "
-                    f"reloaded routing must be rebuilt with "
-                    f"mice_estimator set."
-                )
-            )
-    else:
-        estimator = RegressionEstimatorFactory.build_from_choice(
-            model_choice, n_jobs=n_jobs_inner, seed=ctx.seed
-        )
+    estimator = RegressionEstimatorFactory.build_from_choice(
+        model_choice, n_jobs=n_jobs_inner, seed=ctx.seed
+    )
     model = IterativeImputer(
         estimator=estimator,
         random_state=ctx.seed,
