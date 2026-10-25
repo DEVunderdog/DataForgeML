@@ -1103,7 +1103,7 @@ def test_mice_all_cols_write_back_restricted_to_owned_columns():
         "y": pl.Series([1.0, None, 3.0], dtype=pl.Float64),
         "outside": pl.Series([999.0, 999.0, 999.0], dtype=pl.Float64),
     })
-    out = fitted_mice.transform(df)
+    out = fitted_mice._transform(df)
     imputed_val = out["y"][1]
     assert imputed_val is not None
     assert abs(imputed_val - 2.0) < 0.5

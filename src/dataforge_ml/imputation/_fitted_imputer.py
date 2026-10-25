@@ -104,25 +104,20 @@ class FittedUnit(Protocol):
     :class:`~dataforge_ml.imputation.FitSignals` the fit returned.
 
     **Observed-Value Preservation (ADR-0078).** A unit fills holes and never
-    edits a value the user supplied: after ``transform``, every cell that was
+    edits a value the user supplied: after ``_transform``, every cell that was
     not missing in the input comes back bit-for-bit with its original dtype.
     "Missing" is the Effective Null predicate — null, NaN, or infinite for
     float columns; null alone otherwise. The guarantee is a property of the
-    unit itself, so it holds when a bare unit is transformed directly with no
-    ``FittedImputer`` involved (the stateless door, ADR-0071).
+    unit itself, so it holds with no ``FittedImputer`` involved.
 
-    **On the stateless door, the caller owns sentinel normalisation.** A bare
-    unit resolves float ``NaN``/``Inf`` as missing with no configuration, but
-    it cannot resolve sentinel-encoded Effective Nulls (e.g. ``-999``): the
-    declared sentinel maps live on the ``ImputationRecipe`` (ADR-0068), and
-    a bare unit does not hold them. Normalise sentinels before calling a bare
-    unit's ``transform``, or transform through the composed
-    :meth:`FittedImputer.transform`, which normalises off the plan's maps.
+    **``_transform`` is internal.** Only :meth:`FittedImputer.transform` calls
+    it, after normalising sentinel-encoded Effective Nulls (e.g. ``-999``) off
+    the recipe's declared maps (ADR-0068); a unit alone does not hold them.
     """
 
     @property
     def target_columns(self) -> list[str]:
-        """The columns this unit owns — the ones its ``transform`` may fill.
+        """The columns this unit owns — the ones its ``_transform`` may fill.
 
         A unit's *targets* are not its *inputs*: a regression unit reads every
         feature column but owns only the one column it predicts. Every column is
@@ -138,7 +133,7 @@ class FittedUnit(Protocol):
         """
         ...
 
-    def transform(self, df: pl.DataFrame) -> pl.DataFrame:
+    def _transform(self, df: pl.DataFrame) -> pl.DataFrame:
         """Apply this unit's imputation to the DataFrame.
 
         The unit reads whatever features it needs from ``df`` but only its
@@ -201,7 +196,7 @@ class FittedMICE:
 
     @property
     def target_columns(self) -> list[str]:
-        """The block's owned columns — the ones its ``transform`` may fill.
+        """The block's owned columns — the ones its ``_transform`` may fill.
 
         A strict subset of :attr:`all_cols`, the full set the block reads as
         predictors (ADR-0079): the block is the block-wide generalization of
@@ -214,7 +209,7 @@ class FittedMICE:
         """
         return list(self.columns)
 
-    def transform(self, df: pl.DataFrame) -> pl.DataFrame:
+    def _transform(self, df: pl.DataFrame) -> pl.DataFrame:
         """Fill the block's missing cells, preserving observed cells.
 
         Reads every column in :attr:`all_cols` present in ``df`` as a
@@ -321,7 +316,7 @@ class _FittedKNN:
 
     @property
     def target_columns(self) -> list[str]:
-        """The block's owned columns — the ones its ``transform`` may fill.
+        """The block's owned columns — the ones its ``_transform`` may fill.
 
         A strict subset of :attr:`all_cols`, the full set the block reads as
         the distance space (ADR-0093).
@@ -333,7 +328,7 @@ class _FittedKNN:
         """
         return list(self.columns)
 
-    def transform(self, df: pl.DataFrame) -> pl.DataFrame:
+    def _transform(self, df: pl.DataFrame) -> pl.DataFrame:
         """Fill the block's missing cells, preserving observed cells.
 
         Reads every column in :attr:`all_cols` present in ``df`` for the
@@ -710,7 +705,7 @@ class FittedImputer:
         if self.units:
             pre_model_df = result_df
             for unit in self.units:
-                produced = unit.transform(pre_model_df)
+                produced = unit._transform(pre_model_df)
                 result_df = result_df.with_columns(
                     [
                         produced[col]

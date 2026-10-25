@@ -243,7 +243,7 @@ def _authored_case():
 def test_authored_routing_preserves_observed_cells_and_dtypes():
     pairs, probe = _authored_case()
     for unit, fitted in pairs:
-        out = fitted.transform(probe)
+        out = fitted._transform(probe)
         assert out.schema == probe.schema, f"{unit.unit_id}: schema changed"
         for col in unit.columns:
             mask = _observed_mask(probe[col])
@@ -261,7 +261,7 @@ def test_authored_routing_preserves_observed_cells_and_dtypes():
 def test_observed_cells_come_back_bit_for_bit(strategy_name):
     pairs, probe = _case(strategy_name)
     for unit, fitted in pairs:
-        out = fitted.transform(probe)
+        out = fitted._transform(probe)
         for col in unit.columns:
             mask = _observed_mask(probe[col])
             assert out[col].filter(mask).equals(probe[col].filter(mask)), (
@@ -273,7 +273,7 @@ def test_observed_cells_come_back_bit_for_bit(strategy_name):
 def test_dtypes_are_unchanged(strategy_name):
     pairs, probe = _case(strategy_name)
     for unit, fitted in pairs:
-        out = fitted.transform(probe)
+        out = fitted._transform(probe)
         assert out.schema == probe.schema, f"{unit.unit_id}: schema changed"
 
 
@@ -281,7 +281,7 @@ def test_dtypes_are_unchanged(strategy_name):
 def test_columns_outside_the_unit_targets_are_untouched(strategy_name):
     pairs, probe = _case(strategy_name)
     for unit, fitted in pairs:
-        out = fitted.transform(probe)
+        out = fitted._transform(probe)
         for col in probe.columns:
             if col in fitted.target_columns:
                 continue
@@ -296,7 +296,7 @@ def test_missing_cells_are_filled(strategy_name):
     # Effective Null in the input carries a real value on the way out.
     pairs, probe = _case(strategy_name)
     for unit, fitted in pairs:
-        out = fitted.transform(probe)
+        out = fitted._transform(probe)
         for col in unit.columns:
             filled = out[col].filter(~_observed_mask(probe[col]))
             assert len(filled) > 0, f"fixture rot: '{col}' has no missing cells"

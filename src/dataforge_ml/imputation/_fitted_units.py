@@ -5,12 +5,12 @@ Each class here satisfies the ``FittedUnit`` protocol (``_fitted_imputer``):
 it transforms only its own columns and carries no whole-frame completeness
 requirement.
 
-Every unit's ``transform`` upholds Observed-Value Preservation (ADR-0078): it
-fills holes and never edits a value the user supplied — after ``transform``,
+Every unit's ``_transform`` upholds Observed-Value Preservation (ADR-0078): it
+fills holes and never edits a value the user supplied — after ``_transform``,
 every cell that was not an Effective Null in the input is identical, same
 value, same dtype. The model-based units enforce it as the final step of
-their own ``transform``; a bare unit therefore carries the guarantee onto the
-stateless door (ADR-0071), where the caller owns sentinel normalisation.
+their own ``_transform``. ``_transform`` is internal: only
+:meth:`FittedImputer.transform` calls it, after normalising sentinels.
 
 This module is deliberately dependency-free with respect to the fitting
 surface. The ``_fitters`` functions produce these types, so it must not import
@@ -34,8 +34,8 @@ class FittedScalar:
 
     An ``MNAR`` unit is the one scalar :meth:`FittedImputer.transform` does not
     apply: the composed imputer leaves the column's nulls beside its indicator
-    and exposes the fill instead. Calling this unit's ``transform`` directly is
-    how a user opts into that fill (ADR-0098).
+    and exposes the fill on ``ColumnImputationRecord.fill_value`` instead
+    (ADR-0098).
 
     A scalar is only ever reached one way now — a plan that routed the column to
     a scalar strategy in the first place — since a model-based unit that cannot
@@ -73,14 +73,13 @@ class FittedScalar:
         """
         return [self.target_col]
 
-    def transform(self, df: pl.DataFrame) -> pl.DataFrame:
+    def _transform(self, df: pl.DataFrame) -> pl.DataFrame:
         """Fill the target column's null cells with the learned scalar.
 
         Fills via ``fill_null``, which writes only null cells, so observed
-        cells are untouched by construction (ADR-0078). On the stateless door
-        a raw float ``NaN`` is not a null and is deliberately left unfilled;
-        the composed :meth:`FittedImputer.transform` normalises it to null
-        before the fill.
+        cells are untouched by construction (ADR-0078). A raw float ``NaN``
+        is not a null and is left unfilled here; :meth:`FittedImputer.transform`
+        normalises it to null before the fill.
 
         Parameters
         ----------
@@ -161,7 +160,7 @@ class FittedClusterConditional:
         """
         return [self.target_col]
 
-    def transform(self, df: pl.DataFrame) -> pl.DataFrame:
+    def _transform(self, df: pl.DataFrame) -> pl.DataFrame:
         """Fill the target column's missing cells, preserving observed cells.
 
         Cluster assignment and the domain snap operate on a whole-column
@@ -296,7 +295,7 @@ class FittedGMMSampling:
         """
         return [self.target_col]
 
-    def transform(self, df: pl.DataFrame) -> pl.DataFrame:
+    def _transform(self, df: pl.DataFrame) -> pl.DataFrame:
         """Fill the target column's missing cells, preserving observed cells.
 
         Samples one fill per missing cell from the fitted two-component

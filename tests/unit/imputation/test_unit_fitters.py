@@ -105,7 +105,7 @@ def test_executor_trains_a_real_gmm_sampling_model():
 
     # The two components separate, and every sample lands near one of them.
     assert abs(fitted.center1 - fitted.center2) > 10
-    filled = fitted.transform(train)["bi"].to_numpy()[train["bi"].is_null().to_numpy()]
+    filled = fitted._transform(train)["bi"].to_numpy()[train["bi"].is_null().to_numpy()]
     assert not np.isnan(filled).any()
     near = np.minimum(
         np.abs(filled - fitted.center1), np.abs(filled - fitted.center2)
@@ -125,7 +125,7 @@ def test_executor_trains_a_real_cluster_conditional_model():
     assert fitted.grouping_variable == "grp"
     assert set(fitted.group_fills) == {"lo", "hi"}
 
-    filled = fitted.transform(train)["bi"].to_numpy()[train["bi"].is_null().to_numpy()]
+    filled = fitted._transform(train)["bi"].to_numpy()[train["bi"].is_null().to_numpy()]
     assert not np.isnan(filled).any()
     assert not np.allclose(filled, 0.0)
 

@@ -84,20 +84,14 @@ _EXT_LOADERS: dict[str, callable] = {
 class DataLoader:
     """Read a tabular file into a polars DataFrame, picking the reader by extension."""
 
-    def load(
-        self,
-        source: PathOrBuffer,
-        fmt: str | None = None,
-    ) -> pl.DataFrame:
+    def load(self, source: PathOrBuffer) -> pl.DataFrame:
         """Load ``source`` into a DataFrame.
 
         Parameters
         ----------
         source : str, Path or file-like
-            A path, or an open binary buffer.
-        fmt : str, optional
-            Accepted but not read: the format comes from the path's extension,
-            so a buffer source always fails as ``unsupported_format``.
+            A path, or an open binary buffer. The format comes from the path's
+            extension, so a buffer source always fails as ``unsupported_format``.
 
         Returns
         -------

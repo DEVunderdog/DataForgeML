@@ -300,7 +300,7 @@ def fit_scalar_unit(
     ``MNAR`` computes the central tendency the recipe chose for it, rounded to a
     whole number when the column is integer-typed. The value is exposed, not
     applied: :meth:`FittedImputer.transform` leaves an MNAR column's nulls in
-    place, and the unit's own ``transform`` is how a user opts into the fill
+    place and exposes the fill on ``ColumnImputationRecord.fill_value``
     (ADR-0098). The signals say so, since nulls in the output are otherwise
     the only clue.
 
@@ -356,8 +356,7 @@ def fit_scalar_unit(
                     f"central_tendency: {tendency}",
                     "fill computed, not applied: FittedImputer.transform leaves ",
                     "this MNAR column's nulls in place; read ",
-                    "ColumnImputationRecord.fill_value or call this unit's ",
-                    "transform to apply it",
+                    "ColumnImputationRecord.fill_value to apply it",
                 )
             ),
         )

@@ -1,11 +1,11 @@
-"""Bare-bytes persistence: ``serialize`` / ``deserialize`` / ``inspect`` (ADR-0072, ADR-0096).
+"""The Workspace's internal artifact format: ``serialize`` / ``deserialize`` / ``inspect``.
 
-Persistence is the user's plain business — "give me bytes, take bytes back". A
-persistable object (a fitted unit, an imputation routing, an imputation recipe,
-or a structural profile) crosses the boundary as a single opaque ``bytes`` value
-the user stores wherever they like; there is no store framework, no
-content-addressed key, and no data-fingerprint validation (all retired with
-cross-process resume, ADR-0071 / ADR-0072).
+None of these is public. The Operations write each persistable object (a
+fitted unit, an imputation routing, an imputation recipe, or a structural
+profile) into the Workspace as one opaque ``bytes`` value under its Handle, and
+read it back by Handle (ADR-0103); an Agent never holds the bytes. There is no
+store framework, no content-addressed key, and no data-fingerprint validation
+(ADR-0071 / ADR-0072).
 
 Wire format
 -----------
@@ -237,7 +237,7 @@ def _decode_fitted_unit(header: dict, payload: bytes) -> Any:
     Runs the ADR-0063 reconstruction gates before trusting any bytes: the
     header's ``produced_with`` stamp is checked against the installed
     environment, and the payload's SHA-256 is verified against the checksum
-    recorded in the header. The reconstructed unit's ``transform`` is
+    recorded in the header. The reconstructed unit's ``_transform`` is
     bit-identical to the original's on equal input.
 
     Reconstruction unpickles the payload, which executes **arbitrary code** —
@@ -262,10 +262,10 @@ def _decode_fitted_unit(header: dict, payload: bytes) -> Any:
 def serialize(obj: Any) -> bytes:
     """Serialize a fitted unit, an imputation routing, a recipe, or a profile to bytes.
 
-    The single write door of the persistence boundary (ADR-0072, ADR-0096). It dispatches
-    on the object's type and produces a self-describing JSON-header envelope the
-    user stores anywhere; a fitted unit additionally carries an opaque joblib
-    payload holding its learned state.
+    The single write door of the Workspace's artifact format (ADR-0096). It
+    dispatches on the object's type and produces a self-describing JSON-header
+    envelope the Workspace stores under a Handle; a fitted unit additionally
+    carries an opaque joblib payload holding its learned state.
 
     Parameters
     ----------
@@ -346,7 +346,7 @@ def deserialize(obj: bytes) -> Any:
     Returns
     -------
     FittedUnit or ImputationRouting or ImputationRecipe or StructuralProfileResult
-        The reconstructed object; a fitted unit's ``transform`` is bit-identical
+        The reconstructed object; a fitted unit's ``_transform`` is bit-identical
         to the original's on equal input.
 
     Raises

@@ -3,8 +3,8 @@
 A fitted unit serializes as a readable JSON header (unit type, owned columns,
 the ``produced_with`` six-version stamp, and the payload's SHA-256 checksum)
 followed by a *separate* opaque joblib payload — never base64-inlined into the
-header. ``deserialize(serialize(unit)).transform(X)`` is bit-identical to
-``unit.transform(X)`` on equal input, and any reconstruction-critical version
+header. ``deserialize(serialize(unit))._transform(X)`` is bit-identical to
+``unit._transform(X)`` on equal input, and any reconstruction-critical version
 mismatch (or a corrupt payload) refuses loudly. ``inspect`` reads the header
 without unpickling.
 """
@@ -223,7 +223,7 @@ def test_deserialize_reconstructs_bit_identical_transform(unit_and_df) -> None:
     unit, df = unit_and_df
     loaded = deserialize(serialize(unit))
     assert type(loaded) is type(unit)
-    assert loaded.transform(df).equals(unit.transform(df))
+    assert loaded._transform(df).equals(unit._transform(df))
 
 
 # --------------------------------------------------------------------------- #
@@ -266,7 +266,7 @@ def test_python_version_drift_warns_but_loads() -> None:
     )
     with pytest.warns(ArtifactPythonVersionWarning, match="1.2.3"):
         loaded = deserialize(tampered)
-    assert loaded.transform(df).equals(unit.transform(df))
+    assert loaded._transform(df).equals(unit._transform(df))
 
 
 def test_unrecognised_kind_refuses_to_deserialize() -> None:

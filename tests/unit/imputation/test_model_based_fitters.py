@@ -89,7 +89,7 @@ def test_one_column_knn_block_does_not_collapse_to_the_training_mean():
     assert knn_unit.all_cols == ["t", "p"]  # widened past the block's own column
     assert knn_unit.columns == ["t"]
 
-    out = knn_unit.transform(train)
+    out = knn_unit._transform(train)
     imputed = out["t"].to_numpy()[missing_idx]
     true_vals = t_true[missing_idx]
 
@@ -129,7 +129,7 @@ def test_knn_widened_beats_block_only_on_rmse_with_noise_columns():
     _, _, _, train, fitted = _drive(df, cfg)
 
     knn_unit = fitted["knn"]
-    out = knn_unit.transform(train)
+    out = knn_unit._transform(train)
     imputed = out["t"].to_numpy()[missing_idx]
     true_vals = t_true[missing_idx]
     widened_rmse = float(np.sqrt(np.mean((imputed - true_vals) ** 2)))
@@ -149,7 +149,7 @@ def test_knn_block_writes_back_only_its_own_columns():
     cfg = _config(t=ImputationStrategy.KNN)
     _, _, _, train, fitted = _drive(df, cfg)
     knn_unit = fitted["knn"]
-    out = knn_unit.transform(train)
+    out = knn_unit._transform(train)
     # p had no missing values; it must come back bit-for-bit.
     assert out["p"].to_list() == train["p"].to_list()
 
@@ -181,7 +181,7 @@ def test_mice_end_to_end_fits_and_converges():
     assert set(mice_unit.columns) == {"b", "c"}
     assert "a" in mice_unit.all_cols
 
-    out = mice_unit.transform(train)
+    out = mice_unit._transform(train)
     assert out["b"].null_count() == 0
     assert out["c"].null_count() == 0
 
@@ -211,7 +211,7 @@ def test_mice_domain_snaps_a_bounded_discrete_column():
     _, _, _, train, fitted = _drive(df, cfg)
 
     mice_unit = fitted["mice"]
-    out = mice_unit.transform(train)
+    out = mice_unit._transform(train)
     filled = out["rating"].to_numpy()[missing_idx]
     assert np.all(filled >= 1.0) and np.all(filled <= 5.0)
     assert np.all(filled == np.round(filled))  # snapped to whole numbers
@@ -249,7 +249,7 @@ def _mice_rmse_with_estimator(df, target_true, missing_idx, model_choice):
         string_sentinels=profile.string_sentinels,
     )
     result = fit_unit(recipe, units[0], train, seed=_SEED)
-    out = result.fitted.transform(train)
+    out = result.fitted._transform(train)
     imputed = out["target"].to_numpy()[missing_idx]
     return float(np.sqrt(np.mean((imputed - target_true[missing_idx]) ** 2)))
 
@@ -317,7 +317,7 @@ def test_real_frame_ames_regression():
     unit = derive_units(routing, strategy=ImputationStrategy.KNN)[0]
     train = _resolve_effective_nulls(pl_df)
     res = fit_unit(recipe, unit, train, seed=42)
-    out_knn = res.fitted.transform(train)
+    out_knn = res.fitted._transform(train)
     knn_imputed = out_knn[target].to_numpy()[missing_idx]
     widened_rmse = float(np.sqrt(np.mean((knn_imputed - true_vals[missing_idx]) ** 2)))
 
@@ -346,7 +346,7 @@ def test_real_frame_ames_regression():
         rec = resolve_recipe(r, prof, c)
         u = derive_units(r, strategy=ImputationStrategy.MICE)[0]
         tr = _resolve_effective_nulls(pl_small)
-        out = fit_unit(rec, u, tr, seed=42).fitted.transform(tr)
+        out = fit_unit(rec, u, tr, seed=42).fitted._transform(tr)
         imp = out[target].to_numpy()[miss_small]
         return float(np.sqrt(np.mean((imp - true_small[miss_small]) ** 2)))
 

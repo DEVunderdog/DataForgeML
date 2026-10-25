@@ -262,7 +262,7 @@ def test_an_unseeded_fit_is_the_fixed_default_seed_never_random():
     (unit,) = derive_units(routing, strategy=ImputationStrategy.GMMSampling)
 
     def fill(seed):
-        return fit_unit(recipe, unit, df, seed=seed).fitted.transform(df)
+        return fit_unit(recipe, unit, df, seed=seed).fitted._transform(df)
 
     assert fill(None).equals(fill(None))
     assert fill(None).equals(fill(DEFAULT_SEED))
@@ -370,8 +370,8 @@ def test_mnar_signals_say_the_fill_is_computed_not_applied():
     assert any("fill computed, not applied" in note for note in notes)
 
 
-def test_an_mnar_units_own_transform_is_the_opt_in_fill():
-    """The composed imputer leaves MNAR nulls; the bare unit applies the fill."""
+def test_an_mnar_column_keeps_its_nulls_and_exposes_the_fill_on_its_record():
+    """The composed imputer leaves MNAR nulls; the record carries the fill."""
     df = pl.DataFrame(
         {"x": [1.0, 2.0, None, None, 3.0, 4.0, 5.0, None, 6.0, 7.0] * 5}
     )
@@ -383,12 +383,8 @@ def test_an_mnar_units_own_transform_is_the_opt_in_fill():
 
     composed = FittedImputer.compose(recipe, {unit.unit_id: fitted}).transform(df)
     assert composed.dataframe["x"].null_count() == df["x"].null_count()
-
-    opted_in = fitted.transform(df)
-    assert opted_in["x"].null_count() == 0
-    assert opted_in["x"].filter(df["x"].is_null()).unique().to_list() == [
-        fitted.fill_value
-    ]
+    assert composed.records["x"].fill_value == fitted.fill_value
+    assert fitted.fill_value is not None
 
 
 def test_passing_a_unit_id_string_raises_a_pointed_type_error():
@@ -481,6 +477,6 @@ def test_a_reloaded_routing_resolves_and_fits_identically():
     )
     assert from_disk["constant:k"].fitted.fill_value == -9.0
     for unit_id, result in from_disk.items():
-        assert result.fitted.transform(df).equals(
-            in_process[unit_id].fitted.transform(df)
+        assert result.fitted._transform(df).equals(
+            in_process[unit_id].fitted._transform(df)
         )
