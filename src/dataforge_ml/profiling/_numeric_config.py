@@ -203,41 +203,6 @@ class NumericTopValueEntry:
 
 
 @dataclass
-class HistogramBin:
-    """A single bin in an equi-width histogram for a numeric column.
-
-    Attributes
-    ----------
-    lower_bound : float
-        Inclusive lower boundary of this bin.
-    upper_bound : float
-        Exclusive upper boundary of this bin.
-    count : int
-        Number of rows whose value falls within this bin.
-    percentage : float
-        Fraction of total rows within this bin (range [0, 1]).
-    """
-
-    lower_bound: float
-    upper_bound: float
-    count: int
-    percentage: float
-
-    def to_dict(self) -> dict:
-        """Serialise this bin to a plain dictionary.
-
-        Returns
-        -------
-        dict
-            All field values keyed by field name.
-        """
-        return {
-            "lower_bound": self.lower_bound, "upper_bound": self.upper_bound,
-            "count": self.count, "percentage": self.percentage,
-        }
-
-
-@dataclass
 class NumericStats:
     """Computed statistics and flags for a numeric column.
 
@@ -255,8 +220,6 @@ class NumericStats:
         Proportion of rows matching the mode value (range [0, 1]).
     top_values : list of NumericTopValueEntry, default factory=list
         Frequent value entries sorted by frequency.
-    histogram : list of HistogramBin, default factory=list
-        Equi-width histogram bins.
     std : float, optional
         Standard deviation of the non-null values.
     variance : float, optional
@@ -315,7 +278,6 @@ class NumericStats:
     mode: float | None = None
     mode_frequency: float = 0.0
     top_values: list[NumericTopValueEntry] = field(default_factory=list)
-    histogram: list[HistogramBin] = field(default_factory=list)
     std: float | None = None
     variance: float | None = None
     min: float | None = None
@@ -389,7 +351,6 @@ class NumericStats:
             "mode": self.mode,
             "mode_frequency": self.mode_frequency,
             "top_values": [v.to_dict() for v in self.top_values],
-            "histogram": [b.to_dict() for b in self.histogram],
             "std": self.std,
             "variance": self.variance,
             "min": self.min,
@@ -435,7 +396,6 @@ class NumericStats:
             mode=data.get("mode"),
             mode_frequency=data.get("mode_frequency", 0.0),
             top_values=[NumericTopValueEntry(**v) for v in data.get("top_values", [])],
-            histogram=[HistogramBin(**b) for b in data.get("histogram", [])],
             std=data.get("std"),
             variance=data.get("variance"),
             min=data.get("min"),

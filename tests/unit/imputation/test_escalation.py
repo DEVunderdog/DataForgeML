@@ -39,7 +39,7 @@ from dataforge_ml.imputation._evidence import (
     SignalTier,
     TierFact,
 )
-from dataforge_ml.profiling._config import ColumnProfile, NumericKind, ProfileConfig
+from dataforge_ml.profiling._config import ColumnProfile, NumericKind
 from dataforge_ml.profiling._correlation_config import CorrelationProfileResult
 from dataforge_ml.profiling._missingness_config import ColumnMissingnessProfile
 from dataforge_ml.profiling._numeric_config import (
@@ -529,7 +529,8 @@ def test_route_forcing_trainable_strategy_on_unsupported_column_records_evidence
     assert r_y.strategy == ImputationStrategy.ClusterConditional
     assert r_y.reason == RoutingReason.strategy_forced
     (fact_y,) = r_y.evidence
-    assert _terms(fact_y) == ["bimodal_flag", "correlated_features"]
+    # y tracks x exactly, so only the bimodality term fails.
+    assert _terms(fact_y) == ["bimodal_flag"]
 
 
 # ---------------------------------------------------------------------------
@@ -559,9 +560,7 @@ def test_route_resolves_mice_model_choice_when_a_column_escalates_to_mice():
     target_missing[missing_idx] = np.nan
 
     df = pl.DataFrame({"a": a, "b": b, "target": target_missing})
-    profile = StructuralProfiler(
-        ProfileConfig(compute_correlation=True, compute_nonlinearity=True)
-    ).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     target_cp = profile.columns["target"]
     target_cp.stats.r2_linear = 0.95
@@ -602,9 +601,7 @@ def test_route_escalates_a_nan_encoded_column_like_a_null_encoded_one():
     strategies = []
     for t_series in (pl.Series(t), pl.Series(t).fill_nan(None)):
         frame = pl.DataFrame({"p": p, "q": q, "t": t_series})
-        profile = StructuralProfiler(
-            ProfileConfig(compute_correlation=True, compute_nonlinearity=True)
-        ).profile(frame)
+        profile = StructuralProfiler().profile(frame)
         strategies.append(route(profile).column_routings["t"].strategy)
 
     assert strategies == [ImputationStrategy.MICE, ImputationStrategy.MICE]

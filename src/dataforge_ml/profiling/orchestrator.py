@@ -11,13 +11,11 @@ Execution order inside profile(df):
   6. ColumnTypeProfiler    → route each column to its profiler by SemanticType;
                             Identifier columns: skip, stats stays None
   7. target_columns        → TargetProfiler; mark ColumnProfile.is_target=True
-  8. Correlation           → if compute_correlation=True:
-       a. profile_features()  → dataset.feature_correlation  (computed once)
-       b. profile_target()    → dataset.target_correlations[target]
-                                (once per declared target column)
-  9. Nonlinearity          → if compute_nonlinearity=True:
-       NonlinearityProfiler  → NumericStats.nonlinearity_tag + seven signal fields
-       Reuses Pearson/Spearman matrices from step 8 when compute_correlation=True.
+  8. Correlation           → profile_features() → dataset.feature_correlation
+                             (always runs, computed once)
+  9. Nonlinearity          → NonlinearityProfiler (always runs)
+                             → NumericStats.nonlinearity_tag + seven signal fields
+                             Reuses the Pearson/Spearman matrices from step 8.
 """
 
 from __future__ import annotations
@@ -149,8 +147,8 @@ class StructuralProfiler(_ObservabilityMixin):
         Profile a Polars DataFrame and return a full ``StructuralProfileResult``.
 
         Runs all Phase 1 sub-processors in sequence: modality stats, missingness,
-        type detection, per-column distribution profiling, target profiling, and
-        (optionally) correlation analysis.  Sub-processor thresholds are drawn
+        type detection, per-column distribution profiling, target profiling,
+        correlation and nonlinearity analysis.  Sub-processor thresholds are drawn
         from the nested sub-configs on ``config``.
 
         Parameters
@@ -378,130 +376,79 @@ class StructuralProfiler(_ObservabilityMixin):
             self._emit_stage_end("target_profiling")
 
         # ── 8. Correlation ───────────────────────────────────────────────
-        if self.config.compute_correlation:
-            self._emit_stage_start("correlation")
-            # Resolve column lists by detected SemanticType (post-override).
-            numeric_cols = [
-                c
-                for c in active_cols
-                if result.columns.get(c)
-                and result.columns[c].semantic_type == SemanticType.Numeric
-            ]
-            categorical_cols = [
-                c
-                for c in active_cols
-                if result.columns.get(c)
-                and result.columns[c].semantic_type == SemanticType.Categorical
-            ]
+        # Always on (ADR-0104): routing reads it, so no switch may weaken it.
+        self._emit_stage_start("correlation")
+        # Resolve column lists by detected SemanticType (post-override).
+        numeric_cols = [
+            c
+            for c in active_cols
+            if result.columns.get(c)
+            and result.columns[c].semantic_type == SemanticType.Numeric
+        ]
+        categorical_cols = [
+            c
+            for c in active_cols
+            if result.columns.get(c)
+            and result.columns[c].semantic_type == SemanticType.Categorical
+        ]
 
-            corr_profiler = CorrelationProfiler(
-                numeric_columns=numeric_cols,
-                categorical_columns=categorical_cols,
-                config=self.config.correlation,
-                seed=self._seed,
-            )
-
-            # The correlation stage's units of work are the one-time
-            # feature-feature computation plus one per declared target present in
-            # the data; emit an ``item`` heartbeat for each so the expensive
-            # matrix build and each target pass report progress (ADR-0054).
-            present_targets = [
-                t for t in self.config.target_columns if t in data.columns
-            ]
-            _corr_total = 1 + len(present_targets)
-            self._emit_item(
-                "correlation",
-                None,
-                1,
-                _corr_total,
-                message=f"[{self._PHASE}] correlation: feature-feature matrices "
-                f"(1/{_corr_total})",
-            )
-
-            # 8a. Feature-feature matrices — computed ONCE, target-independent.
-            #     Read the phase-entry frame, not the raw input: an unresolved
-            #     NaN or sentinel poisons a pairwise correlation to 0.
-            feature_corr = corr_profiler.profile_features(
-                profiling_frame, numeric_cols, categorical_cols
-            )
-            result.dataset.feature_correlation = feature_corr
-
-            # 8b. Per-target analysis — matrices are NOT recomputed; each call
-            #     shallow-copies feature_corr and appends target-specific fields.
-            for _target_index, target in enumerate(present_targets, start=2):
-                self._emit_item(
-                    "correlation",
-                    target,
-                    _target_index,
-                    _corr_total,
-                    message=f"[{self._PHASE}] correlation: target {target} "
-                    f"({_target_index}/{_corr_total})",
-                )
-                result.dataset.target_correlations[target] = (
-                    corr_profiler.profile_target(
-                        profiling_frame,
-                        feature_corr,
-                        numeric_cols,
-                        categorical_cols,
-                        target,
-                    )
-                )
-            self._emit_stage_end("correlation")
+        # The feature-feature matrix build is the stage's one unit of work;
+        # emit an ``item`` heartbeat for it (ADR-0054).
+        self._emit_item(
+            "correlation",
+            None,
+            1,
+            1,
+            message=f"[{self._PHASE}] correlation: feature-feature matrices (1/1)",
+        )
+        # Read the phase-entry frame, not the raw input: an unresolved NaN or
+        # sentinel poisons a pairwise correlation to 0.
+        feature_corr = CorrelationProfiler(
+            numeric_columns=numeric_cols,
+            categorical_columns=categorical_cols,
+            config=self.config.correlation,
+        ).profile_features(profiling_frame, numeric_cols, categorical_cols)
+        result.dataset.feature_correlation = feature_corr
+        self._emit_stage_end("correlation")
 
         # ── 9. Nonlinearity ──────────────────────────────────────────────
-        if self.config.compute_nonlinearity:
-            self._emit_stage_start("nonlinearity")
-            numeric_cols_nl = [
-                c
-                for c in active_cols
-                if result.columns.get(c)
-                and result.columns[c].semantic_type == SemanticType.Numeric
-            ]
-            if len(numeric_cols_nl) >= 2:
-                # Each numeric column is a unit of work in the per-column
-                # nonlinearity fit; emit an ``item`` heartbeat per column so the
-                # multi-minute stage reports progress (ADR-0054).
-                _nl_total = len(numeric_cols_nl)
-                for _nl_index, _nl_col in enumerate(numeric_cols_nl, start=1):
-                    self._emit_item(
-                        "nonlinearity", _nl_col, _nl_index, _nl_total
+        # Always on (ADR-0104), reusing the matrices from step 8.
+        self._emit_stage_start("nonlinearity")
+        if len(numeric_cols) >= 2:
+            # Each numeric column is a unit of work in the per-column
+            # nonlinearity fit; emit an ``item`` heartbeat per column so the
+            # multi-minute stage reports progress (ADR-0054).
+            _nl_total = len(numeric_cols)
+            for _nl_index, _nl_col in enumerate(numeric_cols, start=1):
+                self._emit_item("nonlinearity", _nl_col, _nl_index, _nl_total)
+            nl_result = NonlinearityProfiler(
+                numeric_columns=numeric_cols,
+                config=self.config.nonlinearity,
+                seed=self._seed,
+            ).profile(
+                profiling_frame,
+                pearson_matrix=feature_corr.pearson_matrix,
+                spearman_matrix=feature_corr.spearman_matrix,
+            )
+
+            from ._numeric_config import NumericStats as _NumericStats
+
+            for col_name, signals in nl_result.columns.items():
+                cp = result.columns.get(col_name)
+                if cp is not None and isinstance(cp.stats, _NumericStats):
+                    cp.stats.nonlinearity_tag = signals.tag
+                    cp.stats.spearman_pearson_discrepancy = (
+                        signals.spearman_pearson_discrepancy
                     )
-                p_mat = (
-                    result.dataset.feature_correlation.pearson_matrix
-                    if result.dataset.feature_correlation is not None
-                    else None
-                )
-                s_mat = (
-                    result.dataset.feature_correlation.spearman_matrix
-                    if result.dataset.feature_correlation is not None
-                    else None
-                )
-                nl_result = NonlinearityProfiler(
-                    numeric_columns=numeric_cols_nl,
-                    config=self.config.nonlinearity,
-                    seed=self._seed,
-                ).profile(
-                    profiling_frame, pearson_matrix=p_mat, spearman_matrix=s_mat
-                )
-
-                from ._numeric_config import NumericStats as _NumericStats
-
-                for col_name, signals in nl_result.columns.items():
-                    cp = result.columns.get(col_name)
-                    if cp is not None and isinstance(cp.stats, _NumericStats):
-                        cp.stats.nonlinearity_tag = signals.tag
-                        cp.stats.spearman_pearson_discrepancy = (
-                            signals.spearman_pearson_discrepancy
-                        )
-                        cp.stats.mean_mutual_information = signals.mean_mutual_information
-                        cp.stats.max_mutual_information = signals.max_mutual_information
-                        cp.stats.r2_gap = signals.r2_gap
-                        cp.stats.r2_linear = signals.r2_linear
-                        cp.stats.r2_rf = signals.r2_rf
-                        cp.stats.heteroscedasticity_p_value = (
-                            signals.heteroscedasticity_p_value
-                        )
-            self._emit_stage_end("nonlinearity")
+                    cp.stats.mean_mutual_information = signals.mean_mutual_information
+                    cp.stats.max_mutual_information = signals.max_mutual_information
+                    cp.stats.r2_gap = signals.r2_gap
+                    cp.stats.r2_linear = signals.r2_linear
+                    cp.stats.r2_rf = signals.r2_rf
+                    cp.stats.heteroscedasticity_p_value = (
+                        signals.heteroscedasticity_p_value
+                    )
+        self._emit_stage_end("nonlinearity")
 
         # ── Skipped-column placeholders ──────────────────────────────────────
         # Skipped columns are not profiled but must still

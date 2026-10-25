@@ -399,15 +399,6 @@ _ENTRIES: tuple[ErrorCodeEntry, ...] = (
         ),
     ),
     ErrorCodeEntry(
-        code="mutual_information_too_few_rows",
-        category="warning",
-        hint=(
-            "Too few rows with both the feature and the target present to "
-            "estimate their mutual information. Lower the dial in `param` to "
-            "estimate it on fewer rows."
-        ),
-    ),
-    ErrorCodeEntry(
         code="association_failed",
         category="warning",
         hint=(

@@ -77,7 +77,6 @@ _FALLBACK_ORDER: tuple[str, ...] = (
     "nonlinearity_probe_failed",
     "nonlinearity_too_few_rows",
     "association_failed",
-    "mutual_information_too_few_rows",
 )
 
 
@@ -487,9 +486,6 @@ def _build_config(declared: _Declared, dials: _Dials) -> Any:
     }
     return ProfileConfig(
         target_columns=list(declared.targets),
-        # Always on (ADR-0104): routing reads both, so no switch may weaken it.
-        compute_correlation=True,
-        compute_nonlinearity=True,
         row_drop_threshold=dials.values["missingness.row_drop_threshold"],
         numeric_sentinels=numeric_sentinels,
         string_sentinels=string_sentinels,
@@ -620,24 +616,11 @@ def _fallback_warning(code: str, columns: list[str], dials: _Dials) -> ResultWar
             param=dial,
             hint=entry_for("nonlinearity_too_few_rows").hint,
         )
-    if code == "association_failed":
-        return ResultWarning(
-            code="association_failed",
-            message=f"An association measure failed for pairs involving {count}; those are unset.",
-            columns=columns,
-            hint=entry_for("association_failed").hint,
-        )
-    dial = "thresholds.correlation.mi_min_rows"
     return ResultWarning(
-        code="mutual_information_too_few_rows",
-        message=(
-            f"{count} had fewer rows with the target present than `{dial}` "
-            f"({dials.values['correlation.mi_min_rows']}), so their mutual information "
-            f"with the target was not estimated."
-        ),
+        code="association_failed",
+        message=f"An association measure failed for pairs involving {count}; those are unset.",
         columns=columns,
-        param=dial,
-        hint=entry_for("mutual_information_too_few_rows").hint,
+        hint=entry_for("association_failed").hint,
     )
 
 

@@ -228,10 +228,6 @@ class DatasetStats:
 
     feature_correlation: CorrelationProfileResult | None = None
 
-    target_correlations: dict[str, CorrelationProfileResult] = field(
-        default_factory=dict,
-    )
-
     def to_dict(self) -> dict:
         """
         Serialise the dataset stats to a plain dictionary.
@@ -255,7 +251,6 @@ class DatasetStats:
             "missingness_matrix": self.missingness_matrix,
             "row_distribution": self.row_distribution.to_dict(),
             "feature_correlation": self.feature_correlation.to_dict() if self.feature_correlation else None,
-            "target_correlations": {k: v.to_dict() for k, v in self.target_correlations.items()},
         }
 
     @classmethod
@@ -298,10 +293,6 @@ class DatasetStats:
                 if raw_feature_correlation
                 else None
             ),
-            target_correlations={
-                k: CorrelationProfileResult.from_dict(v)
-                for k, v in data.get("target_correlations", {}).items()
-            },
         )
 
 
@@ -438,8 +429,6 @@ class ProfileConfig:
         Data modality. Currently only Tabular is implemented.
     target_columns : list[str]
         Names of label/target columns, if any.
-    compute_correlation : bool
-        Whether to compute the feature-feature correlation matrix.
     correlation_target_column : Optional[str]
         Column used for feature-target correlation metrics.
     memory_threshold_mb : float
@@ -461,19 +450,12 @@ class ProfileConfig:
         Threshold configuration for the correlation sub-processor.
     datetime_ : DatetimeProfileConfig
         Threshold configuration for the datetime sub-processor.
-    compute_nonlinearity : bool
-        Whether to run ``NonlinearityProfiler`` and populate the four
-        nonlinearity signal fields on ``NumericStats``.  When ``True`` and
-        ``compute_correlation`` is also ``True``, Pearson and Spearman matrices
-        are reused from the correlation step rather than recomputed.
-        Default ``False``.
     nonlinearity : NonlinearityProfileConfig
         Threshold configuration for the nonlinearity sub-processor.
     """
 
     modality: Modality = Modality.Tabular
     target_columns: list[str] = field(default_factory=list)
-    compute_correlation: bool = False
     correlation_target_column: str | None = None
     memory_threshold_mb: float = 500.0
     chunk_size: int = 100_000
@@ -492,7 +474,6 @@ class ProfileConfig:
         default_factory=_default_correlation_config
     )
     datetime_: DatetimeProfileConfig = field(default_factory=_default_datetime_config)
-    compute_nonlinearity: bool = False
     nonlinearity: NonlinearityProfileConfig = field(
         default_factory=_default_nonlinearity_config
     )
@@ -747,7 +728,6 @@ class ProfileConfig:
         return {
             "modality": str(self.modality),
             "target_columns": list(self.target_columns),
-            "compute_correlation": self.compute_correlation,
             "correlation_target_column": self.correlation_target_column,
             "memory_threshold_mb": self.memory_threshold_mb,
             "chunk_size": self.chunk_size,
@@ -758,7 +738,6 @@ class ProfileConfig:
             "categorical": self.categorical.to_dict(),
             "correlation": self.correlation.to_dict(),
             "datetime_": self.datetime_.to_dict(),
-            "compute_nonlinearity": self.compute_nonlinearity,
             "nonlinearity": self.nonlinearity.to_dict(),
             "numeric_sentinels": {k: list(v) for k, v in self.numeric_sentinels.items()},
             "string_sentinels": {k: list(v) for k, v in self.string_sentinels.items()},
@@ -785,7 +764,6 @@ class ProfileConfig:
         config = cls(
             modality=Modality(data.get("modality", Modality.Tabular)),
             target_columns=list(data.get("target_columns", [])),
-            compute_correlation=bool(data.get("compute_correlation", False)),
             correlation_target_column=data.get("correlation_target_column"),
             memory_threshold_mb=float(data.get("memory_threshold_mb", 500.0)),
             chunk_size=int(data.get("chunk_size", 100_000)),
@@ -804,7 +782,6 @@ class ProfileConfig:
                 data.get("correlation", {})
             ),
             datetime_=DatetimeProfileConfig.from_dict(data.get("datetime_", {})),
-            compute_nonlinearity=bool(data.get("compute_nonlinearity", False)),
             nonlinearity=NonlinearityProfileConfig.from_dict(
                 data.get("nonlinearity", {})
             ),

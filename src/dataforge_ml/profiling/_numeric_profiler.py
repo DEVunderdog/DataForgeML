@@ -34,11 +34,10 @@ from __future__ import annotations
 import polars as pl
 
 from .._seed import DEFAULT_SEED
+from ..models._data_types import _INT_DTYPES
 from ._base import ColumnBatchProfiler
-from ._correlation_profiler import _INT_DTYPES
 from ._numeric_config import (
     BimodalStats,
-    HistogramBin,
     KurtosisTag,
     NumericFlag,
     NumericProfileConfig,
@@ -240,8 +239,7 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
         config: NumericProfileConfig,
     ) -> None:
         """
-        Compute Mode, and depending on whether the feature is continuous or discrete,
-        calculate a 20-bin histogram OR Top-10 value counts.
+        Compute Mode, and for a discrete feature the Top-10 value counts.
         """
         if clean_f64.len() == 0:
             return
@@ -273,21 +271,6 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
                     percentage=int(vc["count"][i]) / n_rows if n_rows > 0 else 0.0,
                 )
                 for i in range(top_rows)
-            ]
-        else:
-            # --- Histogram Distribution (Continuous) ---
-            import numpy as np
-
-            counts, bin_edges = np.histogram(clean_f64.to_numpy(), bins="auto")
-            n_clean = clean_f64.len()
-            profile.histogram = [
-                HistogramBin(
-                    lower_bound=float(bin_edges[i]),
-                    upper_bound=float(bin_edges[i + 1]),
-                    count=int(counts[i]),
-                    percentage=int(counts[i]) / n_clean if n_clean > 0 else 0.0,
-                )
-                for i in range(len(counts))
             ]
 
     # ------------------------------------------------------------------

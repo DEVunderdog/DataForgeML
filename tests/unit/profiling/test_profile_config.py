@@ -23,7 +23,6 @@ from tests.conftest import raises_code
 
 def test_profile_config_sub_config_round_trip():
     original = ProfileConfig(
-        compute_correlation=True,
         row_drop_threshold=0.30,
         missingness=MissingnessProfileConfig(
             severity_minor=0.02,
@@ -56,7 +55,6 @@ def test_profile_config_sub_config_round_trip():
             near_redundant_pearson_threshold=0.85,
             near_redundant_cramer_v_threshold=0.70,
             near_redundant_eta_squared_threshold=0.40,
-            mi_min_rows=20,
         ),
         datetime_=DatetimeProfileConfig(
             mnar_null_ratio_threshold=0.02,
@@ -95,7 +93,6 @@ def test_profile_config_sub_config_round_trip():
     assert restored.correlation.near_redundant_pearson_threshold == original.correlation.near_redundant_pearson_threshold
     assert restored.correlation.near_redundant_cramer_v_threshold == original.correlation.near_redundant_cramer_v_threshold
     assert restored.correlation.near_redundant_eta_squared_threshold == original.correlation.near_redundant_eta_squared_threshold
-    assert restored.correlation.mi_min_rows == original.correlation.mi_min_rows
 
     assert restored.datetime_.mnar_null_ratio_threshold == original.datetime_.mnar_null_ratio_threshold
     assert restored.datetime_.high_gap_cv_threshold == original.datetime_.high_gap_cv_threshold

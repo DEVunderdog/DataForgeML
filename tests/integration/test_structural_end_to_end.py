@@ -21,8 +21,7 @@ from dataforge_ml.profiling.orchestrator import StructuralProfiler
 
 
 def test_happy_path(mixed_df):
-    config = ProfileConfig(compute_correlation=True)
-    result = StructuralProfiler(config).profile(mixed_df)
+    result = StructuralProfiler().profile(mixed_df)
 
     assert isinstance(result, StructuralProfileResult)
     assert set(result.columns.keys()) == set(mixed_df.columns)
@@ -36,11 +35,16 @@ def test_happy_path(mixed_df):
     assert result.dataset.feature_correlation is not None
 
 
-def test_no_correlation(mixed_df):
-    config = ProfileConfig(compute_correlation=False)
-    result = StructuralProfiler(config).profile(mixed_df)
+def test_correlation_and_nonlinearity_always_run(mixed_df):
+    result = StructuralProfiler(ProfileConfig()).profile(mixed_df)
 
-    assert result.dataset.feature_correlation is None
+    assert result.dataset.feature_correlation is not None
+    numeric = [
+        cp.stats
+        for cp in result.columns.values()
+        if isinstance(cp.stats, NumericStats)
+    ]
+    assert any(stats.nonlinearity_tag is not None for stats in numeric)
 
 
 def test_boolean_handoff(mixed_df):
@@ -68,8 +72,7 @@ def test_text_handoff(text_df):
 
 
 def test_correlation_consistency(mixed_df):
-    config = ProfileConfig(compute_correlation=True)
-    result = StructuralProfiler(config).profile(mixed_df)
+    result = StructuralProfiler().profile(mixed_df)
 
     fc = result.dataset.feature_correlation
     assert fc is not None

@@ -259,14 +259,6 @@ def test_correlation_and_nonlinearity_always_run_and_fall_back_with_codes(
     )
 
 
-def test_mutual_information_with_the_target_falls_back_with_a_code(harness: Harness) -> None:
-    out = harness.call("profile", frame=_frame(harness), targets=["income"])
-
-    warnings = records(out.json["warnings"])
-    assert [w["code"] for w in warnings] == ["mutual_information_too_few_rows"]
-    assert warnings[0]["param"] == "thresholds.correlation.mi_min_rows"
-
-
 # --- Declarations -----------------------------------------------------------------
 
 

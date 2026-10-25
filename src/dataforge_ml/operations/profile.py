@@ -170,8 +170,6 @@ class CorrelationDials(WireRecord):
     """Cramér's V above which two categorical columns are near-redundant. Null means 0.8."""
     near_redundant_eta_squared_threshold: Ratio | None = None
     """η² above which a numeric and a categorical column are near-redundant. Null means 0.5."""
-    mi_min_rows: Count | None = None
-    """Fewest rows with both a feature and the target present to estimate their mutual information. Null means 10."""
 
 
 class DatetimeDials(WireRecord):
@@ -216,7 +214,7 @@ class ProfileThresholds(WireRecord):
     categorical: CategoricalDials | None = None
     """Rare labels and the categorical flags."""
     correlation: CorrelationDials | None = None
-    """Near-redundancy and mutual information between columns."""
+    """Near-redundancy between columns."""
     datetime: DatetimeDials | None = None
     """The datetime flags."""
     nonlinearity: NonlinearityDials | None = None

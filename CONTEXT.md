@@ -130,7 +130,7 @@ The invariant is bidirectional: `NumericFlag.Bimodal` present ↔ `bimodal_stats
 
 The ML-level interpretation assigned to a column by the type detector. One of:
 
-- **Numeric** — a continuous or discrete quantitative variable. Profiled with descriptive statistics, histogram, percentiles.
+- **Numeric** — a continuous or discrete quantitative variable. Profiled with descriptive statistics, shape and percentiles.
 - **Categorical** — a fixed-vocabulary string or integer label. Low cardinality, suitable for one-hot or ordinal encoding. Profiled with frequency distribution.
 - **Text** — a natural-language string column. Values are multi-token, near-unique, and not fixed-vocabulary (names, descriptions, addresses). Excluded from correlation matrices; routed to the text profiler.
 - **Boolean** — a binary column (native `pl.Boolean`, integer `{0,1}`, or string `{"true","false","yes","no"}`).

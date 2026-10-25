@@ -762,32 +762,20 @@
                           }
                         ],
                         "description": "η² above which a numeric and a categorical column are near-redundant. Null means 0.5. Constraints: at least 0; at most 1."
-                      },
-                      "mi_min_rows": {
-                        "anyOf": [
-                          {
-                            "type": "integer"
-                          },
-                          {
-                            "type": "null"
-                          }
-                        ],
-                        "description": "Fewest rows with both a feature and the target present to estimate their mutual information. Null means 10. Constraints: at least 1."
                       }
                     },
                     "type": "object",
                     "required": [
                       "near_redundant_pearson_threshold",
                       "near_redundant_cramer_v_threshold",
-                      "near_redundant_eta_squared_threshold",
-                      "mi_min_rows"
+                      "near_redundant_eta_squared_threshold"
                     ]
                   },
                   {
                     "type": "null"
                   }
                 ],
-                "description": "Near-redundancy and mutual information between columns."
+                "description": "Near-redundancy between columns."
               },
               "datetime": {
                 "anyOf": [

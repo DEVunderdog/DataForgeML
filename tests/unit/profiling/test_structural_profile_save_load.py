@@ -62,7 +62,6 @@ def rich_profile_result() -> StructuralProfileResult:
     )
 
     config = ProfileConfig(
-            compute_correlation=True,
             target_columns=["income"],
             correlation_target_column="income",
         )

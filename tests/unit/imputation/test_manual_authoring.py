@@ -389,18 +389,18 @@ def test_base_edited_routing_round_trips_through_resolve_recipe():
     profile = _profile(df)
     base = route(profile)
 
-    # Re-author one column
-    edited = author({"revenue": ImputationStrategy.Median}, base=base)
+    # Re-author one column outside the score/revenue MICE block
+    edited = author({"rating": ImputationStrategy.Median}, base=base)
     recipe = resolve_recipe(edited, profile, ImputationConfig())
 
     assert recipe.routing is edited
     assert (
-        recipe.routing.column_routings["revenue"].strategy
+        recipe.routing.column_routings["rating"].strategy
         == ImputationStrategy.Median
     )
     # Unnamed columns keep base ColumnRouting verbatim, reason and evidence included
     for col, r in base.column_routings.items():
-        if col not in ("revenue", "revenue_missing"):
+        if col != "rating":
             assert recipe.routing.column_routings[col] is r
 
 

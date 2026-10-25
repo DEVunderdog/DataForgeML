@@ -4,9 +4,8 @@ half (#528): KNN widening (ADR-0093), the Estimator Ladder (ADR-0094), and
 domain-snapping a BoundedDiscrete column escalated to a model.
 
 Includes synthetic regression guards and a real-frame regression test
-reusing ``ames`` (asserting widened KNN beats block-only, the forest beats
-BayesianRidge at small sizes, and the booster loses to the forest, per
-ADR-0093, ADR-0097, #542, #543).
+reusing ``ames`` (asserting widened KNN beats block-only and the booster
+loses to the forest at small sizes, per ADR-0093, ADR-0097, #542, #543).
 """
 
 from __future__ import annotations
@@ -286,8 +285,10 @@ def test_real_frame_ames_regression():
 
     Asserts:
     1. Widened KNN beats block-only fit on masked-cell RMSE.
-    2. The forest beats BayesianRidge at small sizes (n=100).
-    3. The booster loses to the forest at small sizes.
+    2. The booster loses to the forest at small sizes (n=100).
+
+    The forest no longer beats BayesianRidge here: with correlation always on
+    (ADR-0104) MICE reads the correlated predictors, and the ridge wins.
     """
     try:
         from sklearn.datasets import fetch_openml
@@ -330,7 +331,7 @@ def test_real_frame_ames_regression():
     )
     assert widened_rmse < block_only_rmse
 
-    # 2 & 3. Small size (n=100): forest beats BayesianRidge, booster loses to forest
+    # 2. Small size (n=100): booster loses to forest
     df_small = df_num.iloc[:100].copy()
     true_small = df_small[target].to_numpy()
     miss_small = rng.choice(len(df_small), int(len(df_small) * 0.25), replace=False)
@@ -350,9 +351,7 @@ def test_real_frame_ames_regression():
         imp = out[target].to_numpy()[miss_small]
         return float(np.sqrt(np.mean((imp - true_small[miss_small]) ** 2)))
 
-    rmse_ridge = fit_mice(ModelChoice.BayesianRidge)
     rmse_forest = fit_mice(ModelChoice.RandomForestRegressor)
     rmse_booster = fit_mice(ModelChoice.GradientBoostingRegressor)
 
-    assert rmse_forest < rmse_ridge
     assert rmse_forest <= rmse_booster

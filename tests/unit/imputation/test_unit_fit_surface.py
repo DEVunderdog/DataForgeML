@@ -401,14 +401,14 @@ def test_fit_unit_raises_key_error_for_a_unit_unknown_to_the_recipe():
     df = _holey_frame()
     _, routing, recipe = _routing_and_recipe(df)
     foreign = ImputationUnit(
-        unit_id="mice",
-        strategy=ImputationStrategy.MICE,
+        unit_id="knn",
+        strategy=ImputationStrategy.KNN,
         columns=("a",),
         is_block=True,
     )
-    assert derive_units(routing, strategy=ImputationStrategy.MICE) == ()
+    assert derive_units(routing, strategy=ImputationStrategy.KNN) == ()
 
-    with raises_code("unknown_unit", match="carries no unit 'mice'"):
+    with raises_code("unknown_unit", match="carries no unit 'knn'"):
         fit_unit(recipe, foreign, df)
 
 

@@ -233,16 +233,12 @@ def test_config_from_dict_uses_defaults_for_missing_keys():
 
 def test_structural_profiler_populates_numericstats(complex_nonlinear_df):
     """
-    After profiling with compute_nonlinearity=True, NumericStats for the
-    target column must have nonlinearity_tag and all four signal fields set.
+    Nonlinearity always runs, so NumericStats for the target column must have
+    nonlinearity_tag and all four signal fields set.
     """
-    from dataforge_ml.profiling._config import ProfileConfig
     from dataforge_ml.profiling.orchestrator import StructuralProfiler
 
-    pc = ProfileConfig(compute_nonlinearity=True)
-    pipeline_cfg = pc
-    profiler = StructuralProfiler(config=pipeline_cfg)
-    result = profiler.profile(complex_nonlinear_df)
+    result = StructuralProfiler().profile(complex_nonlinear_df)
 
     y_profile = result.columns.get("y")
     assert y_profile is not None
@@ -259,7 +255,6 @@ def test_structural_profiler_reads_nan_as_missing_for_signals():
     """NaN-encoded missing values are resolved at phase entry, so the
     correlation and nonlinearity signals match a null-encoded copy of the same
     frame instead of collapsing to r = 0 and an Unpredictable tag."""
-    from dataforge_ml.profiling._config import ProfileConfig
     from dataforge_ml.profiling.orchestrator import StructuralProfiler
 
     rng = np.random.default_rng(0)
@@ -270,9 +265,8 @@ def test_structural_profiler_reads_nan_as_missing_for_signals():
     q = rng.normal(0, 1, n)
 
     def _profile(t_series):
-        pc = ProfileConfig(compute_correlation=True, compute_nonlinearity=True)
         frame = pl.DataFrame({"p": p, "q": q, "t": t_series})
-        return StructuralProfiler(config=pc).profile(frame)
+        return StructuralProfiler().profile(frame)
 
     nan_result = _profile(pl.Series(t))
     null_result = _profile(pl.Series(t).fill_nan(None))

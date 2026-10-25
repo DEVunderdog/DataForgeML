@@ -1,9 +1,8 @@
 """
 Result dataclasses for correlation and information-structure profiling.
 
-Populated by CorrelationProfiler, which is opt-in via
-ProfileConfig.correlation_target_column (and implicitly by passing
-numeric/categorical column lists that are already resolved upstream).
+Populated by CorrelationProfiler, which every profile runs once over the
+numeric and categorical columns resolved upstream.
 
 Design notes
 ------------
@@ -12,8 +11,6 @@ Design notes
 - Eta-squared        : numeric-categorical association via ANOVA [0, 1].
 - Near-redundancy    : Pearson/Spearman |r| > 0.95, Cramér's V > 0.80,
                     or eta² > 0.50 flagged — near-identical signal.
-- Feature–target     : Pearson (numeric target), ANOVA/eta² (categorical target).
-- Mutual information : MI for all features vs target (classif or regression).
 """
 
 from __future__ import annotations
@@ -47,16 +44,11 @@ class CorrelationProfileConfig:
     near_redundant_eta_squared_threshold : float
         Eta-squared (η²) above which a numeric-categorical pair is flagged
         ``near_redundant``.
-    mi_min_rows : int
-        Minimum number of complete-case rows required for a k-NN mutual
-        information estimate to be computed.  Columns with fewer valid rows
-        are silently skipped.
     """
 
     near_redundant_pearson_threshold: float = 0.95
     near_redundant_cramer_v_threshold: float = 0.80
     near_redundant_eta_squared_threshold: float = 0.50
-    mi_min_rows: int = 10
 
     def to_dict(self) -> dict:
         """
@@ -71,7 +63,6 @@ class CorrelationProfileConfig:
             "near_redundant_pearson_threshold": self.near_redundant_pearson_threshold,
             "near_redundant_cramer_v_threshold": self.near_redundant_cramer_v_threshold,
             "near_redundant_eta_squared_threshold": self.near_redundant_eta_squared_threshold,
-            "mi_min_rows": self.mi_min_rows,
         }
 
     @classmethod
@@ -100,7 +91,6 @@ class CorrelationProfileConfig:
             near_redundant_eta_squared_threshold=float(
                 data.get("near_redundant_eta_squared_threshold", 0.50)
             ),
-            mi_min_rows=int(data.get("mi_min_rows", 10)),
         )
 
 
@@ -112,11 +102,6 @@ class CorrelationProfileConfig:
 class CorrelationMethod(StrEnum):
     Pearson = "pearson"
     Spearman = "spearman"
-
-
-class TargetType(StrEnum):
-    Numeric = "numeric"  # numeric target  → Pearson + MI regression
-    Categorical = "categorical"  # categorical target → ANOVA/eta² + MI classif
 
 
 # ---------------------------------------------------------------------------
@@ -243,114 +228,6 @@ class EtaSquaredPair:
 
 
 # ---------------------------------------------------------------------------
-# Feature–target entries
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class NumericTargetCorrelation:
-    """
-    Pearson r between one numeric feature and a numeric target.
-
-    Attributes
-    ----------
-    feature : str
-    pearson_r : float | None
-    """
-
-    feature: str
-    pearson_r: float | None = None
-
-    def to_dict(self) -> dict:
-        """
-        Serialise this entry to a plain dictionary.
-
-        Returns
-        -------
-        dict
-            Keys: ``feature``, ``pearson_r``.
-        """
-        return {"feature": self.feature, "pearson_r": self.pearson_r}
-
-
-@dataclass
-class CategoricalTargetCorrelation:
-    """
-    ANOVA-based association between one categorical feature and a numeric
-    target (or a numeric feature vs a categorical target when the roles
-    are reversed — see CorrelationProfiler docs).
-
-    Attributes
-    ----------
-    feature : str
-    f_statistic : float | None
-        One-way ANOVA F-statistic.  Higher F → stronger group separation.
-    p_value : float | None
-        p-value for the F-test.
-    eta_squared : float | None
-        Effect size: SS_between / SS_total.  Ranges [0, 1].
-        Rule of thumb: 0.01 small, 0.06 medium, 0.14 large.
-    """
-
-    feature: str
-    f_statistic: float | None = None
-    p_value: float | None = None
-    eta_squared: float | None = None
-
-    def to_dict(self) -> dict:
-        """
-        Serialise this entry to a plain dictionary.
-
-        Returns
-        -------
-        dict
-            Keys: ``feature``, ``f_statistic``, ``p_value``, ``eta_squared``.
-        """
-        return {
-            "feature": self.feature,
-            "f_statistic": self.f_statistic,
-            "p_value": self.p_value,
-            "eta_squared": self.eta_squared,
-        }
-
-
-# ---------------------------------------------------------------------------
-# Mutual information
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class MutualInformationEntry:
-    """
-    MI score for one feature vs the target.
-
-    Attributes
-    ----------
-    feature : str
-    mi_score : float
-        Raw MI value (nats, sklearn default).  Not directly comparable
-        across datasets — use rank ordering within this dataset.
-    rank : int
-        1 = highest MI (most informative).
-    """
-
-    feature: str
-    mi_score: float = 0.0
-    rank: int = 0
-
-    def to_dict(self) -> dict:
-        """
-        Serialise this entry to a plain dictionary.
-
-        Returns
-        -------
-        dict
-            Keys: ``feature``, ``mi_score``, ``rank``.
-        """
-        return {"feature": self.feature, "mi_score": self.mi_score, "rank": self.rank}
-
-
-# ---------------------------------------------------------------------------
 # Near-redundancy summary
 # ---------------------------------------------------------------------------
 
@@ -403,19 +280,6 @@ class CorrelationProfileResult:
         Subset of *pairwise* where near_redundant is True.
     near_redundancy_groups : list[NearRedundancyGroup]
         Union-find clusters of near-redundant columns.
-
-    target_column : str | None
-        The target column supplied by the caller (may be None when no
-        target is provided — only pairwise matrices are then computed).
-    target_type : TargetType | None
-
-    feature_target_numeric : list[NumericTargetCorrelation]
-        Populated when target is numeric.  Top-10 by |Pearson r|.
-    feature_target_categorical : list[CategoricalTargetCorrelation]
-        Populated when target is categorical.  Top-10 by eta².
-    mutual_information : list[MutualInformationEntry]
-        All features ranked by MI vs target.  Empty when no target.
-
     pearson_matrix : dict[str, dict[str, float]]
         Full symmetric Pearson matrix (numeric columns only).
     spearman_matrix : dict[str, dict[str, float]]
@@ -443,39 +307,9 @@ class CorrelationProfileResult:
     eta_squared_pairs: list[EtaSquaredPair] = field(default_factory=list)
     near_redundant_eta_squared_pairs: list[EtaSquaredPair] = field(default_factory=list)
 
-    # Target info
-    target_column: str | None = None
-    target_type: TargetType | None = None
-
-    # Feature–target correlations (top-10 each)
-    feature_target_numeric: list[NumericTargetCorrelation] = field(default_factory=list)
-    feature_target_categorical: list[CategoricalTargetCorrelation] = field(
-        default_factory=list
-    )
-
-    # Mutual information (all features, ranked)
-    mutual_information: list[MutualInformationEntry] = field(default_factory=list)
-
     # ------------------------------------------------------------------
     # Convenience helpers
     # ------------------------------------------------------------------
-
-    def top_mi(self, n: int = 10) -> list[MutualInformationEntry]:
-        """
-        Return the top-n features by mutual information score.
-
-        Parameters
-        ----------
-        n : int
-            Number of top entries to return.  Defaults to 10.
-
-        Returns
-        -------
-        list[MutualInformationEntry]
-            The first ``n`` entries from ``mutual_information``, which is
-            already sorted by descending MI score (rank 1 = highest).
-        """
-        return self.mutual_information[:n]
 
     def get_pearson(self, col_a: str, col_b: str) -> float | None:
         """
@@ -544,15 +378,6 @@ class CorrelationProfileResult:
             "near_redundant_eta_squared_pairs": [
                 p.to_dict() for p in self.near_redundant_eta_squared_pairs
             ],
-            "target_column": self.target_column,
-            "target_type": str(self.target_type) if self.target_type else None,
-            "feature_target_numeric": [
-                f.to_dict() for f in self.feature_target_numeric
-            ],
-            "feature_target_categorical": [
-                f.to_dict() for f in self.feature_target_categorical
-            ],
-            "mutual_information": [m.to_dict() for m in self.mutual_information],
         }
 
     @classmethod
@@ -570,7 +395,6 @@ class CorrelationProfileResult:
         CorrelationProfileResult
             Reconstructed instance.
         """
-        raw_target_type = data.get("target_type")
         return cls(
             analysed_numeric_columns=list(data.get("analysed_numeric_columns", [])),
             analysed_categorical_columns=list(
@@ -603,19 +427,5 @@ class CorrelationProfileResult:
             near_redundant_eta_squared_pairs=[
                 EtaSquaredPair(**p)
                 for p in data.get("near_redundant_eta_squared_pairs", [])
-            ],
-            target_column=data.get("target_column"),
-            target_type=TargetType(raw_target_type) if raw_target_type else None,
-            feature_target_numeric=[
-                NumericTargetCorrelation(**f)
-                for f in data.get("feature_target_numeric", [])
-            ],
-            feature_target_categorical=[
-                CategoricalTargetCorrelation(**f)
-                for f in data.get("feature_target_categorical", [])
-            ],
-            mutual_information=[
-                MutualInformationEntry(**m)
-                for m in data.get("mutual_information", [])
             ],
         )
