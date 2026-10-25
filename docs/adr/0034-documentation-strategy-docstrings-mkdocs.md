@@ -1,6 +1,6 @@
 # ADR 0034: Documentation strategy — numpy-style docstrings as API contract, mkdocs + mkdocstrings for generation
 
-**Status:** Amended by ADR-0108 (Operations and Wire Records follow ADR-0108's Agent rule; this numpy rule now covers only the internal seams Operations call). Toolchain superseded by ADR-0038, itself superseded by ADR-0108 (the docs site is deleted).
+**Status:** Amended by ADR-0108: the numpy rule now covers only the internal seams Operations call (see "Amendment: internal-seam scope" below). Toolchain superseded by ADR-0038, itself superseded by ADR-0108 (the docs site is deleted).
 
 ## Context
 
@@ -57,3 +57,15 @@ A unified documentation strategy was needed that covered all three layers withou
 - A dedicated retroactive pass adds docstrings to all in-scope files that currently lack them.
 - Once the retroactive pass is complete, a `deploy-docs.yml` GitHub Actions workflow is added to publish to GitHub Pages.
 - `CONTEXT.md` and `docs/adr/` are unaffected — they continue to serve their existing roles unchanged.
+
+## Amendment (ADR-0108): internal-seam scope
+
+Decision 2's scope is replaced. The package root now exports the Operations and nothing else. Their docstrings follow ADR-0108's Agent rule, and ADR-0112 makes them the source of `dataforge <command> --help`. This ADR's numpy rule covers only the internal seams the Operations call, with each seam's public methods and the record it returns. Where a seam shares its name with a package-root Operation, the seam is the one at the module path below:
+
+- the router, `dataforge_ml.imputation.route`;
+- `dataforge_ml.imputation.resolve_recipe` and `dataforge_ml.imputation.fit_unit`;
+- the profiler, `StructuralProfiler`;
+- the splitter, `DataSplitter`;
+- the generic C2ST seam, `dataforge_ml.evaluation.c2st`.
+
+`_`-prefixed methods and functions stay exempt. The audience is the maintainers, who are coding Agents and read these seams the way a user reads an Operation. Decision 3's format stands for this scope. Decisions 4 to 7 (mkdocs, the site, hosting, the retroactive pass) lapse with the deleted docs site, and so does the `CLAUDE.md` hard-rule consequence: `CLAUDE.md` now points to the working rule in `CODING_STANDARDS.md`, "Document the internal seams in numpy style".
