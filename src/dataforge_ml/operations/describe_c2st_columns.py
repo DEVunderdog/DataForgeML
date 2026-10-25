@@ -97,7 +97,7 @@ class C2STRunConfig(WireRecord):
     """The pile ratio under which a tested column is ``imbalanced_piles``."""
     fdr_alpha: float
     """The false discovery rate deciding ``flagged``."""
-    random_state: int | None
+    seed: int | None
     """The seed used."""
 
 

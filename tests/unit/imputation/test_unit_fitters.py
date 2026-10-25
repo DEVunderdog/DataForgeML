@@ -81,7 +81,7 @@ def _drive(df, cfg):
         string_sentinels=profile.string_sentinels,
     )
     fitted = {
-        unit.unit_id: fit_unit(recipe, unit, train, random_seed=_SEED).fitted
+        unit.unit_id: fit_unit(recipe, unit, train, seed=_SEED).fitted
         for unit in units
     }
     return profile, routing, units, train, fitted
@@ -158,7 +158,7 @@ def _fact_ctx(
             {routing.column: estimates} if estimates is not None else {}
         ),
         unit_hyperparameters=hyperparameters or {},
-        random_seed=7,
+        seed=7,
     )
 
 

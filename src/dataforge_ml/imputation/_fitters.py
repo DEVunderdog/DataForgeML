@@ -30,6 +30,7 @@ from sklearn.mixture import GaussianMixture
 from sklearn.pipeline import Pipeline
 
 from .._boundary._error_codes import entry_for
+from .._seed import DEFAULT_SEED
 from ..records import DataForgeError, ResultWarning
 from ._config import ColumnRouting, ImputationStrategy, ModelChoice
 from ._fit_signals import FitSignals
@@ -101,8 +102,10 @@ class UnitFitContext:
         (:attr:`~dataforge_ml.imputation.ImputationRouting.mice_estimator`),
         held by identity and never cloned. Read only when the block's
         ``model_choice`` is :attr:`~dataforge_ml.imputation.ModelChoice.Custom`.
-    random_seed : int, optional
-        Seed for the stochastic strategies (GMM sampling).
+    seed : int, default DEFAULT_SEED
+        Seed for every stochastic fit — the MICE imputer and its estimator,
+        and GMM sampling — taken from the Operation's ``seed`` argument
+        (ADR-0106).
     mice_model_choice : ModelChoice, optional
         The owning routing's
         :attr:`~dataforge_ml.imputation.ImputationRouting.mice_model_choice` —
@@ -115,7 +118,7 @@ class UnitFitContext:
     unit_hyperparameters: Mapping[str, dict[str, Any]] = field(default_factory=dict)
     feature_columns: tuple[str, ...] = ()
     mice_estimator: Any = None
-    random_seed: int | None = None
+    seed: int = DEFAULT_SEED
     mice_model_choice: ModelChoice | None = None
 
 
@@ -487,11 +490,11 @@ def fit_mice_unit(
             )
     else:
         estimator = RegressionEstimatorFactory.build_from_choice(
-            model_choice, n_jobs=n_jobs_inner
+            model_choice, n_jobs=n_jobs_inner, seed=ctx.seed
         )
     model = IterativeImputer(
         estimator=estimator,
-        random_state=0,
+        random_state=ctx.seed,
         max_iter=max_iter,
         tol=tol,
         initial_strategy=initial_strategy,
@@ -696,7 +699,7 @@ def fit_gmm_unit(
     gmm = GaussianMixture(
         n_components=2,
         means_init=np.array([[center1], [center2]]),
-        random_state=ctx.random_seed,
+        random_state=ctx.seed,
     )
     gmm.fit(series.to_numpy().reshape(-1, 1))
 
@@ -727,7 +730,7 @@ def fit_gmm_unit(
             domain_snap_bounds=(
                 estimates.domain_snap_bounds if estimates is not None else None
             ),
-            random_seed=ctx.random_seed,
+            seed=ctx.seed,
         ),
         signals=FitSignals(
             unit_id=unit.unit_id,

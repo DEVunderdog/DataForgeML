@@ -47,7 +47,7 @@ def test_it_pages_per_frame_results_and_provenance(harness: Harness) -> None:
     params = {p["name"]: p["value"] for p in records(provenance["classifier_params"])}
     assert params["random_state"] == str(DEFAULT_SEED)
     assert provenance["config"]["fdr_alpha"] == 0.05
-    assert provenance["config"]["random_state"] == DEFAULT_SEED
+    assert provenance["config"]["seed"] == DEFAULT_SEED
     assert provenance["sklearn_version"]
 
 

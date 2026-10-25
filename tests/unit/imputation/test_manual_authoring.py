@@ -68,7 +68,7 @@ def _drive(routing, df, config=None):
     profile = _profile(df, config)
     recipe = resolve_recipe(routing, profile, config)
     units = derive_units(routing)
-    results = [fit_unit(recipe, unit, df, random_seed=7) for unit in units]
+    results = [fit_unit(recipe, unit, df, seed=7) for unit in units]
     return FittedImputer.compose(recipe, results), results
 
 
@@ -525,7 +525,7 @@ def test_hand_authored_routing_with_forced_mice_and_bimodal_estimates_end_to_end
     assert recipe.column_estimates["score"].center2 == 55.0
 
     # Now fits successfully end to end
-    results = [fit_unit(recipe, unit, df, random_seed=42) for unit in units]
+    results = [fit_unit(recipe, unit, df, seed=42) for unit in units]
     imputer = FittedImputer.compose(recipe, results)
     out = imputer.transform(df)
 

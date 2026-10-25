@@ -27,7 +27,7 @@ def fit_imputer(
     *,
     exclude_columns=(),
     skip_columns=(),
-    random_seed=None,
+    seed=None,
 ):
     """Fit a FittedImputer over the user-orchestrated route → fit_unit → compose path.
 
@@ -54,7 +54,7 @@ def fit_imputer(
     recipe = resolve_recipe(routing, profile, config)
     units = derive_units(routing)
     results = {
-        unit.unit_id: fit_unit(recipe, unit, train_df, random_seed=random_seed)
+        unit.unit_id: fit_unit(recipe, unit, train_df, seed=seed)
         for unit in units
     }
     return FittedImputer.compose(recipe, results)

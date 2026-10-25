@@ -45,7 +45,7 @@ def _drive(df, cfg):
         string_sentinels=profile.string_sentinels,
     )
     fitted = {
-        unit.unit_id: fit_unit(recipe, unit, train, random_seed=_SEED).fitted
+        unit.unit_id: fit_unit(recipe, unit, train, seed=_SEED).fitted
         for unit in units
     }
     return profile, routing, units, train, fitted
@@ -248,7 +248,7 @@ def _mice_rmse_with_estimator(df, target_true, missing_idx, model_choice):
         numeric_sentinels=profile.numeric_sentinels,
         string_sentinels=profile.string_sentinels,
     )
-    result = fit_unit(recipe, units[0], train, random_seed=_SEED)
+    result = fit_unit(recipe, units[0], train, seed=_SEED)
     out = result.fitted.transform(train)
     imputed = out["target"].to_numpy()[missing_idx]
     return float(np.sqrt(np.mean((imputed - target_true[missing_idx]) ** 2)))
@@ -316,7 +316,7 @@ def test_real_frame_ames_regression():
     recipe = resolve_recipe(routing, profile, cfg)
     unit = derive_units(routing, strategy=ImputationStrategy.KNN)[0]
     train = _resolve_effective_nulls(pl_df)
-    res = fit_unit(recipe, unit, train, random_seed=42)
+    res = fit_unit(recipe, unit, train, seed=42)
     out_knn = res.fitted.transform(train)
     knn_imputed = out_knn[target].to_numpy()[missing_idx]
     widened_rmse = float(np.sqrt(np.mean((knn_imputed - true_vals[missing_idx]) ** 2)))
@@ -346,7 +346,7 @@ def test_real_frame_ames_regression():
         rec = resolve_recipe(r, prof, c)
         u = derive_units(r, strategy=ImputationStrategy.MICE)[0]
         tr = _resolve_effective_nulls(pl_small)
-        out = fit_unit(rec, u, tr, random_seed=42).fitted.transform(tr)
+        out = fit_unit(rec, u, tr, seed=42).fitted.transform(tr)
         imp = out[target].to_numpy()[miss_small]
         return float(np.sqrt(np.mean((imp - true_small[miss_small]) ** 2)))
 

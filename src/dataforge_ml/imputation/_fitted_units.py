@@ -26,6 +26,8 @@ import numpy as np
 import polars as pl
 from sklearn.experimental import enable_iterative_imputer  # noqa: F401 - side effect
 
+from .._seed import DEFAULT_SEED
+
 
 class FittedScalar:
     """Standalone unit for scalar imputation (Mean, Median, Mode, Constant, MNAR).
@@ -261,6 +263,13 @@ class FittedGMMSampling:
         Mixing weight of the first GMM component.
     weight2 : float
         Mixing weight of the second GMM component.
+    target_col : str
+        The column this unit fills.
+    domain_snap_bounds : tuple[float, float], optional
+        Bounds a bounded-discrete column's samples are rounded and clipped to.
+    seed : int, default DEFAULT_SEED
+        Seed of the sampling generator, so the same fit fills the same cells
+        with the same values on every ``transform`` (ADR-0106).
     """
 
     center1: float
@@ -271,7 +280,7 @@ class FittedGMMSampling:
     weight2: float
     target_col: str = ""
     domain_snap_bounds: tuple[float, float] | None = None
-    random_seed: int | None = None
+    seed: int = DEFAULT_SEED
 
     @property
     def target_columns(self) -> list[str]:
@@ -315,7 +324,7 @@ class FittedGMMSampling:
         if n_missing == 0:
             return df
 
-        rng = np.random.default_rng(self.random_seed)
+        rng = np.random.default_rng(self.seed)
 
         choices = rng.choice([0, 1], p=[self.weight1, self.weight2], size=n_missing)
         samples = np.where(

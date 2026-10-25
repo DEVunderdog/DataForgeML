@@ -308,7 +308,7 @@ class NumericImputationConfig:
         within a per-column strategy are fitted concurrently on threads,
         capped at this many workers. ``None`` (the default) auto-sizes to the
         available CPU count; ``1`` forces a fully sequential fit.  Concurrency
-        never changes a result: the same ``random_seed`` yields a
+        never changes a result: the same ``seed`` yields a
         byte-identical ``FittedImputer`` regardless of this value.
 
     Raises

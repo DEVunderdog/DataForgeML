@@ -11,6 +11,7 @@ from sklearn.base import clone
 from sklearn.ensemble import RandomForestRegressor
 
 from dataforge_ml._boundary._schema import strict_subset_problems, to_strict_subset
+from dataforge_ml._seed import DEFAULT_SEED
 from dataforge_ml.imputation import ImputationStrategy
 from dataforge_ml.imputation._config import _STRATEGY_DIALS, ModelChoice, _dial_defaults
 from dataforge_ml.imputation._regression_estimator_factory import (
@@ -198,4 +199,4 @@ def test_a_forest_with_no_parameters_keeps_sklearns_defaults() -> None:
 
     forest.fit(rng.normal(size=(30, 2)), rng.normal(size=30))
 
-    assert forest.forest_.get_params() == RandomForestRegressor(random_state=0, n_jobs=1).get_params()
+    assert forest.forest_.get_params() == RandomForestRegressor(random_state=DEFAULT_SEED, n_jobs=1).get_params()

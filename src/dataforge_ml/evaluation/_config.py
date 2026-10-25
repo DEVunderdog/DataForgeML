@@ -85,7 +85,7 @@ class C2STConfig:
         report's tested columns. A column whose adjusted p-value is at or
         below it is ``Flagged``. It moves the **shortlist** only: the raw
         ``z`` is never corrected, because the ``z`` is the score.
-    random_state : int, optional
+    seed : int, optional
         Seed for the subsampling, the train/test carve and the classifier. The
         same seed on the same frames gives the same report. ``None`` means the
         fixed library default seed, never "random".
@@ -98,7 +98,7 @@ class C2STConfig:
     low_power_below: int = _DEFAULT_LOW_POWER_BELOW
     imbalance_warn_ratio: float = _DEFAULT_IMBALANCE_WARN_RATIO
     fdr_alpha: float = _DEFAULT_FDR_ALPHA
-    random_state: int | None = None
+    seed: int | None = None
 
     def to_dict(self) -> dict:
         """Serialise the dials to a plain dictionary.
@@ -116,7 +116,7 @@ class C2STConfig:
             "low_power_below": self.low_power_below,
             "imbalance_warn_ratio": self.imbalance_warn_ratio,
             "fdr_alpha": self.fdr_alpha,
-            "random_state": self.random_state,
+            "seed": self.seed,
         }
 
     @classmethod
@@ -154,5 +154,5 @@ class C2STConfig:
                 "imbalance_warn_ratio", default.imbalance_warn_ratio
             ),
             fdr_alpha=data.get("fdr_alpha", default.fdr_alpha),
-            random_state=data.get("random_state", default.random_state),
+            seed=data.get("seed", default.seed),
         )

@@ -436,7 +436,6 @@ class FittedImputer:
     units: list[Any] = field(default_factory=list)
     numeric_sentinels: dict[str, list[float]] = field(default_factory=dict)
     string_sentinels: dict[str, list[str]] = field(default_factory=dict)
-    random_seed: int | None = None
 
     @classmethod
     def compose(

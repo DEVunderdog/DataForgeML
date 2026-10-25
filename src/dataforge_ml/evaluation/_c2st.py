@@ -148,7 +148,7 @@ class C2STResult:
 
 def _default_c2st_classifier(
     min_samples_leaf: int = DEFAULT_MIN_SAMPLES_LEAF,
-    random_state: int | None = None,
+    seed: int | None = None,
 ) -> Any:
     """Build the library's default C2ST classifier, pins included.
 
@@ -169,7 +169,7 @@ def _default_c2st_classifier(
         which is also ``C2STConfig.min_samples_leaf``'s field default, so the
         configured value and the value a bare ``c2st`` call builds read one
         number in one place.
-    random_state : int, optional
+    seed : int, optional
         Seed handed to the estimator. ``None`` means the fixed library default
         seed, never "random".
 
@@ -181,7 +181,7 @@ def _default_c2st_classifier(
     return HistGradientBoostingClassifier(
         min_samples_leaf=min_samples_leaf,
         early_stopping=False,
-        random_state=DEFAULT_SEED if random_state is None else random_state,
+        random_state=DEFAULT_SEED if seed is None else seed,
     )
 
 
@@ -313,7 +313,7 @@ def _run_c2st(
     *,
     repeats: int,
     scheme: C2STScheme,
-    random_state: int | None,
+    seed: int | None,
     min_rows: int,
     min_samples_leaf: int,
     on_repeat: Callable[[int, int], None] | None,
@@ -323,7 +323,7 @@ def _run_c2st(
 
     Owns every piece of arithmetic ``c2st`` documents; the two public-facing
     wrappers differ only in how they resolve the classifier's leaf size and how
-    they report ``on_repeat``. ``random_state=None`` resolves to the fixed
+    they report ``on_repeat``. ``seed=None`` resolves to the fixed
     library default seed, so two unseeded calls give the same result.
     ``floor_param`` is the argument path ``c2st_sample_floor`` names, so the
     ``c2st`` Operation can name its own dial.
@@ -355,10 +355,8 @@ def _run_c2st(
     )
     unseen_category = _has_unseen_category(reference, candidate)
 
-    seed = DEFAULT_SEED if random_state is None else random_state
-    model = _default_c2st_classifier(
-        min_samples_leaf=min_samples_leaf, random_state=seed
-    )
+    seed = DEFAULT_SEED if seed is None else seed
+    model = _default_c2st_classifier(min_samples_leaf=min_samples_leaf, seed=seed)
     rng = np.random.default_rng(seed)
     balanced = min(n_reference, candidate_height)
 
@@ -408,7 +406,7 @@ def _c2st(
     *,
     repeats: int,
     scheme: C2STScheme,
-    random_state: int | None = None,
+    seed: int | None = None,
     min_rows: int = MIN_SAMPLE_FLOOR,
     min_samples_leaf: int = DEFAULT_MIN_SAMPLES_LEAF,
     emitter: Emitter | None = None,
@@ -426,7 +424,7 @@ def _c2st(
         candidate,
         repeats=repeats,
         scheme=scheme,
-        random_state=random_state,
+        seed=seed,
         min_rows=min_rows,
         min_samples_leaf=min_samples_leaf,
         on_repeat=(
@@ -445,7 +443,7 @@ def c2st(
     *,
     repeats: int,
     scheme: C2STScheme,
-    random_state: int | None = None,
+    seed: int | None = None,
     min_rows: int = MIN_SAMPLE_FLOOR,
     min_samples_leaf: int | None = None,
     observer: Observer | None = None,
@@ -492,7 +490,7 @@ def c2st(
         The number of balanced subsampling repeats, ``R``. At least 1.
     scheme : C2STScheme
         ``Split`` for one fit per repeat, ``CrossValidation`` for five.
-    random_state : int, optional
+    seed : int, optional
         Seed for the subsampling, the train/test carve and the classifier. The
         same seed on the same samples gives the same result. ``None`` means the
         fixed library default seed, never "random", so two unseeded calls agree.
@@ -537,7 +535,7 @@ def c2st(
         candidate,
         repeats=repeats,
         scheme=scheme,
-        random_state=random_state,
+        seed=seed,
         min_rows=min_rows,
         min_samples_leaf=(
             DEFAULT_MIN_SAMPLES_LEAF if min_samples_leaf is None else min_samples_leaf

@@ -513,7 +513,7 @@
                 "description": "The false discovery rate deciding ``flagged``.",
                 "type": "number"
               },
-              "random_state": {
+              "seed": {
                 "anyOf": [
                   {
                     "type": "integer"
@@ -533,7 +533,7 @@
               "low_power_below",
               "imbalance_warn_ratio",
               "fdr_alpha",
-              "random_state"
+              "seed"
             ],
             "type": "object"
           }

@@ -18,6 +18,7 @@ import numpy as np
 import polars as pl
 
 from dataforge_ml._boundary._error_codes import REGISTRY
+from dataforge_ml._seed import DEFAULT_SEED
 from dataforge_ml.imputation import (
     FitSignals,
     FittedImputer,
@@ -248,10 +249,24 @@ def test_fit_signals_reports_the_estimator_for_a_gmm_unit():
     _, routing, recipe = _routing_and_recipe(df)
     (unit,) = derive_units(routing, strategy=ImputationStrategy.GMMSampling)
 
-    signals = fit_unit(recipe, unit, df, random_seed=3).signals
+    signals = fit_unit(recipe, unit, df, seed=3).signals
     assert signals.estimator == "GaussianMixture"
     assert signals.converged is True
     assert signals.warnings == ()
+
+
+def test_an_unseeded_fit_is_the_fixed_default_seed_never_random():
+    """``seed=None`` means DEFAULT_SEED (ADR-0106), so a sampling fill repeats."""
+    df = _bimodal_frame(grouped=False)
+    _, routing, recipe = _routing_and_recipe(df)
+    (unit,) = derive_units(routing, strategy=ImputationStrategy.GMMSampling)
+
+    def fill(seed):
+        return fit_unit(recipe, unit, df, seed=seed).fitted.transform(df)
+
+    assert fill(None).equals(fill(None))
+    assert fill(None).equals(fill(DEFAULT_SEED))
+    assert not fill(None).equals(fill(DEFAULT_SEED + 1))
 
 
 def test_fitting_beside_an_all_null_column_emits_no_python_warning():
@@ -284,7 +299,7 @@ def test_fit_unit_signature_takes_a_recipe_and_defaults_n_jobs_inner_to_minus_on
         "recipe",
         "unit",
         "df",
-        "random_seed",
+        "seed",
         "n_jobs_inner",
     ]
     assert params["n_jobs_inner"].default == -1

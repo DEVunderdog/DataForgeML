@@ -235,7 +235,7 @@ def test_a_seed_passed_is_the_seed_used(harness: Harness) -> None:
     )
 
     assert out.json["seed"] == 7
-    assert _stored_unit(out.json["unit"]).random_seed == 7
+    assert _stored_unit(out.json["unit"]).seed == 7
 
 
 # --- Errors -----------------------------------------------------------------------

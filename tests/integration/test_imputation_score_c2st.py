@@ -144,7 +144,7 @@ def imputed_frame(eval_df):
 
 @pytest.fixture
 def eval_config():
-    return C2STConfig(repeats=3, random_state=0)
+    return C2STConfig(repeats=3, seed=0)
 
 
 @pytest.fixture(scope="module")
@@ -153,7 +153,7 @@ def report(eval_df, imputed_frame, eval_profile, eval_exclusions):
         eval_df,
         [imputed_frame],
         eval_profile,
-        config=C2STConfig(repeats=3, random_state=0),
+        config=C2STConfig(repeats=3, seed=0),
         exclude_columns=eval_exclusions,
     )
 
@@ -253,7 +253,7 @@ def test_a_column_still_null_where_it_was_missing_is_unfilled(
         eval_df,
         [_unfill(imputed_frame, eval_df, "score")],
         eval_profile,
-        config=C2STConfig(repeats=2, random_state=0),
+        config=C2STConfig(repeats=2, seed=0),
         exclude_columns=eval_exclusions,
     )
 
@@ -273,7 +273,7 @@ def test_one_unfilled_frame_among_several_refuses_the_column(
         eval_df,
         [imputed_frame, _unfill(imputed_frame, eval_df, "score")],
         eval_profile,
-        config=C2STConfig(repeats=2, random_state=0),
+        config=C2STConfig(repeats=2, seed=0),
         exclude_columns=eval_exclusions,
     )
 
@@ -302,7 +302,7 @@ def test_a_declared_mnar_column_is_unfilled_not_failed():
         df,
         [imputed],
         profile,
-        config=C2STConfig(repeats=2, random_state=0),
+        config=C2STConfig(repeats=2, seed=0),
     )
 
     assert report["income"].outcome is C2STOutcome.Unfilled
@@ -567,7 +567,7 @@ def test_evaluation_runs_end_to_end_on_a_real_imputed_table(real_df):
         real_df,
         [imputed],
         profile,
-        config=C2STConfig(repeats=3, random_state=0),
+        config=C2STConfig(repeats=3, seed=0),
     )
 
     record = report["target"]
@@ -590,7 +590,7 @@ def test_lowering_the_floor_dial_tests_a_column_the_default_refuses(
         eval_df,
         [imputed_frame],
         eval_profile,
-        config=C2STConfig(repeats=2, random_state=0, min_filled_cells=TINY_NULLS),
+        config=C2STConfig(repeats=2, seed=0, min_filled_cells=TINY_NULLS),
         exclude_columns=eval_exclusions,
     )
 
@@ -610,7 +610,7 @@ def test_raising_the_floor_dial_refuses_a_column_the_default_tests(
         eval_df,
         [imputed_frame],
         eval_profile,
-        config=C2STConfig(repeats=2, random_state=0, min_filled_cells=200),
+        config=C2STConfig(repeats=2, seed=0, min_filled_cells=200),
         exclude_columns=eval_exclusions,
     )
 
@@ -642,7 +642,7 @@ def test_low_power_annotates_and_never_refuses(
         eval_df,
         [imputed_frame],
         eval_profile,
-        config=C2STConfig(repeats=2, random_state=0, low_power_below=10_000),
+        config=C2STConfig(repeats=2, seed=0, low_power_below=10_000),
         exclude_columns=eval_exclusions,
     )
 
@@ -679,7 +679,7 @@ def test_the_imbalance_dial_moves_the_annotation(
         eval_df,
         [imputed_frame],
         eval_profile,
-        config=C2STConfig(repeats=2, random_state=0, imbalance_warn_ratio=0.9),
+        config=C2STConfig(repeats=2, seed=0, imbalance_warn_ratio=0.9),
         exclude_columns=eval_exclusions,
     )
 
@@ -712,7 +712,7 @@ def test_an_unseen_category_is_annotated_and_the_z_is_still_reported(
         eval_df,
         [unseen_category_frames],
         eval_profile,
-        config=C2STConfig(repeats=2, random_state=0),
+        config=C2STConfig(repeats=2, seed=0),
         exclude_columns=eval_exclusions,
     )
 
@@ -755,7 +755,7 @@ def test_a_classifier_predicting_one_class_every_repeat_is_uninformative(
         eval_df,
         [imputed_frame],
         eval_profile,
-        config=C2STConfig(repeats=3, random_state=0),
+        config=C2STConfig(repeats=3, seed=0),
         exclude_columns=eval_exclusions,
     )
 
@@ -776,7 +776,7 @@ def test_the_degeneracy_net_is_not_the_floor(
         eval_df,
         [imputed_frame],
         eval_profile,
-        config=C2STConfig(repeats=3, random_state=0),
+        config=C2STConfig(repeats=3, seed=0),
         exclude_columns=eval_exclusions,
     )
 
@@ -791,7 +791,7 @@ def test_all_seven_outcomes_are_reachable(report, eval_df, imputed_frame,
         eval_df,
         [_unfill(imputed_frame, eval_df, "score")],
         eval_profile,
-        config=C2STConfig(repeats=2, random_state=0),
+        config=C2STConfig(repeats=2, seed=0),
         exclude_columns=eval_exclusions,
     )
     seen |= {r.outcome for r in unfilled.columns.values()}
@@ -800,7 +800,7 @@ def test_all_seven_outcomes_are_reachable(report, eval_df, imputed_frame,
         eval_df,
         [imputed_frame],
         eval_profile,
-        config=C2STConfig(repeats=2, random_state=0),
+        config=C2STConfig(repeats=2, seed=0),
         exclude_columns=eval_exclusions,
     )
     seen |= {r.outcome for r in degenerate.columns.values()}
@@ -911,7 +911,7 @@ def test_a_median_filled_column_is_flagged_and_an_unimputed_control_is_not(
 ):
     original, median_filled, oracle_filled = baseline_frames
     profile = StructuralProfiler().profile(original)
-    config = C2STConfig(repeats=5, random_state=0)
+    config = C2STConfig(repeats=5, seed=0)
 
     caught = imputation_score_c2st(
         original, [median_filled], profile,
@@ -939,7 +939,7 @@ def test_train_accuracy_is_reported_beside_test_accuracy(baseline_frames):
 
     score = imputation_score_c2st(
         original, [median_filled], profile,
-        config=C2STConfig(repeats=3, random_state=0),
+        config=C2STConfig(repeats=3, seed=0),
     )["c"].score
 
     frame = score.frames[0]

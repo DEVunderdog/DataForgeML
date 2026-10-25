@@ -135,7 +135,7 @@ def run_c2st(
             candidate_frame,
             repeats=repeats,
             scheme=resolved_scheme,
-            random_state=seed,
+            seed=seed,
             min_rows=dials["min_rows"],
             min_samples_leaf=dials["min_samples_leaf"],
             on_repeat=lambda index, total: emitter.item(None, f"repeat {index} of {total}"),

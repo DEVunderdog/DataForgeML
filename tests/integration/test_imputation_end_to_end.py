@@ -365,7 +365,7 @@ def test_numeric_sentinel_end_to_end_fit_transform(round_trip):
     # Profile must carry the declared sentinels.
     assert profile.numeric_sentinels == {"age": [-999.0]}
 
-    fi = fit_imputer(df, profile, random_seed=42)
+    fi = fit_imputer(df, profile, seed=42)
 
     # FittedImputer must carry the sentinels.
     assert fi.numeric_sentinels == {"age": [-999.0]}
@@ -465,7 +465,7 @@ def test_hand_authored_plan_drives_column_names_to_an_imputed_frame():
     }
 
     results = {
-        unit.unit_id: fit_unit(recipe, unit, df, random_seed=42)
+        unit.unit_id: fit_unit(recipe, unit, df, seed=42)
         for unit in units
     }
     imputer = FittedImputer.compose(recipe, results)
@@ -519,7 +519,7 @@ def test_re_authored_routed_plan_drives_to_an_imputed_frame(
     recipe = resolve_recipe(edited, imputation_profile)
     units = derive_units(edited)
     results = {
-        unit.unit_id: fit_unit(recipe, unit, train, random_seed=42)
+        unit.unit_id: fit_unit(recipe, unit, train, seed=42)
         for unit in units
     }
     result = FittedImputer.compose(recipe, results).transform(imputation_split.test)

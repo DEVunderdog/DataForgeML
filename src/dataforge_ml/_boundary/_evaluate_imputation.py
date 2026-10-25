@@ -215,7 +215,7 @@ def evaluate_imputation(
             [imputed_frame],
             stored_profile,
             exclude_columns=sorted(excluded),
-            config=C2STConfig(random_state=seed, **values),
+            config=C2STConfig(seed=seed, **values),
             observer=progress_observer(),
         )
 

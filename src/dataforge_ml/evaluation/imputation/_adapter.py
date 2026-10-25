@@ -104,7 +104,7 @@ def _provenance(config: C2STConfig) -> C2STProvenance:
     """
     classifier = _default_c2st_classifier(
         min_samples_leaf=config.min_samples_leaf,
-        random_state=config.random_state,
+        seed=config.seed,
     )
     return C2STProvenance(
         classifier_class=(
@@ -367,7 +367,7 @@ def imputation_score_c2st(
                 candidate,
                 repeats=config.repeats,
                 scheme=config.scheme,
-                random_state=config.random_state,
+                seed=config.seed,
                 min_rows=config.min_filled_cells,
                 min_samples_leaf=config.min_samples_leaf,
                 emitter=emitter,

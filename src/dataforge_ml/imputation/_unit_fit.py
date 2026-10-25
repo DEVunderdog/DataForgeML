@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 import polars as pl
 
 from .._boundary._error_codes import close_matches
+from .._seed import DEFAULT_SEED
 from ..records import DataForgeError
 from ..utils._dtype_floor import _apply_dtype_floor
 from ..utils._null_normalization import _resolve_effective_nulls
@@ -76,7 +77,7 @@ class UnitFitResult:
 
 
 def _fit_context(
-    recipe: ImputationRecipe, random_seed: int | None
+    recipe: ImputationRecipe, seed: int
 ) -> UnitFitContext:
     """Build the context the shared fitters read the recipe through."""
     from ._recipe import _active_numeric_columns
@@ -90,7 +91,7 @@ def _fit_context(
         },
         feature_columns=tuple(_active_numeric_columns(recipe.routing)),
         mice_estimator=recipe.routing.mice_estimator,
-        random_seed=random_seed,
+        seed=seed,
         mice_model_choice=recipe.routing.mice_model_choice,
     )
 
@@ -137,7 +138,7 @@ def fit_unit(
     recipe: ImputationRecipe,
     unit: ImputationUnit,
     df: pl.DataFrame,
-    random_seed: int | None = None,
+    seed: int | None = None,
     n_jobs_inner: int = -1,
 ) -> UnitFitResult:
     """Train exactly one unit and bundle it into a :class:`UnitFitResult`.
@@ -172,8 +173,10 @@ def fit_unit(
         entry: effective nulls are resolved and the **Dtype Floor** enforced
         against the routing's semantic types. The caller's frame is never
         mutated.
-    random_seed : int, optional
-        Seed for the stochastic strategies (GMM sampling).
+    seed : int, optional
+        Seed for every stochastic fit — MICE and its estimator, and GMM
+        sampling. ``None`` means the library's fixed default seed, so two
+        calls on the same data agree (ADR-0106).
     n_jobs_inner : int, default -1
         Inner estimator ``n_jobs`` (ADR-0056), unused by every fitter reachable
         today. Accepted for signature stability with the (not-yet-implemented)
@@ -216,7 +219,7 @@ def fit_unit(
             for name, r in recipe.routing.column_routings.items()
         },
     )
-    ctx = _fit_context(recipe, random_seed)
+    ctx = _fit_context(recipe, DEFAULT_SEED if seed is None else seed)
     with warnings.catch_warnings():
         # Fitting emits no Python warnings (ADR-0102). A caveat worth acting
         # on, such as a hit iteration cap, comes back coded on signals.warnings.

@@ -24,7 +24,6 @@ def round_trip():
             units=restored_units,
             numeric_sentinels={k: list(v) for k, v in imputer.numeric_sentinels.items()},
             string_sentinels={k: list(v) for k, v in imputer.string_sentinels.items()},
-            random_seed=imputer.random_seed,
         )
 
     return _round_trip

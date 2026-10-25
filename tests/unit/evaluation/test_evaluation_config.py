@@ -25,7 +25,7 @@ def test_c2st_config_field_list_is_the_declared_dial_set():
         "low_power_below",
         "imbalance_warn_ratio",
         "fdr_alpha",
-        "random_state",
+        "seed",
     }
 
 
@@ -48,7 +48,7 @@ def test_c2st_config_round_trips_every_dial():
         low_power_below=300,
         imbalance_warn_ratio=0.25,
         fdr_alpha=0.10,
-        random_state=11,
+        seed=11,
     )
 
     restored = C2STConfig.from_dict(config.to_dict())

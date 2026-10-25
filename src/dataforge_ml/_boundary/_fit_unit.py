@@ -96,7 +96,7 @@ def fit_recipe_unit(
         if missing:
             raise _missing_fitted_columns(missing)
     seed = DEFAULT_SEED if seed is None else seed
-    fit = fit_unit(stored, unit, data, random_seed=seed, n_jobs_inner=settings().core_budget)
+    fit = fit_unit(stored, unit, data, seed=seed, n_jobs_inner=settings().core_budget)
 
     handle = write_handle(
         "unit",

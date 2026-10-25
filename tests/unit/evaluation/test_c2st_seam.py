@@ -2,7 +2,7 @@
 
 Two frames in, one result out, with no imputer anywhere: every property below
 is asserted against synthetic samples whose right answer is known in advance.
-Calibration and detection are statistical, so each fixes ``random_state`` and
+Calibration and detection are statistical, so each fixes ``seed`` and
 states a tolerance in the assertion rather than pinning an exact number. Pile
 contents, subsample indices and per-fit accuracies are deliberately never
 asserted — they are how the arithmetic got there, not what the seam promises.
@@ -117,7 +117,7 @@ def test_null_calibration_is_standard_normal_at_the_nominal_level() -> None:
                 *_one_world(300, seed),
                 repeats=1,
                 scheme=C2STScheme.Split,
-                random_state=seed,
+                seed=seed,
             ).mean_repeat_z
             for seed in range(40)
         ]
@@ -138,7 +138,7 @@ def test_a_degenerate_candidate_sample_is_caught() -> None:
     )
 
     result = c2st(
-        observed, filled, repeats=3, scheme=C2STScheme.Split, random_state=7
+        observed, filled, repeats=3, scheme=C2STScheme.Split, seed=7
     )
 
     assert result.mean_repeat_z > Z_CRIT
@@ -159,7 +159,7 @@ def test_an_oracle_candidate_sample_scores_at_chance() -> None:
         oracle[n // 2 :],
         repeats=3,
         scheme=C2STScheme.Split,
-        random_state=7,
+        seed=7,
     )
 
     assert abs(result.mean_repeat_z) < 3.0
@@ -181,10 +181,10 @@ def test_balancing_sizes_the_test_off_the_smaller_sample() -> None:
     frame, _ = _table(1400, np.random.default_rng(13))
     small = frame[:60]
     narrow = c2st(
-        frame[60:260], small, repeats=3, scheme=C2STScheme.Split, random_state=5
+        frame[60:260], small, repeats=3, scheme=C2STScheme.Split, seed=5
     )
     wide = c2st(
-        frame[60:1400], small, repeats=3, scheme=C2STScheme.Split, random_state=5
+        frame[60:1400], small, repeats=3, scheme=C2STScheme.Split, seed=5
     )
 
     # 60 rows per pile, 30% held out on each side.
@@ -210,7 +210,7 @@ def test_pooling_is_the_mean_against_the_single_run_null() -> None:
         *_one_world(200, 3),
         repeats=repeats,
         scheme=C2STScheme.Split,
-        random_state=3,
+        seed=3,
     )
 
     assert len(result.repeat_z) == repeats
@@ -224,7 +224,7 @@ def test_pooling_is_the_mean_against_the_single_run_null() -> None:
 
 def test_a_single_repeat_has_no_spread() -> None:
     result = c2st(
-        *_one_world(200, 4), repeats=1, scheme=C2STScheme.Split, random_state=4
+        *_one_world(200, 4), repeats=1, scheme=C2STScheme.Split, seed=4
     )
 
     assert len(result.repeat_z) == 1
@@ -260,7 +260,7 @@ def test_the_floor_is_asserted_internally_so_it_cannot_be_bypassed() -> None:
             frame[: MIN_SAMPLE_FLOOR - 1],
             repeats=1,
             scheme=C2STScheme.Split,
-            random_state=0,
+            seed=0,
         )
 
 
@@ -268,7 +268,7 @@ def test_the_sample_floor_error_is_infeasible() -> None:
     """A caller catches the category, then branches on the code."""
     frame, _ = _table(400, np.random.default_rng(15))
     with pytest.raises(Infeasible):
-        c2st(frame[200:], frame[:10], repeats=1, scheme=C2STScheme.Split, random_state=0)
+        c2st(frame[200:], frame[:10], repeats=1, scheme=C2STScheme.Split, seed=0)
 
 
 # ---------------------------------------------------------------------------
@@ -288,7 +288,7 @@ def test_a_string_column_raises_a_named_error_identifying_the_column() -> None:
             with_text[100:],
             repeats=1,
             scheme=C2STScheme.Split,
-            random_state=0,
+            seed=0,
         )
     assert info.value.columns == ["note"]
 
@@ -302,7 +302,7 @@ def test_mismatched_columns_are_refused() -> None:
             frame[100:].drop("x3"),
             repeats=1,
             scheme=C2STScheme.Split,
-            random_state=0,
+            seed=0,
         )
 
 
@@ -312,7 +312,7 @@ def test_repeats_below_one_are_refused() -> None:
             *_one_world(60, 18),
             repeats=0,
             scheme=C2STScheme.Split,
-            random_state=0,
+            seed=0,
         )
 
 
@@ -333,7 +333,7 @@ def test_split_runs_one_fit_per_repeat_with_n_test_exactly_known(
         candidate,
         repeats=3,
         scheme=C2STScheme.Split,
-        random_state=1,
+        seed=1,
     )
 
     assert model.fit_calls == 3
@@ -352,7 +352,7 @@ def test_cross_validation_runs_five_fits_per_repeat_over_every_row(
         candidate,
         repeats=2,
         scheme=C2STScheme.CrossValidation,
-        random_state=1,
+        seed=1,
     )
 
     assert model.fit_calls == 10
@@ -365,9 +365,9 @@ def test_cross_validation_runs_five_fits_per_repeat_over_every_row(
 # ---------------------------------------------------------------------------
 
 
-def test_the_same_random_state_gives_the_same_result() -> None:
+def test_the_same_seed_gives_the_same_result() -> None:
     reference, candidate = _one_world(120, 21)
-    kwargs = {"repeats": 3, "scheme": C2STScheme.Split, "random_state": 99}
+    kwargs = {"repeats": 3, "scheme": C2STScheme.Split, "seed": 99}
 
     first = c2st(reference, candidate, **kwargs)
     second = c2st(reference, candidate, **kwargs)
@@ -405,7 +405,7 @@ def test_min_samples_leaf_overrides_the_default_classifier_pin() -> None:
         repeats=1,
         scheme=C2STScheme.Split,
         min_samples_leaf=11,
-        random_state=0,
+        seed=0,
     )
 
     assert result.repeat_z
@@ -413,7 +413,7 @@ def test_min_samples_leaf_overrides_the_default_classifier_pin() -> None:
 
 def test_the_default_factory_carries_exactly_the_two_pins() -> None:
     """No C2ST call ever builds a bare sklearn-default HGB."""
-    params = _default_c2st_classifier(random_state=5).get_params()
+    params = _default_c2st_classifier(seed=5).get_params()
     inherited = HistGradientBoostingClassifier().get_params()
 
     assert params["min_samples_leaf"] == 5
@@ -442,7 +442,7 @@ def test_a_single_class_predictor_every_repeat_is_reported_degenerate(
         candidate,
         repeats=2,
         scheme=C2STScheme.Split,
-        random_state=0,
+        seed=0,
     )
 
     assert result.degenerate is True
@@ -456,7 +456,7 @@ def test_a_candidate_only_level_sets_the_unseen_category_flag() -> None:
     )
 
     result = c2st(
-        reference, candidate, repeats=1, scheme=C2STScheme.Split, random_state=0
+        reference, candidate, repeats=1, scheme=C2STScheme.Split, seed=0
     )
 
     assert result.unseen_category is True
@@ -466,7 +466,7 @@ def test_a_candidate_only_level_sets_the_unseen_category_flag() -> None:
 
 def test_matching_levels_leave_the_unseen_category_flag_clear() -> None:
     result = c2st(
-        *_one_world(120, 25), repeats=1, scheme=C2STScheme.Split, random_state=0
+        *_one_world(120, 25), repeats=1, scheme=C2STScheme.Split, seed=0
     )
 
     assert result.unseen_category is False
@@ -484,7 +484,7 @@ def test_a_train_test_drift_check_is_served_with_no_adapter() -> None:
     train, holdout = frame[:450], frame[450:]
 
     result = c2st(
-        train, holdout, repeats=3, scheme=C2STScheme.Split, random_state=2
+        train, holdout, repeats=3, scheme=C2STScheme.Split, seed=2
     )
 
     assert result.mean_repeat_z <= Z_CRIT
@@ -498,7 +498,7 @@ def test_an_outlier_clipping_check_is_served_with_no_adapter() -> None:
     clipped = clipped.with_columns(pl.col("c").clip(-0.5, 0.5))
 
     result = c2st(
-        untouched, clipped, repeats=3, scheme=C2STScheme.Split, random_state=2
+        untouched, clipped, repeats=3, scheme=C2STScheme.Split, seed=2
     )
 
     assert result.mean_repeat_z > Z_CRIT
@@ -517,7 +517,7 @@ def test_a_direct_call_reports_the_repeat_as_an_item() -> None:
         *_one_world(80, 28),
         repeats=4,
         scheme=C2STScheme.Split,
-        random_state=0,
+        seed=0,
         observer=seen.append,
     )
 
@@ -544,7 +544,7 @@ def test_evaluation_c2st_public_direct_call_with_five_repeats_emits_items() -> N
         cand_df,
         repeats=5,
         scheme=dataforge_ml.evaluation.C2STScheme.Split,
-        random_state=0,
+        seed=0,
         observer=seen.append,
     )
 
@@ -570,7 +570,7 @@ def test_the_adapters_nested_call_still_reports_the_repeat_as_a_substep() -> Non
         *_one_world(80, 28),
         repeats=4,
         scheme=C2STScheme.Split,
-        random_state=0,
+        seed=0,
         emitter=emitter,
     )
 

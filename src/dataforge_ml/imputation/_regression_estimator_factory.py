@@ -30,6 +30,7 @@ from sklearn.linear_model import BayesianRidge
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
+from .._seed import DEFAULT_SEED
 from ..profiling._numeric_config import NonlinearityTag
 from ..records import DataForgeError
 from ._config import ModelChoice
@@ -61,7 +62,7 @@ class _CoreInvariantRandomForest(BaseEstimator, RegressorMixin):
     def __init__(
         self,
         n_jobs: int = 1,
-        random_state: int = 0,
+        random_state: int = DEFAULT_SEED,
         n_estimators: int | None = None,
         max_depth: int | None = None,
         min_samples_split: int | None = None,
@@ -145,6 +146,7 @@ class RegressionEstimatorFactory:
         choice: ModelChoice,
         n_jobs: int = 1,
         params: dict[str, Any] | None = None,
+        seed: int = DEFAULT_SEED,
     ) -> Any:
         """
         Return a fitted-ready sklearn estimator for an already-resolved choice.
@@ -176,6 +178,10 @@ class RegressionEstimatorFactory:
             Constructor parameters for the estimator, as an estimator record's
             ``to_estimator()`` gives them. Omitted keys keep sklearn's
             defaults; ``random_state`` and ``n_jobs`` are never among them.
+        seed : int, default DEFAULT_SEED
+            Seed for the stochastic estimators (RandomForest and
+            GradientBoosting), taken from the Operation's ``seed`` argument
+            (ADR-0106). ``BayesianRidge`` is deterministic and ignores it.
 
         Returns
         -------
@@ -210,5 +216,5 @@ class RegressionEstimatorFactory:
                 ("model", BayesianRidge(fit_intercept=True, **params)),
             ])
         if choice == ModelChoice.RandomForestRegressor:
-            return _CoreInvariantRandomForest(random_state=0, n_jobs=n_jobs, **params)
-        return GradientBoostingRegressor(random_state=0, **params)
+            return _CoreInvariantRandomForest(random_state=seed, n_jobs=n_jobs, **params)
+        return GradientBoostingRegressor(random_state=seed, **params)

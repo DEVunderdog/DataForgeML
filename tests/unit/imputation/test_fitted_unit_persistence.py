@@ -93,7 +93,7 @@ def _gmm_unit() -> tuple[FittedGMMSampling, pl.DataFrame]:
         weight1=0.4,
         weight2=0.6,
         target_col="g",
-        random_seed=7,
+        seed=7,
     )
     df = pl.DataFrame({"g": [1.2, None, 8.9, None, None]})
     return unit, df
@@ -337,7 +337,7 @@ def test_whole_imputer_round_trips_via_routing_plus_units() -> None:
     recipe = resolve_recipe(routing, profile, cfg)
     units = derive_units(routing)
     results = {
-        unit.unit_id: fit_unit(recipe, unit, df, random_seed=7)
+        unit.unit_id: fit_unit(recipe, unit, df, seed=7)
         for unit in units
     }
 

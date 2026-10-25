@@ -447,7 +447,7 @@ def test_whole_imputer_round_trips_via_recipe_plus_units(
     units = derive_units(routing)
 
     results = {
-        unit.unit_id: fit_unit(recipe, unit, df, random_seed=7)
+        unit.unit_id: fit_unit(recipe, unit, df, seed=7)
         for unit in units
     }
 
