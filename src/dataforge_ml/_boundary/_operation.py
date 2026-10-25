@@ -33,7 +33,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, create_model
 
-from ..observability import EventType, Observer, PipelineEvent, _emit
+from .._observability import EventType, Observer, PipelineEvent, _emit
 from ..records import (  # noqa: F401 - re-exported for the Operation modules
     DataForgeError,
     OutputRecord,
@@ -102,7 +102,7 @@ def progress_to(observer: Observer | None) -> Generator[None]:
     Parameters
     ----------
     observer : callable or None
-        Called with each :class:`~dataforge_ml.observability.PipelineEvent`.
+        Called with each :class:`~dataforge_ml._observability.PipelineEvent`.
         None turns progress off.
     """
     token = _PROGRESS.set(observer)

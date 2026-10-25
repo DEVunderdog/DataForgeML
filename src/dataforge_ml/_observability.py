@@ -1,13 +1,13 @@
-"""Observability spine — the Pipeline Event stream, Trace logger, and observers.
+"""Observability spine — the progress-only Pipeline Event stream (internal).
 
 Every long-running orchestrator emits a single stream of :class:`PipelineEvent`
 records. Each event is delivered to two sinks (the *Two-Sink Rule*, ADR-0054):
 the named ``dataforge_ml`` stdlib logger (Trace, silent by default via a
-``NullHandler``, level derived from :class:`EventType`) and — when supplied — a
-user-provided Progress Observer, a plain ``Callable[[PipelineEvent], None]``
-passed as ``observer=`` on the orchestrator. The library never writes to a
-stream on its own; only the shipped :func:`stderr_observer`, which a user opts
-into, writes to stderr.
+``NullHandler``, at ``DEBUG``) and — when set — a Progress Observer, a plain
+``Callable[[PipelineEvent], None]``. Events are progress only (ADR-0102,
+ADR-0112): caveats are Result Warnings on the result, never events. Nothing
+here is public; the CLI's ``--progress`` flag is the only way an Agent sees the
+stream, through :func:`stderr_observer`.
 """
 
 from __future__ import annotations
@@ -33,9 +33,7 @@ logger.addHandler(logging.NullHandler())
 class EventType(StrEnum):
     """The kind of a :class:`PipelineEvent`, used to route and filter the stream.
 
-    The value also determines the Trace log level: ``stage_start``,
-    ``stage_end``, ``item`` and ``substep`` log at ``DEBUG``, ``decision`` at
-    ``INFO``, and ``warning`` at ``WARNING``.
+    Every kind is progress; all of them log to Trace at ``DEBUG``.
 
     ``substep`` is a Substep heartbeat *below* the column (a strategy-block fit,
     a diagnostics fold, a per-column model fit within a set); it is additive, so
@@ -48,8 +46,6 @@ class EventType(StrEnum):
     stage_end = "stage_end"
     item = "item"
     substep = "substep"
-    decision = "decision"
-    warning = "warning"
 
 
 @dataclass(frozen=True)
@@ -63,7 +59,7 @@ class PipelineEvent:
     Parameters
     ----------
     event_type : EventType
-        The kind of event; also fixes the Trace log level.
+        The kind of progress event.
     phase : str
         The pipeline phase emitting the event (e.g. ``"profiling"``).
     stage : str
@@ -95,23 +91,14 @@ class PipelineEvent:
 # Progress Observer form: a plain callable handed each event as it happens.
 Observer = Callable[[PipelineEvent], None]
 
-_LEVEL_BY_EVENT_TYPE: dict[EventType, int] = {
-    EventType.stage_start: logging.DEBUG,
-    EventType.stage_end: logging.DEBUG,
-    EventType.item: logging.DEBUG,
-    EventType.substep: logging.DEBUG,
-    EventType.decision: logging.INFO,
-    EventType.warning: logging.WARNING,
-}
-
 
 def _emit(event: PipelineEvent, observer: Observer | None) -> None:
     """Deliver one event to both sinks: the Trace logger and the observer.
 
-    Honours the Two-Sink Rule — the event always reaches the logger (at the
-    level derived from ``event_type``) and, when supplied, the observer.
+    Honours the Two-Sink Rule — the event always reaches the logger (at
+    ``DEBUG``) and, when supplied, the observer.
     """
-    logger.log(_LEVEL_BY_EVENT_TYPE.get(event.event_type, logging.INFO), event.message)
+    logger.debug(event.message)
     if observer is not None:
         observer(event)
 
@@ -171,30 +158,6 @@ class _ObservabilityMixin:
                 column=column,
                 index=index,
                 total=total,
-            ),
-            self._observer,
-        )
-
-    def _emit_decision(self, stage: str, column: str, message: str) -> None:
-        _emit(
-            PipelineEvent(
-                event_type=EventType.decision,
-                phase=self._PHASE,
-                stage=stage,
-                message=message,
-                column=column,
-            ),
-            self._observer,
-        )
-
-    def _emit_warning(self, stage: str, column: str, message: str) -> None:
-        _emit(
-            PipelineEvent(
-                event_type=EventType.warning,
-                phase=self._PHASE,
-                stage=stage,
-                message=message,
-                column=column,
             ),
             self._observer,
         )
@@ -366,8 +329,8 @@ class Emitter:
 def stderr_observer(event: PipelineEvent) -> None:
     """Write an event's ``message`` to stderr; the shipped opt-in observer.
 
-    Pass this as ``observer=`` to an orchestrator to see progress on stderr
-    without wiring up a custom callback. Writes only to stderr, never stdout.
+    The CLI installs it for ``--progress``. Writes only to stderr, never
+    stdout, which carries the result.
 
     Parameters
     ----------

@@ -88,10 +88,10 @@ def run_c2st(
         ``c2st_string_column`` and ``c2st_sample_floor`` from the test; plus
         each frame Handle's own errors.
     """
+    from .._observability import Emitter
     from .._seed import DEFAULT_SEED
     from ..evaluation._c2st import C2STScheme, _run_c2st
     from ..evaluation._config import C2STConfig
-    from ..observability import Emitter
 
     reference_frame, reference_declared = read_frame(reference, param="reference")
     candidate_frame, candidate_declared = read_frame(candidate, param="candidate")

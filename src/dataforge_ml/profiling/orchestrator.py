@@ -29,9 +29,9 @@ from typing import Any
 import numpy as np
 import polars as pl
 
+from .._observability import Observer, _ObservabilityMixin
 from .._seed import DEFAULT_SEED
 from ..config import Modality, SemanticType
-from ..observability import Observer, _ObservabilityMixin
 from ..records import DataForgeError
 from ..utils._dtype_floor import _apply_dtype_floor
 from ..utils._null_normalization import _resolve_effective_nulls

@@ -25,7 +25,7 @@ int-coded categorical sitting as ``pl.Int64`` is treated as an ordered numeric,
 a stated and unenforceable precondition on the caller's typing.
 
 The one imported dependency beyond the numeric stack is
-:mod:`dataforge_ml.observability`, because the repeat progress can only be
+:mod:`dataforge_ml._observability`, because the repeat progress can only be
 emitted from here (ADR-0087). ``Observer``/``Emitter`` are phase-agnostic
 infrastructure, so the seam's rule bans *imputation*-shaped knowledge, not
 observability.
@@ -42,8 +42,8 @@ import numpy as np
 import polars as pl
 from sklearn.ensemble import HistGradientBoostingClassifier
 
+from .._observability import Emitter, Observer
 from .._seed import DEFAULT_SEED
-from ..observability import Emitter, Observer
 from ..records import DataForgeError
 
 __all__ = [

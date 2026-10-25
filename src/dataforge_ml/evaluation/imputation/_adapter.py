@@ -31,8 +31,8 @@ import numpy as np
 import polars as pl
 import sklearn
 
+from ..._observability import Emitter, Observer
 from ...config import SemanticType
-from ...observability import Emitter, Observer
 from ...profiling._config import StructuralProfileResult
 from ...records import DataForgeError
 from ...utils._dtype_floor import _apply_dtype_floor

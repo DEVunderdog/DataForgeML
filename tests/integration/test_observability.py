@@ -6,7 +6,7 @@ both proven end-to-end through ``StructuralProfiler``.
 
 import logging
 
-from dataforge_ml.observability import EventType, PipelineEvent, stderr_observer
+from dataforge_ml._observability import EventType, PipelineEvent, stderr_observer
 from dataforge_ml.profiling._config import ProfileConfig
 from dataforge_ml.profiling.orchestrator import StructuralProfiler
 
@@ -22,13 +22,24 @@ class _Recorder:
 
 
 # ---------------------------------------------------------------------------
-# Public interface
+# Event vocabulary
 # ---------------------------------------------------------------------------
 
 def test_event_type_is_enum_not_str():
     # event_type carries the enum, never a bare string.
     assert isinstance(EventType.item, EventType)
     assert EventType.stage_start.value == "stage_start"
+
+
+def test_only_progress_event_types_remain():
+    # Caveats are Result Warnings and choices are Routing Evidence, so the
+    # stream carries progress and nothing else (ADR-0102).
+    assert {e.value for e in EventType} == {
+        "stage_start",
+        "stage_end",
+        "item",
+        "substep",
+    }
 
 
 # ---------------------------------------------------------------------------

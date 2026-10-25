@@ -22,6 +22,7 @@ from sklearn.dummy import DummyClassifier
 from sklearn.ensemble import HistGradientBoostingClassifier
 
 from dataforge_ml import evaluation
+from dataforge_ml._observability import EventType
 from dataforge_ml._seed import DEFAULT_SEED
 from dataforge_ml.config import SemanticType
 from dataforge_ml.evaluation import (
@@ -35,7 +36,6 @@ from dataforge_ml.evaluation import (
 from dataforge_ml.evaluation import _c2st as c2st_module
 from dataforge_ml.evaluation.imputation import _adapter
 from dataforge_ml.imputation import ImputationConfig
-from dataforge_ml.observability import EventType
 from dataforge_ml.profiling._config import ProfileConfig
 from dataforge_ml.profiling.orchestrator import StructuralProfiler
 from tests.conftest import fit_imputer, raises_code
@@ -528,10 +528,6 @@ def test_one_substep_is_emitted_per_repeat(events, eval_config):
     assert {(e.phase, e.stage) for e in substeps} == {
         ("evaluation", "imputation_score_c2st")
     }
-
-
-def test_the_event_stream_carries_no_decision_events(events):
-    assert not [e for e in events if e.event_type is EventType.decision]
 
 
 # ---------------------------------------------------------------------------

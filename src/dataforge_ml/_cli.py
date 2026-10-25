@@ -388,7 +388,7 @@ def _dispatch(argv: Sequence[str], stdout: TextIO, stderr: TextIO) -> int:
     if spec is None:
         raise _unknown_command(command)
     from ._boundary._operation import invoke_json, progress_to
-    from .observability import stderr_observer
+    from ._observability import stderr_observer
 
     arguments = build_arguments(spec, tokens)
     with flag_overrides(settings), progress_to(stderr_observer if progress else None):

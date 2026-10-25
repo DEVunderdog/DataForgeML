@@ -22,6 +22,12 @@ import pytest
 from sklearn.dummy import DummyClassifier
 from sklearn.ensemble import HistGradientBoostingClassifier
 
+from dataforge_ml._observability import (
+    Emitter,
+    EventType,
+    PipelineEvent,
+    _ObservabilityMixin,
+)
 from dataforge_ml.evaluation import _c2st as c2st_module
 from dataforge_ml.evaluation._c2st import (
     MIN_SAMPLE_FLOOR,
@@ -30,12 +36,6 @@ from dataforge_ml.evaluation._c2st import (
     _default_c2st_classifier,
     _meets_sample_floor,
     c2st,
-)
-from dataforge_ml.observability import (
-    Emitter,
-    EventType,
-    PipelineEvent,
-    _ObservabilityMixin,
 )
 from dataforge_ml.records import Infeasible
 from tests.conftest import raises_code
@@ -526,7 +526,6 @@ def test_a_direct_call_reports_the_repeat_as_an_item() -> None:
     assert [e.index for e in items] == [1, 2, 3, 4]
     assert {e.total for e in items} == {4}
     assert not [e for e in seen if e.event_type is EventType.substep]
-    assert not [e for e in seen if e.event_type is EventType.decision]
     assert {EventType.stage_start, EventType.stage_end} <= {
         e.event_type for e in seen
     }
@@ -555,7 +554,6 @@ def test_evaluation_c2st_public_direct_call_with_five_repeats_emits_items() -> N
     assert [e.index for e in items] == [1, 2, 3, 4, 5]
     assert {e.total for e in items} == {5}
     assert not [e for e in seen if e.event_type is EventType.substep]
-    assert not [e for e in seen if e.event_type is EventType.decision]
     assert {EventType.stage_start, EventType.stage_end} <= {
         e.event_type for e in seen
     }
@@ -580,7 +578,6 @@ def test_the_adapters_nested_call_still_reports_the_repeat_as_a_substep() -> Non
     assert {e.total for e in substeps} == {4}
     assert {(e.phase, e.stage) for e in substeps} == {("evaluation", "c2st")}
     assert not [e for e in seen if e.event_type is EventType.item]
-    assert not [e for e in seen if e.event_type is EventType.decision]
 
 
 def test_the_emitter_gains_stage_boundaries_additively() -> None:

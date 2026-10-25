@@ -579,7 +579,7 @@ def test_fit_records_carry_no_diagnostics(purity_df, purity_profile):
 
 def test_fit_event_stream_has_no_diagnostics_fold_substeps(purity_df, purity_profile):
     """Fitting only learns models — no cross-validated fold work happens."""
-    from dataforge_ml.observability import EventType
+    from dataforge_ml._observability import EventType
 
     recorder = _Recorder()
     fit_imputer(purity_df, purity_profile, observer=recorder)
