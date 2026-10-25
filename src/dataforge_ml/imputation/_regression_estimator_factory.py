@@ -7,8 +7,8 @@ Estimator Ladder — a flat map, no bounds, no downgrade:
   MonotonicNonlinear / ComplexNonlinear   → RandomForest
 
 ``GradientBoostingRegressor`` is off the ladder entirely; it is reachable only
-through :meth:`~dataforge_ml.imputation.ImputationRouting.with_model_choice`
-(an explicit user choice, ADR-0090). ``resolve_choice`` is total: every
+through the ``route`` Operation's ``model_choice`` argument (an explicit user
+choice, ADR-0090). ``resolve_choice`` is total: every
 ``NonlinearityTag`` — including ``Unpredictable`` — resolves to a
 :class:`~dataforge_ml.imputation.ModelChoice`, never ``None`` (ADR-0094 deleted the
 ``None``/skip branch the ``Unpredictable`` tag used to take).
@@ -134,7 +134,7 @@ class RegressionEstimatorFactory:
             ``Unpredictable``; ``RandomForestRegressor`` for
             ``MonotonicNonlinear`` and ``ComplexNonlinear``.
             ``GradientBoostingRegressor`` is never returned — it is off the
-            ladder, reachable only through ``with_model_choice``.
+            ladder, reachable only through ``route``'s ``model_choice``.
         """
         if tag in (NonlinearityTag.MonotonicNonlinear, NonlinearityTag.ComplexNonlinear):
             return ModelChoice.RandomForestRegressor
@@ -153,7 +153,7 @@ class RegressionEstimatorFactory:
         sole fit-time entry.  It takes the ``ModelChoice`` the router already
         stamped on the routing (ADR-0088) rather than re-deriving the family
         from the tag, so the estimator that trains is the one the
-        user inspected and could override (``with_model_choice``), rather than
+        user inspected and could override (``route``'s ``model_choice``), rather than
         a second, independent resolution.
 
         Parameters
@@ -200,8 +200,8 @@ class RegressionEstimatorFactory:
                 "ModelChoice.Custom names a user-supplied estimator, which this "
                 "factory did not build and cannot reconstruct. The instance is "
                 "not serialized, so a routing reloaded from bytes carries the "
-                "label with an empty slot; re-supply it with "
-                "routing.with_model_choice(estimator)."
+                "label with an empty slot; re-supply it by rebuilding the "
+                "routing with mice_estimator set."
             )
         params = params or {}
         if choice == ModelChoice.BayesianRidge:

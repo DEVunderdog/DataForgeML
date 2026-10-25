@@ -362,7 +362,7 @@ def test_numeric_config_signal_score_dials_from_dict_empty_uses_default():
     [
         ("mice_min_rows", "mice_min_rows_per_predictor"),
         ("knn_max_features", "knn_max_rows"),
-        ("gradient_boost_min_rows", "with_model_choice"),
+        ("gradient_boost_min_rows", "model_choice"),
         ("mcar_feature_predictability_threshold", "signal_score_"),
     ],
 )
@@ -722,8 +722,8 @@ def test_numeric_config_from_dict_raises_on_mice_max_iter():
         NumericImputationConfig.from_dict({"mice_max_iter": 100})
 
 
-def test_numeric_config_from_dict_raise_points_at_with_hyperparameters():
-    with raises_code("retired_dial", match="with_hyperparameters"):
+def test_numeric_config_from_dict_raise_points_at_resolve_recipe_hyperparameters():
+    with raises_code("retired_dial", match="resolve_recipe Operation's hyperparameters"):
         NumericImputationConfig.from_dict({"mice_max_iter": 100})
 
 

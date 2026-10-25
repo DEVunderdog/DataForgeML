@@ -10,6 +10,7 @@ Persisting routing or recipe uses bare-bytes serialization:
 
 from __future__ import annotations
 
+import dataclasses
 import json
 
 import polars as pl
@@ -77,7 +78,9 @@ def rich_recipe(rich_routing, rich_profile_and_df) -> ImputationRecipe:
     profile, _ = rich_profile_and_df
     recipe = resolve_recipe(rich_routing, profile)
     # Add an override delta as well to test override persistence
-    return recipe.with_hyperparameters("mice", {"max_iter": 25})
+    return dataclasses.replace(
+        recipe, hyperparameter_overrides={"mice": (("max_iter", 25),)}
+    )
 
 
 @pytest.fixture
@@ -373,18 +376,20 @@ def test_decided_base_missing_entire_hyperparameters_block_raises(
 
 
 # --------------------------------------------------------------------------- #
-# Acceptance Criterion 5: Round-trip test for with_model_choice
+# Acceptance Criterion 5: Round-trip test for a custom MICE estimator
 # --------------------------------------------------------------------------- #
 
 
-def test_with_model_choice_custom_estimator_round_trip(
+def test_custom_estimator_round_trip(
     rich_routing: ImputationRouting,
     rich_profile_and_df: tuple[StructuralProfileResult, pl.DataFrame],
 ) -> None:
     profile, df = rich_profile_and_df
 
     custom_estimator = DecisionTreeRegressor(max_depth=3, random_state=42)
-    routing_custom = rich_routing.with_model_choice(custom_estimator)
+    routing_custom = dataclasses.replace(
+        rich_routing, mice_model_choice=ModelChoice.Custom, mice_estimator=custom_estimator
+    )
 
     assert routing_custom.mice_model_choice == ModelChoice.Custom
     assert routing_custom.mice_estimator is custom_estimator
@@ -415,10 +420,12 @@ def test_with_model_choice_custom_estimator_round_trip(
     reason = exc_info.value.message
     assert "ModelChoice.Custom" in reason
     assert "no estimator is carried" in reason
-    assert "with_model_choice" in reason
+    assert "mice_estimator" in reason
 
     # 4. Re-supplying the custom estimator on the routing allows fitting to succeed:
-    fixed_routing = reloaded_recipe.routing.with_model_choice(custom_estimator)
+    fixed_routing = dataclasses.replace(
+        reloaded_recipe.routing, mice_estimator=custom_estimator
+    )
     fixed_recipe = resolve_recipe(fixed_routing, profile)
     (fixed_mice_unit,) = derive_units(fixed_recipe.routing, strategy=ImputationStrategy.MICE)
     fit_result = fit_unit(fixed_recipe, fixed_mice_unit, df)

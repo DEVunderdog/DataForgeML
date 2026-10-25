@@ -10,6 +10,7 @@ concern).
 
 from __future__ import annotations
 
+import dataclasses
 import inspect
 import warnings
 
@@ -187,7 +188,7 @@ def test_untrainable_unit_raises_with_structured_payload():
     err = exc.value
     assert unit.unit_id in err.message
     assert err.columns == ["x"]
-    assert "with_estimates" in err.message
+    assert "estimates" in err.message
 
 
 def test_fit_result_carries_a_populated_fit_signals_record():
@@ -225,7 +226,9 @@ def test_an_unconverged_mice_fit_returns_a_coded_warning_and_emits_none():
     config.numeric.set_per_column_strategy(["a", "b", "c"], "mice")
     _, routing, recipe = _routing_and_recipe(df, config)
     (unit,) = derive_units(routing, strategy=ImputationStrategy.MICE)
-    recipe = recipe.with_hyperparameters(unit.unit_id, {"max_iter": 1, "tol": 0.0})
+    recipe = dataclasses.replace(
+        recipe, hyperparameter_overrides={unit.unit_id: (("max_iter", 1), ("tol", 0.0))}
+    )
 
     with warnings.catch_warnings():
         warnings.simplefilter("error")
@@ -314,7 +317,7 @@ def test_derive_units_returns_empty_when_nothing_routed_to_the_strategy():
 def test_fit_unit_always_reads_the_recipes_current_hyperparameters():
     """A unit carries no dials, so it cannot go stale (ADR-0084 amendment).
 
-    Editing the recipe with ``with_hyperparameters`` and re-fitting the exact
+    Editing the recipe's hyperparameter overrides and re-fitting the exact
     same unit object picks up the edit — there is nothing on the unit for a
     prior edit to leave behind.
     """
@@ -328,28 +331,13 @@ def test_fit_unit_always_reads_the_recipes_current_hyperparameters():
 
     original_tendency = recipe.hyperparameters(unit.unit_id)["central_tendency"]
     other = "mean" if original_tendency != "mean" else "median"
-    edited = recipe.with_hyperparameters(unit.unit_id, {"central_tendency": other})
+    edited = dataclasses.replace(
+        recipe, hyperparameter_overrides={unit.unit_id: (("central_tendency", other),)}
+    )
 
     original_fill = fit_unit(recipe, unit, df).fitted.fill_value
     edited_fill = fit_unit(edited, unit, df).fitted.fill_value
     assert original_fill != edited_fill
-
-
-def test_a_misspelt_dial_or_unit_id_raises_with_close_matches():
-    df = pl.DataFrame({"x": pl.Series([1.0, None, 3.0, 4.0, None, 6.0] * 10)})
-    config = ImputationConfig()
-    config.add_mnar_column("x")
-    _, routing, recipe = _routing_and_recipe(df, config)
-    (unit,) = derive_units(routing, strategy=ImputationStrategy.MNAR)
-
-    with raises_code("unknown_dial") as info:
-        recipe.with_hyperparameters(unit.unit_id, {"central_tendancy": "mean"})
-    assert info.value.candidates == ["central_tendency"]
-    assert info.value.params == ["hyperparameters.central_tendancy"]
-
-    with raises_code("unknown_unit") as info:
-        recipe.with_hyperparameters(unit.unit_id + "x", {})
-    assert info.value.candidates == [unit.unit_id]
 
 
 def test_mnar_signals_say_the_fill_is_computed_not_applied():

@@ -11,6 +11,8 @@ ADR-0093, ADR-0097, #542, #543).
 
 from __future__ import annotations
 
+import dataclasses
+
 import numpy as np
 import polars as pl
 import pytest
@@ -234,11 +236,11 @@ def _nonlinear_frame(n, seed=1):
 
 
 def _mice_rmse_with_estimator(df, target_true, missing_idx, model_choice):
-    """Fit MICE forced to ``model_choice`` via with_model_choice and measure RMSE."""
+    """Fit MICE forced to ``model_choice`` and measure RMSE."""
     cfg = _config(target=ImputationStrategy.MICE)
     profile = StructuralProfiler().profile(df)
     routing = route(profile, cfg)
-    routing = routing.with_model_choice(model_choice)
+    routing = dataclasses.replace(routing, mice_model_choice=model_choice)
     recipe = resolve_recipe(routing, profile, cfg)
     units = derive_units(routing, strategy=ImputationStrategy.MICE)
     train = _resolve_effective_nulls(
@@ -340,7 +342,7 @@ def test_real_frame_ames_regression():
         c = ImputationConfig()
         c.numeric.set_per_column_strategy(target, ImputationStrategy.MICE)
         prof = StructuralProfiler().profile(pl_small)
-        r = route(prof, c).with_model_choice(choice)
+        r = dataclasses.replace(route(prof, c), mice_model_choice=choice)
         rec = resolve_recipe(r, prof, c)
         u = derive_units(r, strategy=ImputationStrategy.MICE)[0]
         tr = _resolve_effective_nulls(pl_small)

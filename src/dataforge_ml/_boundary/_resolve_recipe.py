@@ -11,6 +11,7 @@ with. Every other recipe dial takes its library default.
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Sequence
 from typing import Any
 
@@ -177,8 +178,18 @@ def _check_estimates(entries: Sequence[Any], routing: Any, profile: Any) -> list
     return issues
 
 
+def _apply_hyperparameters(recipe: Any, entries: Sequence[Any]) -> Any:
+    # Each entry's keys become its unit's whole override delta; the recipe merges it
+    # onto the decided base on read. Safe because _check_hyperparameters refuses duplicates.
+    overrides = dict(recipe.hyperparameter_overrides)
+    for entry in entries:
+        overrides[entry.unit_id] = tuple(entry.hyperparameters.to_hyperparameters().items())
+    return dataclasses.replace(recipe, hyperparameter_overrides=overrides)
+
+
 def _apply_estimates(recipe: Any, entries: Sequence[Any]) -> Any:
     # Each entry's set fields overwrite the resolved ones; a null field keeps its value.
+    estimates = dict(recipe.column_estimates)
     for entry in entries:
         fields = entry.model_dump(exclude={"column"}, exclude_none=True)
         if entry.feature_cols is not None:
@@ -188,9 +199,8 @@ def _apply_estimates(recipe: Any, entries: Sequence[Any]) -> Any:
                 entry.domain_snap_bounds.low,
                 entry.domain_snap_bounds.high,
             )
-        if fields:
-            recipe = recipe.with_estimates(entry.column, **fields)
-    return recipe
+        estimates[entry.column] = dataclasses.replace(estimates[entry.column], **fields)
+    return dataclasses.replace(recipe, column_estimates=estimates)
 
 
 def _issues_error(
@@ -304,10 +314,7 @@ def resolve_routing_recipe(
     if issues:
         raise _issues_error(issues, [u.unit_id for u in units], list(stored.column_routings))
     recipe = resolve_recipe(stored, result, _recipe_config(record["dials"]["values"]))
-    for entry in hyperparameters or []:
-        recipe = recipe.with_hyperparameters(
-            entry.unit_id, entry.hyperparameters.to_hyperparameters()
-        )
+    recipe = _apply_hyperparameters(recipe, hyperparameters or [])
     recipe = _apply_estimates(recipe, estimates or [])
 
     handle = write_handle(

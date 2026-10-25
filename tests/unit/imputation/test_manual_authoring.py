@@ -9,6 +9,8 @@ indistinguishable downstream from a routed one.
 
 from __future__ import annotations
 
+import dataclasses
+
 import numpy as np
 import polars as pl
 import pytest
@@ -334,10 +336,13 @@ def test_reauthoring_carries_mice_estimator_when_mice_columns_remain():
     from dataforge_ml.imputation._config import ModelChoice
 
     profile = _profile()
-    base = author(
-        {"score": ImputationStrategy.MICE, "revenue": ImputationStrategy.MICE},
-        profile=profile,
-    ).with_model_choice(ModelChoice.RandomForestRegressor)
+    base = dataclasses.replace(
+        author(
+            {"score": ImputationStrategy.MICE, "revenue": ImputationStrategy.MICE},
+            profile=profile,
+        ),
+        mice_model_choice=ModelChoice.RandomForestRegressor,
+    )
 
     # Edit an unrelated column: MICE columns remain
     edited = author({"rating": ImputationStrategy.Mean}, base=base)
@@ -346,7 +351,9 @@ def test_reauthoring_carries_mice_estimator_when_mice_columns_remain():
 
     # Custom estimator instance carries by identity
     estimator = Ridge()
-    base_custom = base.with_model_choice(estimator)
+    base_custom = dataclasses.replace(
+        base, mice_model_choice=ModelChoice.Custom, mice_estimator=estimator
+    )
     edited_custom = author({"rating": ImputationStrategy.Mean}, base=base_custom)
     assert edited_custom.mice_model_choice == ModelChoice.Custom
     assert edited_custom.mice_estimator is estimator
@@ -372,10 +379,13 @@ def test_reauthoring_dissolves_mice_block_clears_estimator():
     from dataforge_ml.imputation._config import ModelChoice
 
     profile = _profile()
-    base = author(
-        {"score": ImputationStrategy.MICE, "revenue": ImputationStrategy.MICE},
-        profile=profile,
-    ).with_model_choice(ModelChoice.RandomForestRegressor)
+    base = dataclasses.replace(
+        author(
+            {"score": ImputationStrategy.MICE, "revenue": ImputationStrategy.MICE},
+            profile=profile,
+        ),
+        mice_model_choice=ModelChoice.RandomForestRegressor,
+    )
 
     # Edit dissolves the MICE block
     edited = author(
@@ -453,7 +463,7 @@ def test_mnar_end_to_end_appends_the_indicator_column():
 def test_a_bare_mice_declaration_structurally_survives_authoring_but_cannot_fit():
     """MICE may be declared at the door (>=2 columns) with no model choice —
     author() resolves no Estimator Ladder pick (ADR-0090), so the block
-    cannot train until with_model_choice sets one explicitly."""
+    cannot train until one is set explicitly."""
     routing = author(
         {"score": ImputationStrategy.MICE, "revenue": ImputationStrategy.MICE},
         profile=_profile(),
@@ -464,103 +474,6 @@ def test_a_bare_mice_declaration_structurally_survives_authoring_but_cannot_fit(
     (unit,) = derive_units(routing, strategy=ImputationStrategy.MICE)
     with raises_code("unit_not_trainable"):
         fit_unit(recipe, unit, df)
-
-
-def test_with_model_choice_sets_a_library_estimator_family():
-    from dataforge_ml.imputation._config import ModelChoice
-
-    routing = author(
-        {"score": ImputationStrategy.MICE, "revenue": ImputationStrategy.MICE},
-        profile=_profile(),
-    )
-    updated = routing.with_model_choice(ModelChoice.GradientBoostingRegressor)
-    assert updated.mice_model_choice == ModelChoice.GradientBoostingRegressor
-    assert updated.mice_estimator is None
-    # The original is untouched — with_model_choice returns a new routing.
-    assert routing.mice_model_choice is None
-
-
-def test_with_model_choice_sets_a_custom_estimator_instance():
-    from sklearn.linear_model import Ridge
-
-    from dataforge_ml.imputation._config import ModelChoice
-
-    routing = author(
-        {"score": ImputationStrategy.MICE, "revenue": ImputationStrategy.MICE},
-        profile=_profile(),
-    )
-    estimator = Ridge()
-    updated = routing.with_model_choice(estimator)
-    assert updated.mice_model_choice == ModelChoice.Custom
-    assert updated.mice_estimator is estimator
-
-
-def test_with_model_choice_raises_on_bare_custom_label():
-    from dataforge_ml.imputation._config import ModelChoice
-
-    routing = author(
-        {"score": ImputationStrategy.MICE, "revenue": ImputationStrategy.MICE},
-        profile=_profile(),
-    )
-    with raises_code("invalid_argument", match="Custom"):
-        routing.with_model_choice(ModelChoice.Custom)
-
-
-def test_with_model_choice_raises_when_routing_has_no_mice_block():
-    from dataforge_ml.imputation._config import ModelChoice
-
-    routing = author({"score": ImputationStrategy.Median}, profile=_profile())
-    with raises_code("no_mice_block", match="MICE"):
-        routing.with_model_choice(ModelChoice.RandomForestRegressor)
-
-
-def test_with_model_choice_works_identically_on_routed_and_authored_routings():
-    from sklearn.linear_model import Ridge
-
-    from dataforge_ml.imputation import route
-    from dataforge_ml.imputation._config import ModelChoice
-
-    df = _frame()
-    profile = _profile(df)
-
-    # 1. Routings with MICE block: authored vs routed
-    authored_mice = author(
-        {"score": ImputationStrategy.MICE, "revenue": ImputationStrategy.MICE},
-        profile=profile,
-    )
-    cfg_mice = ImputationConfig()
-    cfg_mice.numeric.set_per_column_strategy(
-        ["score", "revenue"], ImputationStrategy.MICE
-    )
-    routed_mice = route(profile, cfg_mice)
-
-    for r in (authored_mice, routed_mice):
-        # Setting a library family produces a new routing with choice set
-        updated_lib = r.with_model_choice(ModelChoice.GradientBoostingRegressor)
-        assert updated_lib.mice_model_choice == ModelChoice.GradientBoostingRegressor
-        assert updated_lib.mice_estimator is None
-        assert r.mice_model_choice != ModelChoice.GradientBoostingRegressor
-
-        # Setting a custom estimator instance sets ModelChoice.Custom and holds instance by identity
-        est = Ridge()
-        updated_custom = r.with_model_choice(est)
-        assert updated_custom.mice_model_choice == ModelChoice.Custom
-        assert updated_custom.mice_estimator is est
-        assert r.mice_estimator is None
-
-        # Bare ModelChoice.Custom raises invalid_argument
-        with raises_code("invalid_argument", match="Custom"):
-            r.with_model_choice(ModelChoice.Custom)
-
-    # 2. Routings with NO MICE block: authored vs routed
-    authored_no_mice = author({"score": ImputationStrategy.Median}, profile=profile)
-    routed_no_mice = route(profile)
-
-    for r in (authored_no_mice, routed_no_mice):
-        with raises_code("no_mice_block", match="MICE"):
-            r.with_model_choice(ModelChoice.RandomForestRegressor)
-        with raises_code("no_mice_block", match="MICE"):
-            r.with_model_choice(Ridge())
 
 
 def test_hand_authored_routing_with_forced_mice_and_bimodal_estimates_end_to_end():
@@ -583,9 +496,11 @@ def test_hand_authored_routing_with_forced_mice_and_bimodal_estimates_end_to_end
         },
         profile=profile,
     )
-    # Set forced MICE estimator via with_model_choice
+    # Force the MICE estimator
     custom_estimator = Ridge()
-    routing = routing.with_model_choice(custom_estimator)
+    routing = dataclasses.replace(
+        routing, mice_model_choice=ModelChoice.Custom, mice_estimator=custom_estimator
+    )
     assert routing.mice_model_choice == ModelChoice.Custom
     assert routing.mice_estimator is custom_estimator
 
@@ -600,10 +515,12 @@ def test_hand_authored_routing_with_forced_mice_and_bimodal_estimates_end_to_end
     # Attempting to fit before supplying estimates raises unit_not_trainable
     with raises_code("unit_not_trainable") as exc_info:
         fit_unit(recipe, gmm_unit, df)
-    assert "with_estimates" in exc_info.value.message
+    assert "estimates" in exc_info.value.message
 
-    # Supply the missing bimodal centres via with_estimates
-    recipe = recipe.with_estimates("score", center1=45.0, center2=55.0)
+    # Supply the missing bimodal centres
+    estimates = dict(recipe.column_estimates)
+    estimates["score"] = dataclasses.replace(estimates["score"], center1=45.0, center2=55.0)
+    recipe = dataclasses.replace(recipe, column_estimates=estimates)
     assert recipe.column_estimates["score"].center1 == 45.0
     assert recipe.column_estimates["score"].center2 == 55.0
 

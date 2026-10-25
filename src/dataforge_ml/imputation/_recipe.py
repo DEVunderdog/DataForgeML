@@ -53,11 +53,6 @@ _DOMAIN_SNAP_STRATEGIES: frozenset[ImputationStrategy] = frozenset(
     }
 )
 
-_ESTIMATE_FIELDS: frozenset[str] = frozenset(
-    {"center1", "center2", "feature_cols", "domain_snap_bounds"}
-)
-
-
 @dataclass(frozen=True)
 class ColumnEstimates:
     """Profile-derived facts one column's fitter reads, resolved off a profile.
@@ -67,7 +62,7 @@ class ColumnEstimates:
     estimates (ADR-0089). Never raised over — a missing estimate is a
     ``unit_not_trainable`` Library Error at
     :func:`~dataforge_ml.imputation.fit_unit` time, naming
-    :meth:`ImputationRecipe.with_estimates` as the fix.
+    the ``resolve_recipe`` Operation's ``estimates`` argument as the fix.
 
     Parameters
     ----------
@@ -553,8 +548,8 @@ class ImputationRecipe:
         The resolve-time hyperparameter base per unit id, complete for each
         unit's strategy.
     hyperparameter_overrides : dict[str, tuple[tuple[str, Any], ...]]
-        The sparse per-unit override delta, written only by
-        :meth:`with_hyperparameters`.
+        The sparse per-unit override delta, written only by the
+        ``resolve_recipe`` Operation's ``hyperparameters`` argument.
     column_estimates : dict[str, ColumnEstimates]
         Per-column profile-derived estimates, present for every column whose
         strategy uses them.
@@ -610,135 +605,6 @@ class ImputationRecipe:
         base = dict(self.decided_hyperparameters.get(unit_id, ()))
         base.update(dict(self.hyperparameter_overrides.get(unit_id, ())))
         return base
-
-    def with_hyperparameters(
-        self, unit_id: str, hyperparameters: dict[str, Any] | None
-    ) -> ImputationRecipe:
-        """Return a new recipe overriding named hyperparameters on one unit.
-
-        A per-key merge onto the unit's resolved base: the named keys are
-        overridden and every other decided dial is kept. Successive edits to
-        the same unit accumulate per key. Passing ``None`` resets the unit to
-        its decided values by clearing its delta.
-
-        Parameters
-        ----------
-        unit_id : str
-            ID of the unit to override. Must already be part of the routing.
-        hyperparameters : dict[str, Any] or None
-            The keys to override and their replacement values, or ``None`` to
-            reset the unit to its decided base.
-
-        Returns
-        -------
-        ImputationRecipe
-            A new recipe with the override applied.
-
-        Raises
-        ------
-        UnknownName
-            ``unknown_unit`` if ``unit_id`` is not part of the routing's
-            derived units. ``unknown_dial`` if ``hyperparameters`` names a key
-            that is not one of the unit's strategy's dials.
-        """
-        from ._units import derive_units
-
-        unit = next(
-            (u for u in derive_units(self.routing) if u.unit_id == unit_id), None
-        )
-        if unit is None:
-            raise DataForgeError.from_code(
-                "unknown_unit",
-                f"Unit '{unit_id}' is not part of this recipe's routing.",
-                param="unit_id",
-                candidates=close_matches(
-                    [unit_id], [u.unit_id for u in derive_units(self.routing)]
-                ),
-            )
-
-        new_overrides = dict(self.hyperparameter_overrides)
-        if hyperparameters is None:
-            new_overrides.pop(unit_id, None)
-        else:
-            dial_keys = set(_dial_defaults(unit.strategy))
-            unknown = [key for key in hyperparameters if key not in dial_keys]
-            if unknown:
-                raise DataForgeError.from_code(
-                    "unknown_dial",
-                    f"Unit '{unit_id}' ({unit.strategy}) has no dial(s) "
-                    f"{sorted(unknown)} to override.",
-                    params=[f"hyperparameters.{k}" for k in unknown],
-                    allowed=sorted(dial_keys),
-                    candidates=close_matches(unknown, dial_keys),
-                )
-            merged_delta = dict(new_overrides.get(unit_id, ()))
-            merged_delta.update(hyperparameters)
-            new_overrides[unit_id] = tuple(merged_delta.items())
-
-        return ImputationRecipe(
-            routing=self.routing,
-            decided_hyperparameters=self.decided_hyperparameters,
-            hyperparameter_overrides=new_overrides,
-            column_estimates=self.column_estimates,
-            numeric_sentinels=self.numeric_sentinels,
-            string_sentinels=self.string_sentinels,
-        )
-
-    def with_estimates(self, column: str, **fields: Any) -> ImputationRecipe:
-        """Return a new recipe with named estimate fields overwritten for one column.
-
-        Parameters
-        ----------
-        column : str
-            Column to edit. Must already carry a :class:`ColumnEstimates` entry.
-        **fields : Any
-            Named fields of :class:`ColumnEstimates` to overwrite
-            (``center1``, ``center2``, ``feature_cols``,
-            ``domain_snap_bounds``).
-
-        Returns
-        -------
-        ImputationRecipe
-            A new recipe with the edit applied.
-
-        Raises
-        ------
-        InvalidInput
-            ``estimates_not_applicable`` if ``column`` carries no estimates
-            entry.
-        UnknownName
-            ``unknown_dial`` if ``fields`` names a key that is not one of
-            :class:`ColumnEstimates`'s fields.
-        """
-        if column not in self.column_estimates:
-            raise DataForgeError.from_code(
-                "estimates_not_applicable",
-                f"Column '{column}' carries no estimates entry on this recipe. "
-                f"Only a column whose strategy uses estimates (the bimodal "
-                f"strategies, or a BoundedDiscrete model-based one) has one.",
-                columns=[column],
-            )
-        unknown = sorted(set(fields) - _ESTIMATE_FIELDS)
-        if unknown:
-            raise DataForgeError.from_code(
-                "unknown_dial",
-                f"Column '{column}': unknown estimate field(s) {unknown}.",
-                params=unknown,
-                allowed=sorted(_ESTIMATE_FIELDS),
-                candidates=close_matches(unknown, _ESTIMATE_FIELDS),
-            )
-        from dataclasses import replace
-
-        new_estimates = dict(self.column_estimates)
-        new_estimates[column] = replace(new_estimates[column], **fields)
-        return ImputationRecipe(
-            routing=self.routing,
-            decided_hyperparameters=self.decided_hyperparameters,
-            hyperparameter_overrides=self.hyperparameter_overrides,
-            column_estimates=new_estimates,
-            numeric_sentinels=self.numeric_sentinels,
-            string_sentinels=self.string_sentinels,
-        )
 
     def to_dict(self) -> dict:
         """Serialise the recipe to a plain, JSON-friendly dictionary.
@@ -924,8 +790,8 @@ def resolve_recipe(
     unit needs to train except what training learns, resolved off ``profile``
     in one call. Never raises over a missing estimate — every column whose
     strategy uses one gets a :class:`ColumnEstimates` entry, with ``None``
-    fields when the profile has nothing, so :meth:`ImputationRecipe.with_estimates`
-    always has a target to edit.
+    fields when the profile has nothing, so an ``estimates`` override always
+    has a target to edit.
 
     The joint MICE and KNN blocks' dials are resolved here too, whenever the
     routing carries one: ``decided_hyperparameters["mice"]`` /

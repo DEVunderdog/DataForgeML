@@ -380,7 +380,7 @@ def fit_mice_unit(
 
     The block trains a single estimator, built from ``ctx.mice_model_choice``
     — the choice :func:`~dataforge_ml.imputation.route` resolved off the
-    Estimator Ladder (ADR-0094), or that ``with_model_choice`` set explicitly.
+    Estimator Ladder (ADR-0094), or that its ``model_choice`` argument set.
     :attr:`~dataforge_ml.imputation.ModelChoice.Custom` is the one choice nothing is
     built for: the user's own estimator is taken off ``ctx.mice_estimator``
     and used as-is (ADR-0090). It is not cloned, its ``n_jobs`` is not set,
@@ -424,7 +424,7 @@ def fit_mice_unit(
         A :class:`~dataforge_ml.imputation._fitted_imputer.FittedMICE` plus the
         estimator / initial-strategy / predictor / convergence signals, or no
         fit when the routing carries no ``mice_model_choice`` at all (a bare
-        ``author()`` declaration with no ``with_model_choice`` edit), or is
+        ``author()`` declaration), or is
         planned ``Custom`` with no estimator carried.
     """
     from ._fitted_imputer import FittedMICE
@@ -437,7 +437,7 @@ def fit_mice_unit(
                 f"mice: unit '{unit.unit_id}' carries no mice_model_choice. "
                 f"route() resolves one off the Estimator Ladder whenever the "
                 f"block is non-empty; a hand-authored routing needs "
-                f"routing.with_model_choice(choice) before this block can train."
+                f"mice_model_choice set before this block can train."
             )
         )
 
@@ -481,8 +481,8 @@ def fit_mice_unit(
                     f"mice: the block is routed with ModelChoice.Custom but no "
                     f"estimator is carried for unit '{unit.unit_id}'. A "
                     f"user-supplied estimator is never serialized, so a "
-                    f"reloaded routing must be re-supplied with "
-                    f"routing.with_model_choice(estimator)."
+                    f"reloaded routing must be rebuilt with "
+                    f"mice_estimator set."
                 )
             )
     else:
@@ -681,7 +681,7 @@ def fit_gmm_unit(
             fallback_reason=(
                 f"gmm_sampling: column '{col}' carries no bimodal centres on "
                 f"the recipe. Set them with "
-                f"ImputationRecipe.with_estimates('{col}', center1=..., center2=...)."
+                f"resolve_recipe's estimates argument (center1, center2)."
             )
         )
 
@@ -781,7 +781,7 @@ def fit_cluster_unit(
             fallback_reason=(
                 f"cluster_conditional: column '{col}' carries no bimodal "
                 f"centres on the recipe. Set them with "
-                f"ImputationRecipe.with_estimates('{col}', center1=..., center2=...)."
+                f"resolve_recipe's estimates argument (center1, center2)."
             )
         )
 

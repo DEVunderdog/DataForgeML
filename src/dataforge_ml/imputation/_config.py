@@ -85,7 +85,7 @@ The single definition of the resolve-time hyperparameter base, read by
 :func:`~dataforge_ml.imputation._recipe.resolve_recipe` for both a routed and a
 hand-authored :class:`ImputationRouting`. A strategy with no row has no dials at
 all — ``GMMSampling`` and ``Constant`` are driven entirely by profile facts and
-declared values, so ``ImputationRecipe.with_hyperparameters`` refuses every key
+declared values, so ``resolve_recipe`` refuses every hyperparameter override
 on them.
 """
 
@@ -106,8 +106,7 @@ class ModelChoice(StrEnum):
     :func:`~dataforge_ml.imputation.route` resolves the ``MICE`` block's
     choice off the Estimator Ladder (ADR-0094) — the most complex
     ``NonlinearityTag`` across the block's columns — whenever the block has
-    any; :func:`~dataforge_ml.imputation.author` leaves it ``None`` unless the
-    door's ``with_model_choice`` sets one explicitly (ADR-0090).
+    any; :func:`~dataforge_ml.imputation.author` leaves it ``None`` (ADR-0090).
     """
 
     BayesianRidge = "bayesian_ridge"
@@ -151,7 +150,7 @@ _DELETED_NUMERIC_KEYS: dict[str, str] = {
     ),
     "gradient_boost_min_rows": (
         "The booster is off the Estimator Ladder (ADR-0097); choose it "
-        "explicitly with ImputationRouting.with_model_choice."
+        "explicitly with the route Operation's model_choice argument."
     ),
     "mcar_feature_predictability_threshold": (
         "The Signal Score replaced it; tune the signal_score_* dials instead "
@@ -652,8 +651,8 @@ class NumericImputationConfig:
                 raise DataForgeError.from_code(
                     "retired_dial",
                     f"'{retired}' was removed from NumericImputationConfig. "
-                    "Set this dial on the recipe instead, via "
-                    "ImputationRecipe.with_hyperparameters(unit_id, hyperparameters).",
+                    "Set this dial on the recipe instead, via the "
+                    "resolve_recipe Operation's hyperparameters argument.",
                     params=[retired],
                 )
         for retired, replacement in _DELETED_NUMERIC_KEYS.items():
@@ -1020,8 +1019,7 @@ class ImputationRouting:
         The estimator family the MICE block trains with. ``None`` when no
         column is routed to MICE. :func:`~dataforge_ml.imputation.route`
         resolves it off the Estimator Ladder (ADR-0094) whenever the block is
-        non-empty; :func:`~dataforge_ml.imputation.author` leaves it ``None``
-        unless ``with_model_choice`` sets one.
+        non-empty; :func:`~dataforge_ml.imputation.author` leaves it ``None``.
     mice_estimator : Any, optional
         A user-supplied estimator instance for the MICE block, held by
         identity and never cloned. ``None`` unless the block trains with a
@@ -1035,70 +1033,6 @@ class ImputationRouting:
     def __post_init__(self) -> None:
         object.__setattr__(
             self, "column_routings", dict(self.column_routings)
-        )
-
-    def with_model_choice(self, choice: ModelChoice | Any) -> ImputationRouting:
-        """Return a new routing with the MICE block's estimator set (ADR-0090).
-
-        The one door for the MICE block's estimator, whether it is a library
-        family or a foreign one: pass a :class:`ModelChoice` member to pick a
-        family the factory builds, or a live sklearn-compatible estimator
-        instance to use as-is. An instance sets ``mice_model_choice`` to
-        :attr:`~dataforge_ml.imputation.ModelChoice.Custom` and holds the instance by
-        identity, never cloned — this is the only way
-        ``GradientBoostingRegressor`` is reachable, since it is off the
-        Estimator Ladder (ADR-0094).
-
-        Parameters
-        ----------
-        choice : ModelChoice or estimator instance
-            A :class:`ModelChoice` member naming a library estimator family
-            (every member except :attr:`~dataforge_ml.imputation.ModelChoice.Custom`),
-            or a live, unfitted sklearn-compatible estimator instance.
-
-        Returns
-        -------
-        ImputationRouting
-            A new routing with ``mice_model_choice`` (and, for an instance,
-            ``mice_estimator``) set. Every other field is carried over
-            unchanged.
-
-        Raises
-        ------
-        InvalidInput
-            ``invalid_argument`` if ``choice`` is the bare
-            :attr:`~dataforge_ml.imputation.ModelChoice.Custom` label with no estimator
-            instance.
-        Infeasible
-            ``no_mice_block`` if this routing has no MICE block to set an
-            estimator on.
-        """
-        import dataclasses
-
-        mice_present = any(
-            r.strategy == ImputationStrategy.MICE
-            for r in self.column_routings.values()
-        )
-        if not mice_present:
-            raise DataForgeError.from_code(
-                "no_mice_block",
-                "with_model_choice() requires a MICE block: this routing "
-                "carries no column routed to ImputationStrategy.MICE.",
-            )
-        if isinstance(choice, ModelChoice):
-            if choice == ModelChoice.Custom:
-                raise DataForgeError.from_code(
-                    "invalid_argument",
-                    "ModelChoice.Custom is a label, not an estimator: pass "
-                    "the estimator instance itself to with_model_choice() "
-                    "instead of the bare Custom member.",
-                    param="choice",
-                )
-            return dataclasses.replace(
-                self, mice_model_choice=choice, mice_estimator=None
-            )
-        return dataclasses.replace(
-            self, mice_model_choice=ModelChoice.Custom, mice_estimator=choice
         )
 
     def to_dict(self) -> dict:

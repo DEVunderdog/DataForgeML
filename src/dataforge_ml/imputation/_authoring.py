@@ -50,8 +50,7 @@ class AuthoredColumn:
     column, and this says it alongside the two config declarations that
     complete a strategy. The profile-derived estimates (the bimodal centres,
     ``feature_cols``, ``domain_snap_bounds``) are not here — they are set on
-    the recipe with
-    :meth:`~dataforge_ml.imputation.ImputationRecipe.with_estimates`
+    the recipe by the ``resolve_recipe`` Operation's ``estimates`` argument
     (ADR-0090).
 
     Parameters
@@ -195,8 +194,7 @@ def author(
     **The door resolves no MICE model choice for fresh authoring.** ``MICE``
     may still be declared for two or more columns — the door refuses only a
     single-column block — but every fresh routing :func:`author` returns carries
-    ``mice_model_choice=None`` and ``mice_estimator=None`` unless
-    ``with_model_choice`` sets one explicitly. When re-authoring with
+    ``mice_model_choice=None`` and ``mice_estimator=None``. When re-authoring with
     ``base=``, MICE membership carries/creates/dissolves the estimator
     (ADR-0090): if MICE columns remain, ``mice_model_choice`` and the estimator
     carry; if the edit creates the block, it is stamped ``BayesianRidge``; if

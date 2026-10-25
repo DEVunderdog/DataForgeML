@@ -6,7 +6,7 @@ The ladder is a flat map, no bounds, no downgrade:
   MonotonicNonlinear / ComplexNonlinear → RandomForestRegressor
 
 ``GradientBoostingRegressor`` is off the ladder entirely — reachable only
-through ``with_model_choice`` — so ``resolve_choice``/``build_from_choice`` never
+through ``route``'s ``model_choice`` — so ``resolve_choice``/``build_from_choice`` never
 produce it. Tests are written via fit/predict on toy datasets.  They do NOT
 inspect the internal estimator type — correctness is verified through
 behaviour, except where the RandomForest branch's core-invariance (ADR-0069)
@@ -82,7 +82,7 @@ def test_resolve_choice_never_returns_none():
 
 
 def test_resolve_choice_never_returns_gradient_boosting():
-    """GradientBoosting is off the ladder — reachable only through with_model_choice."""
+    """GradientBoosting is off the ladder — reachable only through route's model_choice."""
     for tag in NonlinearityTag:
         assert (
             RegressionEstimatorFactory.resolve_choice(tag)
@@ -174,7 +174,7 @@ def test_build_from_choice_custom_raises():
 
 
 def test_build_from_choice_gradient_boosting_still_buildable_explicitly():
-    """Off the ladder, but with_model_choice can still ask for it directly."""
+    """Off the ladder, but route's model_choice can still ask for it directly."""
     estimator = RegressionEstimatorFactory.build_from_choice(
         ModelChoice.GradientBoostingRegressor
     )

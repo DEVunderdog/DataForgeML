@@ -450,7 +450,7 @@ _ENTRIES: tuple[ErrorCodeEntry, ...] = (
             "The two-component mixture stopped at its iteration cap before it "
             "converged, so its sampled fills may sit off the real modes. Check "
             "the column's bimodal centres and set better ones with "
-            "`with_estimates`, or pick another strategy for it."
+            "`resolve_recipe`'s `estimates`, or pick another strategy for it."
         ),
         fields=("columns",),
     ),

@@ -229,7 +229,7 @@ def test_gmm_without_centres_on_the_recipe_cannot_train():
     outcome = fit_gmm_unit(unit, _bimodal_frame(), _fact_ctx(routing, estimates))
     assert outcome.fitted is None
     assert "bimodal centres" in outcome.fallback_reason
-    assert "with_estimates" in outcome.fallback_reason
+    assert "estimates argument" in outcome.fallback_reason
 
 
 def test_cluster_grouping_variable_is_read_off_the_routing():
