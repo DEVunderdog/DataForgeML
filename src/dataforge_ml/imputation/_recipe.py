@@ -20,12 +20,13 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from .._boundary._error_codes import close_matches
-from ..config import PipelineConfig, SemanticType
+from ..config import SemanticType
 from ..profiling._config import NumericKind
 from ..profiling._numeric_config import NonlinearityTag, NumericStats, SkewSeverity
 from ..records import DataForgeError
 from ._config import (
     _STRATEGY_DIALS,
+    ImputationConfig,
     ImputationRouting,
     ImputationStrategy,
     NumericImputationConfig,
@@ -915,7 +916,7 @@ class ImputationRecipe:
 def resolve_recipe(
     routing: ImputationRouting,
     profile: StructuralProfileResult,
-    config: PipelineConfig | None = None,
+    config: ImputationConfig | None = None,
 ) -> ImputationRecipe:
     """Resolve every dial, hyperparameter map, estimate, and sentinel — once.
 
@@ -939,9 +940,9 @@ def resolve_recipe(
     profile : StructuralProfileResult
         The profile to resolve estimates and sentinels off of. Checked for
         columns only: a routed, non-synthetic column absent from it raises.
-    config : PipelineConfig, optional
-        Pipeline configuration supplying the imputation thresholds. Defaults
-        to ``PipelineConfig()`` when omitted.
+    config : ImputationConfig, optional
+        Imputation configuration supplying the thresholds. Defaults to
+        ``ImputationConfig()`` when omitted.
 
     Returns
     -------
@@ -955,8 +956,7 @@ def resolve_recipe(
         ``{col}_missing`` indicator entry) is absent from ``profile``, naming
         every offending column.
     """
-    config = config or PipelineConfig()
-    numeric_cfg = config.imputation.numeric
+    numeric_cfg = (config or ImputationConfig()).numeric
 
     missing = [
         col

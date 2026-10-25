@@ -35,7 +35,7 @@ Definitions
 Eligibility
 -----------
 A column is eligible when:
-  - It has a SemanticType.Text override in ProfileConfig.column_overrides, OR
+  - It has a SemanticType.Text override in StructuralProfiler's column_types, OR
   - Its Polars dtype is pl.Utf8 (alias pl.String) and no other override is set.
 
 Integration

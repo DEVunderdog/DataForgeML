@@ -315,9 +315,9 @@ def test_genuine_joblib_load_failure_propagates() -> None:
 
 
 def test_whole_imputer_round_trips_via_routing_plus_units() -> None:
-    from dataforge_ml.config import PipelineConfig
     from dataforge_ml.imputation import (
         FittedImputer,
+        ImputationConfig,
         derive_units,
         fit_unit,
         resolve_recipe,
@@ -331,8 +331,8 @@ def test_whole_imputer_round_trips_via_routing_plus_units() -> None:
             "b": [10.0, None, 30.0, 40.0, 50.0, 60.0, None, 80.0] * 8,
         }
     )
-    cfg = PipelineConfig()
-    profile = StructuralProfiler(cfg).profile(df)
+    cfg = ImputationConfig()
+    profile = StructuralProfiler().profile(df)
     routing = route(profile, cfg)
     recipe = resolve_recipe(routing, profile, cfg)
     units = derive_units(routing)

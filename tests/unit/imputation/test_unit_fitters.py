@@ -14,8 +14,9 @@ function it called.
 import numpy as np
 import polars as pl
 
-from dataforge_ml.config import PipelineConfig, SemanticType
+from dataforge_ml.config import SemanticType
 from dataforge_ml.imputation import (
+    ImputationConfig,
     ImputationStrategy,
     RoutingReason,
     derive_units,
@@ -64,10 +65,13 @@ def _frame(n=600, seed=0, bimodal=False, grouped=False):
     return pl.DataFrame(data)
 
 
+_SEED = 7
+
+
 def _drive(df, cfg):
     """Route, resolve a recipe, and train every unit; return everything as
     learned so the assertions read the learned state directly."""
-    profile = StructuralProfiler(config=cfg).profile(df)
+    profile = StructuralProfiler().profile(df)
     routing = route(profile, cfg)
     recipe = resolve_recipe(routing, profile, cfg)
     units = derive_units(routing)
@@ -77,17 +81,16 @@ def _drive(df, cfg):
         string_sentinels=profile.string_sentinels,
     )
     fitted = {
-        unit.unit_id: fit_unit(recipe, unit, train, random_seed=cfg.random_seed).fitted
+        unit.unit_id: fit_unit(recipe, unit, train, random_seed=_SEED).fitted
         for unit in units
     }
     return profile, routing, units, train, fitted
 
 
 def _config(**per_column_strategy):
-    cfg = PipelineConfig()
-    cfg.random_seed = 7
+    cfg = ImputationConfig()
     for col, strategy in per_column_strategy.items():
-        cfg.imputation.numeric.set_per_column_strategy(col, strategy)
+        cfg.numeric.set_per_column_strategy(col, strategy)
     return cfg
 
 
@@ -112,7 +115,7 @@ def test_executor_trains_a_real_gmm_sampling_model():
 
 def test_executor_trains_a_real_cluster_conditional_model():
     cfg = _config()
-    cfg.imputation.numeric.set_bimodal_grouping_variable("bi", "grp")
+    cfg.numeric.set_bimodal_grouping_variable("bi", "grp")
     _, _, units, train, results = _drive(_frame(bimodal=True, grouped=True), cfg)
     unit_id = "cluster_conditional:bi"
     assert any(u.unit_id == unit_id for u in units), "expected cluster routing"

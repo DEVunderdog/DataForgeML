@@ -17,7 +17,6 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
-from dataforge_ml.config import PipelineConfig
 from dataforge_ml.imputation import derive_units, fit_unit, resolve_recipe, route
 from dataforge_ml.profiling.orchestrator import StructuralProfiler
 from tests.conftest import fit_imputer
@@ -68,9 +67,8 @@ def floor_setup():
             ),
         }
     )
-    config = PipelineConfig()
-    profile = StructuralProfiler(config).profile(df)
-    return config, df, profile
+    profile = StructuralProfiler().profile(df)
+    return df, profile
 
 
 def _semantic_types(profile):
@@ -125,10 +123,10 @@ def capture_floor(monkeypatch):
 def test_profiling_orchestrator_applies_the_floor_after_null_resolution(
     floor_setup, capture_floor
 ):
-    config, df, _ = floor_setup
+    df, _ = floor_setup
     calls = capture_floor("dataforge_ml.profiling.orchestrator")
 
-    StructuralProfiler(config).profile(df)
+    StructuralProfiler().profile(df)
 
     assert calls, "the profiling orchestrator never applied the floor"
     _assert_floor_holds(*calls[0])
@@ -137,13 +135,13 @@ def test_profiling_orchestrator_applies_the_floor_after_null_resolution(
 def test_fit_unit_applies_the_floor_after_null_resolution(
     floor_setup, capture_floor
 ):
-    config, df, profile = floor_setup
+    df, profile = floor_setup
     calls = capture_floor("dataforge_ml.imputation._unit_fit")
 
-    routing = route(profile, config)
-    recipe = resolve_recipe(routing, profile, config)
+    routing = route(profile)
+    recipe = resolve_recipe(routing, profile)
     units = derive_units(routing)
-    fit_unit(recipe, units[0], df, random_seed=config.random_seed)
+    fit_unit(recipe, units[0], df)
 
     assert calls, "fit_unit never applied the floor"
     _assert_floor_holds(*calls[0])
@@ -152,8 +150,8 @@ def test_fit_unit_applies_the_floor_after_null_resolution(
 def test_fitted_imputer_transform_applies_the_floor_after_null_resolution(
     floor_setup, capture_floor
 ):
-    config, df, profile = floor_setup
-    fitted = fit_imputer(df, profile, config)
+    df, profile = floor_setup
+    fitted = fit_imputer(df, profile)
     calls = capture_floor("dataforge_ml.imputation._fitted_imputer")
 
     fitted.transform(df)
@@ -165,7 +163,7 @@ def test_fitted_imputer_transform_applies_the_floor_after_null_resolution(
 def test_splitting_profile_signals_applies_the_floor_after_null_resolution(
     floor_setup, capture_floor
 ):
-    _, df, profile = floor_setup
+    df, profile = floor_setup
     calls = capture_floor("dataforge_ml.splitting._profile_signals")
 
     from dataforge_ml.splitting._profile_signals import build_label_matrix
@@ -182,8 +180,8 @@ def test_splitting_profile_signals_applies_the_floor_after_null_resolution(
 
 
 def test_transform_returns_floored_columns_at_their_original_dtype(floor_setup):
-    config, df, profile = floor_setup
-    fitted = fit_imputer(df, profile, config)
+    df, profile = floor_setup
+    fitted = fit_imputer(df, profile)
 
     out = fitted.transform(df).dataframe
 
@@ -195,8 +193,8 @@ def test_transform_returns_floored_columns_at_their_original_dtype(floor_setup):
 def test_transform_returns_observed_cells_of_floored_columns_bit_for_bit(
     floor_setup,
 ):
-    config, df, profile = floor_setup
-    fitted = fit_imputer(df, profile, config)
+    df, profile = floor_setup
+    fitted = fit_imputer(df, profile)
 
     out = fitted.transform(df).dataframe
 

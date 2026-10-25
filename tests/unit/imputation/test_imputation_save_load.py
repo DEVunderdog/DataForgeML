@@ -17,9 +17,9 @@ import pytest
 from sklearn.tree import DecisionTreeRegressor
 
 from dataforge_ml._serialization import deserialize, inspect, serialize
-from dataforge_ml.config import PipelineConfig
 from dataforge_ml.imputation import (
     FittedImputer,
+    ImputationConfig,
     ImputationRecipe,
     ImputationRouting,
     ImputationStrategy,
@@ -434,7 +434,7 @@ def test_whole_imputer_round_trips_via_recipe_plus_units(
     rich_profile_and_df: tuple[StructuralProfileResult, pl.DataFrame],
 ) -> None:
     profile, df = rich_profile_and_df
-    cfg = PipelineConfig()
+    cfg = ImputationConfig()
     routing = route(profile, cfg)
     recipe = resolve_recipe(routing, profile, cfg)
     units = derive_units(routing)

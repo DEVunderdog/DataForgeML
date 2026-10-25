@@ -6,7 +6,6 @@ both proven end-to-end through ``StructuralProfiler``.
 
 import logging
 
-from dataforge_ml.config import PipelineConfig
 from dataforge_ml.observability import EventType, PipelineEvent, stderr_observer
 from dataforge_ml.profiling._config import ProfileConfig
 from dataforge_ml.profiling.orchestrator import StructuralProfiler
@@ -38,7 +37,7 @@ def test_event_type_is_enum_not_str():
 
 def test_stage_events_reach_observer(mixed_df):
     recorder = _Recorder()
-    config = PipelineConfig(profiling=ProfileConfig(compute_correlation=True))
+    config = ProfileConfig(compute_correlation=True)
     StructuralProfiler(config, observer=recorder).profile(mixed_df)
 
     stage_events = [
@@ -68,7 +67,7 @@ def test_stage_events_reach_observer(mixed_df):
 
 def test_no_observer_is_harmless(mixed_df):
     # observer defaults to None; profiling must still succeed and be silent.
-    result = StructuralProfiler(PipelineConfig()).profile(mixed_df)
+    result = StructuralProfiler().profile(mixed_df)
     assert set(result.columns.keys()) == set(mixed_df.columns)
 
 
@@ -78,7 +77,7 @@ def test_no_observer_is_harmless(mixed_df):
 
 def test_stage_events_log_at_debug(mixed_df, caplog):
     with caplog.at_level(logging.DEBUG, logger="dataforge_ml"):
-        StructuralProfiler(PipelineConfig()).profile(mixed_df)
+        StructuralProfiler().profile(mixed_df)
 
     stage_records = [
         r for r in caplog.records
@@ -92,7 +91,7 @@ def test_silent_by_default(mixed_df, caplog):
     # A NullHandler is attached at import; with no propagation capture at
     # WARNING (pytest's default), DEBUG stage/item events emit nothing.
     with caplog.at_level(logging.WARNING, logger="dataforge_ml"):
-        StructuralProfiler(PipelineConfig()).profile(mixed_df)
+        StructuralProfiler().profile(mixed_df)
     assert [r for r in caplog.records if r.name == "dataforge_ml"] == []
 
 
@@ -124,7 +123,7 @@ def test_stderr_observer_writes_stderr_only(capsys):
 
 def test_column_profiling_item_heartbeat(mixed_df):
     recorder = _Recorder()
-    StructuralProfiler(PipelineConfig(), observer=recorder).profile(mixed_df)
+    StructuralProfiler(observer=recorder).profile(mixed_df)
 
     # Slice out just the column_profiling stage's events, in order.
     stage_stream = [e for e in recorder.events if e.stage == "column_profiling"]
@@ -155,7 +154,7 @@ def test_column_profiling_item_heartbeat(mixed_df):
 
 def test_cheap_stages_emit_no_items(mixed_df):
     recorder = _Recorder()
-    StructuralProfiler(PipelineConfig(), observer=recorder).profile(mixed_df)
+    StructuralProfiler(observer=recorder).profile(mixed_df)
 
     item_stages = {e.stage for e in recorder.events if e.event_type == EventType.item}
     # Only the expensive per-column loop emits item events.
@@ -184,9 +183,7 @@ def _assert_monotonic_items(items):
 
 def test_correlation_and_nonlinearity_emit_items(mixed_df):
     recorder = _Recorder()
-    config = PipelineConfig(
-        profiling=ProfileConfig(compute_correlation=True, compute_nonlinearity=True)
-    )
+    config = ProfileConfig(compute_correlation=True, compute_nonlinearity=True)
     StructuralProfiler(config, observer=recorder).profile(mixed_df)
 
     # Both expensive stages now report progress rather than running silently.
@@ -220,11 +217,9 @@ def test_correlation_and_nonlinearity_emit_items(mixed_df):
 
 def test_correlation_items_cover_each_target(mixed_df):
     recorder = _Recorder()
-    config = PipelineConfig(
-        profiling=ProfileConfig(
+    config = ProfileConfig(
             compute_correlation=True, target_columns=["income"]
         )
-    )
     StructuralProfiler(config, observer=recorder).profile(mixed_df)
 
     corr_items = [
@@ -240,9 +235,7 @@ def test_correlation_items_cover_each_target(mixed_df):
 
 
 def test_correlation_nonlinearity_items_log_at_debug(mixed_df, caplog):
-    config = PipelineConfig(
-        profiling=ProfileConfig(compute_correlation=True, compute_nonlinearity=True)
-    )
+    config = ProfileConfig(compute_correlation=True, compute_nonlinearity=True)
     with caplog.at_level(logging.DEBUG, logger="dataforge_ml"):
         StructuralProfiler(config).profile(mixed_df)
 

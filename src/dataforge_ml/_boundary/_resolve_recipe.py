@@ -35,11 +35,10 @@ FEATURE_COLS_CAP = 10
 
 def _recipe_config(routing_dials: dict[str, Any]) -> Any:
     # A config holding the routing's own dials; every other field is the default.
-    from ..config import PipelineConfig
     from ..imputation._config import ImputationConfig, NumericImputationConfig
 
     numeric = NumericImputationConfig(**numeric_dials(routing_dials))
-    return PipelineConfig(imputation=ImputationConfig(numeric=numeric))
+    return ImputationConfig(numeric=numeric)
 
 
 def _check_hyperparameters(entries: Sequence[Any], units: Sequence[Any]) -> list[_Issue]:

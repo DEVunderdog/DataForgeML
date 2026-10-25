@@ -68,9 +68,8 @@ class AuthoredColumn:
         aggregates within. When absent, the recipe's centroid branch estimates
         apply instead.
     excluded : bool, default False
-        Declares the column Imputation-soft-excluded, as
-        ``PipelineConfig.add_phase_exclusion`` does for
-        :func:`~dataforge_ml.imputation.route`: its missing values ride
+        Declares the column Imputation-soft-excluded, as ``skip_columns``
+        does for :func:`~dataforge_ml.imputation.route`: its missing values ride
         through untouched and it is never counted as an MICE or KNN
         predictor. Only valid with ``Passthrough``.
     """

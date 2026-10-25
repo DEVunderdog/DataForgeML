@@ -1,8 +1,7 @@
 """The imputation adapter — the first consumer of the generic C2ST seam.
 
-Everything phase-shaped lives here, exhaustively (ADR-0087): resolving
-``PipelinePhase.Imputation``'s active columns under the Phase Active-Columns
-Contract, deriving the mask through effective-null resolution, the
+Everything phase-shaped lives here, exhaustively (ADR-0087): resolving the
+active columns from the caller's exclusions, deriving the mask through effective-null resolution, the
 ``Text``/``Identifier`` gate, column choice and order, dropping 100%-null
 columns from the feature matrix, building the two piles, the ``m`` loop with
 its frame pooling, and the refusal floors and annotations. Benjamini-Hochberg
@@ -32,7 +31,7 @@ import numpy as np
 import polars as pl
 import sklearn
 
-from ...config import PipelineConfig, PipelinePhase, SemanticType
+from ...config import SemanticType
 from ...observability import Emitter, Observer
 from ...profiling._config import StructuralProfileResult
 from ...records import DataForgeError
@@ -56,11 +55,8 @@ from ._records import (
 
 __all__ = ["imputation_score_c2st"]
 
-# The Pipeline Event ``phase`` this module stamps. A bare string with no
-# ``PipelinePhase`` member behind it: that enum's job is feeding
-# ``resolve_active_columns`` for the six sequential phases, and evaluation is
-# opt-in, out of band, and resolves its columns against *the imputation phase's*
-# set (ADR-0087).
+# The Pipeline Event ``phase`` this module stamps. Evaluation is opt-in and
+# out of band, so it is not one of the sequential phases (ADR-0087).
 _PHASE: str = "evaluation"
 
 # The stage, named after the function that owns the loop, so an observer can
@@ -185,7 +181,7 @@ def imputation_score_c2st(
     imputed_frames: Sequence[pl.DataFrame],
     profile: StructuralProfileResult,
     *,
-    pipeline_config: PipelineConfig,
+    exclude_columns: Sequence[str] = (),
     config: C2STConfig | None = None,
     observer: Observer | None = None,
 ) -> C2STReport:
@@ -237,10 +233,8 @@ def imputation_score_c2st(
         its profile, cannot be evaluated. There is deliberately no row-count
         check against a val slice, because semantic types re-inferred on a small
         slice can flip and silently change the tested column set.
-    pipeline_config : PipelineConfig
-        The run's config, read only for the Phase Active-Columns Contract:
-        evaluation resolves its own column set against
-        ``PipelinePhase.Imputation``. Excluded columns are honoured on
+    exclude_columns : Sequence[str], optional
+        Columns left out of the evaluation. Excluded columns are honoured on
         governance grounds — an excluded column is absent from the census
         entirely, so ``report[col]`` raises ``KeyError``.
     config : C2STConfig, optional
@@ -289,9 +283,8 @@ def imputation_score_c2st(
     orig = _phase_entry(original, profile)
     frames = [_phase_entry(frame, profile) for frame in imputed_frames]
 
-    active = pipeline_config.resolve_active_columns(
-        PipelinePhase.Imputation, list(orig.columns)
-    )
+    excluded = set(exclude_columns)
+    active = [c for c in orig.columns if c not in excluded]
     missing = sorted({c for c in active for frame in frames if c not in frame.columns})
     if missing:
         names = ", ".join(f"'{c}'" for c in missing)
@@ -299,8 +292,8 @@ def imputation_score_c2st(
             "frames_not_aligned",
             "Every active column must be present in each imputed frame; "
             f"missing from at least one frame: {names}. Exclude a column the "
-            "imputation dropped via PipelineConfig rather than handing over a "
-            "frame that has lost it.",
+            "imputation dropped rather than handing over a frame that has "
+            "lost it.",
             columns=missing,
         )
 

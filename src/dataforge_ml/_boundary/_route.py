@@ -298,14 +298,7 @@ def _issues_error(issues: list[_Issue], columns: Sequence[str]) -> DataForgeErro
     return DataForgeError.from_code("invalid_dial_value", message, **fields)
 
 
-def _build_config(
-    dials: _Dials,
-    *,
-    exclude_columns: Sequence[str],
-    skip_columns: Sequence[str],
-    declared: dict[str, Any],
-) -> Any:
-    from ..config import PipelineConfig, PipelinePhase
+def _build_config(dials: _Dials, *, declared: dict[str, Any]) -> Any:
     from ..imputation._config import ImputationConfig, NumericImputationConfig
 
     numeric = NumericImputationConfig(**dials.numeric())
@@ -317,12 +310,7 @@ def _build_config(
     mnar = [c for c, e in declared.items() if e.strategy == "mnar"]
     if mnar:
         imputation.add_mnar_column(mnar)
-    config = PipelineConfig(imputation=imputation)
-    if exclude_columns:
-        config.add_exclusion(list(exclude_columns))
-    if skip_columns:
-        config.add_phase_exclusion(PipelinePhase.Imputation, list(skip_columns))
-    return config
+    return imputation
 
 
 def _with_dial_sources(evidence: tuple[Any, ...], dials: _Dials) -> tuple[Any, ...]:
@@ -425,7 +413,7 @@ def route_profile(
         argument; ``no_mice_block`` when ``model_choice`` has no block; plus
         the profile Handle's own errors.
     """
-    from ..config import PipelinePhase, SemanticType
+    from ..config import SemanticType
     from ..imputation._config import (
         ColumnRouting,
         ImputationRouting,
@@ -476,15 +464,15 @@ def route_profile(
     excluded = set(exclude_columns)
     skipped = set(skip_columns)
     declared = {entry.column: entry for entry in strategies}
-    config = _build_config(
-        dials, exclude_columns=exclude_columns, skip_columns=skip_columns, declared=declared
-    )
-    numeric_cfg = config.imputation.numeric
-    routed = route_columns(result, config).column_routings
+    config = _build_config(dials, declared=declared)
+    numeric_cfg = config.numeric
+    routed = route_columns(
+        result, config, exclude_columns=exclude_columns, skip_columns=skip_columns
+    ).column_routings
 
     # The same row count, predictor count and predictor view the router read.
     n_rows = result.dataset.row_count
-    active = set(config.resolve_active_columns(PipelinePhase.Imputation, list(result.columns)))
+    active = {c for c in result.columns if c not in excluded and c not in skipped}
     numeric_active = [c for c in result.columns if c in universe.numeric and c in active]
     feature_correlation = result.dataset.feature_correlation
     if feature_correlation is not None and (excluded or skipped):

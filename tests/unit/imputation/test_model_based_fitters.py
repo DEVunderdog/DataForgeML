@@ -16,8 +16,8 @@ import polars as pl
 import pytest
 from sklearn.impute import KNNImputer
 
-from dataforge_ml.config import PipelineConfig
 from dataforge_ml.imputation import (
+    ImputationConfig,
     ImputationStrategy,
     derive_units,
     fit_unit,
@@ -28,10 +28,12 @@ from dataforge_ml.imputation._config import ModelChoice
 from dataforge_ml.profiling.orchestrator import StructuralProfiler
 from dataforge_ml.utils._null_normalization import _resolve_effective_nulls
 
+_SEED = 7
+
 
 def _drive(df, cfg):
     """Route, resolve a recipe, and train every unit; return the fitted units."""
-    profile = StructuralProfiler(config=cfg).profile(df)
+    profile = StructuralProfiler().profile(df)
     routing = route(profile, cfg)
     recipe = resolve_recipe(routing, profile, cfg)
     units = derive_units(routing)
@@ -41,17 +43,16 @@ def _drive(df, cfg):
         string_sentinels=profile.string_sentinels,
     )
     fitted = {
-        unit.unit_id: fit_unit(recipe, unit, train, random_seed=cfg.random_seed).fitted
+        unit.unit_id: fit_unit(recipe, unit, train, random_seed=_SEED).fitted
         for unit in units
     }
     return profile, routing, units, train, fitted
 
 
 def _config(**per_column_strategy):
-    cfg = PipelineConfig()
-    cfg.random_seed = 7
+    cfg = ImputationConfig()
     for col, strategy in per_column_strategy.items():
-        cfg.imputation.numeric.set_per_column_strategy(col, strategy)
+        cfg.numeric.set_per_column_strategy(col, strategy)
     return cfg
 
 
@@ -235,7 +236,7 @@ def _nonlinear_frame(n, seed=1):
 def _mice_rmse_with_estimator(df, target_true, missing_idx, model_choice):
     """Fit MICE forced to ``model_choice`` via with_model_choice and measure RMSE."""
     cfg = _config(target=ImputationStrategy.MICE)
-    profile = StructuralProfiler(config=cfg).profile(df)
+    profile = StructuralProfiler().profile(df)
     routing = route(profile, cfg)
     routing = routing.with_model_choice(model_choice)
     recipe = resolve_recipe(routing, profile, cfg)
@@ -245,7 +246,7 @@ def _mice_rmse_with_estimator(df, target_true, missing_idx, model_choice):
         numeric_sentinels=profile.numeric_sentinels,
         string_sentinels=profile.string_sentinels,
     )
-    result = fit_unit(recipe, units[0], train, random_seed=cfg.random_seed)
+    result = fit_unit(recipe, units[0], train, random_seed=_SEED)
     out = result.fitted.transform(train)
     imputed = out["target"].to_numpy()[missing_idx]
     return float(np.sqrt(np.mean((imputed - target_true[missing_idx]) ** 2)))
@@ -306,10 +307,9 @@ def test_real_frame_ames_regression():
     pl_df = pl.from_pandas(df_masked)
 
     # 1. Widened KNN beats block-only
-    cfg = PipelineConfig()
-    cfg.random_seed = 42
-    cfg.imputation.numeric.set_per_column_strategy(target, ImputationStrategy.KNN)
-    profile = StructuralProfiler(config=cfg).profile(pl_df)
+    cfg = ImputationConfig()
+    cfg.numeric.set_per_column_strategy(target, ImputationStrategy.KNN)
+    profile = StructuralProfiler().profile(pl_df)
     routing = route(profile, cfg)
     recipe = resolve_recipe(routing, profile, cfg)
     unit = derive_units(routing, strategy=ImputationStrategy.KNN)[0]
@@ -337,10 +337,9 @@ def test_real_frame_ames_regression():
     pl_small = pl.from_pandas(df_small_masked)
 
     def fit_mice(choice):
-        c = PipelineConfig()
-        c.random_seed = 42
-        c.imputation.numeric.set_per_column_strategy(target, ImputationStrategy.MICE)
-        prof = StructuralProfiler(config=c).profile(pl_small)
+        c = ImputationConfig()
+        c.numeric.set_per_column_strategy(target, ImputationStrategy.MICE)
+        prof = StructuralProfiler().profile(pl_small)
         r = route(prof, c).with_model_choice(choice)
         rec = resolve_recipe(r, prof, c)
         u = derive_units(r, strategy=ImputationStrategy.MICE)[0]

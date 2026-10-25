@@ -1,5 +1,5 @@
 """
-``route(profile, config) -> ImputationRouting`` — the pure route-time layer.
+``route(profile, config, ...) -> ImputationRouting`` — the pure route-time layer.
 
 Routes every profiled column to its imputation strategy for every
 non-model-based path — Dropped, Constant, MNAR, Passthrough, the Bimodal
@@ -19,13 +19,15 @@ units belongs to later layers —
 from __future__ import annotations
 
 import dataclasses
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from ..config import PipelineConfig, PipelinePhase, SemanticType
+from ..config import SemanticType
 from ..profiling._numeric_config import NumericStats
 from ..records import DataForgeError
 from ._config import (
     ColumnRouting,
+    ImputationConfig,
     ImputationRouting,
     ImputationStrategy,
     ModelChoice,
@@ -107,7 +109,10 @@ def _filter_feature_correlation(feature_correlation, active_cols: set[str]):
 
 def route(
     profile: StructuralProfileResult,
-    config: PipelineConfig | None = None,
+    config: ImputationConfig | None = None,
+    *,
+    exclude_columns: Sequence[str] = (),
+    skip_columns: Sequence[str] = (),
 ) -> ImputationRouting:
     """Route every profiled column to its imputation strategy.
 
@@ -130,11 +135,11 @@ def route(
     ``profile.dataset.row_count`` — every other routing input already comes
     from the profile, so a mixed-shape decision is structurally impossible.
 
-    ``route`` resolves its own active column set for the Imputation phase
-    from ``config`` (Hard Exclusions plus Imputation-phase Soft Exclusions) —
-    no upstream filtering is relied on. A hard-excluded column is omitted from
-    the routing entirely; a soft-excluded column stays visible as a
-    ``Passthrough`` routing with the Routing Reason ``soft_excluded``.
+    ``route`` resolves its own active column set from ``exclude_columns``
+    and ``skip_columns`` — no upstream filtering is relied on. A hard-excluded
+    column is omitted from the routing entirely; a Soft Exclusion stays
+    visible as a ``Passthrough`` routing with the Routing Reason
+    ``soft_excluded``.
 
     Every column carries a Routing Reason and its typed Routing Evidence
     (ADR-0105). A non-numeric column is ``Passthrough`` with the reason
@@ -146,11 +151,14 @@ def route(
     profile : StructuralProfileResult
         Full-dataset Phase 1 profile. Supplies the routing signals and the
         routable-column population.
-    config : PipelineConfig, optional
-        Pipeline configuration supplying the imputation thresholds, MNAR
-        declarations, per-column overrides, and the exclusion lists resolved
-        into the Imputation-phase active column set. Defaults to
-        ``PipelineConfig()`` when omitted.
+    config : ImputationConfig, optional
+        Imputation configuration supplying the thresholds, MNAR declarations
+        and per-column overrides. Defaults to ``ImputationConfig()`` when
+        omitted.
+    exclude_columns : Sequence[str], optional
+        The Hard Exclusions, omitted from the routing.
+    skip_columns : Sequence[str], optional
+        The Imputation-phase Soft Exclusions, each routed ``Passthrough``.
 
     Returns
     -------
@@ -161,33 +169,29 @@ def route(
     Raises
     ------
     Conflict
-        ``declaration_conflict`` if a hard- or Imputation-soft-excluded column is also named in
+        ``declaration_conflict`` if an excluded or skipped column is also named in
         ``mnar_columns``, ``per_column_strategy``, or
         ``per_column_constant_fill`` — contradictory configuration surfaces at
         route-time, before any routing, with every offending column reported
         in one raise.
     """
-    config = config or PipelineConfig()
-    config.imputation.validate()
+    imp_cfg = config or ImputationConfig()
+    imp_cfg.validate()
 
-    imp_cfg = config.imputation
     numeric_cfg: NumericImputationConfig = imp_cfg.numeric
     mnar_columns = set(imp_cfg.mnar_columns)
     per_column_strategy = dict(numeric_cfg.per_column_strategy or {})
     per_column_constant_fill = dict(numeric_cfg.per_column_constant_fill or {})
 
-    # Resolve the Imputation-phase active column set from the config it
-    # already receives — the phase's own exclusion enforcement, never
-    # inherited from an upstream phase. Hard-excluded columns are omitted from
-    # the routing entirely; Imputation-soft-excluded columns stay visible as
-    # Passthrough.
-    hard_excluded = set(config.exclude_columns)
-    soft_excluded = set(
-        config.phase_exclusions.get(PipelinePhase.Imputation, ())
-    ) - hard_excluded
-    active_cols = set(
-        config.resolve_active_columns(PipelinePhase.Imputation, list(profile.columns))
-    )
+    # Resolve the active column set from the exclusions it receives — the
+    # phase's own exclusion enforcement, never inherited from an upstream
+    # phase. Hard-excluded columns are omitted from the routing entirely;
+    # skipped columns stay visible as Passthrough.
+    hard_excluded = set(exclude_columns)
+    soft_excluded = set(skip_columns) - hard_excluded
+    active_cols = {
+        c for c in profile.columns if c not in hard_excluded and c not in soft_excluded
+    }
     _raise_on_excluded_column_overrides(
         hard_excluded | soft_excluded,
         mnar_columns=mnar_columns,

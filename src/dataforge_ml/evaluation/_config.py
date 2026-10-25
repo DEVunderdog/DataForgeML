@@ -1,10 +1,7 @@
 """Configuration for the evaluation module — dials for C2ST.
 
-:class:`C2STConfig` **stands alone and is never nested on**
-``PipelineConfig``, deliberately breaking ADR-0030's Phase Sub-Config topology
-(ADR-0087): ``PipelineConfig`` is built once for a run, whereas evaluation is
-opt-in, stateless, and re-configured freely between calls while poking at
-results.
+:class:`C2STConfig` **stands alone** (ADR-0087): evaluation is opt-in,
+stateless, and re-configured freely between calls while poking at results.
 """
 
 from __future__ import annotations

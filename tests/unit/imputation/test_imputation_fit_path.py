@@ -14,7 +14,8 @@ convenience it tested (ADR-0021's tuple return) no longer exists, and
 
 import polars as pl
 
-from dataforge_ml.config import PipelineConfig, SemanticType
+from dataforge_ml.config import SemanticType
+from dataforge_ml.imputation import ImputationConfig
 from dataforge_ml.imputation._config import ImputationStrategy
 from dataforge_ml.imputation._fitted_imputer import FittedImputer
 from dataforge_ml.profiling._config import (
@@ -228,52 +229,48 @@ def _numeric_cp_mnar(col: str) -> ColumnProfile:
 
 
 def test_indicator_record_present_in_records_after_fit_before_transform():
-    from dataforge_ml.config import PipelineConfig
 
     df = pl.DataFrame({"income": pl.Series([1.0, None, 3.0] * 4, dtype=pl.Float64)})
     profile = _make_profile({"income": _numeric_cp_mnar("income")})
 
-    cfg = PipelineConfig()
-    cfg.imputation.add_mnar_column("income")
+    cfg = ImputationConfig()
+    cfg.add_mnar_column("income")
     fi = fit_imputer(df, profile, cfg)
 
     assert "income_missing" in fi.records
 
 
 def test_indicator_record_has_strategy_indicator():
-    from dataforge_ml.config import PipelineConfig
 
     df = pl.DataFrame({"income": pl.Series([1.0, None, 3.0] * 4, dtype=pl.Float64)})
     profile = _make_profile({"income": _numeric_cp_mnar("income")})
 
-    cfg = PipelineConfig()
-    cfg.imputation.add_mnar_column("income")
+    cfg = ImputationConfig()
+    cfg.add_mnar_column("income")
     fi = fit_imputer(df, profile, cfg)
 
     assert fi.records["income_missing"].decision.strategy == ImputationStrategy.Indicator
 
 
 def test_indicator_record_has_boolean_semantic_type():
-    from dataforge_ml.config import PipelineConfig
 
     df = pl.DataFrame({"income": pl.Series([1.0, None, 3.0] * 4, dtype=pl.Float64)})
     profile = _make_profile({"income": _numeric_cp_mnar("income")})
 
-    cfg = PipelineConfig()
-    cfg.imputation.add_mnar_column("income")
+    cfg = ImputationConfig()
+    cfg.add_mnar_column("income")
     fi = fit_imputer(df, profile, cfg)
 
     assert fi.records["income_missing"].decision.semantic_type == SemanticType.Boolean
 
 
 def test_indicator_record_indicator_added_is_false():
-    from dataforge_ml.config import PipelineConfig
 
     df = pl.DataFrame({"income": pl.Series([1.0, None, 3.0] * 4, dtype=pl.Float64)})
     profile = _make_profile({"income": _numeric_cp_mnar("income")})
 
-    cfg = PipelineConfig()
-    cfg.imputation.add_mnar_column("income")
+    cfg = ImputationConfig()
+    cfg.add_mnar_column("income")
     fi = fit_imputer(df, profile, cfg)
 
     assert fi.records["income_missing"].indicator_added is False
@@ -288,13 +285,12 @@ def test_indicator_record_not_present_when_no_indicator_added_columns():
 
 
 def test_indicator_record_round_trips_via_to_dict_from_dict(round_trip):
-    from dataforge_ml.config import PipelineConfig
 
     df = pl.DataFrame({"income": pl.Series([1.0, None, 3.0] * 4, dtype=pl.Float64)})
     profile = _make_profile({"income": _numeric_cp_mnar("income")})
 
-    cfg = PipelineConfig()
-    cfg.imputation.add_mnar_column("income")
+    cfg = ImputationConfig()
+    cfg.add_mnar_column("income")
     fi = fit_imputer(df, profile, cfg)
 
     restored = round_trip(fi)
@@ -350,17 +346,17 @@ def test_fit_numeric_sentinels_empty_when_profile_has_none():
 
 def test_imputation_orchestrator_raises_on_invalid_config_before_processing():
     """
-    Ensure the orchestrator calls config.imputation.validate() before processing.
+    Ensure the orchestrator calls config.validate() before processing.
     We construct a conflicting config via legitimate setters and verify it raises.
     """
     df = pl.DataFrame({"a": pl.Series([1.0, None, 3.0], dtype=pl.Float64)})
     profile = _make_profile({"a": _numeric_cp_with_nulls("a")})
     
-    cfg = PipelineConfig()
+    cfg = ImputationConfig()
     # Add MNAR column first
-    cfg.imputation.add_mnar_column("a")
+    cfg.add_mnar_column("a")
     # Set per_column_strategy using legitimate setter, creating conflict
-    cfg.imputation.numeric.set_per_column_strategy("a", ImputationStrategy.Median)
+    cfg.numeric.set_per_column_strategy("a", ImputationStrategy.Median)
     
     # ``route()`` validates the config before it routes anything, so a
     # contradictory config is rejected at route time rather than at fit time.

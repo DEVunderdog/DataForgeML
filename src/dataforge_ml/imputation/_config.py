@@ -164,7 +164,7 @@ def _output_only_redirect(column: str, strategy: ImputationStrategy) -> DataForg
     if strategy == ImputationStrategy.Dropped:
         message = (
             f"Column '{column}': 'Dropped' cannot be used in per_column_strategy. "
-            f"To exclude a column, use PipelineConfig.exclude_columns."
+            f"To exclude a column, pass it in exclude_columns."
         )
     elif strategy == ImputationStrategy.MNAR:
         message = (
@@ -317,7 +317,7 @@ class NumericImputationConfig:
     InvalidInput
         ``strategy_not_declarable`` if any column in ``per_column_strategy`` is
         mapped to ``Passthrough``, ``Indicator``, ``Dropped``, or ``MNAR``.
-        ``Dropped`` columns should use ``PipelineConfig.exclude_columns``;
+        ``Dropped`` columns should be passed in ``exclude_columns``;
         ``MNAR`` columns should use ``mnar_columns``; ``Passthrough`` and
         ``Indicator`` are internal-only. ``constant_fill_missing`` if a
         ``Constant`` column has no ``per_column_constant_fill`` entry.

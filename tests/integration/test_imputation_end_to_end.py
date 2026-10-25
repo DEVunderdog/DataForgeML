@@ -10,9 +10,9 @@ escalation-point ticket's concern.
 import polars as pl
 import pytest
 
-from dataforge_ml.config import PipelineConfig, PipelinePhase
 from dataforge_ml.imputation import (
     FittedImputer,
+    ImputationConfig,
     ImputationStrategy,
     author,
     derive_units,
@@ -57,8 +57,7 @@ def imputation_df(rng):
 
 @pytest.fixture(scope="module")
 def imputation_profile(imputation_df):
-    config = PipelineConfig(profiling=ProfileConfig())
-    return StructuralProfiler(config).profile(imputation_df)
+    return StructuralProfiler().profile(imputation_df)
 
 
 @pytest.fixture(scope="module")
@@ -144,7 +143,6 @@ def test_fitted_imputer_serialisation_round_trip(fitted_imputer, imputation_spli
 def test_mnar_column_keeps_its_nulls_and_exposes_its_fill():
     """An MNAR column gains its indicator, keeps its nulls, and carries the
     computed fill on its record rather than applying it (ADR-0098)."""
-    from dataforge_ml.imputation import ImputationConfig
 
     n = 200
     data = pl.DataFrame({
@@ -153,10 +151,9 @@ def test_mnar_column_keeps_its_nulls_and_exposes_its_fill():
             dtype=pl.Float64,
         ),
     })
-    imputation_config = ImputationConfig()
-    imputation_config.add_mnar_column("salary")
-    config = PipelineConfig(imputation=imputation_config)
-    profile = StructuralProfiler(PipelineConfig()).profile(data)
+    config = ImputationConfig()
+    config.add_mnar_column("salary")
+    profile = StructuralProfiler().profile(data)
     result = fit_imputer(data, profile, config).transform(data)
 
     assert result.dataframe["salary"].equals(data["salary"])
@@ -207,31 +204,13 @@ def drop_candidate_df():
 
 @pytest.fixture(scope="module")
 def drop_candidate_profile(drop_candidate_df):
-    return StructuralProfiler(PipelineConfig()).profile(drop_candidate_df)
+    return StructuralProfiler().profile(drop_candidate_df)
 
 
 def test_drop_candidate_column_in_dropped_columns(drop_candidate_df, drop_candidate_profile):
     fi = fit_imputer(drop_candidate_df, drop_candidate_profile)
     result = fi.transform(drop_candidate_df)
     assert "sparse" in result.dropped_columns
-
-
-def test_drop_candidate_apply_exclusions_adds_column_to_config(drop_candidate_df, drop_candidate_profile):
-    fi = fit_imputer(drop_candidate_df, drop_candidate_profile)
-    config = PipelineConfig()
-    fi.apply_exclusions(config)
-    assert "sparse" in config.exclude_columns
-
-
-def test_drop_candidate_resolve_active_columns_excludes_dropped(drop_candidate_df, drop_candidate_profile):
-    fi = fit_imputer(drop_candidate_df, drop_candidate_profile)
-    config = PipelineConfig()
-    fi.apply_exclusions(config)
-    active = config.resolve_active_columns(
-        PipelinePhase.Imputation, list(drop_candidate_df.columns)
-    )
-    assert "sparse" not in active
-    assert "dense" in active
 
 
 # ---------------------------------------------------------------------------
@@ -280,29 +259,24 @@ def exclusion_df(rng):
 def exclusion_profile(exclusion_df):
     # Profiled with no exclusions declared: both exclusions are added after
     # profiling, exercising the route()-time enforcement path on its own.
-    return StructuralProfiler(PipelineConfig()).profile(exclusion_df)
+    return StructuralProfiler().profile(exclusion_df)
+
+
+_EXCLUSIONS = {"exclude_columns": ["hard_out"], "skip_columns": ["soft_out"]}
 
 
 @pytest.fixture(scope="module")
-def exclusion_config():
-    config = PipelineConfig()
-    config.add_exclusion("hard_out")
-    config.add_phase_exclusion(PipelinePhase.Imputation, "soft_out")
-    return config
-
-
-@pytest.fixture(scope="module")
-def exclusion_fitted(exclusion_df, exclusion_profile, exclusion_config):
+def exclusion_fitted(exclusion_df, exclusion_profile):
     """Fit over the full door with the hard-excluded column dropped by the user."""
     train = exclusion_df.drop("hard_out")
-    return fit_imputer(train, exclusion_profile, exclusion_config)
+    return fit_imputer(train, exclusion_profile, **_EXCLUSIONS)
 
 
-def test_exclusion_plan_shape(exclusion_df, exclusion_profile, exclusion_config):
+def test_exclusion_plan_shape(exclusion_df, exclusion_profile):
     """Soft-excluded column is Passthrough with the soft_excluded reason; hard-excluded column is absent."""
     from dataforge_ml.imputation import ImputationStrategy
 
-    routing = route(exclusion_profile, exclusion_config)
+    routing = route(exclusion_profile, **_EXCLUSIONS)
     assert "hard_out" not in routing.column_routings
     soft = routing.column_routings["soft_out"]
     assert soft.strategy == ImputationStrategy.Passthrough
@@ -384,16 +358,14 @@ def test_numeric_sentinel_end_to_end_fit_transform(round_trip):
 
     df = pl.DataFrame({"age": pl.Series(age_vals, dtype=pl.Int64)})
 
-    config = PipelineConfig(
-        profiling=ProfileConfig(numeric_sentinels={"age": [-999.0]}),
-        random_seed=42,
-    )
-    profile = StructuralProfiler(config).profile(df)
+    profile = StructuralProfiler(
+        ProfileConfig(numeric_sentinels={"age": [-999.0]})
+    ).profile(df)
 
     # Profile must carry the declared sentinels.
     assert profile.numeric_sentinels == {"age": [-999.0]}
 
-    fi = fit_imputer(df, profile, config)
+    fi = fit_imputer(df, profile, random_seed=42)
 
     # FittedImputer must carry the sentinels.
     assert fi.numeric_sentinels == {"age": [-999.0]}
@@ -470,8 +442,7 @@ def test_hand_authored_plan_drives_column_names_to_an_imputed_frame():
         pl.when(idx % 13 == 0).then(None).otherwise(pl.col("tenure")).alias("tenure"),
     )
 
-    config = PipelineConfig(profiling=ProfileConfig())
-    profile = StructuralProfiler(config).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     routing = author(
         {
@@ -484,7 +455,7 @@ def test_hand_authored_plan_drives_column_names_to_an_imputed_frame():
         },
         profile=profile,
     )
-    recipe = resolve_recipe(routing, profile, config)
+    recipe = resolve_recipe(routing, profile)
     units = derive_units(routing)
     assert {u.unit_id for u in units} == {
         "median:score",
@@ -536,8 +507,7 @@ def test_re_authored_routed_plan_drives_to_an_imputed_frame(
     null.
     """
     train = imputation_split.train
-    config = PipelineConfig()
-    routed = route(imputation_profile, config)
+    routed = route(imputation_profile)
 
     edited = author({"rating": ImputationStrategy.Median}, base=routed)
 
@@ -546,7 +516,7 @@ def test_re_authored_routed_plan_drives_to_an_imputed_frame(
     for col in ("score", "revenue", "label"):
         assert edited.column_routings[col] == routed.column_routings[col]
 
-    recipe = resolve_recipe(edited, imputation_profile, config)
+    recipe = resolve_recipe(edited, imputation_profile)
     units = derive_units(edited)
     results = {
         unit.unit_id: fit_unit(recipe, unit, train, random_seed=42)
@@ -593,7 +563,7 @@ def purity_df(rng):
 
 @pytest.fixture(scope="module")
 def purity_profile(purity_df):
-    return StructuralProfiler(PipelineConfig(profiling=ProfileConfig())).profile(
+    return StructuralProfiler(ProfileConfig()).profile(
         purity_df
     )
 
@@ -645,10 +615,10 @@ def test_forced_gmm_sampling_end_to_end_on_bounded_discrete_snaps_output():
     ]
     df = pl.DataFrame({"age": pl.Series(vals_masked, dtype=pl.Float64)})
 
-    cfg = PipelineConfig()
-    cfg.imputation.numeric.set_per_column_strategy("age", ImputationStrategy.GMMSampling)
+    cfg = ImputationConfig()
+    cfg.numeric.set_per_column_strategy("age", ImputationStrategy.GMMSampling)
 
-    profile = StructuralProfiler(cfg).profile(df)
+    profile = StructuralProfiler().profile(df)
     assert profile.columns["age"].numeric_kind == NumericKind.BoundedDiscrete
 
     imputer = fit_imputer(df, profile, cfg)

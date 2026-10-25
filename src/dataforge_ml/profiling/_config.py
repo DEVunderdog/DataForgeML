@@ -50,7 +50,7 @@ from ._type_detection_config import TypeDetectionConfig
 class NumericKind(StrEnum):
     """The NumericKind of a Numeric column: ``Continuous`` or ``BoundedDiscrete``.
 
-    Set by detection, or by the caller via ``set_numeric_kind``.
+    Set by detection, or by the caller via ``StructuralProfiler``'s ``numeric_kinds``.
     """
 
     Continuous = "continuous"
@@ -704,7 +704,7 @@ class ProfileConfig:
         The format is applied by ``DatetimeProfiler`` with ``strict=False``
         when coercing the column to Datetime, and is not validated against
         strftime grammar or the data at declaration time — a bad format
-        surfaces at profiling time, consistent with ``set_column_type`` and
+        surfaces at profiling time, consistent with semantic-type declarations and
         ``set_datetime_epoch_unit``.
 
         Parameters

@@ -24,8 +24,13 @@ import numpy as np
 import polars as pl
 import pytest
 
-from dataforge_ml.config import PipelineConfig
-from dataforge_ml.imputation import derive_units, fit_unit, resolve_recipe, route
+from dataforge_ml.imputation import (
+    ImputationConfig,
+    derive_units,
+    fit_unit,
+    resolve_recipe,
+    route,
+)
 from dataforge_ml.profiling.orchestrator import StructuralProfiler
 
 STRATEGY_CASES = [
@@ -190,11 +195,10 @@ def _case(strategy_name):
     (unit, fitted) pairs and the probe frame the assertions run against."""
     if strategy_name in _FORCED_STRATEGIES:
         df = _train_frame()
-        config = PipelineConfig()
-        config.random_seed = 7
+        config = ImputationConfig()
         for col in _TARGET_COLS:
-            config.imputation.numeric.set_per_column_strategy(col, strategy_name)
-        profile = StructuralProfiler(config=config).profile(df)
+            config.numeric.set_per_column_strategy(col, strategy_name)
+        profile = StructuralProfiler().profile(df)
         routing = route(profile, config)
         recipe = resolve_recipe(routing, profile, config)
         units = _select_units(derive_units(routing), strategy_name, _TARGET_COLS)
@@ -202,12 +206,11 @@ def _case(strategy_name):
 
     grouped = strategy_name == "cluster_conditional"
     df = _bimodal_train_frame(grouped=grouped)
-    config = PipelineConfig()
-    config.random_seed = 7
+    config = ImputationConfig()
     if grouped:
         for col in _BIMODAL_COLS:
-            config.imputation.numeric.set_bimodal_grouping_variable(col, "grp")
-    profile = StructuralProfiler(config=config).profile(df)
+            config.numeric.set_bimodal_grouping_variable(col, "grp")
+    profile = StructuralProfiler().profile(df)
     routing = route(profile, config)
     recipe = resolve_recipe(routing, profile, config)
     units = _select_units(derive_units(routing), strategy_name, _BIMODAL_COLS)
@@ -223,7 +226,7 @@ def _authored_case():
     from dataforge_ml.imputation import ImputationStrategy, author
 
     df = _train_frame()
-    profile = StructuralProfiler(config=PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
     routing = author(
         {
             "rating": ImputationStrategy.Median,
@@ -232,7 +235,7 @@ def _authored_case():
         },
         profile=profile,
     )
-    recipe = resolve_recipe(routing, profile, PipelineConfig())
+    recipe = resolve_recipe(routing, profile, ImputationConfig())
     units = _select_units(derive_units(routing), "median", _TARGET_COLS)
     return _fit_all(recipe, units, df), _probe_frame(raw_nan=False)
 

@@ -1,4 +1,4 @@
-from ..config import Modality, PipelineConfig, PipelinePhase, SemanticType
+from ..config import Modality, SemanticType
 from ._base import ModalityProfiler
 from ._categorical_config import CategoricalProfileConfig
 from ._config import (
@@ -37,8 +37,6 @@ __all__ = [
     "NumericKind",
     "NumericProfileConfig",
     "NumericStats",
-    "PipelineConfig",
-    "PipelinePhase",
     "ProfileConfig",
     "SemanticType",
     "StructuralProfileResult",

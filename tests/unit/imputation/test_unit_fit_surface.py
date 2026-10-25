@@ -17,10 +17,10 @@ import numpy as np
 import polars as pl
 
 from dataforge_ml._boundary._error_codes import REGISTRY
-from dataforge_ml.config import PipelineConfig
 from dataforge_ml.imputation import (
     FitSignals,
     FittedImputer,
+    ImputationConfig,
     ImputationStrategy,
     ImputationUnit,
     UnitFitResult,
@@ -49,8 +49,8 @@ def _holey_frame(n=250, seed=0):
 
 
 def _routing_and_recipe(df, config=None):
-    config = config or PipelineConfig()
-    profile = StructuralProfiler(config=config).profile(df)
+    config = config or ImputationConfig()
+    profile = StructuralProfiler().profile(df)
     routing = route(profile, config)
     recipe = resolve_recipe(routing, profile, config)
     return profile, routing, recipe
@@ -144,8 +144,8 @@ def test_application_order_is_routing_order():
     ungrouped = _bimodal_frame(seed=11, grouped=False).rename({"bi": "bi_free"})
     df = pl.concat([grouped, ungrouped], how="horizontal_extend")
 
-    config = PipelineConfig()
-    config.imputation.numeric.set_bimodal_grouping_variable("bi_grouped", "grp")
+    config = ImputationConfig()
+    config.numeric.set_bimodal_grouping_variable("bi_grouped", "grp")
     _, routing, recipe = _routing_and_recipe(df, config)
     units = derive_units(routing)
     results = _fit_all(recipe, units, df)
@@ -178,7 +178,7 @@ def test_untrainable_unit_raises_with_structured_payload():
     df = pl.DataFrame({"x": [1.0, None, 3.0, None, 5.0]})
     profile, _, _ = _routing_and_recipe(df)
     routing = author({"x": ImputationStrategy.ClusterConditional}, profile=profile)
-    recipe = resolve_recipe(routing, profile, PipelineConfig())
+    recipe = resolve_recipe(routing, profile, ImputationConfig())
     (unit,) = derive_units(routing)
     assert recipe.column_estimates["x"].center1 is None
 
@@ -221,8 +221,8 @@ def test_imputation_fit_warning_is_gone_from_both_public_namespaces():
 
 def test_an_unconverged_mice_fit_returns_a_coded_warning_and_emits_none():
     df = _holey_frame()
-    config = PipelineConfig()
-    config.imputation.numeric.set_per_column_strategy(["a", "b", "c"], "mice")
+    config = ImputationConfig()
+    config.numeric.set_per_column_strategy(["a", "b", "c"], "mice")
     _, routing, recipe = _routing_and_recipe(df, config)
     (unit,) = derive_units(routing, strategy=ImputationStrategy.MICE)
     recipe = recipe.with_hyperparameters(unit.unit_id, {"max_iter": 1, "tol": 0.0})
@@ -254,8 +254,8 @@ def test_fit_signals_reports_the_estimator_for_a_gmm_unit():
 def test_fitting_beside_an_all_null_column_emits_no_python_warning():
     # An all-null column is the shape that makes numpy's nan-reductions warn.
     df =_holey_frame().with_columns(pl.lit(None, dtype=pl.Float64).alias("empty"))
-    config = PipelineConfig()
-    config.imputation.numeric.set_per_column_strategy(["a", "b", "c"], "knn")
+    config = ImputationConfig()
+    config.numeric.set_per_column_strategy(["a", "b", "c"], "knn")
     _, routing, recipe = _routing_and_recipe(df, config)
     units = derive_units(routing)
 
@@ -290,8 +290,8 @@ def test_fit_unit_signature_takes_a_recipe_and_defaults_n_jobs_inner_to_minus_on
 def test_derive_units_selects_by_strategy_without_naming_a_unit_id():
     """The selection surface: an enum the checker sees, not a typed literal."""
     df = _bimodal_frame(grouped=True)
-    config = PipelineConfig()
-    config.imputation.numeric.set_bimodal_grouping_variable("bi", "grp")
+    config = ImputationConfig()
+    config.numeric.set_bimodal_grouping_variable("bi", "grp")
     _, routing, _ = _routing_and_recipe(df, config)
 
     (unit,) = derive_units(routing, strategy=ImputationStrategy.ClusterConditional)
@@ -303,8 +303,8 @@ def test_derive_units_selects_by_strategy_without_naming_a_unit_id():
 def test_derive_units_returns_empty_when_nothing_routed_to_the_strategy():
     """The empty case is ordinary, so it is a zero-length tuple — never None, never a raise."""
     df = _holey_frame()
-    config = PipelineConfig()
-    config.imputation.numeric.set_per_column_strategy(["a", "b", "c"], "median")
+    config = ImputationConfig()
+    config.numeric.set_per_column_strategy(["a", "b", "c"], "median")
     _, routing, _ = _routing_and_recipe(df, config)
 
     assert derive_units(routing, strategy=ImputationStrategy.MICE) == ()
@@ -321,8 +321,8 @@ def test_fit_unit_always_reads_the_recipes_current_hyperparameters():
     df = pl.DataFrame(
         {"x": [1.0, 2.0, None, None, 3.0, 4.0, 5.0, None, 6.0, 7.0] * 5}
     )
-    config = PipelineConfig()
-    config.imputation.add_mnar_column("x")
+    config = ImputationConfig()
+    config.add_mnar_column("x")
     _, routing, recipe = _routing_and_recipe(df, config)
     (unit,) = derive_units(routing, strategy=ImputationStrategy.MNAR)
 
@@ -337,8 +337,8 @@ def test_fit_unit_always_reads_the_recipes_current_hyperparameters():
 
 def test_a_misspelt_dial_or_unit_id_raises_with_close_matches():
     df = pl.DataFrame({"x": pl.Series([1.0, None, 3.0, 4.0, None, 6.0] * 10)})
-    config = PipelineConfig()
-    config.imputation.add_mnar_column("x")
+    config = ImputationConfig()
+    config.add_mnar_column("x")
     _, routing, recipe = _routing_and_recipe(df, config)
     (unit,) = derive_units(routing, strategy=ImputationStrategy.MNAR)
 
@@ -357,8 +357,8 @@ def test_mnar_signals_say_the_fill_is_computed_not_applied():
     df = pl.DataFrame(
         {"x": [1.0, 2.0, None, None, 3.0, 4.0, 5.0, None, 6.0, 7.0] * 5}
     )
-    config = PipelineConfig()
-    config.imputation.add_mnar_column("x")
+    config = ImputationConfig()
+    config.add_mnar_column("x")
     _, routing, recipe = _routing_and_recipe(df, config)
     (unit,) = derive_units(routing, strategy=ImputationStrategy.MNAR)
 
@@ -372,8 +372,8 @@ def test_an_mnar_units_own_transform_is_the_opt_in_fill():
     df = pl.DataFrame(
         {"x": [1.0, 2.0, None, None, 3.0, 4.0, 5.0, None, 6.0, 7.0] * 5}
     )
-    config = PipelineConfig()
-    config.imputation.add_mnar_column("x")
+    config = ImputationConfig()
+    config.add_mnar_column("x")
     _, routing, recipe = _routing_and_recipe(df, config)
     (unit,) = derive_units(routing, strategy=ImputationStrategy.MNAR)
     fitted = fit_unit(recipe, unit, df).fitted
@@ -454,10 +454,9 @@ def test_a_reloaded_routing_resolves_and_fits_identically():
         }
     )
 
-    config = PipelineConfig()
-    config.random_seed = 11
-    config.imputation.numeric.set_bimodal_grouping_variable("bi", "grp")
-    config.imputation.numeric.set_per_column_constant_fill("k", -9.0)
+    config = ImputationConfig()
+    config.numeric.set_bimodal_grouping_variable("bi", "grp")
+    config.numeric.set_per_column_constant_fill("k", -9.0)
     profile, routing, recipe = _routing_and_recipe(df, config)
     units = derive_units(routing)
     assert any(u.unit_id == "cluster_conditional:bi" for u in units)

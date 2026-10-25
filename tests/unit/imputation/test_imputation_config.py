@@ -1,13 +1,12 @@
 """
-Unit tests for ImputationConfig, NumericImputationConfig, and PipelineConfig
-imputation wiring.
+Unit tests for ImputationConfig and NumericImputationConfig.
 
 All tests are pure — no DataFrames, no StructuralProfiler.
 """
 
 import pytest
 
-from dataforge_ml.config import PipelineConfig, SemanticType
+from dataforge_ml.config import SemanticType
 from dataforge_ml.imputation import (
     ColumnImputationRecord,
     ColumnRouting,
@@ -478,127 +477,6 @@ def test_imputation_config_from_dict_raises_on_invalid_entry():
 
 
 # ---------------------------------------------------------------------------
-# PipelineConfig — imputation field wiring
-# ---------------------------------------------------------------------------
-
-
-def test_pipeline_config_has_imputation_field():
-    cfg = PipelineConfig()
-    assert hasattr(cfg, "imputation")
-
-
-def test_pipeline_config_imputation_default_is_imputation_config():
-    cfg = PipelineConfig()
-    assert isinstance(cfg.imputation, ImputationConfig)
-
-
-def test_pipeline_config_imputation_default_has_correct_thresholds():
-    cfg = PipelineConfig()
-    assert cfg.imputation.numeric.knn_max_rows == 50_000
-    assert cfg.imputation.numeric.mice_min_rows_per_predictor == 2
-
-
-def test_pipeline_config_two_instances_have_independent_imputation_configs():
-    cfg1 = PipelineConfig()
-    cfg2 = PipelineConfig()
-    cfg1.imputation.add_mnar_column("x")
-    assert cfg2.imputation.mnar_columns == ()
-
-
-# ---------------------------------------------------------------------------
-# PipelineConfig — to_dict includes imputation
-# ---------------------------------------------------------------------------
-
-
-def test_pipeline_config_to_dict_includes_imputation_key():
-    cfg = PipelineConfig()
-    d = cfg.to_dict()
-    assert "imputation" in d
-
-
-def test_pipeline_config_to_dict_imputation_contains_numeric():
-    cfg = PipelineConfig()
-    d = cfg.to_dict()
-    assert "numeric" in d["imputation"]
-    assert d["imputation"]["numeric"]["knn_max_rows"] == 50_000
-
-
-def test_pipeline_config_to_dict_imputation_contains_mnar_columns():
-    cfg = PipelineConfig()
-    cfg.imputation = ImputationConfig()
-    cfg.imputation.add_mnar_column(["col_a"])
-    d = cfg.to_dict()
-    assert d["imputation"]["mnar_columns"] == ["col_a"]
-
-
-# ---------------------------------------------------------------------------
-# PipelineConfig — from_dict reconstructs imputation
-# ---------------------------------------------------------------------------
-
-
-def test_pipeline_config_from_dict_reconstructs_imputation_config():
-    d = {
-        "exclude_columns": [],
-        "phase_exclusions": {},
-        "column_overrides": {},
-        "profiling": {},
-        "imputation": {
-            "numeric": {"knn_max_rows": 20_000, "mice_min_rows_per_predictor": 3},
-            "mnar_columns": ["revenue"],
-        },
-    }
-    cfg = PipelineConfig.from_dict(d)
-    assert isinstance(cfg.imputation, ImputationConfig)
-    assert cfg.imputation.numeric.knn_max_rows == 20_000
-    assert cfg.imputation.numeric.mice_min_rows_per_predictor == 3
-    assert cfg.imputation.mnar_columns == ("revenue",)
-
-
-def test_pipeline_config_from_dict_without_imputation_key_uses_defaults():
-    d = {
-        "exclude_columns": [],
-        "phase_exclusions": {},
-        "column_overrides": {},
-        "profiling": {},
-    }
-    cfg = PipelineConfig.from_dict(d)
-    assert isinstance(cfg.imputation, ImputationConfig)
-    assert cfg.imputation.numeric.knn_max_rows == 50_000
-
-
-# ---------------------------------------------------------------------------
-# PipelineConfig — full round-trip with imputation
-# ---------------------------------------------------------------------------
-
-
-def test_pipeline_config_round_trip_includes_imputation():
-    original = PipelineConfig()
-    original.add_exclusion("id")
-    original.imputation = ImputationConfig(
-        numeric=NumericImputationConfig(
-            knn_max_rows=15_000,
-            mice_min_rows_per_predictor=6,
-        ),
-    )
-    original.imputation.add_mnar_column(["salary", "age"])
-    restored = PipelineConfig.from_json(original.to_json())
-
-    assert restored.exclude_columns == ("id",)
-    assert isinstance(restored.imputation, ImputationConfig)
-    assert restored.imputation.numeric.knn_max_rows == 15_000
-    assert restored.imputation.numeric.mice_min_rows_per_predictor == 6
-    assert restored.imputation.mnar_columns == ("salary", "age")
-
-
-def test_pipeline_config_round_trip_empty_config_imputation_defaults():
-    original = PipelineConfig()
-    restored = PipelineConfig.from_json(original.to_json())
-
-    assert restored.imputation.mnar_columns == ()
-    assert restored.imputation.numeric.knn_max_rows == 50_000
-
-
-# ---------------------------------------------------------------------------
 # ColumnImputationRecord — round trip via ColumnRouting
 # ---------------------------------------------------------------------------
 
@@ -641,7 +519,7 @@ def test_per_column_strategy_rejects_indicator():
 
 
 def test_per_column_strategy_rejects_dropped_names_exclude_columns():
-    with raises_code("strategy_not_declarable", match="PipelineConfig.exclude_columns"):
+    with raises_code("strategy_not_declarable", match="exclude_columns"):
         NumericImputationConfig(
             _per_column_strategy={"col_a": ImputationStrategy.Dropped}
         )

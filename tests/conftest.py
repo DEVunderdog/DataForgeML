@@ -19,7 +19,16 @@ def rng() -> Callable[..., np.random.Generator]:
     return _make
 
 
-def fit_imputer(train_df, profile, config=None, observer=None):
+def fit_imputer(
+    train_df,
+    profile,
+    config=None,
+    observer=None,
+    *,
+    exclude_columns=(),
+    skip_columns=(),
+    random_seed=None,
+):
     """Fit a FittedImputer over the user-orchestrated route → fit_unit → compose path.
 
     The imputation door is layered by design (ADR-0071, ADR-0088/0089), so a
@@ -31,7 +40,6 @@ def fit_imputer(train_df, profile, config=None, observer=None):
     contents, per-unit training) should drive the steps directly rather than
     call this.
     """
-    from dataforge_ml.config import PipelineConfig
     from dataforge_ml.imputation import (
         FittedImputer,
         derive_units,
@@ -40,14 +48,13 @@ def fit_imputer(train_df, profile, config=None, observer=None):
         route,
     )
 
-    config = config or PipelineConfig()
-    routing = route(profile, config)
+    routing = route(
+        profile, config, exclude_columns=exclude_columns, skip_columns=skip_columns
+    )
     recipe = resolve_recipe(routing, profile, config)
     units = derive_units(routing)
     results = {
-        unit.unit_id: fit_unit(
-            recipe, unit, train_df, random_seed=config.random_seed
-        )
+        unit.unit_id: fit_unit(recipe, unit, train_df, random_seed=random_seed)
         for unit in units
     }
     return FittedImputer.compose(recipe, results)

@@ -466,10 +466,7 @@ def _issues_error(code: str, message: str, fields: dict[str, Any]) -> DataForgeE
     return DataForgeError.from_code("invalid_dial_value", message, **fields)
 
 
-def _build_config(
-    declared: _Declared, skip_columns: Sequence[str], dials: _Dials
-) -> Any:
-    from ..config import PipelineConfig, PipelinePhase
+def _build_config(declared: _Declared, dials: _Dials) -> Any:
     from ..profiling._config import ProfileConfig
 
     groups = {
@@ -488,7 +485,7 @@ def _build_config(
         for c, values in declared.sentinels.items()
         if c not in numeric_sentinels
     }
-    profiling = ProfileConfig(
+    return ProfileConfig(
         target_columns=list(declared.targets),
         # Always on (ADR-0104): routing reads both, so no switch may weaken it.
         compute_correlation=True,
@@ -502,16 +499,6 @@ def _build_config(
         },
         **groups,
     )
-    config = PipelineConfig(profiling=profiling)
-    for column, semantic_type in declared.semantic_types.items():
-        config.set_column_type(column, semantic_type)
-    for column, kind in declared.numeric_kinds.items():
-        config.set_numeric_kind(column, kind)
-    if declared.exclusions:
-        config.add_exclusion(list(declared.exclusions))
-    if skip_columns:
-        config.add_phase_exclusion(PipelinePhase.Profiling, list(skip_columns))
-    return config
 
 
 def _finite(value: Any) -> float | None:
@@ -727,6 +714,8 @@ def profile_frame(
         ``invalid_dial_value`` naming every problem argument, plus the frame
         Handle's own errors and ``override_coercion_failed``.
     """
+    from ..config import SemanticType
+    from ..profiling._config import NumericKind
     from ..profiling._fallbacks import collect_fallbacks
     from ..profiling.orchestrator import StructuralProfiler
 
@@ -748,10 +737,20 @@ def profile_frame(
     if issues:
         _raise_issues(issues, list(data.columns))
 
-    config = _build_config(declared, skip_columns, dials)
+    config = _build_config(declared, dials)
     with collect_fallbacks() as fallbacks:
         result = StructuralProfiler(
-            config, observer=progress_observer(), seed=seed
+            config,
+            exclude_columns=declared.exclusions,
+            skip_columns=skip_columns,
+            column_types={
+                c: SemanticType(t) for c, t in declared.semantic_types.items()
+            },
+            numeric_kinds={
+                c: NumericKind(k) for c, k in declared.numeric_kinds.items()
+            },
+            observer=progress_observer(),
+            seed=seed,
         ).profile(data)
 
     skipped = set(skip_columns)

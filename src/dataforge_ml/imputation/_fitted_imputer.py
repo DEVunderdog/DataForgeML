@@ -18,7 +18,6 @@ from typing import Any
 import numpy as np
 import polars as pl
 
-from ..config import PipelineConfig, PipelinePhase
 from ..models._data_types import _FLOAT_DTYPES, _INT_DTYPES
 from ..records import DataForgeError
 from ..utils._dtype_floor import _apply_dtype_floor
@@ -533,56 +532,6 @@ class FittedImputer:
             numeric_sentinels=dict(recipe.numeric_sentinels),
             string_sentinels=dict(recipe.string_sentinels),
         )
-
-    def apply_exclusions(self, config: PipelineConfig) -> None:
-        """Propagate dropped and indicator columns into the pipeline config.
-
-        Hard Exclusions (ADR 0023): columns recorded with
-        ``ImputationStrategy.Dropped`` are added to ``config.exclude_columns``
-        via ``add_exclusions``, removing them from every downstream phase.
-
-        Soft Exclusions: columns recorded with ``ImputationStrategy.Indicator``
-        are registered in ``config.phase_exclusions`` for Phases 3–6
-        (OutlierDetection, Normalization, Encoding, Scaling), so those phases
-        skip indicator columns without removing them from the dataset.
-
-        Safe to invoke unconditionally — it is a no-op when no dropped or
-        indicator columns exist, so callers need not branch.
-
-        Propagation is caller-initiated: fitting does not touch
-        ``PipelineConfig``, preserving re-fit idempotency. A fresh call is
-        required against any config that has not already received this
-        imputer's exclusions, including after rehydrating via :meth:`compose`.
-        Duplicate calls are safe — both hard and soft exclusion registrations
-        deduplicate automatically. Nothing verifies that this method was
-        called; enforcement is deferred to Phase 3 (ADR-0076).
-
-        Parameters
-        ----------
-        config : PipelineConfig
-            Pipeline config to update.
-        """
-        dropped = [
-            col for col, rec in self.records.items()
-            if rec.decision.strategy == ImputationStrategy.Dropped
-        ]
-        config.add_exclusion(dropped)
-
-        indicator_cols = [
-            col for col, rec in self.records.items()
-            if rec.decision.strategy == ImputationStrategy.Indicator
-        ]
-        _soft_phases = [
-            PipelinePhase.OutlierDetection,
-            PipelinePhase.Normalization,
-            PipelinePhase.Encoding,
-            PipelinePhase.Scaling,
-        ]
-        for phase in _soft_phases:
-            existing = set(config.phase_exclusions.get(phase, ()))
-            new_cols = [c for c in indicator_cols if c not in existing]
-            if new_cols:
-                config.add_phase_exclusion(phase, new_cols)
 
     def transform(self, df: pl.DataFrame) -> ImputationResult:
         """

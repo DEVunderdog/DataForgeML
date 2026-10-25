@@ -174,7 +174,6 @@ def evaluate_imputation(
         each Handle's own errors.
     """
     from .._seed import DEFAULT_SEED
-    from ..config import PipelineConfig
     from ..evaluation._config import C2STConfig
     from ..evaluation.imputation._adapter import imputation_score_c2st
     from ..evaluation.imputation._records import C2STVerdict
@@ -200,8 +199,6 @@ def evaluate_imputation(
         *profile_record["declarations"]["exclusions"],
         *(c for c in original.columns if c not in imputed_frame.columns),
     }
-    pipeline_config = PipelineConfig()
-    pipeline_config.add_exclusion(sorted(excluded))
 
     values = dial_defaults()
     given: set[str] = set()
@@ -217,7 +214,7 @@ def evaluate_imputation(
             original,
             [imputed_frame],
             stored_profile,
-            pipeline_config=pipeline_config,
+            exclude_columns=sorted(excluded),
             config=C2STConfig(random_state=seed, **values),
             observer=progress_observer(),
         )

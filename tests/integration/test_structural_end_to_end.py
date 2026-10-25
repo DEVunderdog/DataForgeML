@@ -1,7 +1,7 @@
 import polars as pl
 import pytest
 
-from dataforge_ml.config import PipelineConfig, SemanticType
+from dataforge_ml.config import SemanticType
 from dataforge_ml.profiling._boolean_config import BooleanStats
 from dataforge_ml.profiling._categorical_config import CategoricalStats
 from dataforge_ml.profiling._config import ProfileConfig, StructuralProfileResult
@@ -21,7 +21,7 @@ from dataforge_ml.profiling.orchestrator import StructuralProfiler
 
 
 def test_happy_path(mixed_df):
-    config = PipelineConfig(profiling=ProfileConfig(compute_correlation=True))
+    config = ProfileConfig(compute_correlation=True)
     result = StructuralProfiler(config).profile(mixed_df)
 
     assert isinstance(result, StructuralProfileResult)
@@ -37,14 +37,14 @@ def test_happy_path(mixed_df):
 
 
 def test_no_correlation(mixed_df):
-    config = PipelineConfig(profiling=ProfileConfig(compute_correlation=False))
+    config = ProfileConfig(compute_correlation=False)
     result = StructuralProfiler(config).profile(mixed_df)
 
     assert result.dataset.feature_correlation is None
 
 
 def test_boolean_handoff(mixed_df):
-    result = StructuralProfiler(PipelineConfig()).profile(mixed_df)
+    result = StructuralProfiler().profile(mixed_df)
 
     cp = result.columns["is_active"]
     assert cp.semantic_type == SemanticType.Boolean
@@ -54,7 +54,7 @@ def test_boolean_handoff(mixed_df):
 
 
 def test_text_handoff(text_df):
-    result = StructuralProfiler(PipelineConfig()).profile(text_df)
+    result = StructuralProfiler().profile(text_df)
 
     cp = result.columns["review"]
     assert cp.semantic_type == SemanticType.Text
@@ -68,7 +68,7 @@ def test_text_handoff(text_df):
 
 
 def test_correlation_consistency(mixed_df):
-    config = PipelineConfig(profiling=ProfileConfig(compute_correlation=True))
+    config = ProfileConfig(compute_correlation=True)
     result = StructuralProfiler(config).profile(mixed_df)
 
     fc = result.dataset.feature_correlation
@@ -133,7 +133,7 @@ def test_correlation_consistency(mixed_df):
 
 
 def test_column_handoffs(mixed_df):
-    result = StructuralProfiler(PipelineConfig()).profile(mixed_df)
+    result = StructuralProfiler().profile(mixed_df)
 
     stats_type_for = {
         SemanticType.Numeric: NumericStats,
@@ -162,8 +162,9 @@ def test_column_handoffs(mixed_df):
 
 
 def test_column_override_changes_stats_type(override_df):
-    config = (cfg := PipelineConfig(), cfg.set_column_type("score", SemanticType.Categorical))[0]
-    result = StructuralProfiler(config).profile(override_df)
+    result = StructuralProfiler(
+        column_types={"score": SemanticType.Categorical}
+    ).profile(override_df)
     cp = result.columns["score"]
     assert isinstance(cp.stats, CategoricalStats)
 
@@ -174,7 +175,7 @@ def test_column_override_changes_stats_type(override_df):
 
 
 def test_target_profiling_integration(target_df):
-    config = PipelineConfig(profiling=ProfileConfig(target_columns=["label"]))
+    config = ProfileConfig(target_columns=["label"])
     result = StructuralProfiler(config).profile(target_df)
     assert "label" in result.targets
     assert isinstance(result.targets["label"], TargetProfileResult)
@@ -186,7 +187,7 @@ def test_target_profiling_integration(target_df):
 
 
 def test_empty_dataframe_does_not_crash(empty_df):
-    result = StructuralProfiler(PipelineConfig()).profile(empty_df)
+    result = StructuralProfiler().profile(empty_df)
     assert isinstance(result, StructuralProfileResult)
 
 
@@ -196,7 +197,7 @@ def test_empty_dataframe_does_not_crash(empty_df):
 
 
 def test_numeric_handoff(mixed_df):
-    result = StructuralProfiler(PipelineConfig()).profile(mixed_df)
+    result = StructuralProfiler().profile(mixed_df)
     cp = result.columns["income"]
     assert cp.stats is not None
     assert isinstance(cp.stats, NumericStats)
@@ -208,7 +209,7 @@ def test_numeric_handoff(mixed_df):
 
 
 def test_datetime_handoff(mixed_df):
-    result = StructuralProfiler(PipelineConfig()).profile(mixed_df)
+    result = StructuralProfiler().profile(mixed_df)
     cp = result.columns["joined"]
     assert cp.stats is not None
     assert isinstance(cp.stats, DatetimeStats)
@@ -220,7 +221,7 @@ def test_datetime_handoff(mixed_df):
 
 
 def test_missingness_surfaced(mixed_df):
-    result = StructuralProfiler(PipelineConfig()).profile(mixed_df)
+    result = StructuralProfiler().profile(mixed_df)
     cp = result.columns["salary"]  # salary has ~10 % nulls by construction
     assert cp.missingness is not None
     assert cp.missingness.standard_null_count > 0
@@ -234,7 +235,7 @@ def test_missingness_surfaced(mixed_df):
 def test_numeric_kind_set_for_numeric_columns(mixed_df):
     from dataforge_ml.profiling._config import NumericKind
 
-    result = StructuralProfiler(PipelineConfig()).profile(mixed_df)
+    result = StructuralProfiler().profile(mixed_df)
 
     for name, cp in result.columns.items():
         if cp.semantic_type == SemanticType.Numeric:
@@ -251,7 +252,7 @@ def test_numeric_kind_set_for_numeric_columns(mixed_df):
 def test_numeric_kind_in_to_dict(mixed_df):
     from dataforge_ml.profiling._config import NumericKind
 
-    result = StructuralProfiler(PipelineConfig()).profile(mixed_df)
+    result = StructuralProfiler().profile(mixed_df)
 
     for name, cp in result.columns.items():
         d = cp.to_dict()
@@ -274,10 +275,10 @@ def test_numeric_kind_in_to_dict(mixed_df):
 
 def test_default_profile_config_no_regression(mixed_df):
     # ProfileConfig() with all defaults must produce the same result as
-    # an explicitly constructed PipelineConfig — no behaviour change from Scope 15.
-    result_default = StructuralProfiler(PipelineConfig()).profile(mixed_df)
+    # an explicitly constructed ProfileConfig — no behaviour change from Scope 15.
+    result_default = StructuralProfiler().profile(mixed_df)
     result_explicit = StructuralProfiler(
-        PipelineConfig(profiling=ProfileConfig())
+        ProfileConfig()
     ).profile(mixed_df)
 
     assert set(result_default.columns.keys()) == set(result_explicit.columns.keys())
@@ -297,14 +298,14 @@ def test_missingness_severity_override_via_profile_config():
     values = [None] * 12 + [1.0] * 88
     df = pl.DataFrame({"x": pl.Series(values, dtype=pl.Float64)})
 
-    result_default = StructuralProfiler(PipelineConfig()).profile(df)
+    result_default = StructuralProfiler().profile(df)
     assert result_default.columns["x"].missingness.severity == MissingSeverity.High
 
     custom_profile = ProfileConfig(
         missingness=MissingnessProfileConfig(severity_high=0.10)
     )
     result_custom = StructuralProfiler(
-        PipelineConfig(profiling=custom_profile)
+        custom_profile
     ).profile(df)
     assert result_custom.columns["x"].missingness.severity == MissingSeverity.Severe
 
@@ -317,7 +318,7 @@ def test_skew_high_override_via_profile_config():
     values = [math.exp(x / 10.0) for x in range(1, 101)]
     df = pl.DataFrame({"val": pl.Series(values, dtype=pl.Float64)})
 
-    result_default = StructuralProfiler(PipelineConfig()).profile(df)
+    result_default = StructuralProfiler().profile(df)
     stats_default = result_default.columns["val"].stats
     assert isinstance(stats_default, NumericStats)
     assert stats_default.skewness_severity == SkewSeverity.Severe
@@ -326,7 +327,7 @@ def test_skew_high_override_via_profile_config():
         numeric=NumericProfileConfig(skew_high=3.0)
     )
     result_custom = StructuralProfiler(
-        PipelineConfig(profiling=custom_profile)
+        custom_profile
     ).profile(df)
     stats_custom = result_custom.columns["val"].stats
     assert isinstance(stats_custom, NumericStats)
@@ -344,12 +345,12 @@ def test_row_drop_threshold_override_via_profile_config():
         "d": pl.Series([1.0, 1.0, None, None, 1.0], dtype=pl.Float64),
     })
 
-    result_default = StructuralProfiler(PipelineConfig()).profile(df)
+    result_default = StructuralProfiler().profile(df)
     assert result_default.dataset.row_distribution.drop_candidate_row_count == 4
 
     custom_profile = ProfileConfig(row_drop_threshold=0.60)
     result_custom = StructuralProfiler(
-        PipelineConfig(profiling=custom_profile)
+        custom_profile
     ).profile(df)
     assert result_custom.dataset.row_distribution.drop_candidate_row_count == 0
 
@@ -364,7 +365,7 @@ def test_complete_row_fraction_surfaced():
         "d": pl.Series([1.0, 1.0, 1.0, 1.0, 1.0], dtype=pl.Float64),
     })
 
-    result = StructuralProfiler(PipelineConfig()).profile(df)
+    result = StructuralProfiler().profile(df)
     dist = result.dataset.row_distribution
     assert dist.complete_row_fraction == pytest.approx(0.6)
     # Surfaced in the serialised form as well.
@@ -382,7 +383,7 @@ def test_profiler_propagates_numeric_sentinels_to_result():
         "score": pl.Series([1.0, 2.0, 3.0], dtype=pl.Float64),
     })
     sentinels = {"age": [-999.0]}
-    config = PipelineConfig(profiling=ProfileConfig(numeric_sentinels=sentinels))
+    config = ProfileConfig(numeric_sentinels=sentinels)
     result = StructuralProfiler(config).profile(df)
 
     assert result.numeric_sentinels == sentinels
@@ -390,7 +391,7 @@ def test_profiler_propagates_numeric_sentinels_to_result():
 
 def test_profiler_numeric_sentinels_empty_when_none_declared():
     df = pl.DataFrame({"x": pl.Series([1, 2, 3], dtype=pl.Int64)})
-    result = StructuralProfiler(PipelineConfig()).profile(df)
+    result = StructuralProfiler().profile(df)
 
     assert result.numeric_sentinels == {}
 
@@ -401,7 +402,7 @@ def test_profiler_numeric_sentinels_multi_column_propagation():
         "age": pl.Series([25, 9999, 30], dtype=pl.Int64),
     })
     sentinels = {"income": [-1.0], "age": [9999.0]}
-    config = PipelineConfig(profiling=ProfileConfig(numeric_sentinels=sentinels))
+    config = ProfileConfig(numeric_sentinels=sentinels)
     result = StructuralProfiler(config).profile(df)
 
     assert result.numeric_sentinels == sentinels
@@ -418,7 +419,7 @@ def test_profiler_propagates_string_sentinels_to_result():
         "score": pl.Series([1.0, 2.0, 3.0], dtype=pl.Float64),
     })
     sentinels = {"status": ["N/A", "missing"]}
-    config = PipelineConfig(profiling=ProfileConfig(string_sentinels=sentinels))
+    config = ProfileConfig(string_sentinels=sentinels)
     result = StructuralProfiler(config).profile(df)
 
     assert result.string_sentinels == sentinels
@@ -426,7 +427,7 @@ def test_profiler_propagates_string_sentinels_to_result():
 
 def test_profiler_string_sentinels_empty_when_none_declared():
     df = pl.DataFrame({"status": pl.Series(["active", "inactive"], dtype=pl.String)})
-    result = StructuralProfiler(PipelineConfig()).profile(df)
+    result = StructuralProfiler().profile(df)
 
     assert result.string_sentinels == {}
 
@@ -437,7 +438,7 @@ def test_profiler_string_sentinels_multi_column_propagation():
         "grade": pl.Series(["A", "?", "B"], dtype=pl.String),
     })
     sentinels = {"status": ["N/A", "missing"], "grade": ["?"]}
-    config = PipelineConfig(profiling=ProfileConfig(string_sentinels=sentinels))
+    config = ProfileConfig(string_sentinels=sentinels)
     result = StructuralProfiler(config).profile(df)
 
     assert result.string_sentinels == sentinels
@@ -450,10 +451,10 @@ def test_profiler_numeric_and_string_sentinels_propagate_independently():
     })
     num_sentinels = {"age": [-999.0]}
     str_sentinels = {"status": ["N/A"]}
-    config = PipelineConfig(profiling=ProfileConfig(
+    config = ProfileConfig(
         numeric_sentinels=num_sentinels,
         string_sentinels=str_sentinels,
-    ))
+    )
     result = StructuralProfiler(config).profile(df)
 
     assert result.numeric_sentinels == num_sentinels

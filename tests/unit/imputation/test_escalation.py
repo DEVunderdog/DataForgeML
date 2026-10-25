@@ -14,9 +14,12 @@ import numpy as np
 import polars as pl
 import pytest
 
-from dataforge_ml.config import PipelineConfig, PipelinePhase
 from dataforge_ml.imputation import ImputationStrategy, route
-from dataforge_ml.imputation._config import ModelChoice, NumericImputationConfig
+from dataforge_ml.imputation._config import (
+    ImputationConfig,
+    ModelChoice,
+    NumericImputationConfig,
+)
 from dataforge_ml.imputation._escalation import (
     _bottom_tier_fill,
     _capability_pick,
@@ -36,7 +39,7 @@ from dataforge_ml.imputation._evidence import (
     SignalTier,
     TierFact,
 )
-from dataforge_ml.profiling._config import ColumnProfile, NumericKind
+from dataforge_ml.profiling._config import ColumnProfile, NumericKind, ProfileConfig
 from dataforge_ml.profiling._correlation_config import CorrelationProfileResult
 from dataforge_ml.profiling._missingness_config import ColumnMissingnessProfile
 from dataforge_ml.profiling._numeric_config import (
@@ -507,11 +510,11 @@ def test_route_forcing_trainable_strategy_on_unsupported_column_records_evidence
     records a failed feasibility fact rather than raising (ADR-0095).
     """
     df = pl.DataFrame({"x": [1.0, 2.0, None, 4.0, 5.0], "y": [10.0, 20.0, 30.0, 40.0, 50.0]})
-    config = PipelineConfig()
-    config.imputation.numeric.set_per_column_strategy("x", ImputationStrategy.GMMSampling)
-    config.imputation.numeric.set_per_column_strategy("y", ImputationStrategy.ClusterConditional)
+    config = ImputationConfig()
+    config.numeric.set_per_column_strategy("x", ImputationStrategy.GMMSampling)
+    config.numeric.set_per_column_strategy("y", ImputationStrategy.ClusterConditional)
 
-    profile = StructuralProfiler(config).profile(df)
+    profile = StructuralProfiler().profile(df)
     routing = route(profile, config)
 
     # Route succeeds without raising
@@ -556,10 +559,9 @@ def test_route_resolves_mice_model_choice_when_a_column_escalates_to_mice():
     target_missing[missing_idx] = np.nan
 
     df = pl.DataFrame({"a": a, "b": b, "target": target_missing})
-    cfg = PipelineConfig()
-    cfg.profiling.compute_correlation = True
-    cfg.profiling.compute_nonlinearity = True
-    profile = StructuralProfiler(config=cfg).profile(df)
+    profile = StructuralProfiler(
+        ProfileConfig(compute_correlation=True, compute_nonlinearity=True)
+    ).profile(df)
 
     target_cp = profile.columns["target"]
     target_cp.stats.r2_linear = 0.95
@@ -574,8 +576,9 @@ def test_route_resolves_mice_model_choice_when_a_column_escalates_to_mice():
         },
     )
 
-    cfg.imputation.numeric.mice_correlation_threshold = 0.1
-    cfg.imputation.numeric.signal_score_top_tier_min = 0.5
+    cfg = ImputationConfig()
+    cfg.numeric.mice_correlation_threshold = 0.1
+    cfg.numeric.signal_score_top_tier_min = 0.5
     routing = route(profile, cfg)
 
     r = routing.column_routings["target"]
@@ -598,12 +601,11 @@ def test_route_escalates_a_nan_encoded_column_like_a_null_encoded_one():
 
     strategies = []
     for t_series in (pl.Series(t), pl.Series(t).fill_nan(None)):
-        cfg = PipelineConfig()
-        cfg.profiling.compute_correlation = True
-        cfg.profiling.compute_nonlinearity = True
         frame = pl.DataFrame({"p": p, "q": q, "t": t_series})
-        profile = StructuralProfiler(config=cfg).profile(frame)
-        strategies.append(route(profile, cfg).column_routings["t"].strategy)
+        profile = StructuralProfiler(
+            ProfileConfig(compute_correlation=True, compute_nonlinearity=True)
+        ).profile(frame)
+        strategies.append(route(profile).column_routings["t"].strategy)
 
     assert strategies == [ImputationStrategy.MICE, ImputationStrategy.MICE]
 
@@ -623,11 +625,10 @@ def test_route_gives_every_column_a_reason_including_every_passthrough():
             "label": ["a", None, "b", "a", "b", "a"],
         }
     )
-    config = PipelineConfig()
-    config.add_phase_exclusion(PipelinePhase.Imputation, "soft")
-    config.imputation.add_mnar_column("mnar")
-    profile = StructuralProfiler(config).profile(df)
-    routing = route(profile, config)
+    config = ImputationConfig()
+    config.add_mnar_column("mnar")
+    profile = StructuralProfiler().profile(df)
+    routing = route(profile, config, skip_columns=["soft"])
 
     reasons = {c: r.reason for c, r in routing.column_routings.items()}
     assert all(isinstance(r, RoutingReason) for r in reasons.values())

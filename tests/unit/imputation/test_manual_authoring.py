@@ -13,10 +13,11 @@ import numpy as np
 import polars as pl
 import pytest
 
-from dataforge_ml.config import PipelineConfig, SemanticType
+from dataforge_ml.config import SemanticType
 from dataforge_ml.imputation import (
     AuthoredColumn,
     FittedImputer,
+    ImputationConfig,
     ImputationRouting,
     ImputationStrategy,
     author,
@@ -55,13 +56,13 @@ def _frame(n=240, seed=11):
 
 def _profile(df=None, config=None):
     df = df if df is not None else _frame()
-    config = config or PipelineConfig()
-    return StructuralProfiler(config=config).profile(df)
+    config = config or ImputationConfig()
+    return StructuralProfiler().profile(df)
 
 
 def _drive(routing, df, config=None):
     """The user-orchestrated loop: route → recipe → train every unit → compose."""
-    config = config or PipelineConfig()
+    config = config or ImputationConfig()
     profile = _profile(df, config)
     recipe = resolve_recipe(routing, profile, config)
     units = derive_units(routing)
@@ -394,7 +395,7 @@ def test_base_edited_routing_round_trips_through_resolve_recipe():
 
     # Re-author one column
     edited = author({"revenue": ImputationStrategy.Median}, base=base)
-    recipe = resolve_recipe(edited, profile, PipelineConfig())
+    recipe = resolve_recipe(edited, profile, ImputationConfig())
 
     assert recipe.routing is edited
     assert (
@@ -459,7 +460,7 @@ def test_a_bare_mice_declaration_structurally_survives_authoring_but_cannot_fit(
     )
     assert routing.mice_model_choice is None
     df = _frame()
-    recipe = resolve_recipe(routing, _profile(df), PipelineConfig())
+    recipe = resolve_recipe(routing, _profile(df), ImputationConfig())
     (unit,) = derive_units(routing, strategy=ImputationStrategy.MICE)
     with raises_code("unit_not_trainable"):
         fit_unit(recipe, unit, df)
@@ -527,8 +528,8 @@ def test_with_model_choice_works_identically_on_routed_and_authored_routings():
         {"score": ImputationStrategy.MICE, "revenue": ImputationStrategy.MICE},
         profile=profile,
     )
-    cfg_mice = PipelineConfig()
-    cfg_mice.imputation.numeric.set_per_column_strategy(
+    cfg_mice = ImputationConfig()
+    cfg_mice.numeric.set_per_column_strategy(
         ["score", "revenue"], ImputationStrategy.MICE
     )
     routed_mice = route(profile, cfg_mice)
@@ -589,7 +590,7 @@ def test_hand_authored_routing_with_forced_mice_and_bimodal_estimates_end_to_end
     assert routing.mice_estimator is custom_estimator
 
     # resolve_recipe leaves bimodal centres as None
-    recipe = resolve_recipe(routing, profile, PipelineConfig())
+    recipe = resolve_recipe(routing, profile, ImputationConfig())
     assert recipe.column_estimates["score"].center1 is None
     assert recipe.column_estimates["score"].center2 is None
 
