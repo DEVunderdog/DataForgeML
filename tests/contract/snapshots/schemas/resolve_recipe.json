@@ -477,7 +477,7 @@
         "type": "object"
       },
       "recipe": {
-        "description": "Recipe Handle, such as ``recipe_7f3a9c2e``. It holds its own copy of the routing.",
+        "description": "The recipe Handle, such as ``recipe_7f3a9c2e``. It holds its own copy of the routing.",
         "type": "string"
       },
       "routing": {

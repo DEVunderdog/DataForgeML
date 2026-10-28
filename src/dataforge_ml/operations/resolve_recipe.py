@@ -103,7 +103,7 @@ class ResolveRecipeResult(OutputRecord):
     """The recipe Handle and every unit it trains."""
 
     recipe: str
-    """Recipe Handle, such as ``recipe_7f3a9c2e``. It holds its own copy of the routing."""
+    """The recipe Handle, such as ``recipe_7f3a9c2e``. It holds its own copy of the routing."""
     routing: str
     """The routing Handle read."""
     profile: str

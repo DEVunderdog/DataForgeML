@@ -13,7 +13,7 @@ These commands read or export what the Workspace holds. None of them changes a H
 - `--filter` is an OR of AND-lists: `[[{"column":"amount","op":"eq","value":-999}]]` keeps every row where `amount` is `-999`.
 - `--mode` picks rows mode (the first rows, a seeded random sample, or one column's extremes) or aggregate mode (counts and statistics per group of up to 3 columns). `dataforge schema query-frame mode` lists the fields.
 - Cells come back exactly as stored. A declared sentinel is a value like any other, so `-999` shows as `-999`. `missingness` gives the profile's view of what is missing.
-- Under Literal Policy `deny`, cells, group keys, `min`, `max` and `median` come back `null`, but `matched_rows` and the counts stay. See [harness.md](harness.md).
+- When the Literal Policy is `deny`, cells, group keys, `min`, `max` and `median` come back `null`, but `matched_rows` and the counts stay. See [harness.md](harness.md).
 
 ## export-frame
 

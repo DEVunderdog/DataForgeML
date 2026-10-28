@@ -20,7 +20,7 @@ class LoadResult(ColumnKeyedResult):
     """The new frame Handle and the frame's shape. ``result.get(name)`` finds one column."""
 
     frame: str
-    """Frame Handle for the loaded data, such as ``frame_7f3a9c2e``."""
+    """The frame Handle of the loaded data, such as ``frame_7f3a9c2e``."""
     n_rows: int
     """Number of data rows, not counting the header."""
     n_columns: int

@@ -165,7 +165,7 @@
         "type": "object"
       },
       "frame": {
-        "description": "Frame Handle for the loaded data, such as ``frame_7f3a9c2e``.",
+        "description": "The frame Handle of the loaded data, such as ``frame_7f3a9c2e``.",
         "type": "string"
       },
       "n_rows": {

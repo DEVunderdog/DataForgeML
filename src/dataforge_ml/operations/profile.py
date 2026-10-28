@@ -292,7 +292,7 @@ class ProfileResult(ColumnKeyedResult):
     """The profile Handle and the Dataset Digest. ``result.get(name)`` finds one column."""
 
     profile: str
-    """Profile Handle, such as ``profile_7f3a9c2e``. It carries its frame and these declarations."""
+    """The profile Handle, such as ``profile_7f3a9c2e``. It carries its frame and these declarations."""
     frame: str
     """The frame Handle that was profiled."""
     n_rows: int

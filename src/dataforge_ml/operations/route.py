@@ -171,7 +171,7 @@ class RouteResult(ColumnKeyedResult):
     """The routing Handle and each column's strategy. ``result.get(name)`` finds one column."""
 
     routing: str
-    """Routing Handle, such as ``routing_7f3a9c2e``. It stores every column's Routing Evidence."""
+    """The routing Handle, such as ``routing_7f3a9c2e``. It stores every column's Routing Evidence."""
     profile: str
     """The profile Handle that was routed."""
     mice_estimator: EstimatorName | None

@@ -7,7 +7,7 @@
         "type": "string"
       },
       "units": {
-        "description": "Unit Handles, one per unit of the recipe, such as ``[\"unit_3c4d5e6f\", \"unit_9a8b7c6d\"]``. Empty when the recipe has no unit.",
+        "description": "The unit Handles, one per unit of the recipe, such as ``[\"unit_3c4d5e6f\", \"unit_9a8b7c6d\"]``. Empty when the recipe has no unit.",
         "items": {
           "type": "string"
         },
@@ -173,7 +173,7 @@
         "type": "object"
       },
       "imputer": {
-        "description": "Imputer Handle, such as ``imputer_7f3a9c2e``. It names the recipe and the unit Handles, and holds nothing else.",
+        "description": "The imputer Handle, such as ``imputer_7f3a9c2e``. It names the recipe and the unit Handles, and holds nothing else.",
         "type": "string"
       },
       "recipe": {

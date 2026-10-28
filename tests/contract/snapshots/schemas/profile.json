@@ -1117,7 +1117,7 @@
         "type": "object"
       },
       "profile": {
-        "description": "Profile Handle, such as ``profile_7f3a9c2e``. It carries its frame and these declarations.",
+        "description": "The profile Handle, such as ``profile_7f3a9c2e``. It carries its frame and these declarations.",
         "type": "string"
       },
       "frame": {

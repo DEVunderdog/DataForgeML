@@ -460,7 +460,7 @@
         "type": "object"
       },
       "routing": {
-        "description": "Routing Handle, such as ``routing_7f3a9c2e``. It stores every column's Routing Evidence.",
+        "description": "The routing Handle, such as ``routing_7f3a9c2e``. It stores every column's Routing Evidence.",
         "type": "string"
       },
       "profile": {

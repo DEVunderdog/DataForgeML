@@ -187,9 +187,9 @@ class Fold(WireRecord):
     repeat: int
     """Repeat number, from 0. Always 0 except for ``repeated_kfold``."""
     train: str
-    """Frame Handle of the training rows."""
+    """The frame Handle of the training rows."""
     validation: str | None
-    """Frame Handle of the validation rows; null for a single train/test split, whose held-out rows are ``test``."""
+    """The frame Handle of the validation rows; null for a single train/test split, whose held-out rows are ``test``."""
     train_rows: int
     """Rows in ``train``."""
     validation_rows: int | None
@@ -242,7 +242,7 @@ class SplitPartitions(OutputRecord):
     stratified_on: str | None
     """The target the split balanced; null when it balanced none."""
     test: str | None
-    """Frame Handle of the held-out rows; null for the k-fold schemes, which hold none out."""
+    """The frame Handle of the held-out rows; null for the k-fold schemes, which hold none out."""
     test_rows: int | None
     """Rows in ``test``; null when it is null."""
     folds: Table[Fold]

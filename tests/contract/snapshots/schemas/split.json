@@ -775,7 +775,7 @@
             "type": "null"
           }
         ],
-        "description": "Frame Handle of the held-out rows; null for the k-fold schemes, which hold none out."
+        "description": "The frame Handle of the held-out rows; null for the k-fold schemes, which hold none out."
       },
       "test_rows": {
         "anyOf": [
@@ -821,7 +821,7 @@
                     "type": "integer"
                   },
                   {
-                    "description": "Position 2, `train`: Frame Handle of the training rows.",
+                    "description": "Position 2, `train`: The frame Handle of the training rows.",
                     "type": "string"
                   },
                   {
@@ -833,7 +833,7 @@
                         "type": "null"
                       }
                     ],
-                    "description": "Position 3, `validation`: Frame Handle of the validation rows; null for a single train/test split, whose held-out rows are ``test``."
+                    "description": "Position 3, `validation`: The frame Handle of the validation rows; null for a single train/test split, whose held-out rows are ``test``."
                   },
                   {
                     "description": "Position 4, `train_rows`: Rows in ``train``.",

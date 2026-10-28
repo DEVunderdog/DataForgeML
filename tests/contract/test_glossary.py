@@ -31,6 +31,26 @@ IMPUTE_TERMS = [
     "Soft Exclusion",
 ]
 
+COMMON_TERMS = [
+    "Agent",
+    "Operator",
+    "Harness",
+    "Skill",
+    "Operation",
+    "Handle",
+    "Workspace",
+    "Workspace Settings",
+    "Library Error",
+    "Error Code",
+    "Dial",
+    "Dial Pointer",
+    "Pipeline Event",
+    "Table Layout",
+    "Literal Field",
+    "Literal Policy",
+    "Lineage",
+]
+
 
 def test_no_arguments_counts_each_phase_and_the_common_terms_apart() -> None:
     out = run_dataforge(["glossary"])
@@ -39,9 +59,9 @@ def test_no_arguments_counts_each_phase_and_the_common_terms_apart() -> None:
     assert out.json == {
         "phases": {
             "fields": ["phase", "terms"],
-            "rows": [["load", 0], ["profile", 0], ["split", 0], ["impute", 9], ["evaluate", 0]],
+            "rows": [["load", 1], ["profile", 1], ["split", 0], ["impute", 9], ["evaluate", 1]],
         },
-        "common": 0,
+        "common": 17,
     }
 
 
@@ -57,7 +77,7 @@ def test_common_lists_the_common_terms_names() -> None:
     out = run_dataforge(["glossary", "--common"])
 
     assert out.exit_code == 0
-    assert out.json == {"phase": "common", "terms": []}
+    assert out.json == {"phase": "common", "terms": COMMON_TERMS}
 
 
 SIGNAL_SCORE = {

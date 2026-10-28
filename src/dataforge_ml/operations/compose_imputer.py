@@ -23,7 +23,7 @@ class ComposeImputerResult(OutputRecord):
     """The imputer Handle and the unit Handle composed for each unit of the recipe."""
 
     imputer: str
-    """Imputer Handle, such as ``imputer_7f3a9c2e``. It names the recipe and the unit Handles, and holds nothing else."""
+    """The imputer Handle, such as ``imputer_7f3a9c2e``. It names the recipe and the unit Handles, and holds nothing else."""
     recipe: str
     """The recipe Handle read."""
     units: Table[ImputerUnit]
@@ -54,7 +54,7 @@ def compose_imputer(recipe: str, units: list[str]) -> ComposeImputerResult:
     recipe : str
         A recipe Handle, such as ``recipe_7f3a9c2e``.
     units : list of str
-        Unit Handles, one per unit of the recipe, such as
+        The unit Handles, one per unit of the recipe, such as
         ``["unit_3c4d5e6f", "unit_9a8b7c6d"]``. Empty when the recipe has no
         unit.
 
