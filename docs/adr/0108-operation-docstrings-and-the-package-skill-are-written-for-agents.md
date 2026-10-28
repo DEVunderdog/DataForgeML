@@ -8,6 +8,8 @@ accepted. Resolves [How are Operation docstrings and the Skill written for Agent
 
 **Amended by [ADR-0112](0112-agents-reach-the-library-through-a-cli-and-a-skill.md) (2026-10-11).** The Package Skill becomes a CLI cheat-sheet: workflow, one usage line per command, dial iteration, error categories and exit codes, and which commands to run in the background. `references/` holds one file per phase plus `python.md`. `dataforge install --skills` copies it into `.claude/skills/dataforge/` and `.agents/skills/dataforge/`, stamped with the library version. Per Operation, the Agent reads layered `--help` (generated from the seven-part docstring) and `dataforge schema`, not the thin Operation file. The file stays the source and the Code Mode contract. The docstring's Example is a shell command. The ~1.5k-token cap becomes a signal to split a layer, never to cut it.
 
+**Amended by [ADR-0113](0113-an-agent-glossary-behind-a-layered-command.md) (2026-10-28).** A shipped Agent glossary is no longer rejected. The library ships one, read one term at a time through `dataforge glossary`, with one markdown file per phase, plus a `common` file, in the Skill folder as the fallback. The rule that a docstring defines a term in one clause where it is first used stands.
+
 ## Decisions
 
 - **There are two docstring rules in one format.** Operations and Wire Records follow the Agent rule below, and a test enforces it. Internal code keeps ADR-0034's numpy rule. Its scope is redrawn to the internal seams Operations call: `route`, `resolve_recipe`, `fit_unit`, the profiler, the splitter and `c2st`. The format is numpy everywhere, because the ADR-0101 description parser reads numpy sections. Gained: coding Agents that maintain the library still get contracts at the seams, and there is one format. Given up: two scopes to keep straight in `CLAUDE.md`, and docstring upkeep on code no user sees.
@@ -48,7 +50,7 @@ accepted. Resolves [How are Operation docstrings and the Skill written for Agent
 - **No mandatory docstrings on internal code.** Rejected: the maintainers are coding Agents, and they read the internal seams the way users read Operations.
 - **One rule everywhere.** Rejected: the Agent rule's `Use when`, `See Also` and `Example` sections cost a lot and buy little on internal helpers.
 - **Keep numpy's `Raises`.** Rejected: ADR-0100 turns every failure into an Error Code, and exception classes are not part of the contract.
-- **A shipped Agent glossary.** Rejected: Tool Calls may never show it, and it would drift from `CONTEXT.md`.
+- **A shipped Agent glossary.** Rejected: Tool Calls may never show it, and it would drift from `CONTEXT.md`. Reversed by [ADR-0113](0113-an-agent-glossary-behind-a-layered-command.md): ADR-0112 cut Tool Calls, and a contract test and keeping each term in exactly one file contain the drift.
 - **Generate `SKILL.md` whole (FastMCP `generate-cli` style).** Rejected: generated text can list Operations but cannot explain the workflow or the iteration loop.
 - **All records in one file, or one file per record.** Rejected: both turn one Operation's contract into several reads.
 - **Ship `llms.txt`, or keep a Sphinx showcase site.** Rejected: humans are not users, and both are extra generated surfaces to keep in sync.
