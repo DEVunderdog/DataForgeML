@@ -76,6 +76,16 @@ _ENTRIES: tuple[ErrorCodeEntry, ...] = (
         fields=("candidates",),
     ),
     ErrorCodeEntry(
+        code="unknown_term",
+        category="UnknownName",
+        hint=(
+            "Look up one of the terms in `candidates`. Failing that, read the "
+            "glossary file of the phase you met the term in, `glossary/<phase>.md` "
+            "in the dataforge Skill folder, plus `glossary/common.md`."
+        ),
+        fields=("candidates",),
+    ),
+    ErrorCodeEntry(
         code="unknown_handle",
         category="UnknownName",
         hint=(

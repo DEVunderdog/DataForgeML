@@ -22,7 +22,8 @@ The Workspace Setting flags (``--workspace``, ``--literal-policy``,
 after the command.
 
 ``--help`` and ``dataforge schema`` print the generated, committed help
-(``_help.py``), so they never import the Operations or the heavy
+(``_help.py``), and ``dataforge glossary`` reads the Skill's glossary files
+(``_glossary.py``), so they never import the Operations or the heavy
 dependencies behind them. Only running a command does.
 """
 
@@ -37,7 +38,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TextIO
 
-from . import _help, _skill_install
+from . import _glossary, _help, _skill_install
 from ._boundary._settings import SETTING_NAMES, flag_overrides
 from ._version import library_version
 from .records import DataForgeError, canonical_json
@@ -329,6 +330,71 @@ def _schema(tokens: Sequence[str], help_asked: bool, stdout: TextIO) -> int:
     return 0
 
 
+def _glossary_usage_error() -> DataForgeError:
+    return DataForgeError.from_code(
+        "invalid_argument",
+        "Pass `dataforge glossary` nothing, `--phase <phase>`, `--common`, "
+        "or the words of one term.",
+        allowed=list(_glossary.GLOSSARY_FLAGS),
+    )
+
+
+def _glossary_names(group: str) -> dict[str, Any]:
+    return {"phase": group, "terms": [entry.term for entry in _glossary.entries(group)]}
+
+
+def _glossary_layer(tokens: Sequence[str]) -> dict[str, Any]:
+    # No arguments, --phase <phase>, --common, or the words of one term.
+    words = list(tokens)
+    if words == ["--common"]:
+        return _glossary_names(_glossary.COMMON)
+    if words and words[0].partition("=")[0] == "--phase":
+        _, has_value, phase = words.pop(0).partition("=")
+        if not has_value:
+            if not words:
+                raise _bad_flag("`--phase` needs a value.", "phase")
+            phase = words.pop(0)
+        if words:
+            raise _glossary_usage_error()
+        if phase not in _glossary.PHASES:
+            raise DataForgeError.from_code(
+                "invalid_argument",
+                f"No glossary phase is named `{phase}`. The Common Terms are "
+                "`--common`, not a phase.",
+                param="phase",
+                params=["phase"],
+                allowed=list(_glossary.PHASES),
+            )
+        return _glossary_names(phase)
+    if any(word.startswith("--") for word in words):
+        raise _glossary_usage_error()
+    if not words:
+        return {
+            "phases": {
+                "fields": ["phase", "terms"],
+                "rows": [[p, len(_glossary.entries(p))] for p in _glossary.PHASES],
+            },
+            "common": len(_glossary.entries(_glossary.COMMON)),
+        }
+    entry = _glossary.lookup(words)
+    if entry is None:
+        raise DataForgeError.from_code(
+            "unknown_term",
+            f"The glossary has no term `{' '.join(words)}`.",
+            candidates=_glossary.close_matches(words),
+        )
+    return entry.to_dict()
+
+
+def _glossary_command(tokens: Sequence[str], help_asked: bool, stdout: TextIO) -> int:
+    # dataforge glossary [--phase <phase> | --common | <term...>]: no Operation.
+    if help_asked:
+        _write(stdout, _glossary.GLOSSARY_USAGE.rstrip("\n"))
+        return 0
+    _write(stdout, canonical_json(_glossary_layer(tokens)))
+    return 0
+
+
 def _install(tokens: Sequence[str], help_asked: bool, stdout: TextIO) -> int:
     # dataforge install --skills [--global]: not an Operation, so no Handle.
     if help_asked:
@@ -378,6 +444,8 @@ def _dispatch(argv: Sequence[str], stdout: TextIO, stderr: TextIO) -> int:
     command, tokens = rest[0], rest[1:]
     if command == _help.SCHEMA_COMMAND:
         return _schema(tokens, help_asked, stdout)
+    if command == _glossary.GLOSSARY_COMMAND:
+        return _glossary_command(tokens, help_asked, stdout)
     if help_asked:
         page = _help.command_page(command)
         if page is None:

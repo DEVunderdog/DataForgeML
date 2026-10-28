@@ -12,6 +12,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from dataforge_ml._glossary import COMMON, PHASES
 from dataforge_ml._skill_install import SKILL_DIRS, SKILL_SOURCE, STAMP_FILE
 from dataforge_ml._version import library_version
 
@@ -29,6 +30,7 @@ def _files(folder: Path) -> dict[str, bytes]:
 def _assert_installed(root: Path) -> None:
     shipped = _files(SKILL_SOURCE)
     assert "SKILL.md" in shipped and "references/harness.md" in shipped
+    assert {f"glossary/{group}.md" for group in (*PHASES, COMMON)} <= set(shipped)
     for relative in SKILL_DIRS:
         folder = root / relative
         installed = _files(folder)
