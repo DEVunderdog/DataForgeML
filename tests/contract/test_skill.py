@@ -14,16 +14,15 @@ import os
 import re
 
 import pytest
-import tiktoken
 
-from dataforge_ml import _help
+from dataforge_ml import _glossary, _help
 from dataforge_ml._boundary._help_build import PHASE_ORDER
 from dataforge_ml._boundary._operation import operations
 from dataforge_ml._boundary._skill_build import (
     BACKGROUND_MARK,
     BEGIN_MARKER,
     END_MARKER,
-    SKILL_BUDGET_TOKENS,
+    SKILL_BUDGET_BYTES,
     SKILL_FILE,
     command_index,
     skill_text,
@@ -34,7 +33,7 @@ from dataforge_ml._skill_install import INSTALL_COMMAND
 from .conftest import Harness
 
 OPERATIONS = operations()
-#: The Skill's reference files: one per phase, ``python.md`` and ``harness.md``.
+#: The Skill's reference files: one per phase, ``python.md``, ``harness.md`` and ``glossary.md``.
 REFERENCES_DIR = SKILL_FILE.parent / "references"
 
 
@@ -84,23 +83,30 @@ def test_the_index_has_one_usage_line_per_command() -> None:
         assert re.findall(r"--([a-z-]+)", flags) == required, name
 
 
-def test_the_skill_is_about_2k_tokens() -> None:
-    tokens = len(tiktoken.get_encoding("o200k_base").encode(_skill()))
+def test_the_skill_fits_before_the_codex_cut() -> None:
+    size = len(_skill().encode("utf-8"))
     # Over budget: move reference into `references/` or `--help`. Never cut the index.
-    assert tokens <= SKILL_BUDGET_TOKENS, tokens
+    assert size <= SKILL_BUDGET_BYTES, size
+
+
+def test_the_references_line_comes_before_the_commands() -> None:
+    # A Harness that cuts the file cuts its end, so the links sit above the index.
+    text = _skill()
+    assert text.index("](references/glossary.md)") < text.index(BEGIN_MARKER)
 
 
 def test_every_command_the_skill_names_is_real() -> None:
     named = set(re.findall(r"dataforge ([a-z][a-z0-9-]*)", _skill()))
-    assert named - {_help.SCHEMA_COMMAND, INSTALL_COMMAND} <= set(_help.commands())
+    helpers = {_help.SCHEMA_COMMAND, INSTALL_COMMAND, _glossary.GLOSSARY_COMMAND}
+    assert named - helpers <= set(_help.commands())
 
 
 def _references() -> dict[str, str]:
     return {path.name: path.read_text("utf-8") for path in REFERENCES_DIR.glob("*.md")}
 
 
-def test_references_ship_one_file_per_phase_plus_python_and_harness() -> None:
-    expected = {f"{phase}.md" for phase in PHASE_ORDER} | {"python.md", "harness.md"}
+def test_references_ship_one_file_per_phase_plus_python_harness_and_glossary() -> None:
+    expected = {f"{phase}.md" for phase in PHASE_ORDER} | {"python.md", "harness.md", "glossary.md"}
     assert set(_references()) == expected
     shipped = importlib.resources.files("dataforge_ml") / "skill" / "references"
     assert {p.name for p in shipped.iterdir() if p.name.endswith(".md")} == expected
@@ -112,7 +118,11 @@ def test_the_skill_links_every_reference() -> None:
 
 
 def test_every_command_the_references_name_is_real() -> None:
-    real = set(_help.commands()) | {_help.SCHEMA_COMMAND, INSTALL_COMMAND}
+    real = set(_help.commands()) | {
+        _help.SCHEMA_COMMAND,
+        INSTALL_COMMAND,
+        _glossary.GLOSSARY_COMMAND,
+    }
     for name, text in _references().items():
         named = set(re.findall(r"dataforge ([a-z][a-z0-9-]*)", text))
         assert named <= real, (name, named - real)
@@ -130,6 +140,16 @@ def test_the_harness_contract_states_the_guardrails() -> None:
     # SKILL.md reaches the contract from its Workspace Settings section.
     settings = _skill().split("## Workspace Settings", 1)[1]
     assert "(references/harness.md)" in settings.split("\n## ", 1)[0]
+
+
+def test_the_glossary_reference_teaches_the_layers_and_the_fallback() -> None:
+    guide = _references()["glossary.md"]
+    # The three layers of `dataforge glossary` (ADR-0113).
+    for layer in ("`dataforge glossary`", "--phase", "--common", "`dataforge glossary <term>`"):
+        assert layer in guide, layer
+    # The fallback: one phase's glossary file plus the Common Terms' file.
+    assert "unknown_term" in guide
+    assert "glossary/<phase>.md" in guide and "glossary/common.md" in guide
 
 
 def test_the_python_reference_example_runs(

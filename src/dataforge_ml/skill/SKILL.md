@@ -8,21 +8,23 @@ allowed-tools: Bash(dataforge:*)
 
 `dataforge <command> [--flag value ...]` runs one command per process and prints one JSON value on stdout, on success and on failure alike. Commands keep their state as Handles, strings such as `frame_7f3a9c2e`, stored in the Workspace (`.dataforge/` in the working directory). A Handle is write-once: a command that writes makes a new Handle, and every older Handle stays readable.
 
+## References
+
+Read a phase's file before its first command: [load](references/load.md), [profile](references/profile.md), [split](references/split.md), [impute](references/impute.md), [evaluate](references/evaluate.md), [workspace](references/workspace.md). Python glue code: [python](references/python.md). Terms: [glossary](references/glossary.md).
+
 ## The Handle chain
 
 Each step reads the Handle before it and writes a new one:
 
-1. `load` a CSV → frame.
-2. `profile` the frame → profile. Every later step reads the profile, never the raw rows.
-3. `split` the profile → a `test` frame and `folds`, each with a `train` frame.
-4. `route` the profile → routing: one imputation strategy per column.
-5. `resolve-recipe` the routing → recipe, listing the units to fit.
-6. `fit-unit` once per listed unit, on a fold's `train` frame → unit.
-7. `compose-imputer` the recipe and its units → imputer.
-8. `impute` any frame with the imputer → filled frame.
-9. `evaluate-imputation` the filled frame against the profile → c2st report.
-
-The `describe-*`, `missingness`, `top-associations`, `value-summary`, `explain-routing` and `query-frame` commands read a Handle and write none. `list-handles` finds Handles made earlier, after a restart or by a sub-agent sharing the Workspace.
+1. `load` a CSV -> frame.
+2. `profile` the frame -> profile. Every later step reads the profile, never the raw rows.
+3. `split` the profile -> a `test` frame and `folds`, each with a `train` frame.
+4. `route` the profile -> routing: one imputation strategy per column.
+5. `resolve-recipe` the routing -> recipe, listing the units to fit.
+6. `fit-unit` once per listed unit, on a fold's `train` frame -> unit.
+7. `compose-imputer` the recipe and its units -> imputer.
+8. `impute` any frame with the imputer -> filled frame.
+9. `evaluate-imputation` the filled frame against the profile -> c2st report.
 
 ## Reading a command
 
@@ -30,7 +32,7 @@ The `describe-*`, `missingness`, `top-associations`, `value-summary`, `explain-r
 - `dataforge schema <command> <argument> [path]` opens a nested argument one level at a time.
 - A flat flag takes a value (`--seed 7`, `--exclude-columns a,b`). A flag shown as `<json>` in `--help` takes inline JSON or `@file.json`. A flag left out means its default.
 - A list of records prints as `{"fields": [...], "rows": [[...], ...]}`. Read `warnings` first. `omitted` counts each cut list and names the Operation that returns the rest.
-- Results name Operations in snake_case (`list_handles`); the command is the same name in kebab-case (`dataforge list-handles`).
+- A result names an Operation in snake_case (`list_handles`); its command is the kebab-case `dataforge list-handles`.
 
 ## Commands
 
@@ -78,7 +80,7 @@ A command marked (background) costs more as the data grows. On large data, run i
 
 ## Turning dials
 
-A dial is one threshold inside a command's `--thresholds` JSON; `dataforge schema <command> thresholds` lists them. A result's Dial Pointer (`operation`, `dial`, `value`, `source`) names the dial that decided an outcome, such as a flag on a column. To change that outcome:
+A dial is one threshold inside a command's `--thresholds` JSON; `dataforge schema <command> thresholds` lists them. A result's Dial Pointer names the dial that decided an outcome, such as a flag on a column. To change that outcome:
 
 1. Read the pointer's `dial` path, such as `thresholds.missingness.severity_high`.
 2. Run the command for its `operation` again with the dial set, as in `--thresholds '{"missingness":{"severity_high":0.3}}'`. Dials you leave out keep their defaults.
@@ -88,7 +90,7 @@ Seeds default to a fixed value, so the same call gives the same result.
 
 ## Errors
 
-A failure prints a Library Error: `code`, `message`, and fields such as `param`, `issues`, `allowed`, `candidates` and `hint`. Branch on the exit code and `code`, never on `message`.
+A failure prints a Library Error: a `code`, a `message`, a `hint` and the fields the table names. Branch on the exit code and `code`, never on `message`.
 
 | Exit | Category | What to do |
 |---|---|---|
@@ -102,12 +104,8 @@ A failure prints a Library Error: `code`, `message`, and fields such as `param`,
 
 ## Workspace Settings
 
-The Operator, the person who set up the library, sets four guardrails in `.dataforge/config.toml` or in env vars: `workspace`, `literal_policy`, `declared_inputs` and `core_budget`. Their flags (each name in kebab-case) would override the Operator's choice, so leave them out. They are guardrails, not a boundary: the [Harness contract](references/harness.md) says which hold where.
+The Operator sets four guardrails in `.dataforge/config.toml` or in env vars: `workspace`, `literal_policy`, `declared_inputs` and `core_budget`. Their flags would override the Operator's choice, so leave them out. They are guardrails, not a boundary: the [Harness contract](references/harness.md) says which hold where.
 
-- Literal Policy `deny`: fields that hold cell values, such as labels, bounds and percentiles, come back `null` and are listed in `omitted` with reason `literal_policy`. Work from the counts and shares.
+- Literal Policy `deny`: Literal Fields, which hold cell values, come back `null` and are listed in `omitted` with reason `literal_policy`. Work from the counts and shares.
 - Declared Inputs: once the Operator lists any, `load` reads only those paths and refuses others with `input_not_declared`. Ask the Operator to declare a new file.
 - Core budget: the most CPU cores one command uses.
-
-## References
-
-Read a phase's file before its first command: [load](references/load.md), [profile](references/profile.md), [split](references/split.md), [impute](references/impute.md), [evaluate](references/evaluate.md), [workspace](references/workspace.md). Python glue code: [python.md](references/python.md).

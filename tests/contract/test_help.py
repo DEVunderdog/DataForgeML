@@ -87,6 +87,12 @@ def test_every_phase_is_listed_in_the_overview_order() -> None:
     assert sorted(PHASE_ORDER) == sorted(PHASES)
 
 
+def test_the_overview_names_the_glossary_command() -> None:
+    data = json.loads(_help.HELP_FILE.read_text("utf-8"))
+    go_deeper = data["overview"].split("Go deeper:", 1)[1].split("\n\n", 1)[0]
+    assert "dataforge glossary [term]" in go_deeper
+
+
 def test_no_operation_is_named_like_the_schema_command() -> None:
     assert _help.SCHEMA_COMMAND not in COMMANDS
 

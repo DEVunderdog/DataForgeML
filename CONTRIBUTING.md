@@ -246,6 +246,7 @@ contract test, but you only learn that after a long run. Work down this list ins
 | `src/dataforge_ml/_boundary/` | The internal boundary module the Operation calls into, where its logic lives. Usually a new `_<name>.py`. Related Operations may share one: the profile detail reads all live in `_profile_detail.py`. |
 | `src/dataforge_ml/_boundary/_error_codes.py` | One `ErrorCodeEntry` (code, category, hint, and `fields` if any) for every new error or warning code the Operation raises. `test_error_registry.py` fails on a raise with no registered code. |
 | `CONTEXT.md` | Any new domain term the Operation introduces. Skip this if there is none. |
+| `src/dataforge_ml/skill/glossary/<phase>.md` | A glossary entry, written for Agents, for every new capitalised term the docstring or reference uses. A term every phase uses goes in `common.md`. `test_glossary_coverage.py` fails on a term with no entry. |
 | `_boundary/_operation.py` `PHASES` and `_boundary/_help_build.py` `PHASE_ORDER` | Only when the Operation needs a phase that does not exist yet. Add it to both. `test_help.py` fails when a phase is missing from `PHASE_ORDER`. |
 | `_glossary.py` `PHASES` and `src/dataforge_ml/skill/glossary/<phase>.md` | The same new phase, with its glossary file. `test_glossary.py` fails when the two phase lists differ. |
 | `src/dataforge_ml/skill/references/<phase>.md` | When to reach for the new command, and any judgement call `--help` leaves out. A new phase needs its own file, linked from `SKILL.md`; `test_skill.py` fails without both. |

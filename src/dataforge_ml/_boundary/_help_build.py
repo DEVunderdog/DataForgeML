@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Any
 
 from .._cli import EXIT_CODES, kebab, takes_json
+from .._glossary import GLOSSARY_COMMAND
 from .._help import HELP_FILE, SCHEMA_COMMAND, schema_pointer
 from .._skill_install import INSTALL_COMMAND
 from ._error_codes import REGISTRY
@@ -130,6 +131,8 @@ def _overview(specs: Mapping[str, OperationSpec]) -> str:
         "  dataforge <command> --help    one command: flags, result, errors, an example",
         f"  dataforge {SCHEMA_COMMAND} <command> <argument> [path]",
         "                                one nested argument's schema, one level at a time",
+        f"  dataforge {GLOSSARY_COMMAND} [term]",
+        "                                what a term means, one layer at a time",
         "  The `dataforge` Skill (SKILL.md) teaches the workflow and what each exit code asks.",
         f"  dataforge {INSTALL_COMMAND} --skills [--global]",
         "                                install the Skill for Claude Code, Codex, Gemini CLI, Cursor",

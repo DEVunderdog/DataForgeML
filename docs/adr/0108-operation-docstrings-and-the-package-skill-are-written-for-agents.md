@@ -10,6 +10,8 @@ accepted. Resolves [How are Operation docstrings and the Skill written for Agent
 
 **Amended by [ADR-0113](0113-an-agent-glossary-behind-a-layered-command.md) (2026-10-28).** A shipped Agent glossary is no longer rejected. The library ships one, read one term at a time through `dataforge glossary`, with one markdown file per phase, plus a `common` file, in the Skill folder as the fallback. The rule that a docstring defines a term in one clause where it is first used stands.
 
+**Amended on 2026-10-28 by [the SKILL.md size budget research](../research/skill-md-size-budget.md).** The Skill's cap is 8,000 UTF-8 bytes, not about 2k tokens. The 2k figure had no source. Codex cuts an explicitly invoked Skill to its first 8,000 bytes, so a longer file loses its tail there. The References line sits near the top of `SKILL.md`, because a Harness that cuts the file cuts its end. Gained: the cap matches a real cut and needs no tokenizer. Given up: it rests on a Codex constant its docs do not state, and each new command line takes about 145 of the bytes.
+
 ## Decisions
 
 - **There are two docstring rules in one format.** Operations and Wire Records follow the Agent rule below, and a test enforces it. Internal code keeps ADR-0034's numpy rule. Its scope is redrawn to the internal seams Operations call: `route`, `resolve_recipe`, `fit_unit`, the profiler, the splitter and `c2st`. The format is numpy everywhere, because the ADR-0101 description parser reads numpy sections. Gained: coding Agents that maintain the library still get contracts at the seams, and there is one format. Given up: two scopes to keep straight in `CLAUDE.md`, and docstring upkeep on code no user sees.
