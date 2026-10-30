@@ -172,7 +172,7 @@ wheels = [
 
 [[package]]
 name = "dataforge-ml"
-version = "3.3.0"
+version = "4.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "chardet" },
