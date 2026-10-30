@@ -1,0 +1,1733 @@
+{
+  "input": {
+    "additionalProperties": false,
+    "properties": {
+      "frame": {
+        "description": "A frame Handle, such as ``frame_7f3a9c2e``.",
+        "type": "string"
+      },
+      "semantic_types": {
+        "anyOf": [
+          {
+            "items": {
+              "additionalProperties": false,
+              "description": "A column's semantic type, set by you instead of detected.",
+              "properties": {
+                "column": {
+                  "description": "Column name, exactly as in the data.",
+                  "type": "string"
+                },
+                "semantic_type": {
+                  "description": "The semantic type: ``numeric``, ``categorical``, ``datetime``, ``boolean``, ``text`` or ``identifier``.",
+                  "enum": [
+                    "numeric",
+                    "categorical",
+                    "datetime",
+                    "boolean",
+                    "text",
+                    "identifier"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "column",
+                "semantic_type"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Semantic types you set instead of detection, one entry per column. Null means detect every column."
+      },
+      "numeric_kinds": {
+        "anyOf": [
+          {
+            "items": {
+              "additionalProperties": false,
+              "description": "A numeric column's kind, set by you instead of detected.",
+              "properties": {
+                "column": {
+                  "description": "Column name, exactly as in the data. Its semantic type must be ``numeric``.",
+                  "type": "string"
+                },
+                "numeric_kind": {
+                  "description": "``continuous``, or ``bounded_discrete`` for a whole-number count or score with a small range.",
+                  "enum": [
+                    "continuous",
+                    "bounded_discrete"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "column",
+                "numeric_kind"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Numeric kinds you set instead of detection, one entry per numeric column. Null means detect them."
+      },
+      "sentinels": {
+        "anyOf": [
+          {
+            "items": {
+              "additionalProperties": false,
+              "description": "Values in one column that mean \"missing\", such as ``-999`` or ``\"?\"``.",
+              "properties": {
+                "column": {
+                  "description": "Column name, exactly as in the data.",
+                  "type": "string"
+                },
+                "values": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "type": "number"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  ],
+                  "description": "The values to read as missing: all numbers for a numeric column, or all strings for a text column. For a text column they replace the default markers (``NA``, ``NULL``, ``?``...) and match case-insensitively. Constraints: at least 1 items; at least 1 items."
+                }
+              },
+              "required": [
+                "column",
+                "values"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Values that mean \"missing\" in a column, one entry per column. Null means none beyond blank strings and the default text markers."
+      },
+      "datetime_formats": {
+        "anyOf": [
+          {
+            "items": {
+              "additionalProperties": false,
+              "description": "How to read one datetime column. Give exactly one of ``format`` and ``epoch_unit``.",
+              "properties": {
+                "column": {
+                  "description": "Column name, exactly as in the data.",
+                  "type": "string"
+                },
+                "format": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "A strftime format for a text column, such as ``%Y-%m-%d`` or ``%Y`` for bare years; or null."
+                },
+                "epoch_unit": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "s",
+                        "ms",
+                        "us",
+                        "ns",
+                        "d"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The unit of a numeric epoch column: ``s``, ``ms``, ``us``, ``ns`` or ``d``; or null."
+                }
+              },
+              "required": [
+                "column",
+                "format",
+                "epoch_unit"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "How to read datetime columns, one entry per column. Null means infer each format."
+      },
+      "targets": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Target columns. Null means none."
+      },
+      "exclude_columns": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Columns to leave out of this and every later phase, added to what the frame already excludes. Null means none."
+      },
+      "skip_columns": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Columns profiling skips but later phases still see. Null means none."
+      },
+      "seed": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Seed for every random step: mixture fits, mutual information and the nonlinearity probes. Null means a fixed default, so the same call gives the same result. Constraints: at least 0; at most 4294967295."
+      },
+      "thresholds": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "description": "Every profiling dial, grouped. Null keeps every default.",
+            "properties": {
+              "missingness": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "Dials for missing values. Null keeps every default in this group.",
+                    "properties": {
+                      "severity_minor": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Null ratio below which a column's severity is ``minor``. Must not exceed ``severity_moderate``. Null means 0.01. Constraints: at least 0; at most 1."
+                      },
+                      "severity_moderate": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Null ratio below which severity is ``moderate``. Must not exceed ``severity_high``. Null means 0.05. Constraints: at least 0; at most 1."
+                      },
+                      "severity_high": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Null ratio below which severity is ``high``; at or above it, ``severe``. Null means 0.2. Constraints: at least 0; at most 1."
+                      },
+                      "mar_correlation_threshold": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Correlation between two columns' missing masks above which both are flagged ``missingness.mar_suspect``. Null means 0.6. Constraints: at least 0; at most 1."
+                      },
+                      "col_drop_threshold": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Null ratio above which a column is flagged ``missingness.drop_candidate``. Null means 0.5. Constraints: at least 0; at most 1."
+                      },
+                      "row_drop_threshold": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Share of profiled columns a row must be missing to count as a drop-candidate row. Null means 0.5. Constraints: at least 0; at most 1."
+                      }
+                    },
+                    "type": "object",
+                    "required": [
+                      "severity_minor",
+                      "severity_moderate",
+                      "severity_high",
+                      "mar_correlation_threshold",
+                      "col_drop_threshold",
+                      "row_drop_threshold"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Missing-value severity and the missingness flags."
+              },
+              "type_detection": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "Dials for detecting each column's semantic type. Null keeps every default in this group.",
+                    "properties": {
+                      "numeric_coerce_threshold": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Share of a text column's values that must parse as numbers for it to be read as numeric. Null means 0.95. Constraints: at least 0; at most 1."
+                      },
+                      "datetime_coerce_threshold": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Share of a text column's values that must parse as datetimes for it to be read as datetime. Null means 0.8. Constraints: at least 0; at most 1."
+                      },
+                      "encoded_category_max_unique": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Most distinct values an integer column may have to be read as an encoded category. Null means 15. Constraints: at least 1."
+                      },
+                      "encoded_category_max_ratio": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Most distinct values per non-null row an integer column may have to be read as an encoded category. Null means 0.05. Constraints: at least 0; at most 1."
+                      },
+                      "identifier_unique_ratio": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Distinct values per row above which a column is read as an identifier. Null means 0.99. Constraints: at least 0; at most 1."
+                      },
+                      "identifier_max_median_length": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Longest median length, in characters, a text column may have to be read as an identifier. Null means 40. Constraints: at least 1."
+                      },
+                      "free_text_avg_words": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Median word count above which a text column is read as free text. Null means 3. Constraints: at least 1."
+                      },
+                      "free_text_median_chars": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Median length, in characters, above which a multi-word text column is read as free text. Null means 20. Constraints: at least 1."
+                      },
+                      "free_text_p90_chars": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "90th-percentile length, in characters, above which a high-cardinality text column is read as free text. Null means 35. Constraints: at least 1."
+                      },
+                      "free_text_min_unique_ratio": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Distinct values per row a text column needs, with ``free_text_p90_chars``, to be read as free text. Null means 0.4. Constraints: at least 0; at most 1."
+                      },
+                      "free_text_high_unique_with_spaces": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Distinct values per row above which a multi-word text column is read as free text whatever its length. Null means 0.7. Constraints: at least 0; at most 1."
+                      }
+                    },
+                    "type": "object",
+                    "required": [
+                      "numeric_coerce_threshold",
+                      "datetime_coerce_threshold",
+                      "encoded_category_max_unique",
+                      "encoded_category_max_ratio",
+                      "identifier_unique_ratio",
+                      "identifier_max_median_length",
+                      "free_text_avg_words",
+                      "free_text_median_chars",
+                      "free_text_p90_chars",
+                      "free_text_min_unique_ratio",
+                      "free_text_high_unique_with_spaces"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "How each column's semantic type is detected."
+              },
+              "numeric": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "Dials for numeric columns. Null keeps every default in this group.",
+                    "properties": {
+                      "skew_normal": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Largest absolute skew still graded ``normal``. Must not exceed ``skew_moderate``. Null means 0.5. Constraints: at least 0."
+                      },
+                      "skew_moderate": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Largest absolute skew graded ``moderate``. Must not exceed ``skew_high``. Null means 1.0. Constraints: at least 0."
+                      },
+                      "skew_high": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Largest absolute skew graded ``high``; above it, ``severe``. Null means 2.0. Constraints: at least 0."
+                      },
+                      "kurt_platykurtic_upper": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Excess kurtosis below which a column is platykurtic. Must be below ``kurt_leptokurtic_lower``. Null means -1.0."
+                      },
+                      "kurt_leptokurtic_lower": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Excess kurtosis above which a column is leptokurtic. Null means 3.0."
+                      },
+                      "near_constant_threshold": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Share of rows holding the most common value above which a column is flagged ``numeric.near_constant``. Null means 0.9. Constraints: at least 0; at most 1."
+                      },
+                      "scale_orders_of_magnitude": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Orders of magnitude a column's values must span to be flagged ``numeric.scale_anomaly``. Null means 3. Constraints: at least 1."
+                      },
+                      "bimodal_dip_p_value_threshold": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Dip-test p-value below which a column is tested further for ``numeric.bimodal``. Null means 0.05. Constraints: at least 0; at most 1."
+                      },
+                      "bimodal_min_separation_threshold": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Least separation (Ashman's D) between two modes for ``numeric.bimodal``. Null means 2.0. Constraints: at least 0."
+                      },
+                      "bimodal_min_component_weight": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Least share of rows in the smaller mode for ``numeric.bimodal``. Null means 0.05. Constraints: at least 0; at most 1."
+                      },
+                      "tail_asymmetry_right_share_threshold": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Right-tail share above which a column's tails are ``right_heavy``. Must exceed ``tail_asymmetry_left_share_threshold``. Null means 0.6666666666666666. Constraints: at least 0; at most 1."
+                      },
+                      "tail_asymmetry_left_share_threshold": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Right-tail share below which a column's tails are ``left_heavy``. Null means 0.3333333333333333. Constraints: at least 0; at most 1."
+                      },
+                      "outlier_sigma_threshold": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Standard deviations from the mean beyond which a value counts as an outlier. Null means 3.0. Constraints: at least 0."
+                      },
+                      "high_outlier_density_threshold": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Share of outlier values above which a column is flagged ``numeric.high_outlier_density``. Null means 0.05. Constraints: at least 0; at most 1."
+                      }
+                    },
+                    "type": "object",
+                    "required": [
+                      "skew_normal",
+                      "skew_moderate",
+                      "skew_high",
+                      "kurt_platykurtic_upper",
+                      "kurt_leptokurtic_lower",
+                      "near_constant_threshold",
+                      "scale_orders_of_magnitude",
+                      "bimodal_dip_p_value_threshold",
+                      "bimodal_min_separation_threshold",
+                      "bimodal_min_component_weight",
+                      "tail_asymmetry_right_share_threshold",
+                      "tail_asymmetry_left_share_threshold",
+                      "outlier_sigma_threshold",
+                      "high_outlier_density_threshold"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Skew, kurtosis, tails, outliers and the numeric flags."
+              },
+              "categorical": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "Dials for categorical columns. Null keeps every default in this group.",
+                    "properties": {
+                      "rare_threshold_pct": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Share of rows below which a category counts as rare. Null means 0.01. Constraints: at least 0; at most 1."
+                      },
+                      "stratification_rare_threshold_pct": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Share of rows below which a category counts as a rare label the stratified split protects. Null means 0.05. Constraints: at least 0; at most 1."
+                      },
+                      "mixed_type_min_minor_pct": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Least share (lower confidence bound) of the minority value type, numbers or text, for ``categorical.mixed_type``. Null means 0.05. Constraints: at least 0; at most 1."
+                      },
+                      "near_constant_threshold": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Share of rows holding the most common value above which a column is flagged ``categorical.near_constant``. Null means 0.9. Constraints: at least 0; at most 1."
+                      }
+                    },
+                    "type": "object",
+                    "required": [
+                      "rare_threshold_pct",
+                      "stratification_rare_threshold_pct",
+                      "mixed_type_min_minor_pct",
+                      "near_constant_threshold"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Rare labels and the categorical flags."
+              },
+              "correlation": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "Dials for associations between columns. Null keeps every default in this group.",
+                    "properties": {
+                      "near_redundant_pearson_threshold": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Absolute Pearson or Spearman correlation above which two numeric columns are near-redundant. Null means 0.95. Constraints: at least 0; at most 1."
+                      },
+                      "near_redundant_cramer_v_threshold": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Cramér's V above which two categorical columns are near-redundant. Null means 0.8. Constraints: at least 0; at most 1."
+                      },
+                      "near_redundant_eta_squared_threshold": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "η² above which a numeric and a categorical column are near-redundant. Null means 0.5. Constraints: at least 0; at most 1."
+                      }
+                    },
+                    "type": "object",
+                    "required": [
+                      "near_redundant_pearson_threshold",
+                      "near_redundant_cramer_v_threshold",
+                      "near_redundant_eta_squared_threshold"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Near-redundancy between columns."
+              },
+              "datetime": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "Dials for datetime columns. Null keeps every default in this group.",
+                    "properties": {
+                      "mnar_null_ratio_threshold": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Null ratio, unparseable values included, above which a column is flagged ``datetime.mnar_suspected``. Null means 0.05. Constraints: at least 0; at most 1."
+                      },
+                      "high_gap_cv_threshold": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Coefficient of variation of the gaps between dates above which a column is flagged ``datetime.high_gap_variance``. Null means 1.0. Constraints: at least 0."
+                      },
+                      "recent_window_fraction": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Latest share of the date range checked for ``datetime.recent_date_missing``. Null means 0.1. Constraints: at most 1; greater than 0."
+                      }
+                    },
+                    "type": "object",
+                    "required": [
+                      "mnar_null_ratio_threshold",
+                      "high_gap_cv_threshold",
+                      "recent_window_fraction"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The datetime flags."
+              },
+              "nonlinearity": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "Dials for the nonlinearity probes on numeric columns. Null keeps every default in this group.",
+                    "properties": {
+                      "spearman_pearson_discrepancy_threshold": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Largest Spearman-minus-Pearson gap over predictors above which a column reads as monotonic nonlinear. Null means 0.1. Constraints: at least 0; at most 2."
+                      },
+                      "mutual_information_threshold": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Mean excess mutual information, in nats, above which a column reads as complex nonlinear. Null means 0.05. Constraints: at least 0."
+                      },
+                      "r2_gap_threshold": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Random-forest R² minus linear R² above which a column reads as complex nonlinear. Null means 0.1. Constraints: at least 0."
+                      },
+                      "heteroscedasticity_p_value_threshold": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Breusch-Pagan p-value below which a column's residuals count as heteroscedastic. Null means 0.05. Constraints: at least 0; at most 1."
+                      },
+                      "r2_rf_unpredictable_threshold": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Random-forest R² below which a column reads as unpredictable. Null means 0.05. Constraints: at most 1."
+                      },
+                      "min_rows": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Fewest complete rows, across a column and its predictors, to probe it. Null means 20. Constraints: at least 2."
+                      },
+                      "bootstrap_sample_size": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Most rows sampled for the R² probes. Null means 500. Constraints: at least 2."
+                      }
+                    },
+                    "type": "object",
+                    "required": [
+                      "spearman_pearson_discrepancy_threshold",
+                      "mutual_information_threshold",
+                      "r2_gap_threshold",
+                      "heteroscedasticity_p_value_threshold",
+                      "r2_rf_unpredictable_threshold",
+                      "min_rows",
+                      "bootstrap_sample_size"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The nonlinearity probes routing reads."
+              }
+            },
+            "type": "object",
+            "required": [
+              "missingness",
+              "type_detection",
+              "numeric",
+              "categorical",
+              "correlation",
+              "datetime",
+              "nonlinearity"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Dials, grouped by what they judge, each with its default and range. Null keeps every default."
+      }
+    },
+    "required": [
+      "frame",
+      "semantic_types",
+      "numeric_kinds",
+      "sentinels",
+      "datetime_formats",
+      "targets",
+      "exclude_columns",
+      "skip_columns",
+      "seed",
+      "thresholds"
+    ],
+    "type": "object"
+  },
+  "output": {
+    "additionalProperties": false,
+    "description": "The profile Handle and the Dataset Digest. ``result.get(name)`` finds one column.",
+    "properties": {
+      "warnings": {
+        "additionalProperties": false,
+        "description": "Caveats on this result, most actionable first. Empty when there are none.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `code`, `message`, `columns`, `param`, `hint`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "code",
+                "message",
+                "columns",
+                "param",
+                "hint"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "A caveat on a successful result: it worked, but read this first. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `code`: The warning's Error Code. Branch on this, not on ``message``.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `message`: What happened and what to do, in one or two sentences.",
+                    "type": "string"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 2, `columns`: Columns the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `param`: The argument the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 4, `hint`: Library-written advice, or null."
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "omitted": {
+        "additionalProperties": false,
+        "description": "One entry per list that was cut, naming the Operation that returns the rest. Empty when nothing was cut.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `field`, `shown`, `total`, `operation`, `reason`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "field",
+                "shown",
+                "total",
+                "operation",
+                "reason"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "Something left out of a result: a capped list was cut, or a Literal Field withheld. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `field`: Name of the list field that was cut, or the path of the Literal Field withheld, such as ``top_values[].value``.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `shown`: How many items the list holds; 0 for a withheld Literal Field or cut cells.",
+                    "type": "integer"
+                  },
+                  {
+                    "description": "Position 2, `total`: How many items exist; for a withheld Literal Field, how many values at that path are null; for cut cells, how many were cut.",
+                    "type": "integer"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `operation`: The Operation that returns the rest, or null when no Operation does."
+                  },
+                  {
+                    "description": "Position 4, `reason`: ``cap`` when a list was cut to its cap; ``literal_policy`` when the Operator's Literal Policy is ``deny``; ``truncated`` when long text cells were cut to their character cap.",
+                    "enum": [
+                      "cap",
+                      "literal_policy",
+                      "truncated"
+                    ],
+                    "type": "string"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "profile": {
+        "description": "The profile Handle, such as ``profile_7f3a9c2e``. It carries its frame and these declarations.",
+        "type": "string"
+      },
+      "frame": {
+        "description": "The frame Handle that was profiled.",
+        "type": "string"
+      },
+      "n_rows": {
+        "description": "Number of rows.",
+        "type": "integer"
+      },
+      "n_columns": {
+        "description": "Number of columns in the frame, excluded ones included.",
+        "type": "integer"
+      },
+      "duplicate_rows": {
+        "description": "Number of rows that repeat an earlier row exactly.",
+        "type": "integer"
+      },
+      "duplicate_ratio": {
+        "description": "Share of rows that repeat an earlier row.",
+        "type": "number"
+      },
+      "sparsity": {
+        "description": "Share of all cells that are missing.",
+        "type": "number"
+      },
+      "targets": {
+        "additionalProperties": false,
+        "description": "Declared targets and their problem types.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `column`, `problem_type`, `missing_ratio`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "column",
+                "problem_type",
+                "missing_ratio"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "One declared target. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `column`: Target column name.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `problem_type`: The learning problem the target implies.",
+                    "enum": [
+                      "regression",
+                      "binary_classification",
+                      "multiclass_classification",
+                      "unknown"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 2, `missing_ratio`: Share of rows whose target is missing.",
+                    "type": "number"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "declarations": {
+        "additionalProperties": false,
+        "description": "Your declarations as recorded on the profile.",
+        "properties": {
+          "semantic_types": {
+            "additionalProperties": false,
+            "description": "Declared semantic types.",
+            "properties": {
+              "fields": {
+                "description": "Always exactly `column`, `semantic_type`, in this order. A row's value at position i is the field named here at i.",
+                "items": {
+                  "enum": [
+                    "column",
+                    "semantic_type"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "rows": {
+                "description": "A column's semantic type, set by you instead of detected. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+                "items": {
+                  "items": {
+                    "anyOf": [
+                      {
+                        "description": "Position 0, `column`: Column name, exactly as in the data.",
+                        "type": "string"
+                      },
+                      {
+                        "description": "Position 1, `semantic_type`: The semantic type: ``numeric``, ``categorical``, ``datetime``, ``boolean``, ``text`` or ``identifier``.",
+                        "enum": [
+                          "numeric",
+                          "categorical",
+                          "datetime",
+                          "boolean",
+                          "text",
+                          "identifier"
+                        ],
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "fields",
+              "rows"
+            ],
+            "type": "object"
+          },
+          "numeric_kinds": {
+            "additionalProperties": false,
+            "description": "Declared numeric kinds.",
+            "properties": {
+              "fields": {
+                "description": "Always exactly `column`, `numeric_kind`, in this order. A row's value at position i is the field named here at i.",
+                "items": {
+                  "enum": [
+                    "column",
+                    "numeric_kind"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "rows": {
+                "description": "A numeric column's kind, set by you instead of detected. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+                "items": {
+                  "items": {
+                    "anyOf": [
+                      {
+                        "description": "Position 0, `column`: Column name, exactly as in the data. Its semantic type must be ``numeric``.",
+                        "type": "string"
+                      },
+                      {
+                        "description": "Position 1, `numeric_kind`: ``continuous``, or ``bounded_discrete`` for a whole-number count or score with a small range.",
+                        "enum": [
+                          "continuous",
+                          "bounded_discrete"
+                        ],
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "fields",
+              "rows"
+            ],
+            "type": "object"
+          },
+          "sentinels": {
+            "additionalProperties": false,
+            "description": "Declared sentinel values.",
+            "properties": {
+              "fields": {
+                "description": "Always exactly `column`, `values`, in this order. A row's value at position i is the field named here at i.",
+                "items": {
+                  "enum": [
+                    "column",
+                    "values"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "rows": {
+                "description": "Values in one column that mean \"missing\", such as ``-999`` or ``\"?\"``. One row per record, its values in `fields` order. The i-th schema below describes position i. Constraints: at least 1 items; at least 1 items.",
+                "items": {
+                  "items": {
+                    "anyOf": [
+                      {
+                        "description": "Position 0, `column`: Column name, exactly as in the data.",
+                        "type": "string"
+                      },
+                      {
+                        "anyOf": [
+                          {
+                            "items": {
+                              "type": "number"
+                            },
+                            "type": "array"
+                          },
+                          {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          }
+                        ],
+                        "description": "Position 1, `values`: The values to read as missing: all numbers for a numeric column, or all strings for a text column. For a text column they replace the default markers (``NA``, ``NULL``, ``?``...) and match case-insensitively."
+                      }
+                    ]
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "fields",
+              "rows"
+            ],
+            "type": "object"
+          },
+          "datetime_formats": {
+            "additionalProperties": false,
+            "description": "Declared datetime formats and epoch units.",
+            "properties": {
+              "fields": {
+                "description": "Always exactly `column`, `format`, `epoch_unit`, in this order. A row's value at position i is the field named here at i.",
+                "items": {
+                  "enum": [
+                    "column",
+                    "format",
+                    "epoch_unit"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "rows": {
+                "description": "How to read one datetime column. Give exactly one of ``format`` and ``epoch_unit``. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+                "items": {
+                  "items": {
+                    "anyOf": [
+                      {
+                        "description": "Position 0, `column`: Column name, exactly as in the data.",
+                        "type": "string"
+                      },
+                      {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Position 1, `format`: A strftime format for a text column, such as ``%Y-%m-%d`` or ``%Y`` for bare years; or null."
+                      },
+                      {
+                        "anyOf": [
+                          {
+                            "enum": [
+                              "s",
+                              "ms",
+                              "us",
+                              "ns",
+                              "d"
+                            ],
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Position 2, `epoch_unit`: The unit of a numeric epoch column: ``s``, ``ms``, ``us``, ``ns`` or ``d``; or null."
+                      }
+                    ]
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "fields",
+              "rows"
+            ],
+            "type": "object"
+          },
+          "targets": {
+            "description": "Declared targets.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "exclude_columns": {
+            "description": "Columns excluded from this and every later phase. They are not profiled.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "skip_columns": {
+            "description": "Columns skipped by profiling only.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "semantic_types",
+          "numeric_kinds",
+          "sentinels",
+          "datetime_formats",
+          "targets",
+          "exclude_columns",
+          "skip_columns"
+        ],
+        "type": "object"
+      },
+      "columns": {
+        "additionalProperties": false,
+        "description": "Profiled and skipped columns: flagged ones first, then dataset order. At most 100; past 100, ``omitted`` counts the rest and names ``describe_columns``.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `column`, `role`, `semantic_type`, `numeric_kind`, `null_ratio`, `severity`, `cardinality`, `skew`, `outlier_density`, `flags`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "column",
+                "role",
+                "semantic_type",
+                "numeric_kind",
+                "null_ratio",
+                "severity",
+                "cardinality",
+                "skew",
+                "outlier_density",
+                "flags"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "One column at low resolution. No literal values. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `column`: Column name, exactly as in the data.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `role`: ``target`` for a declared target, ``skipped`` for a column in ``skip_columns`` (no statistics), else ``feature``.",
+                    "enum": [
+                      "feature",
+                      "target",
+                      "skipped"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "enum": [
+                          "numeric",
+                          "categorical",
+                          "datetime",
+                          "boolean",
+                          "text",
+                          "identifier"
+                        ],
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 2, `semantic_type`: Detected or declared semantic type; null when skipped."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "enum": [
+                          "continuous",
+                          "bounded_discrete"
+                        ],
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `numeric_kind`: ``continuous`` or ``bounded_discrete`` for a numeric column; else null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 4, `null_ratio`: Share of rows missing, sentinels and blank strings included; null when skipped."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "enum": [
+                          "minor",
+                          "moderate",
+                          "high",
+                          "severe"
+                        ],
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 5, `severity`: Missing-value severity, graded by the ``thresholds.missingness.severity_*`` dials; null when nothing is missing."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 6, `cardinality`: Number of distinct non-missing values; null when skipped."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 7, `skew`: Skewness of a numeric column; else null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 8, `outlier_density`: Share of a numeric column's values that are outliers; else null."
+                  },
+                  {
+                    "description": "Position 9, `flags`: Flags raised on the column, each named ``<group>.<flag>``, such as ``numeric.bimodal``. ``flag_dials`` names the dials behind each.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "flag_dials": {
+        "additionalProperties": false,
+        "description": "One entry per flag raised on any column, in ``columns`` order of first appearance.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `flag`, `dials`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "flag",
+                "dials"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "The dials that decide one flag. Turn one to change which columns raise the flag. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `flag`: The flag, as in ``columns[].flags``.",
+                    "type": "string"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "Position 1, `dials`: Every dial the flag's rule reads, with its resolved value. Empty when no dial decides it, as for ``missingness.fully_null``.",
+                    "properties": {
+                      "fields": {
+                        "description": "Always exactly `operation`, `dial`, `value`, `source`, in this order. A row's value at position i is the field named here at i.",
+                        "items": {
+                          "enum": [
+                            "operation",
+                            "dial",
+                            "value",
+                            "source"
+                          ],
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "rows": {
+                        "description": "The dial whose value decided a threshold outcome. Turn it to change the outcome. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+                        "items": {
+                          "items": {
+                            "anyOf": [
+                              {
+                                "description": "Position 0, `operation`: The Operation that takes the dial.",
+                                "type": "string"
+                              },
+                              {
+                                "description": "Position 1, `dial`: The dial's argument path, such as ``thresholds.missingness.high_null_ratio``.",
+                                "type": "string"
+                              },
+                              {
+                                "anyOf": [
+                                  {
+                                    "type": "boolean"
+                                  },
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Position 2, `value`: The dial's resolved value."
+                              },
+                              {
+                                "description": "Position 3, `source`: ``default`` when the library default decided, ``argument`` when the caller set it.",
+                                "enum": [
+                                  "default",
+                                  "argument"
+                                ],
+                                "type": "string"
+                              }
+                            ]
+                          },
+                          "type": "array"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "fields",
+                      "rows"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "warnings",
+      "omitted",
+      "profile",
+      "frame",
+      "n_rows",
+      "n_columns",
+      "duplicate_rows",
+      "duplicate_ratio",
+      "sparsity",
+      "targets",
+      "declarations",
+      "columns",
+      "flag_dials"
+    ],
+    "type": "object"
+  }
+}

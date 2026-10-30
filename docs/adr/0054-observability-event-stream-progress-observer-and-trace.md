@@ -4,6 +4,8 @@ Long-running orchestrator calls (profiling, imputation fitting, correlation/nonl
 
 ## Status
 
+Amended by ADR-0102: the `warning` and `decision` event types are dropped; warnings are data on Operation results, and Pipeline Events are progress only.
+
 accepted — the "solver-iteration granularity is deferred / column-level is the item floor" consequence is amended by ADR-0055, which lowers the floor to Substep granularity (still above solver-iteration) via a `substep` event type and an explicit Emitter.
 
 ## Considered Options

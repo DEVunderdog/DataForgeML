@@ -20,12 +20,12 @@ progress emit — ``item`` for a direct call, since the call owns the loop, and
 
 **What it does not know:** ``m``, masks, column semantics, imputation. There is
 no column-type argument either — **dtype is the whole type contract**. A
-``pl.String`` column raises :class:`C2STDtypeError` naming the column, and an
+``pl.String`` column raises ``c2st_string_column`` naming the column, and an
 int-coded categorical sitting as ``pl.Int64`` is treated as an ordered numeric,
 a stated and unenforceable precondition on the caller's typing.
 
 The one imported dependency beyond the numeric stack is
-:mod:`dataforge_ml.observability`, because the repeat progress can only be
+:mod:`dataforge_ml._observability`, because the repeat progress can only be
 emitted from here (ADR-0087). ``Observer``/``Emitter`` are phase-agnostic
 infrastructure, so the seam's rule bans *imputation*-shaped knowledge, not
 observability.
@@ -35,19 +35,19 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from enum import Enum, StrEnum
+from enum import StrEnum
 from typing import Any
 
 import numpy as np
 import polars as pl
 from sklearn.ensemble import HistGradientBoostingClassifier
 
-from ..observability import Emitter, Observer
+from .._observability import Emitter, Observer
+from .._seed import DEFAULT_SEED
+from ..records import DataForgeError
 
 __all__ = [
-    "C2STDtypeError",
     "C2STResult",
-    "C2STSampleFloorError",
     "C2STScheme",
     "c2st",
 ]
@@ -60,8 +60,8 @@ __all__ = [
 # training rows, so the classifier constant-predicts, scores exactly 0.5
 # against a balanced test set and reports z = 0.000 — a constant fill returned
 # as a perfect pass. This constant is also ``C2STConfig.min_samples_leaf``'s
-# field default, so the configured value and the value a bare
-# ``c2st(classifier=None)`` builds can never drift apart.
+# field default, so the configured value and the value a bare ``c2st`` call
+# builds can never drift apart.
 DEFAULT_MIN_SAMPLES_LEAF: int = 5
 
 # The hard refusal floor, applied to the *smaller* sample before balancing.
@@ -79,31 +79,6 @@ _TEST_FRACTION: float = 0.3
 _CV_FOLDS: int = 5
 
 
-class C2STDtypeError(TypeError):
-    """A column's dtype cannot be handed to a C2ST classifier.
-
-    Raised by :func:`c2st` when a sample carries a ``pl.String`` column, which
-    :class:`~sklearn.ensemble.HistGradientBoostingClassifier` rejects with a
-    bare ``could not convert string to float`` naming a *value* rather than a
-    column. Under ADR-0085's dtype floor no semantic categorical arrives as a
-    string, and ``Text``/``Identifier`` columns are dropped by the imputation
-    adapter before it ever calls here, so this is a diagnosis for a direct
-    caller of the generic seam rather than a path the adapter can trip.
-    """
-
-
-class C2STSampleFloorError(ValueError):
-    """A sample pair falls below C2ST's size floor.
-
-    Raised by :func:`c2st` in place of a bare ``ValueError`` so a caller can
-    catch the size-floor refusal specifically, without also swallowing the
-    other ``ValueError``s :func:`c2st` raises (a repeat count below 1, or
-    mismatched columns). :func:`_meets_sample_floor` answers the same question
-    as a pure predicate, for a caller that wants to describe the refusal
-    rather than catch it.
-    """
-
-
 class C2STScheme(StrEnum):
     """The train/test scheme of one C2ST repeat — a dial; balancing is not.
 
@@ -118,24 +93,6 @@ class C2STScheme(StrEnum):
 
     Split = "split"
     CrossValidation = "cross_validation"
-
-
-def _md_cell(value: Any) -> str:
-    """Render one value as a Markdown table cell.
-
-    Absence is stated rather than left as a bare ``None``, enums render by their
-    string form, and any pipe or newline is neutralised so it cannot break the
-    surrounding table.
-    """
-    if value is None:
-        return "none"
-    if isinstance(value, Enum):
-        text = str(value)
-    elif isinstance(value, (list, tuple)):
-        text = ", ".join(_md_cell(v) for v in value) if value else "none"
-    else:
-        text = str(value)
-    return text.replace("|", "\\|").replace("\n", " ")
 
 
 @dataclass(frozen=True)
@@ -172,8 +129,7 @@ class C2STResult:
         ``CrossValidation``, where ``m`` is the balanced pile size.
     degenerate : bool
         ``True`` when *every* repeat's classifier predicted a single class — a
-        runtime safety net for an injected classifier, explicitly not the size
-        floor.
+        runtime safety net, explicitly not the size floor.
     unseen_category : bool
         ``True`` when some ``pl.Categorical``/``pl.Boolean`` level appears in
         the candidate sample and never in the reference sample. Computed as a
@@ -189,73 +145,33 @@ class C2STResult:
     degenerate: bool = False
     unseen_category: bool = False
 
-    def to_markdown(self) -> str:
-        """Render the result as a ``###``-rooted Markdown fragment.
-
-        A fragment per rule 5 of the Rendering Contract (ADR-0086): it carries
-        no ``#`` or ``##`` heading, so an owning document composes it without a
-        heading collision.
-
-        Returns
-        -------
-        str
-            Markdown subsection headed by ``### C2ST Sample-Pair Result``,
-            holding the pooled figures and the two runtime flags.
-        """
-        return "\n".join(
-            [
-                "### C2ST Sample-Pair Result\n",
-                "| Field | Value |",
-                "|---|---|",
-                f"| mean_repeat_z | {self.mean_repeat_z:.4f} |",
-                f"| repeat_z_spread | {self.repeat_z_spread:.4f} |",
-                f"| repeats | {len(self.repeat_z)} |",
-                "| repeat_z | " + _md_cell([f"{z:.4f}" for z in self.repeat_z]) + " |",
-                f"| train_accuracy | {self.train_accuracy:.4f} |",
-                f"| test_accuracy | {self.test_accuracy:.4f} |",
-                f"| n_test | {self.n_test} |",
-                f"| degenerate | {_md_cell(self.degenerate)} |",
-                f"| unseen_category | {_md_cell(self.unseen_category)} |",
-            ]
-        )
-
-    def __str__(self) -> str:
-        """Return the fragment, per rule 2 of the Rendering Contract.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()
-
 
 def _default_c2st_classifier(
     min_samples_leaf: int = DEFAULT_MIN_SAMPLES_LEAF,
-    random_state: int | None = None,
+    seed: int | None = None,
 ) -> Any:
     """Build the library's default C2ST classifier, pins included.
 
-    The single place a default classifier is constructed, so
-    ``c2st(classifier=None)`` can never build a bare sklearn-default
-    ``HistGradientBoostingClassifier``. Exactly two settings are pinned, under
+    The single place the C2ST classifier is constructed, so no path can ever
+    build a bare sklearn-default ``HistGradientBoostingClassifier``; no caller
+    can hand one in either. Exactly two settings are pinned, under
     the rule *pin only where sklearn's default encodes a dataset-size assumption
     balanced C2ST piles violate* (ADR-0087): ``min_samples_leaf`` reads
     :data:`DEFAULT_MIN_SAMPLES_LEAF`, and ``early_stopping`` is ``False`` rather
     than the ``'auto'`` that flips at 10,000 training rows. Everything else —
     ``max_iter``, ``learning_rate``, ``max_leaf_nodes``, ``l2_regularization``,
-    ``class_weight`` — is inherited; tuning those is what the injection channel
-    is for.
+    ``class_weight`` — is inherited.
 
     Parameters
     ----------
     min_samples_leaf : int, optional
         The leaf-size floor to pin; defaults to :data:`DEFAULT_MIN_SAMPLES_LEAF`,
         which is also ``C2STConfig.min_samples_leaf``'s field default, so the
-        configured value and the value a bare ``c2st(classifier=None)`` builds
-        read one number in one place.
-    random_state : int, optional
-        Seed handed to the estimator.
+        configured value and the value a bare ``c2st`` call builds read one
+        number in one place.
+    seed : int, optional
+        Seed handed to the estimator. ``None`` means the fixed library default
+        seed, never "random".
 
     Returns
     -------
@@ -265,7 +181,7 @@ def _default_c2st_classifier(
     return HistGradientBoostingClassifier(
         min_samples_leaf=min_samples_leaf,
         early_stopping=False,
-        random_state=random_state,
+        random_state=DEFAULT_SEED if seed is None else seed,
     )
 
 
@@ -306,24 +222,47 @@ def _meets_sample_floor(
     return min(reference.height, candidate.height) >= min_rows
 
 
-def _check_dtypes(frame: pl.DataFrame, side: str) -> None:
-    """Raise :class:`C2STDtypeError` for the first ``pl.String`` column."""
-    for name, dtype in frame.schema.items():
-        if dtype == pl.String:
-            raise C2STDtypeError(
-                f"C2ST cannot test a pl.String column: {side} column "
-                f"{name!r} has dtype {dtype}. Cast it to pl.Categorical, or "
-                f"drop it from both samples."
-            )
+def _check_dtypes(reference: pl.DataFrame, candidate: pl.DataFrame) -> None:
+    """Raise ``c2st_string_column`` naming every ``pl.String`` column.
+
+    :class:`~sklearn.ensemble.HistGradientBoostingClassifier` rejects a string
+    column with a bare ``could not convert string to float`` naming a *value*
+    rather than a column. Under ADR-0085's dtype floor no semantic categorical
+    arrives as a string, and ``Text``/``Identifier`` columns are dropped by the
+    imputation adapter before it ever calls here, so this is a diagnosis for a
+    direct caller of the generic seam.
+    """
+    names = list(
+        dict.fromkeys(
+            name
+            for frame in (reference, candidate)
+            for name, dtype in frame.schema.items()
+            if dtype == pl.String
+        )
+    )
+    if names:
+        raise DataForgeError.from_code(
+            "c2st_string_column",
+            f"C2ST cannot test pl.String columns: {len(names)} column(s) have "
+            f"dtype String. Cast them to pl.Categorical, or drop them from "
+            f"both samples.",
+            columns=names,
+        )
 
 
 def _align(reference: pl.DataFrame, candidate: pl.DataFrame) -> pl.DataFrame:
     """Stack the two samples into one frame, reference rows first."""
     if list(reference.columns) != list(candidate.columns):
-        raise ValueError(
-            "C2ST needs the same columns in the same order in both samples: "
-            f"reference has {list(reference.columns)}, "
-            f"candidate has {list(candidate.columns)}."
+        differing = sorted(set(reference.columns) ^ set(candidate.columns))
+        raise DataForgeError.from_code(
+            "frames_not_aligned",
+            "C2ST needs the same columns in the same order in both samples. "
+            + (
+                "The columns in `columns` are in only one of them."
+                if differing
+                else "Both have the same columns, in a different order."
+            ),
+            columns=differing or None,
         )
     return pl.concat([reference, candidate], how="vertical")
 
@@ -374,28 +313,35 @@ def _run_c2st(
     *,
     repeats: int,
     scheme: C2STScheme,
-    classifier: Any | None,
-    random_state: int | None,
+    seed: int | None,
     min_rows: int,
     min_samples_leaf: int,
     on_repeat: Callable[[int, int], None] | None,
+    floor_param: str = "min_rows",
 ) -> C2STResult:
     """Run the repeat loop shared by the public and adapter-facing seams.
 
     Owns every piece of arithmetic ``c2st`` documents; the two public-facing
-    wrappers differ only in how they resolve the classifier's default leaf
-    size and how they report ``on_repeat``.
+    wrappers differ only in how they resolve the classifier's leaf size and how
+    they report ``on_repeat``. ``seed=None`` resolves to the fixed
+    library default seed, so two unseeded calls give the same result.
+    ``floor_param`` is the argument path ``c2st_sample_floor`` names, so the
+    ``c2st`` Operation can name its own dial.
     """
     if repeats < 1:
-        raise ValueError(f"C2ST needs at least 1 repeat, got {repeats}.")
-    _check_dtypes(reference, "reference")
-    _check_dtypes(candidate, "candidate")
+        raise DataForgeError.from_code(
+            "invalid_dial_value",
+            f"C2ST needs at least 1 repeat, got {repeats}.",
+            param="repeats",
+        )
+    _check_dtypes(reference, candidate)
     if not _meets_sample_floor(reference, candidate, min_rows=min_rows):
-        raise C2STSampleFloorError(
+        raise DataForgeError.from_code(
+            "c2st_sample_floor",
             "C2ST refuses samples below the size floor: the smaller of "
             f"{reference.height} reference and {candidate.height} candidate "
-            f"rows is under {min_rows}. Ask _meets_sample_floor "
-            "before calling to describe such a pair rather than raise on it."
+            f"rows is under {min_rows}.",
+            param=floor_param,
         )
 
     pooled = _align(reference, candidate)
@@ -409,14 +355,9 @@ def _run_c2st(
     )
     unseen_category = _has_unseen_category(reference, candidate)
 
-    model = (
-        _default_c2st_classifier(
-            min_samples_leaf=min_samples_leaf, random_state=random_state
-        )
-        if classifier is None
-        else classifier
-    )
-    rng = np.random.default_rng(random_state)
+    seed = DEFAULT_SEED if seed is None else seed
+    model = _default_c2st_classifier(min_samples_leaf=min_samples_leaf, seed=seed)
+    rng = np.random.default_rng(seed)
     balanced = min(n_reference, candidate_height)
 
     repeat_z: list[float] = []
@@ -465,9 +406,9 @@ def _c2st(
     *,
     repeats: int,
     scheme: C2STScheme,
-    classifier: Any | None = None,
-    random_state: int | None = None,
+    seed: int | None = None,
     min_rows: int = MIN_SAMPLE_FLOOR,
+    min_samples_leaf: int = DEFAULT_MIN_SAMPLES_LEAF,
     emitter: Emitter | None = None,
 ) -> C2STResult:
     """The adapter-facing seam: the imputation adapter's nested call.
@@ -483,10 +424,9 @@ def _c2st(
         candidate,
         repeats=repeats,
         scheme=scheme,
-        classifier=classifier,
-        random_state=random_state,
+        seed=seed,
         min_rows=min_rows,
-        min_samples_leaf=DEFAULT_MIN_SAMPLES_LEAF,
+        min_samples_leaf=min_samples_leaf,
         on_repeat=(
             None
             if emitter is None
@@ -503,8 +443,7 @@ def c2st(
     *,
     repeats: int,
     scheme: C2STScheme,
-    classifier: Any | None = None,
-    random_state: int | None = None,
+    seed: int | None = None,
     min_rows: int = MIN_SAMPLE_FLOOR,
     min_samples_leaf: int | None = None,
     observer: Observer | None = None,
@@ -551,17 +490,10 @@ def c2st(
         The number of balanced subsampling repeats, ``R``. At least 1.
     scheme : C2STScheme
         ``Split`` for one fit per repeat, ``CrossValidation`` for five.
-    classifier : Any, optional
-        An unfitted classifier to use **verbatim** — no ``set_params``, no
-        clone, so its parameters are exactly what the caller set. ``None``
-        builds the library's default through
-        :func:`_default_c2st_classifier`. Stated hole (ADR-0087): an injected
-        *bare* ``HistGradientBoostingClassifier`` reintroduces the
-        constant-predictor pathology at 30–60 rows per pile. Mutually
-        exclusive with ``min_samples_leaf``.
-    random_state : int, optional
-        Seed for the subsampling, the train/test carve and the default
-        classifier. The same seed on the same samples gives the same result.
+    seed : int, optional
+        Seed for the subsampling, the train/test carve and the classifier. The
+        same seed on the same samples gives the same result. ``None`` means the
+        fixed library default seed, never "random", so two unseeded calls agree.
     min_rows : int, optional
         The size floor asserted internally, applied to the **smaller** sample
         before balancing; defaults to :data:`MIN_SAMPLE_FLOOR`. Mechanism
@@ -570,11 +502,10 @@ def c2st(
         moved the floor states it once and the assertion cannot then refuse
         what the consumer deliberately allowed.
     min_samples_leaf : int, optional
-        The leaf-size floor of the library's default classifier, forwarded to
+        The leaf-size floor of the library's classifier, forwarded to
         :func:`_default_c2st_classifier`. ``None`` — the default — means the
-        pin :data:`DEFAULT_MIN_SAMPLES_LEAF`. Only tunes the *default*
-        classifier: since ``classifier`` is used verbatim, setting both is
-        unrepresentable and raises.
+        pin :data:`DEFAULT_MIN_SAMPLES_LEAF`. The classifier is always the
+        library's own; no call takes one in.
     observer : Callable[[PipelineEvent], None], optional
         A Progress Observer receiving one ``item`` event per repeat, since a
         direct call owns its own loop.
@@ -586,25 +517,17 @@ def c2st(
 
     Raises
     ------
-    C2STDtypeError
-        When either sample carries a ``pl.String`` column; the message names the
-        column.
-    C2STSampleFloorError
-        When the smaller sample falls below ``min_rows`` — the internal
-        assertion of the floor :func:`_meets_sample_floor` exposes, so a
-        direct caller cannot bypass it.
-    ValueError
-        When ``repeats`` is below 1, when the two samples do not carry the same
-        columns in the same order, or when both ``min_samples_leaf`` and
-        ``classifier`` are supplied.
+    Infeasible
+        ``c2st_string_column`` when either sample carries a ``pl.String``
+        column; ``columns`` names every one. ``c2st_sample_floor`` when the
+        smaller sample falls below ``min_rows`` — the internal assertion of
+        the floor :func:`_meets_sample_floor` exposes, so a direct caller
+        cannot bypass it.
+    InvalidInput
+        ``invalid_dial_value`` when ``repeats`` is below 1.
+        ``frames_not_aligned`` when the two samples do not carry the same
+        columns in the same order.
     """
-    if min_samples_leaf is not None and classifier is not None:
-        raise ValueError(
-            "c2st cannot take both min_samples_leaf and classifier: "
-            "min_samples_leaf only tunes the leaf size of the library's "
-            "default classifier, and an injected classifier is used "
-            "verbatim, so the two are unrepresentable together."
-        )
     emitter = Emitter(_DIRECT_PHASE, _DIRECT_STAGE, observer, total=repeats)
     emitter.stage_start()
     result = _run_c2st(
@@ -612,8 +535,7 @@ def c2st(
         candidate,
         repeats=repeats,
         scheme=scheme,
-        classifier=classifier,
-        random_state=random_state,
+        seed=seed,
         min_rows=min_rows,
         min_samples_leaf=(
             DEFAULT_MIN_SAMPLES_LEAF if min_samples_leaf is None else min_samples_leaf

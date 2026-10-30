@@ -8,17 +8,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Optional
 
 from ._categorical_config import (
     CategoricalColumnProfile,
     CategoricalStats,
-    _categorical_stats_lines,
 )
 from ._numeric_config import (
     ColumnNumericProfile,
     NumericStats,
-    _numeric_stats_lines,
 )
 
 
@@ -54,8 +51,8 @@ class TargetProfileResult:
     missing_ratio: float = 0.0
 
     # Underlying profile data depending on the problem type
-    numeric_profile: Optional[ColumnNumericProfile] = None
-    categorical_profile: Optional[CategoricalColumnProfile] = None
+    numeric_profile: ColumnNumericProfile | None = None
+    categorical_profile: CategoricalColumnProfile | None = None
 
     flags: list[TargetFlag] = field(default_factory=list)
 
@@ -98,7 +95,7 @@ class TargetProfileResult:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "TargetProfileResult":
+    def from_dict(cls, data: dict) -> TargetProfileResult:
         """Reconstruct the target profile from a plain dictionary.
 
         Parameters
@@ -124,62 +121,3 @@ class TargetProfileResult:
             ),
             flags=[TargetFlag(f) for f in data.get("flags", [])],
         )
-
-    def to_markdown(self) -> str:
-        """Render the target profile as a Markdown document.
-
-        A document per rule 5 of the Rendering Contract (ADR-0086): it owns the
-        ``#`` and ``##`` heading levels. Every field is covered, including the
-        numeric and categorical sub-profiles; an absent sub-profile renders a
-        stated absence rather than a bare ``None``.
-
-        Returns
-        -------
-        str
-            Markdown document with a summary table, the raised
-            ``TargetFlag`` list, and whichever sub-profile is populated.
-        """
-        lines = ["# Target Variable Profile\n"]
-
-        lines.append("## Summary\n")
-        lines.append("| Field | Value |")
-        lines.append("|---|---|")
-        lines.append(f"| column | {self.column or 'not set'} |")
-        lines.append(f"| problem_type | {str(self.problem_type)} |")
-        lines.append(f"| missing_count | {self.missing_count:,} |")
-        lines.append(f"| missing_ratio | {self.missing_ratio:.2%} |")
-        flags = ", ".join(str(f) for f in self.flags) if self.flags else "none"
-        lines.append(f"| flags | {flags} |")
-        lines.append("")
-
-        if self.has_flag(TargetFlag.ContainsMissing):
-            lines.append(
-                "> **Warning:** the target contains missing values. "
-                "Imputing a target is not recommended.\n"
-            )
-
-        lines.append("## Numeric Profile\n")
-        if self.numeric_profile is not None:
-            lines.extend(_numeric_stats_lines(self.numeric_profile))
-        else:
-            lines.append("not applicable for this problem type")
-        lines.append("")
-
-        lines.append("## Categorical Profile\n")
-        if self.categorical_profile is not None:
-            lines.extend(_categorical_stats_lines(self.categorical_profile))
-        else:
-            lines.append("not applicable for this problem type")
-        lines.append("")
-
-        return "\n".join(lines).strip() + "\n"
-
-    def __str__(self) -> str:
-        """Return the Target Variable Profile, per rule 2 of the contract.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()

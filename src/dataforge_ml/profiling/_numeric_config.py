@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import List, Optional
 
 
 @dataclass
@@ -57,7 +56,7 @@ class BimodalStats:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "BimodalStats":
+    def from_dict(cls, data: dict) -> BimodalStats:
         """Reconstruct a ``BimodalStats`` instance from a plain dictionary.
 
         Parameters
@@ -109,16 +108,16 @@ class PercentileSnapshot:
         99th percentile value.
     """
 
-    p1: Optional[float] = None
-    p5: Optional[float] = None
-    p25: Optional[float] = None
-    p50: Optional[float] = None
-    p75: Optional[float] = None
-    p95: Optional[float] = None
-    p99: Optional[float] = None
+    p1: float | None = None
+    p5: float | None = None
+    p25: float | None = None
+    p50: float | None = None
+    p75: float | None = None
+    p95: float | None = None
+    p99: float | None = None
 
     @property
-    def iqr(self) -> Optional[float]:
+    def iqr(self) -> float | None:
         """Compute the interquartile range from this snapshot.
 
         Returns
@@ -204,41 +203,6 @@ class NumericTopValueEntry:
 
 
 @dataclass
-class HistogramBin:
-    """A single bin in an equi-width histogram for a numeric column.
-
-    Attributes
-    ----------
-    lower_bound : float
-        Inclusive lower boundary of this bin.
-    upper_bound : float
-        Exclusive upper boundary of this bin.
-    count : int
-        Number of rows whose value falls within this bin.
-    percentage : float
-        Fraction of total rows within this bin (range [0, 1]).
-    """
-
-    lower_bound: float
-    upper_bound: float
-    count: int
-    percentage: float
-
-    def to_dict(self) -> dict:
-        """Serialise this bin to a plain dictionary.
-
-        Returns
-        -------
-        dict
-            All field values keyed by field name.
-        """
-        return {
-            "lower_bound": self.lower_bound, "upper_bound": self.upper_bound,
-            "count": self.count, "percentage": self.percentage,
-        }
-
-
-@dataclass
 class NumericStats:
     """Computed statistics and flags for a numeric column.
 
@@ -256,8 +220,6 @@ class NumericStats:
         Proportion of rows matching the mode value (range [0, 1]).
     top_values : list of NumericTopValueEntry, default factory=list
         Frequent value entries sorted by frequency.
-    histogram : list of HistogramBin, default factory=list
-        Equi-width histogram bins.
     std : float, optional
         Standard deviation of the non-null values.
     variance : float, optional
@@ -310,38 +272,37 @@ class NumericStats:
         Proportion of values considered as extreme outliers.
     """
 
-    mean: Optional[float] = None
-    median: Optional[float] = None
-    mean_median_ratio: Optional[float] = None
-    mode: Optional[float] = None
+    mean: float | None = None
+    median: float | None = None
+    mean_median_ratio: float | None = None
+    mode: float | None = None
     mode_frequency: float = 0.0
     top_values: list[NumericTopValueEntry] = field(default_factory=list)
-    histogram: list[HistogramBin] = field(default_factory=list)
-    std: Optional[float] = None
-    variance: Optional[float] = None
-    min: Optional[float] = None
-    max: Optional[float] = None
+    std: float | None = None
+    variance: float | None = None
+    min: float | None = None
+    max: float | None = None
     percentiles: PercentileSnapshot = field(default_factory=PercentileSnapshot)
-    skewness: Optional[float] = None
-    kurtosis: Optional[float] = None
-    skewness_severity: Optional[SkewSeverity] = None
-    kurtosis_tag: Optional[KurtosisTag] = None
-    flags: List[NumericFlag] = field(default_factory=list)
-    nonlinearity_tag: Optional[NonlinearityTag] = None
-    spearman_pearson_discrepancy: Optional[float] = None
-    mean_mutual_information: Optional[float] = None
-    max_mutual_information: Optional[float] = None
-    r2_gap: Optional[float] = None
-    r2_linear: Optional[float] = None
-    r2_rf: Optional[float] = None
-    heteroscedasticity_p_value: Optional[float] = None
-    bimodal_stats: Optional[BimodalStats] = None
-    tail_asymmetry_tag: Optional[TailAsymmetryTag] = None
-    tail_asymmetry_share: Optional[float] = None
-    outlier_density: Optional[float] = None
+    skewness: float | None = None
+    kurtosis: float | None = None
+    skewness_severity: SkewSeverity | None = None
+    kurtosis_tag: KurtosisTag | None = None
+    flags: list[NumericFlag] = field(default_factory=list)
+    nonlinearity_tag: NonlinearityTag | None = None
+    spearman_pearson_discrepancy: float | None = None
+    mean_mutual_information: float | None = None
+    max_mutual_information: float | None = None
+    r2_gap: float | None = None
+    r2_linear: float | None = None
+    r2_rf: float | None = None
+    heteroscedasticity_p_value: float | None = None
+    bimodal_stats: BimodalStats | None = None
+    tail_asymmetry_tag: TailAsymmetryTag | None = None
+    tail_asymmetry_share: float | None = None
+    outlier_density: float | None = None
 
     @property
-    def iqr(self) -> Optional[float]:
+    def iqr(self) -> float | None:
         """Compute the interquartile range (IQR) for the column.
 
         Returns
@@ -352,12 +313,12 @@ class NumericStats:
         return self.percentiles.iqr
 
     @property
-    def max_MI(self) -> Optional[float]:
+    def max_MI(self) -> float | None:
         """Alias for max_mutual_information (per-predictor max mutual information)."""
         return self.max_mutual_information
 
     @max_MI.setter
-    def max_MI(self, value: Optional[float]) -> None:
+    def max_MI(self, value: float | None) -> None:
         self.max_mutual_information = value
 
     def has_flag(self, flag: NumericFlag) -> bool:
@@ -390,7 +351,6 @@ class NumericStats:
             "mode": self.mode,
             "mode_frequency": self.mode_frequency,
             "top_values": [v.to_dict() for v in self.top_values],
-            "histogram": [b.to_dict() for b in self.histogram],
             "std": self.std,
             "variance": self.variance,
             "min": self.min,
@@ -416,7 +376,7 @@ class NumericStats:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "NumericStats":
+    def from_dict(cls, data: dict) -> NumericStats:
         """Reconstruct the numeric statistics from a dictionary.
 
         Parameters
@@ -436,7 +396,6 @@ class NumericStats:
             mode=data.get("mode"),
             mode_frequency=data.get("mode_frequency", 0.0),
             top_values=[NumericTopValueEntry(**v) for v in data.get("top_values", [])],
-            histogram=[HistogramBin(**b) for b in data.get("histogram", [])],
             std=data.get("std"),
             variance=data.get("variance"),
             min=data.get("min"),
@@ -512,9 +471,6 @@ class NonlinearityProfileConfig:
         Maximum number of rows sampled for the R² gap and Breusch-Pagan
         computations.  Larger datasets are down-sampled uniformly at random.
         Default 500.
-    random_state : int
-        Random seed used for row sampling and ``RandomForestRegressor``.
-        Default 42.
     """
 
     spearman_pearson_discrepancy_threshold: float = 0.10
@@ -524,7 +480,6 @@ class NonlinearityProfileConfig:
     r2_rf_unpredictable_threshold: float = 0.05
     min_rows: int = 20
     bootstrap_sample_size: int = 500
-    random_state: int = 42
 
     def to_dict(self) -> dict:
         """
@@ -543,11 +498,10 @@ class NonlinearityProfileConfig:
             "r2_rf_unpredictable_threshold": self.r2_rf_unpredictable_threshold,
             "min_rows": self.min_rows,
             "bootstrap_sample_size": self.bootstrap_sample_size,
-            "random_state": self.random_state,
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "NonlinearityProfileConfig":
+    def from_dict(cls, data: dict) -> NonlinearityProfileConfig:
         """
         Construct a ``NonlinearityProfileConfig`` from a plain dictionary.
 
@@ -578,7 +532,6 @@ class NonlinearityProfileConfig:
             ),
             min_rows=int(data.get("min_rows", 20)),
             bootstrap_sample_size=int(data.get("bootstrap_sample_size", 500)),
-            random_state=int(data.get("random_state", 42)),
         )
 
 
@@ -619,15 +572,15 @@ class NonlinearitySignals:
 
     tag: NonlinearityTag
     spearman_pearson_discrepancy: float
-    mean_mutual_information: Optional[float]
-    max_mutual_information: Optional[float]
+    mean_mutual_information: float | None
+    max_mutual_information: float | None
     r2_gap: float
     r2_linear: float
     r2_rf: float
     heteroscedasticity_p_value: float
 
     @property
-    def max_MI(self) -> Optional[float]:
+    def max_MI(self) -> float | None:
         """Alias for max_mutual_information."""
         return self.max_mutual_information
 
@@ -647,62 +600,6 @@ class NonlinearityProfileResult:
 
     columns: dict[str, NonlinearitySignals] = field(default_factory=dict)
     analysed_columns: list[str] = field(default_factory=list)
-
-    def to_markdown(self) -> str:
-        """Render the nonlinearity profile as a Markdown document.
-
-        A document per rule 5 of the Rendering Contract (ADR-0086): it owns the
-        ``#`` and ``##`` heading levels. Every field of the result is covered;
-        empty collections render a stated absence rather than a bare ``None``.
-
-        Returns
-        -------
-        str
-            Markdown document with the analysed column scope and one row of
-            nonlinearity signals per profiled column.
-        """
-        lines = ["# Nonlinearity Profile\n"]
-
-        lines.append("## Summary\n")
-        analysed = ", ".join(self.analysed_columns) if self.analysed_columns else "none"
-        lines.append("| Field | Value |")
-        lines.append("|---|---|")
-        lines.append(f"| analysed_columns | {analysed} |")
-        lines.append("")
-
-        lines.append("## Signals\n")
-        lines.append(
-            "| Column | Tag | Spearman-Pearson discrepancy | Mean mutual information "
-            "| Max mutual information | R2 gap | R2 linear | R2 RF "
-            "| Heteroscedasticity p-value |"
-        )
-        lines.append("|---|---|---|---|---|---|---|---|---|")
-        if self.columns:
-            for name, signals in self.columns.items():
-                lines.append(
-                    f"| `{name}` | {str(signals.tag)} "
-                    f"| {signals.spearman_pearson_discrepancy:.4f} "
-                    f"| {_fmt_mi(signals.mean_mutual_information)} "
-                    f"| {_fmt_mi(signals.max_mutual_information)} "
-                    f"| {signals.r2_gap:.4f} "
-                    f"| {signals.r2_linear:.4f} "
-                    f"| {signals.r2_rf:.4f} "
-                    f"| {signals.heteroscedasticity_p_value:.4f} |"
-                )
-        else:
-            lines.append("| none | | | | | | | | |")
-
-        return "\n".join(lines).strip() + "\n"
-
-    def __str__(self) -> str:
-        """Return the Nonlinearity Profile document, per rule 2 of the contract.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()
 
 
 # ---------------------------------------------------------------------------
@@ -835,110 +732,6 @@ class NumericProfileConfig:
         )
 
 
-# ---------------------------------------------------------------------------
-# Markdown rendering helpers (Rendering Contract, ADR-0086)
-# ---------------------------------------------------------------------------
-
-
-def _fmt(value: object) -> str:
-    if value is None:
-        return "not computed"
-    if isinstance(value, StrEnum):
-        return str(value)
-    if isinstance(value, bool):
-        return str(value)
-    if isinstance(value, float):
-        return f"{value:,.4f}"
-    if isinstance(value, int):
-        return f"{value:,}"
-    return str(value)
-
-
-def _fmt_mi(value: Optional[float]) -> str:
-    return "not computed" if value is None else f"{value:.4f}"
-
-
-def _fmt_seq(values: list) -> str:
-    return ", ".join(str(v) for v in values) if values else "none"
-
-
-def _numeric_stats_lines(stats: "NumericStats") -> list[str]:
-    """Build the ``####``-rooted body for one column's numeric statistics."""
-    lines = [
-        "| Field | Value |",
-        "|---|---|",
-        f"| mean | {_fmt(stats.mean)} |",
-        f"| median | {_fmt(stats.median)} |",
-        f"| mean_median_ratio | {_fmt(stats.mean_median_ratio)} |",
-        f"| mode | {_fmt(stats.mode)} |",
-        f"| mode_frequency | {_fmt(stats.mode_frequency)} |",
-        f"| std | {_fmt(stats.std)} |",
-        f"| variance | {_fmt(stats.variance)} |",
-        f"| min | {_fmt(stats.min)} |",
-        f"| max | {_fmt(stats.max)} |",
-        f"| iqr | {_fmt(stats.iqr)} |",
-        f"| skewness | {_fmt(stats.skewness)} |",
-        f"| skewness_severity | {_fmt(stats.skewness_severity)} |",
-        f"| kurtosis | {_fmt(stats.kurtosis)} |",
-        f"| kurtosis_tag | {_fmt(stats.kurtosis_tag)} |",
-        f"| flags | {_fmt_seq(stats.flags)} |",
-        f"| nonlinearity_tag | {_fmt(stats.nonlinearity_tag)} |",
-        f"| spearman_pearson_discrepancy | {_fmt(stats.spearman_pearson_discrepancy)} |",
-        f"| mean_mutual_information | {_fmt(stats.mean_mutual_information)} |",
-        f"| max_mutual_information | {_fmt(stats.max_mutual_information)} |",
-        f"| r2_gap | {_fmt(stats.r2_gap)} |",
-        f"| r2_linear | {_fmt(stats.r2_linear)} |",
-        f"| r2_rf | {_fmt(stats.r2_rf)} |",
-        f"| heteroscedasticity_p_value | {_fmt(stats.heteroscedasticity_p_value)} |",
-        f"| tail_asymmetry_tag | {_fmt(stats.tail_asymmetry_tag)} |",
-        f"| tail_asymmetry_share | {_fmt(stats.tail_asymmetry_share)} |",
-        f"| outlier_density | {_fmt(stats.outlier_density)} |",
-        "",
-        "#### Percentiles\n",
-        "| Percentile | Value |",
-        "|---|---|",
-    ]
-    for key, value in stats.percentiles.to_dict().items():
-        lines.append(f"| {key} | {_fmt(value)} |")
-    lines.append("")
-
-    lines.append("#### Top Values\n")
-    if stats.top_values:
-        lines.append("| Value | Count | Percentage |")
-        lines.append("|---|---|---|")
-        for entry in stats.top_values:
-            lines.append(
-                f"| {_fmt(entry.value)} | {entry.count:,} | {entry.percentage:.2%} |"
-            )
-    else:
-        lines.append("none")
-    lines.append("")
-
-    lines.append("#### Histogram\n")
-    if stats.histogram:
-        lines.append("| Lower bound | Upper bound | Count | Percentage |")
-        lines.append("|---|---|---|---|")
-        for hist_bin in stats.histogram:
-            lines.append(
-                f"| {_fmt(hist_bin.lower_bound)} | {_fmt(hist_bin.upper_bound)} "
-                f"| {hist_bin.count:,} | {hist_bin.percentage:.2%} |"
-            )
-    else:
-        lines.append("none")
-    lines.append("")
-
-    lines.append("#### Bimodality\n")
-    if stats.bimodal_stats:
-        lines.append("| Field | Value |")
-        lines.append("|---|---|")
-        for key, value in stats.bimodal_stats.to_dict().items():
-            lines.append(f"| {key} | {_fmt(value)} |")
-    else:
-        lines.append("not computed")
-
-    return lines
-
-
 @dataclass
 class NumericProfileResult:
     """
@@ -954,65 +747,3 @@ class NumericProfileResult:
 
     columns: dict[str, NumericStats] = field(default_factory=dict)
     analysed_columns: list[str] = field(default_factory=list)
-
-    def to_markdown(self) -> str:
-        """Render the numeric distribution profile as a Markdown document.
-
-        A document per rule 5 of the Rendering Contract (ADR-0086): it owns the
-        ``#`` and ``##`` heading levels and places each column's detail beneath
-        them. Every field of every :class:`NumericStats` is covered; absent
-        values and absent sub-objects render a stated absence rather than a
-        bare ``None``.
-
-        Returns
-        -------
-        str
-            Markdown document with a summary table followed by one detail
-            section per profiled column.
-        """
-        analysed = ", ".join(self.analysed_columns) if self.analysed_columns else "none"
-        lines = ["# Numeric Distribution Profile\n"]
-
-        lines.append("## Summary\n")
-        lines.append("| Field | Value |")
-        lines.append("|---|---|")
-        lines.append(f"| analysed_columns | {analysed} |")
-        lines.append("")
-
-        lines.append(
-            "| Column | Mean | Median | Std | Min | Max | Skewness | Kurtosis | Flags |"
-        )
-        lines.append("|---|---|---|---|---|---|---|---|---|")
-        if self.columns:
-            for name, stats in self.columns.items():
-                lines.append(
-                    f"| `{name}` | {_fmt(stats.mean)} | {_fmt(stats.median)} "
-                    f"| {_fmt(stats.std)} | {_fmt(stats.min)} | {_fmt(stats.max)} "
-                    f"| {_fmt(stats.skewness)} | {_fmt(stats.kurtosis)} "
-                    f"| {_fmt_seq(stats.flags)} |"
-                )
-        else:
-            lines.append("| none | | | | | | | | |")
-        lines.append("")
-
-        lines.append("## Column Details\n")
-        if self.columns:
-            for name, stats in self.columns.items():
-                lines.append(f"### `{name}`\n")
-                lines.extend(_numeric_stats_lines(stats))
-                lines.append("")
-        else:
-            lines.append("none")
-            lines.append("")
-
-        return "\n".join(lines).strip() + "\n"
-
-    def __str__(self) -> str:
-        """Return the Numeric Distribution Profile, per rule 2 of the contract.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()

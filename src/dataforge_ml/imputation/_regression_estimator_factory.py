@@ -7,10 +7,10 @@ Estimator Ladder — a flat map, no bounds, no downgrade:
   MonotonicNonlinear / ComplexNonlinear   → RandomForest
 
 ``GradientBoostingRegressor`` is off the ladder entirely; it is reachable only
-through :meth:`~dataforge_ml.imputation.ImputationRouting.with_model_choice`
-(an explicit user choice, ADR-0090). ``resolve_choice`` is total: every
+through the ``route`` Operation's ``model_choice`` argument (an explicit user
+choice, ADR-0090). ``resolve_choice`` is total: every
 ``NonlinearityTag`` — including ``Unpredictable`` — resolves to a
-:class:`~dataforge_ml.ModelChoice`, never ``None`` (ADR-0094 deleted the
+:class:`~dataforge_ml.imputation.ModelChoice`, never ``None`` (ADR-0094 deleted the
 ``None``/skip branch the ``Unpredictable`` tag used to take).
 
 The RandomForest branch is built as a ``_CoreInvariantRandomForest`` rather than
@@ -30,6 +30,7 @@ from sklearn.linear_model import BayesianRidge
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
+from .._seed import DEFAULT_SEED
 from ..profiling._numeric_config import NonlinearityTag
 from ._config import ModelChoice
 
@@ -56,13 +57,37 @@ class _CoreInvariantRandomForest(BaseEstimator, RegressorMixin):
     during its own round-robin, long before the caller sees an estimator back.
     """
 
-    def __init__(self, n_jobs: int = 1, random_state: int = 0):
+    # The forest parameters default to None, meaning "leave sklearn's default".
+    def __init__(
+        self,
+        n_jobs: int = 1,
+        random_state: int = DEFAULT_SEED,
+        n_estimators: int | None = None,
+        max_depth: int | None = None,
+        min_samples_split: int | None = None,
+        min_samples_leaf: int | None = None,
+        max_features: float | str | None = None,
+    ):
         self.n_jobs = n_jobs
         self.random_state = random_state
+        self.n_estimators = n_estimators
+        self.max_depth = max_depth
+        self.min_samples_split = min_samples_split
+        self.min_samples_leaf = min_samples_leaf
+        self.max_features = max_features
 
     def fit(self, X, y):
+        params = {
+            "n_estimators": self.n_estimators,
+            "max_depth": self.max_depth,
+            "min_samples_split": self.min_samples_split,
+            "min_samples_leaf": self.min_samples_leaf,
+            "max_features": self.max_features,
+        }
         forest = RandomForestRegressor(
-            random_state=self.random_state, n_jobs=self.n_jobs
+            random_state=self.random_state,
+            n_jobs=self.n_jobs,
+            **{k: v for k, v in params.items() if v is not None},
         )
         forest.fit(X, y)
         forest.n_jobs = 1
@@ -109,7 +134,7 @@ class RegressionEstimatorFactory:
             ``Unpredictable``; ``RandomForestRegressor`` for
             ``MonotonicNonlinear`` and ``ComplexNonlinear``.
             ``GradientBoostingRegressor`` is never returned — it is off the
-            ladder, reachable only through ``with_model_choice``.
+            ladder, reachable only through ``route``'s ``model_choice``.
         """
         if tag in (NonlinearityTag.MonotonicNonlinear, NonlinearityTag.ComplexNonlinear):
             return ModelChoice.RandomForestRegressor
@@ -119,6 +144,8 @@ class RegressionEstimatorFactory:
     def build_from_choice(
         choice: ModelChoice,
         n_jobs: int = 1,
+        params: dict[str, Any] | None = None,
+        seed: int = DEFAULT_SEED,
     ) -> Any:
         """
         Return a fitted-ready sklearn estimator for an already-resolved choice.
@@ -127,7 +154,7 @@ class RegressionEstimatorFactory:
         sole fit-time entry.  It takes the ``ModelChoice`` the router already
         stamped on the routing (ADR-0088) rather than re-deriving the family
         from the tag, so the estimator that trains is the one the
-        user inspected and could override (``with_model_choice``), rather than
+        user inspected and could override (``route``'s ``model_choice``), rather than
         a second, independent resolution.
 
         Parameters
@@ -146,36 +173,26 @@ class RegressionEstimatorFactory:
             value never reaches the result: the RandomForest branch is built as
             a :class:`_CoreInvariantRandomForest`, which spends the cores on tree
             building and predicts pinned regardless (ADR-0069).
+        params : dict, optional
+            Constructor parameters for the estimator, as an estimator record's
+            ``to_estimator()`` gives them. Omitted keys keep sklearn's
+            defaults; ``random_state`` and ``n_jobs`` are never among them.
+        seed : int, default DEFAULT_SEED
+            Seed for the stochastic estimators (RandomForest and
+            GradientBoosting), taken from the Operation's ``seed`` argument
+            (ADR-0106). ``BayesianRidge`` is deterministic and ignores it.
 
         Returns
         -------
         sklearn estimator
             A freshly constructed, unfitted sklearn-compatible estimator.
-
-        Raises
-        ------
-        ValueError
-            If ``choice`` is :attr:`~dataforge_ml.ModelChoice.Custom`.  That
-            member names an estimator the library did not build, so there is
-            nothing here to construct; the instance travels on the routing's
-            ``mice_estimator`` slot and the caller reads it from there
-            (ADR-0090).  A routing reloaded from bytes has the slot empty — the
-            estimator is never serialized — and this raise is what stops such a
-            routing silently imputing with a library default instead.
         """
-        if choice == ModelChoice.Custom:
-            raise ValueError(
-                "ModelChoice.Custom names a user-supplied estimator, which this "
-                "factory did not build and cannot reconstruct. The instance is "
-                "not serialized, so a routing reloaded from bytes carries the "
-                "label with an empty slot; re-supply it with "
-                "routing.with_model_choice(estimator)."
-            )
+        params = params or {}
         if choice == ModelChoice.BayesianRidge:
             return Pipeline([
                 ("scaler", StandardScaler()),
-                ("model", BayesianRidge(fit_intercept=True)),
+                ("model", BayesianRidge(fit_intercept=True, **params)),
             ])
         if choice == ModelChoice.RandomForestRegressor:
-            return _CoreInvariantRandomForest(random_state=0, n_jobs=n_jobs)
-        return GradientBoostingRegressor(random_state=0)
+            return _CoreInvariantRandomForest(random_state=seed, n_jobs=n_jobs, **params)
+        return GradientBoostingRegressor(random_state=seed, **params)

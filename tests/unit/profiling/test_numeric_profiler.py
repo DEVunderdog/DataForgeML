@@ -12,6 +12,7 @@ from dataforge_ml.profiling._numeric_config import (
     TailAsymmetryTag,
 )
 from dataforge_ml.profiling._numeric_profiler import NumericProfiler
+from tests.conftest import raises_code
 
 # ---------------------------------------------------------------------------
 # Result type & column eligibility
@@ -200,34 +201,14 @@ def test_integer_column_produces_top_values():
     df = pl.DataFrame({"v": pl.Series(data, dtype=pl.Int64)})
     stats = NumericProfiler().profile(df, ["v"]).columns["v"]
     assert len(stats.top_values) > 0
-    assert len(stats.histogram) == 0
 
 
-def test_continuous_float_produces_histogram():
-    # 60 distinct floats → n_unique > _DISCRETE_MAX_UNIQUE (20) → continuous path
+def test_continuous_float_keeps_no_value_distribution():
     data = [round(i * 0.37, 4) for i in range(60)]
     df = pl.DataFrame({"v": pl.Series(data, dtype=pl.Float64)})
     stats = NumericProfiler().profile(df, ["v"]).columns["v"]
-    assert len(stats.histogram) > 0
     assert len(stats.top_values) == 0
-
-
-def test_histogram_bin_count_adapts_to_data():
-    # bins='auto' adapts to data size and spread rather than being fixed at 20.
-    # Small dataset → fewer bins (Sturges gives ~6 for n=50).
-    # Large dataset → more bins than the small one.
-    import numpy as np
-    rng = np.random.default_rng(42)
-
-    small = list(rng.normal(0, 1, size=50))
-    df_small = pl.DataFrame({"v": pl.Series(small, dtype=pl.Float64)})
-    stats_small = NumericProfiler().profile(df_small, ["v"]).columns["v"]
-    assert len(stats_small.histogram) < 20
-
-    large = list(rng.normal(0, 1, size=500))
-    df_large = pl.DataFrame({"v": pl.Series(large, dtype=pl.Float64)})
-    stats_large = NumericProfiler().profile(df_large, ["v"]).columns["v"]
-    assert len(stats_large.histogram) > len(stats_small.histogram)
+    assert "histogram" not in stats.to_dict()
 
 
 # ---------------------------------------------------------------------------
@@ -654,17 +635,18 @@ def test_mean_median_ratio_all_zero():
 
 
 def test_override_coercion_error_raised_for_total_failure():
-    import pytest
 
-    from dataforge_ml.profiling import OverrideCoercionError
 
     df = pl.DataFrame({"num_col": pl.Series(["apple", "banana", "cherry"])})
-    with pytest.raises(OverrideCoercionError, match="completely failed coercion"):
+    with raises_code("override_coercion_failed", match="failed to convert") as info:
         NumericProfiler().profile(df, ["num_col"], user_overrides={"num_col"})
+    # A coercion failure reports a count and the column, never the bad values.
+    assert info.value.columns == ["num_col"]
+    assert "all 3 non-null" in info.value.message
+    assert not any(v in str(info.value.to_dict()) for v in ("apple", "banana", "cherry"))
 
 
 def test_override_coercion_error_not_raised_for_partial_failure():
-    from dataforge_ml.profiling import OverrideCoercionError
     # 1 valid numeric, 2 invalid
     df = pl.DataFrame({"num_col": pl.Series(["1.23", "banana", "cherry"])})
     result = NumericProfiler().profile(df, ["num_col"], user_overrides={"num_col"})

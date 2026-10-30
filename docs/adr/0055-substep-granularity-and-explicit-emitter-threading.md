@@ -6,6 +6,8 @@ To let deep methods emit at all — today `NumericImputer.fit()` and its helpers
 
 ## Status
 
+Amended by ADR-0102: the `warning` and `decision` event types are dropped; warnings are data on Operation results, and Pipeline Events are progress only.
+
 accepted — amends ADR-0054 (supersedes its "column-level is the item floor" consequence)
 
 ## Considered Options

@@ -1,0 +1,791 @@
+{
+  "input": {
+    "additionalProperties": false,
+    "properties": {
+      "frame": {
+        "description": "A frame Handle, such as ``frame_7f3a9c2e``.",
+        "type": "string"
+      },
+      "filter": {
+        "anyOf": [
+          {
+            "items": {
+              "items": {
+                "additionalProperties": false,
+                "description": "One test on one column's raw cells. A null or NaN cell passes only ``is_null``.",
+                "properties": {
+                  "column": {
+                    "description": "The column the test reads.",
+                    "type": "string"
+                  },
+                  "op": {
+                    "description": "The test. ``eq`` to ``ge`` compare each cell with ``value``; ``in`` and ``not_in`` check it against a list; ``is_null`` and ``not_null`` read no value. No string matching or regex.",
+                    "enum": [
+                      "eq",
+                      "ne",
+                      "lt",
+                      "le",
+                      "gt",
+                      "ge",
+                      "in",
+                      "not_in",
+                      "is_null",
+                      "not_null"
+                    ],
+                    "type": "string"
+                  },
+                  "value": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "items": {
+                          "anyOf": [
+                            {
+                              "type": "boolean"
+                            },
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "What the cells are tested against. One value for ``eq`` to ``ge``, a list of up to 100 for ``in`` and ``not_in``, null for ``is_null`` and ``not_null``. A numeric column takes numbers, a text column strings, a bool column bools; other columns take only ``is_null`` and ``not_null``."
+                  }
+                },
+                "required": [
+                  "column",
+                  "op",
+                  "value"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "An OR of up to 5 AND-lists, each of 1 to 10 ``{\"column\": ..., \"op\": ..., \"value\": ...}`` predicates. A row matches when every predicate of any one list passes. The ops are ``eq``, ``ne``, ``lt``, ``le``, ``gt``, ``ge``, ``in`` (up to 100 values), ``not_in``, ``is_null`` and ``not_null``. A null or NaN cell passes only ``is_null``. A declared sentinel is a value like any other, so ``is_null`` can disagree with the profile's null ratio. Null keeps every row. Constraints: at least 1 items; at most 5 items; at least 1 items; at most 10 items."
+      },
+      "mode": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "description": "Return rows: each chosen column's cells, one per returned row.",
+            "properties": {
+              "kind": {
+                "description": "Always ``rows``.",
+                "type": "string",
+                "enum": [
+                  "rows"
+                ]
+              },
+              "columns": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The columns to return, in this order. Null means every column. At most 10 are returned, the first 10 named; ``omitted`` counts the rest."
+              },
+              "limit": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Most rows to return, from 1 to 50. Null means 20. Constraints: at least 1; at most 50."
+              },
+              "order": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "The first rows, in the order the frame holds them.",
+                    "properties": {
+                      "kind": {
+                        "description": "Always ``dataset``.",
+                        "type": "string",
+                        "enum": [
+                          "dataset"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "A seeded random sample of the matching rows, in drawn order.",
+                    "properties": {
+                      "kind": {
+                        "description": "Always ``random``.",
+                        "type": "string",
+                        "enum": [
+                          "random"
+                        ]
+                      },
+                      "seed": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Seed of the draw, from 0 to 4294967295. The same seed on the same frame and filter draws the same rows. Null means a fixed default. Constraints: at least 0; at most 4294967295."
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "seed"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "The matching rows sorted by one column. Null and NaN cells come last; ties keep dataset order.",
+                    "properties": {
+                      "kind": {
+                        "description": "Always ``sort``.",
+                        "type": "string",
+                        "enum": [
+                          "sort"
+                        ]
+                      },
+                      "column": {
+                        "description": "The column to sort by.",
+                        "type": "string"
+                      },
+                      "direction": {
+                        "anyOf": [
+                          {
+                            "enum": [
+                              "ascending",
+                              "descending"
+                            ],
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "``ascending`` puts the smallest first, ``descending`` the largest. Null means ``ascending``."
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "column",
+                      "direction"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Which matching rows to return: ``dataset`` takes the first, ``random`` a seeded sample, ``sort`` the top by one column. Null means ``dataset``."
+              }
+            },
+            "required": [
+              "kind",
+              "columns",
+              "limit",
+              "order"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Return measures of the matching rows, one value per group.",
+            "properties": {
+              "kind": {
+                "description": "Always ``aggregate``.",
+                "type": "string",
+                "enum": [
+                  "aggregate"
+                ]
+              },
+              "group_by": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Up to 3 key columns; each distinct combination of their values is a group, a null key included. Null or empty means the matching rows are one group. Constraints: at most 3 items."
+              },
+              "measures": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "additionalProperties": false,
+                      "description": "One measure of one column, taken over each group's rows.",
+                      "properties": {
+                        "column": {
+                          "description": "The column measured.",
+                          "type": "string"
+                        },
+                        "fn": {
+                          "description": "``count`` counts the cells that are not null, ``null_count`` those that are, ``nunique`` the distinct values that are not null. ``sum``, ``mean``, ``std`` (sample), ``min``, ``max`` and ``median`` read numeric columns only and skip null cells. NaN counts as null.",
+                          "enum": [
+                            "count",
+                            "null_count",
+                            "nunique",
+                            "sum",
+                            "mean",
+                            "std",
+                            "min",
+                            "max",
+                            "median"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "column",
+                        "fn"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Up to 5 measures, returned in this order within ``measures`` and ``literal_measures``. Null means none: only the group sizes. Constraints: at most 5 items."
+              }
+            },
+            "required": [
+              "kind",
+              "group_by",
+              "measures"
+            ],
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Rows mode is ``{\"kind\": \"rows\", \"columns\": [...], \"limit\": n, \"order\": {...}}``. ``columns`` null means every column, at most 10 returned; ``limit`` null means 20, at most 50. ``order`` is ``{\"kind\": \"dataset\"}`` (the default), ``{\"kind\": \"random\", \"seed\": n}`` (null seed means a fixed default, so the same call draws the same rows) or ``{\"kind\": \"sort\", \"column\": ..., \"direction\": \"descending\"}`` (null direction means ascending; null and NaN cells last, ties in dataset order). Aggregate mode is ``{\"kind\": \"aggregate\", \"group_by\": [...], \"measures\": [{\"column\": ..., \"fn\": ...}]}`` with up to 3 ``group_by`` columns (empty means one group of every matching row) and up to 5 measures: ``count``, ``null_count``, ``nunique``, and on numeric columns ``sum``, ``mean``, ``std``, ``min``, ``max`` and ``median``. NaN counts as null. Null means rows mode with every default."
+      }
+    },
+    "required": [
+      "frame",
+      "filter",
+      "mode"
+    ],
+    "type": "object"
+  },
+  "output": {
+    "additionalProperties": false,
+    "description": "Raw cells or grouped measures from a frame, laid out by column. Read row or group ``i`` as ``values[i]`` of every column.",
+    "properties": {
+      "warnings": {
+        "additionalProperties": false,
+        "description": "Caveats on this result, most actionable first. Empty when there are none.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `code`, `message`, `columns`, `param`, `hint`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "code",
+                "message",
+                "columns",
+                "param",
+                "hint"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "A caveat on a successful result: it worked, but read this first. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `code`: The warning's Error Code. Branch on this, not on ``message``.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `message`: What happened and what to do, in one or two sentences.",
+                    "type": "string"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 2, `columns`: Columns the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `param`: The argument the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 4, `hint`: Library-written advice, or null."
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "omitted": {
+        "additionalProperties": false,
+        "description": "One entry per list that was cut, naming the Operation that returns the rest. Empty when nothing was cut.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `field`, `shown`, `total`, `operation`, `reason`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "field",
+                "shown",
+                "total",
+                "operation",
+                "reason"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "Something left out of a result: a capped list was cut, or a Literal Field withheld. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `field`: Name of the list field that was cut, or the path of the Literal Field withheld, such as ``top_values[].value``.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `shown`: How many items the list holds; 0 for a withheld Literal Field or cut cells.",
+                    "type": "integer"
+                  },
+                  {
+                    "description": "Position 2, `total`: How many items exist; for a withheld Literal Field, how many values at that path are null; for cut cells, how many were cut.",
+                    "type": "integer"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `operation`: The Operation that returns the rest, or null when no Operation does."
+                  },
+                  {
+                    "description": "Position 4, `reason`: ``cap`` when a list was cut to its cap; ``literal_policy`` when the Operator's Literal Policy is ``deny``; ``truncated`` when long text cells were cut to their character cap.",
+                    "enum": [
+                      "cap",
+                      "literal_policy",
+                      "truncated"
+                    ],
+                    "type": "string"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "frame": {
+        "description": "The frame Handle read.",
+        "type": "string"
+      },
+      "mode": {
+        "description": "The mode that ran.",
+        "enum": [
+          "rows",
+          "aggregate"
+        ],
+        "type": "string"
+      },
+      "total_rows": {
+        "description": "Rows in the frame.",
+        "type": "integer"
+      },
+      "matched_rows": {
+        "description": "Rows that match the filter, counted exactly over every row, past any cap. With no filter, every row matches.",
+        "type": "integer"
+      },
+      "row_positions": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Rows mode: each returned row's position in the frame, from 0, in returned order. When more rows match, ``omitted`` counts them. Null in aggregate mode."
+      },
+      "group_count": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Aggregate mode: how many groups the matching rows form, counted exactly, past the cap of 100. Null in rows mode."
+      },
+      "group_sizes": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Aggregate mode: each returned group's row count, largest first, ties in key order with null keys last. At most 100; ``omitted`` counts the rest. Null in rows mode."
+      },
+      "columns": {
+        "additionalProperties": false,
+        "description": "Rows mode: the chosen columns, in the order asked, or in dataset order, at most 10; ``omitted`` counts the rest. Aggregate mode: the ``group_by`` keys, one value per group.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `kind`, `name`, `dtype`, `values`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "kind",
+                "name",
+                "dtype",
+                "values"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "One column's raw cells: one per returned row, or one group key per group. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `kind`: Always ``cells``: raw cells of a column.",
+                    "type": "string",
+                    "enum": [
+                      "cells"
+                    ]
+                  },
+                  {
+                    "description": "Position 1, `name`: Column name.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 2, `dtype`: The column's storage type, such as ``Int64``, ``Float64`` or ``String``.",
+                    "type": "string"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "items": {
+                          "anyOf": [
+                            {
+                              "type": "boolean"
+                            },
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `values`: The cells as stored, one per entry of ``row_positions`` or ``group_sizes``, in that order. Missing cells and NaN are null; datetimes are ISO text; text over 64 characters is cut and counted in ``omitted``. A Literal Field.",
+                    "x-literal": true
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "measures": {
+        "additionalProperties": false,
+        "description": "Aggregate mode: the counts and statistics asked for, in the order asked. Empty in rows mode.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `kind`, `column`, `fn`, `values`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "kind",
+                "column",
+                "fn",
+                "values"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "One measure that is a count or a statistic no cell need equal, one value per group. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `kind`: Always ``measure``: ``count``, ``null_count``, ``nunique``, ``sum``, ``mean`` or ``std``.",
+                    "type": "string",
+                    "enum": [
+                      "measure"
+                    ]
+                  },
+                  {
+                    "description": "Position 1, `column`: The column measured.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 2, `fn`: The measure.",
+                    "enum": [
+                      "count",
+                      "null_count",
+                      "nunique",
+                      "sum",
+                      "mean",
+                      "std"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 3, `values`: One value per entry of ``group_sizes``, in that order. Null when the group has no value to measure, such as ``std`` of one cell.",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "type": "array"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "literal_measures": {
+        "additionalProperties": false,
+        "description": "Aggregate mode: the ``min``, ``max`` and ``median`` measures asked for, in the order asked. Empty in rows mode.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `kind`, `column`, `fn`, `values`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "kind",
+                "column",
+                "fn",
+                "values"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "One measure whose value can equal a cell, one value per group. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `kind`: Always ``literal_measure``: ``min``, ``max`` or ``median``.",
+                    "type": "string",
+                    "enum": [
+                      "literal_measure"
+                    ]
+                  },
+                  {
+                    "description": "Position 1, `column`: The column measured.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 2, `fn`: The measure.",
+                    "enum": [
+                      "min",
+                      "max",
+                      "median"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "items": {
+                          "anyOf": [
+                            {
+                              "type": "boolean"
+                            },
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `values`: One value per entry of ``group_sizes``, in that order. Null when the group has no cell to measure. A Literal Field.",
+                    "x-literal": true
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "warnings",
+      "omitted",
+      "frame",
+      "mode",
+      "total_rows",
+      "matched_rows",
+      "row_positions",
+      "group_count",
+      "group_sizes",
+      "columns",
+      "measures",
+      "literal_measures"
+    ],
+    "type": "object"
+  }
+}

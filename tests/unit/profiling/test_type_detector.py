@@ -1,7 +1,5 @@
 import polars as pl
-import pytest
 
-from dataforge_ml.config import PipelineConfig
 from dataforge_ml.profiling._config import (
     ColumnTypeInfo,
     NumericKind,
@@ -11,6 +9,7 @@ from dataforge_ml.profiling._config import (
 from dataforge_ml.profiling._type_detection_config import TypeDetectionConfig
 from dataforge_ml.profiling._type_detector import TypeDetector
 from dataforge_ml.profiling.orchestrator import StructuralProfiler
+from tests.conftest import raises_code
 
 # ---------------------------------------------------------------------------
 # Native pl.Boolean resolves to SemanticType.Boolean
@@ -307,50 +306,39 @@ def _numeric_df() -> pl.DataFrame:
 
 
 def test_numeric_kind_override_sets_kind_on_column_profile():
-    cfg = PipelineConfig()
-    cfg.set_numeric_kind("age", NumericKind.BoundedDiscrete)
-    result = StructuralProfiler(cfg).profile(_numeric_df())
+    result = StructuralProfiler(numeric_kinds={"age": NumericKind.BoundedDiscrete}).profile(_numeric_df())
     assert result.columns["age"].numeric_kind == NumericKind.BoundedDiscrete
 
 
 def test_numeric_kind_override_appends_numeric_kind_override_flag():
-    cfg = PipelineConfig()
-    cfg.set_numeric_kind("age", NumericKind.BoundedDiscrete)
-    result = StructuralProfiler(cfg).profile(_numeric_df())
+    result = StructuralProfiler(numeric_kinds={"age": NumericKind.BoundedDiscrete}).profile(_numeric_df())
     assert TypeFlag.NumericKindOverride in result.columns["age"].type_flags
 
 
 def test_numeric_kind_override_does_not_add_user_override_flag():
-    cfg = PipelineConfig()
-    cfg.set_numeric_kind("age", NumericKind.BoundedDiscrete)
-    result = StructuralProfiler(cfg).profile(_numeric_df())
+    result = StructuralProfiler(numeric_kinds={"age": NumericKind.BoundedDiscrete}).profile(_numeric_df())
     assert TypeFlag.UserOverride not in result.columns["age"].type_flags
 
 
 def test_numeric_kind_override_continuous_sets_kind_and_flag():
     # Forcing a Continuous column to Continuous explicitly still appends
     # NumericKindOverride so the audit log records the override was declared.
-    cfg = PipelineConfig()
-    cfg.set_numeric_kind("age", NumericKind.Continuous)
-    result = StructuralProfiler(cfg).profile(_numeric_df())
+    result = StructuralProfiler(numeric_kinds={"age": NumericKind.Continuous}).profile(_numeric_df())
     assert result.columns["age"].numeric_kind == NumericKind.Continuous
     assert TypeFlag.NumericKindOverride in result.columns["age"].type_flags
 
 
 def test_numeric_kind_override_non_numeric_column_raises_value_error():
     df = pl.DataFrame({"category": ["a", "b", "c", "a", "b"]})
-    cfg = PipelineConfig()
-    cfg.set_numeric_kind("category", NumericKind.BoundedDiscrete)
-    with pytest.raises(ValueError, match="category"):
-        StructuralProfiler(cfg).profile(df)
+    with raises_code("declaration_conflict", match="category"):
+        StructuralProfiler(numeric_kinds={"category": NumericKind.BoundedDiscrete}).profile(df)
 
 
 def test_numeric_kind_override_error_message_names_actual_semantic_type():
     df = pl.DataFrame({"category": ["a", "b", "c", "a", "b"]})
-    cfg = PipelineConfig()
-    cfg.set_numeric_kind("category", NumericKind.BoundedDiscrete)
-    with pytest.raises(ValueError, match="SemanticType.Numeric"):
-        StructuralProfiler(cfg).profile(df)
+    with raises_code("declaration_conflict", match="'categorical'") as info:
+        StructuralProfiler(numeric_kinds={"category": NumericKind.BoundedDiscrete}).profile(df)
+    assert info.value.columns == ["category"]
 
 
 def test_numeric_kind_override_semantic_type_override_to_categorical_then_kind_override_raises():
@@ -358,29 +346,21 @@ def test_numeric_kind_override_semantic_type_override_to_categorical_then_kind_o
     # declare a NumericKind override on it — must raise because the final
     # SemanticType (after column_overrides is applied first) is Categorical.
     df = pl.DataFrame({"age": [25, 32, 45, 28, 25, 32, 45, 28, 61, 39, 50, 22, 47, 33, 25, 32]})
-    cfg = PipelineConfig()
-    cfg.set_column_type("age", SemanticType.Categorical)
-    cfg.set_numeric_kind("age", NumericKind.BoundedDiscrete)
-    with pytest.raises(ValueError, match="age"):
-        StructuralProfiler(cfg).profile(df)
+    with raises_code("declaration_conflict", match="age"):
+        StructuralProfiler(column_types={"age": SemanticType.Categorical}, numeric_kinds={"age": NumericKind.BoundedDiscrete}).profile(df)
 
 
 def test_numeric_kind_override_both_semantic_and_kind_override_sets_both_flags():
     # SemanticType override (to Numeric, which it already is) + NumericKind override.
-    cfg = PipelineConfig()
-    cfg.set_column_type("age", SemanticType.Numeric)
-    cfg.set_numeric_kind("age", NumericKind.BoundedDiscrete)
-    result = StructuralProfiler(cfg).profile(_numeric_df())
+    result = StructuralProfiler(column_types={"age": SemanticType.Numeric}, numeric_kinds={"age": NumericKind.BoundedDiscrete}).profile(_numeric_df())
     cp = result.columns["age"]
     assert TypeFlag.UserOverride in cp.type_flags
     assert TypeFlag.NumericKindOverride in cp.type_flags
 
 
 def test_numeric_kind_override_absent_column_is_silently_ignored():
-    cfg = PipelineConfig()
-    cfg.set_numeric_kind("nonexistent_column", NumericKind.BoundedDiscrete)
     # Must not raise; result.columns should not contain the absent column.
-    result = StructuralProfiler(cfg).profile(_numeric_df())
+    result = StructuralProfiler(numeric_kinds={"nonexistent_column": NumericKind.BoundedDiscrete}).profile(_numeric_df())
     assert "nonexistent_column" not in result.columns
 
 

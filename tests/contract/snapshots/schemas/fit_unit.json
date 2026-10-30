@@ -1,0 +1,494 @@
+{
+  "input": {
+    "additionalProperties": false,
+    "properties": {
+      "recipe": {
+        "description": "A recipe Handle, such as ``recipe_7f3a9c2e``.",
+        "type": "string"
+      },
+      "unit_id": {
+        "description": "The unit to train, as ``resolve_recipe`` lists it: ``mice`` or ``knn`` for a joint block, ``<strategy>:<column>`` for one column, such as ``median:age``.",
+        "type": "string"
+      },
+      "frame": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "A frame Handle to train on, such as a ``split`` fold. It must have every column of the recipe's routing. Null uses the frame the recipe's profile was made from."
+      },
+      "seed": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Seed of the random draws, from 0 to 4294967295. Null uses the fixed default. Constraints: at least 0; at most 4294967295."
+      }
+    },
+    "required": [
+      "recipe",
+      "unit_id",
+      "frame",
+      "seed"
+    ],
+    "type": "object"
+  },
+  "output": {
+    "additionalProperties": false,
+    "description": "The fitted unit Handle and the signals of its fit.",
+    "properties": {
+      "warnings": {
+        "additionalProperties": false,
+        "description": "Caveats on this result, most actionable first. Empty when there are none.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `code`, `message`, `columns`, `param`, `hint`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "code",
+                "message",
+                "columns",
+                "param",
+                "hint"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "A caveat on a successful result: it worked, but read this first. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `code`: The warning's Error Code. Branch on this, not on ``message``.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `message`: What happened and what to do, in one or two sentences.",
+                    "type": "string"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 2, `columns`: Columns the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `param`: The argument the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 4, `hint`: Library-written advice, or null."
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "omitted": {
+        "additionalProperties": false,
+        "description": "One entry per list that was cut, naming the Operation that returns the rest. Empty when nothing was cut.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `field`, `shown`, `total`, `operation`, `reason`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "field",
+                "shown",
+                "total",
+                "operation",
+                "reason"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "Something left out of a result: a capped list was cut, or a Literal Field withheld. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `field`: Name of the list field that was cut, or the path of the Literal Field withheld, such as ``top_values[].value``.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `shown`: How many items the list holds; 0 for a withheld Literal Field or cut cells.",
+                    "type": "integer"
+                  },
+                  {
+                    "description": "Position 2, `total`: How many items exist; for a withheld Literal Field, how many values at that path are null; for cut cells, how many were cut.",
+                    "type": "integer"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `operation`: The Operation that returns the rest, or null when no Operation does."
+                  },
+                  {
+                    "description": "Position 4, `reason`: ``cap`` when a list was cut to its cap; ``literal_policy`` when the Operator's Literal Policy is ``deny``; ``truncated`` when long text cells were cut to their character cap.",
+                    "enum": [
+                      "cap",
+                      "literal_policy",
+                      "truncated"
+                    ],
+                    "type": "string"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "unit": {
+        "description": "Fitted unit Handle, such as ``unit_7f3a9c2e``.",
+        "type": "string"
+      },
+      "recipe": {
+        "description": "The recipe Handle read.",
+        "type": "string"
+      },
+      "frame": {
+        "description": "The frame Handle the unit trained on: yours, or the frame the recipe's profile was made from.",
+        "type": "string"
+      },
+      "unit_id": {
+        "description": "The unit trained, as ``resolve_recipe`` lists it.",
+        "type": "string"
+      },
+      "strategy": {
+        "description": "The strategy the unit trained.",
+        "enum": [
+          "mean",
+          "median",
+          "mode",
+          "knn",
+          "mice",
+          "mnar",
+          "constant",
+          "cluster_conditional",
+          "gmm_sampling"
+        ],
+        "type": "string"
+      },
+      "columns": {
+        "description": "The columns the unit fills, in dataset order. At most 100; past 100, ``omitted`` counts the rest and names ``explain_routing``.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "seed": {
+        "description": "The seed used: yours, or the fixed default when you passed null.",
+        "type": "integer"
+      },
+      "signals": {
+        "additionalProperties": false,
+        "description": "What the fit did. Caveats on it, such as a model that hit its iteration cap, are in ``warnings``.",
+        "properties": {
+          "estimator": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Name of the estimator that ran, such as ``BayesianRidge``, ``KNNImputer`` or ``GaussianMixture``; null for a strategy that fits none, such as ``median``."
+          },
+          "converged": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whether an iterative model stopped before its iteration cap; null for a strategy with no iterations. When false, ``warnings`` says what to change."
+          },
+          "n_iter": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Iterations the model ran; null for a strategy with no iterations."
+          },
+          "hyperparameters": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "description": "Dials of the ``mice`` unit, the joint MICE block. Null keeps the recipe's resolved value.",
+                "properties": {
+                  "kind": {
+                    "description": "Always ``mice``.",
+                    "type": "string",
+                    "enum": [
+                      "mice"
+                    ]
+                  },
+                  "max_iter": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Most imputation rounds the block runs. Constraints: at least 1."
+                  },
+                  "tol": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Convergence tolerance: the block stops once a round changes the fill by less than this. Constraints: at least 0."
+                  },
+                  "initial_strategy": {
+                    "anyOf": [
+                      {
+                        "enum": [
+                          "mean",
+                          "median"
+                        ],
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Which statistic fills missing cells before the first round."
+                  },
+                  "n_nearest_features": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "all"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Most predictors each column's model reads, the most correlated first. ``all`` reads every active numeric column. Constraints: at least 1."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "max_iter",
+                  "tol",
+                  "initial_strategy",
+                  "n_nearest_features"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Dials of the ``knn`` unit, the joint KNN block. Null keeps the recipe's resolved value.",
+                "properties": {
+                  "kind": {
+                    "description": "Always ``knn``.",
+                    "type": "string",
+                    "enum": [
+                      "knn"
+                    ]
+                  },
+                  "n_neighbors": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Rows whose values fill a missing cell. A column with fewer donor rows uses them all. Constraints: at least 1."
+                  },
+                  "weights": {
+                    "anyOf": [
+                      {
+                        "enum": [
+                          "uniform",
+                          "distance"
+                        ],
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "``distance`` weighs nearer rows more; ``uniform`` weighs every neighbour the same."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "n_neighbors",
+                  "weights"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Dials of one ``mnar:<column>`` unit. Null keeps the recipe's resolved value.",
+                "properties": {
+                  "kind": {
+                    "description": "Always ``mnar``.",
+                    "type": "string",
+                    "enum": [
+                      "mnar"
+                    ]
+                  },
+                  "central_tendency": {
+                    "anyOf": [
+                      {
+                        "enum": [
+                          "mean",
+                          "median",
+                          "mode"
+                        ],
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Which statistic the fill on record is. The column keeps its nulls either way."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "central_tendency"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Dials of one ``cluster_conditional:<column>`` unit. Null keeps the recipe's resolved value.",
+                "properties": {
+                  "kind": {
+                    "description": "Always ``cluster_conditional``.",
+                    "type": "string",
+                    "enum": [
+                      "cluster_conditional"
+                    ]
+                  },
+                  "central_tendency": {
+                    "anyOf": [
+                      {
+                        "enum": [
+                          "mean",
+                          "median"
+                        ],
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Which statistic of its group fills a missing cell."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "central_tendency"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Every hyperparameter the unit trained with: the recipe's resolved value, or yours where you set one on ``resolve_recipe``. Null for a strategy with none: every one but ``mice``, ``knn``, ``mnar`` and ``cluster_conditional``."
+          }
+        },
+        "required": [
+          "estimator",
+          "converged",
+          "n_iter",
+          "hyperparameters"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "warnings",
+      "omitted",
+      "unit",
+      "recipe",
+      "frame",
+      "unit_id",
+      "strategy",
+      "columns",
+      "seed",
+      "signals"
+    ],
+    "type": "object"
+  }
+}

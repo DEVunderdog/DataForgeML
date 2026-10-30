@@ -1,21 +1,21 @@
 """
-Unit tests for ImputationConfig, NumericImputationConfig, and PipelineConfig
-imputation wiring.
+Unit tests for ImputationConfig and NumericImputationConfig.
 
 All tests are pure — no DataFrames, no StructuralProfiler.
 """
 
 import pytest
 
-from dataforge_ml.config import PipelineConfig, PipelinePhase, SemanticType
+from dataforge_ml.config import SemanticType
 from dataforge_ml.imputation import (
     ColumnImputationRecord,
     ColumnRouting,
     ImputationConfig,
-    ImputationResult,
     ImputationStrategy,
     NumericImputationConfig,
+    RoutingReason,
 )
+from tests.conftest import raises_code
 
 # ---------------------------------------------------------------------------
 # Importability
@@ -24,11 +24,11 @@ from dataforge_ml.imputation import (
 
 def test_all_types_importable_from_imputation_module():
     from dataforge_ml.imputation import (
-        ColumnImputationRecord,  # noqa: F401
-        ImputationConfig,
-        ImputationResult,
-        ImputationStrategy,
-        NumericImputationConfig,
+        ColumnImputationRecord,  # noqa: F401 - the import is the assertion
+        ImputationConfig,  # noqa: F401 - the import is the assertion
+        ImputationResult,  # noqa: F401 - the import is the assertion
+        ImputationStrategy,  # noqa: F401 - the import is the assertion
+        NumericImputationConfig,  # noqa: F401 - the import is the assertion
     )
 
 
@@ -362,14 +362,14 @@ def test_numeric_config_signal_score_dials_from_dict_empty_uses_default():
     [
         ("mice_min_rows", "mice_min_rows_per_predictor"),
         ("knn_max_features", "knn_max_rows"),
-        ("gradient_boost_min_rows", "with_model_choice"),
+        ("gradient_boost_min_rows", "model_choice"),
         ("mcar_feature_predictability_threshold", "signal_score_"),
     ],
 )
 def test_numeric_config_from_dict_rejects_deleted_keys_naming_the_replacement(
     retired, replacement
 ):
-    with pytest.raises(ValueError, match=retired) as exc:
+    with raises_code("retired_dial", match=retired) as exc:
         NumericImputationConfig.from_dict({retired: 1})
     assert replacement in str(exc.value)
 
@@ -472,129 +472,8 @@ def test_imputation_config_from_dict_raises_on_invalid_entry():
         "numeric": {"per_column_strategy": {"income": "median"}},
         "mnar_columns": ["income"],
     }
-    with pytest.raises(ValueError, match="mutually exclusive: 'income'"):
+    with raises_code("declaration_conflict", match="mutually exclusive: 'income'"):
         ImputationConfig.from_dict(d)
-
-
-# ---------------------------------------------------------------------------
-# PipelineConfig — imputation field wiring
-# ---------------------------------------------------------------------------
-
-
-def test_pipeline_config_has_imputation_field():
-    cfg = PipelineConfig()
-    assert hasattr(cfg, "imputation")
-
-
-def test_pipeline_config_imputation_default_is_imputation_config():
-    cfg = PipelineConfig()
-    assert isinstance(cfg.imputation, ImputationConfig)
-
-
-def test_pipeline_config_imputation_default_has_correct_thresholds():
-    cfg = PipelineConfig()
-    assert cfg.imputation.numeric.knn_max_rows == 50_000
-    assert cfg.imputation.numeric.mice_min_rows_per_predictor == 2
-
-
-def test_pipeline_config_two_instances_have_independent_imputation_configs():
-    cfg1 = PipelineConfig()
-    cfg2 = PipelineConfig()
-    cfg1.imputation.add_mnar_column("x")
-    assert cfg2.imputation.mnar_columns == ()
-
-
-# ---------------------------------------------------------------------------
-# PipelineConfig — to_dict includes imputation
-# ---------------------------------------------------------------------------
-
-
-def test_pipeline_config_to_dict_includes_imputation_key():
-    cfg = PipelineConfig()
-    d = cfg.to_dict()
-    assert "imputation" in d
-
-
-def test_pipeline_config_to_dict_imputation_contains_numeric():
-    cfg = PipelineConfig()
-    d = cfg.to_dict()
-    assert "numeric" in d["imputation"]
-    assert d["imputation"]["numeric"]["knn_max_rows"] == 50_000
-
-
-def test_pipeline_config_to_dict_imputation_contains_mnar_columns():
-    cfg = PipelineConfig()
-    cfg.imputation = ImputationConfig()
-    cfg.imputation.add_mnar_column(["col_a"])
-    d = cfg.to_dict()
-    assert d["imputation"]["mnar_columns"] == ["col_a"]
-
-
-# ---------------------------------------------------------------------------
-# PipelineConfig — from_dict reconstructs imputation
-# ---------------------------------------------------------------------------
-
-
-def test_pipeline_config_from_dict_reconstructs_imputation_config():
-    d = {
-        "exclude_columns": [],
-        "phase_exclusions": {},
-        "column_overrides": {},
-        "profiling": {},
-        "imputation": {
-            "numeric": {"knn_max_rows": 20_000, "mice_min_rows_per_predictor": 3},
-            "mnar_columns": ["revenue"],
-        },
-    }
-    cfg = PipelineConfig.from_dict(d)
-    assert isinstance(cfg.imputation, ImputationConfig)
-    assert cfg.imputation.numeric.knn_max_rows == 20_000
-    assert cfg.imputation.numeric.mice_min_rows_per_predictor == 3
-    assert cfg.imputation.mnar_columns == ("revenue",)
-
-
-def test_pipeline_config_from_dict_without_imputation_key_uses_defaults():
-    d = {
-        "exclude_columns": [],
-        "phase_exclusions": {},
-        "column_overrides": {},
-        "profiling": {},
-    }
-    cfg = PipelineConfig.from_dict(d)
-    assert isinstance(cfg.imputation, ImputationConfig)
-    assert cfg.imputation.numeric.knn_max_rows == 50_000
-
-
-# ---------------------------------------------------------------------------
-# PipelineConfig — full round-trip with imputation
-# ---------------------------------------------------------------------------
-
-
-def test_pipeline_config_round_trip_includes_imputation():
-    original = PipelineConfig()
-    original.add_exclusion("id")
-    original.imputation = ImputationConfig(
-        numeric=NumericImputationConfig(
-            knn_max_rows=15_000,
-            mice_min_rows_per_predictor=6,
-        ),
-    )
-    original.imputation.add_mnar_column(["salary", "age"])
-    restored = PipelineConfig.from_json(original.to_json())
-
-    assert restored.exclude_columns == ("id",)
-    assert isinstance(restored.imputation, ImputationConfig)
-    assert restored.imputation.numeric.knn_max_rows == 15_000
-    assert restored.imputation.numeric.mice_min_rows_per_predictor == 6
-    assert restored.imputation.mnar_columns == ("salary", "age")
-
-
-def test_pipeline_config_round_trip_empty_config_imputation_defaults():
-    original = PipelineConfig()
-    restored = PipelineConfig.from_json(original.to_json())
-
-    assert restored.imputation.mnar_columns == ()
-    assert restored.imputation.numeric.knn_max_rows == 50_000
 
 
 # ---------------------------------------------------------------------------
@@ -607,7 +486,7 @@ def test_column_imputation_record_round_trips(round_trip):
 
     record = ColumnImputationRecord(
         decision=ColumnRouting(
-            column="age", semantic_type=SemanticType.Numeric, strategy=ImputationStrategy.Mean
+            column="age", semantic_type=SemanticType.Numeric, strategy=ImputationStrategy.Mean, reason=RoutingReason.authored
         ),
         fill_value=30.0,
     )
@@ -626,42 +505,42 @@ def test_column_imputation_record_round_trips(round_trip):
 
 
 def test_per_column_strategy_rejects_passthrough():
-    with pytest.raises(ValueError, match="internal-only"):
+    with raises_code("strategy_not_declarable", match="internal-only"):
         NumericImputationConfig(
             _per_column_strategy={"col_a": ImputationStrategy.Passthrough}
         )
 
 
 def test_per_column_strategy_rejects_indicator():
-    with pytest.raises(ValueError, match="internal-only"):
+    with raises_code("strategy_not_declarable", match="internal-only"):
         NumericImputationConfig(
             _per_column_strategy={"col_a": ImputationStrategy.Indicator}
         )
 
 
 def test_per_column_strategy_rejects_dropped_names_exclude_columns():
-    with pytest.raises(ValueError, match="PipelineConfig.exclude_columns"):
+    with raises_code("strategy_not_declarable", match="exclude_columns"):
         NumericImputationConfig(
             _per_column_strategy={"col_a": ImputationStrategy.Dropped}
         )
 
 
 def test_per_column_strategy_rejects_mnar_names_mnar_columns():
-    with pytest.raises(ValueError, match="mnar_columns"):
+    with raises_code("strategy_not_declarable", match="mnar_columns"):
         NumericImputationConfig(
             _per_column_strategy={"col_a": ImputationStrategy.MNAR}
         )
 
 
 def test_per_column_strategy_constant_without_fill_raises():
-    with pytest.raises(ValueError, match="per_column_constant_fill"):
+    with raises_code("constant_fill_missing", match="per_column_constant_fill"):
         NumericImputationConfig(
             _per_column_strategy={"tx_count": ImputationStrategy.Constant}
         )
 
 
 def test_per_column_strategy_constant_without_fill_names_column():
-    with pytest.raises(ValueError, match="'tx_count'"):
+    with raises_code("constant_fill_missing", match="'tx_count'"):
         NumericImputationConfig(
             _per_column_strategy={"tx_count": ImputationStrategy.Constant}
         )
@@ -697,7 +576,7 @@ def test_per_column_strategy_all_allowed_strategies_construct():
 
 
 def test_per_column_strategy_error_names_the_column():
-    with pytest.raises(ValueError, match="'income'"):
+    with raises_code("strategy_not_declarable", match="'income'"):
         NumericImputationConfig(
             _per_column_strategy={"income": ImputationStrategy.Dropped}
         )
@@ -716,7 +595,7 @@ def test_per_column_strategy_empty_dict_default_constructs():
 
 
 def test_imputation_config_mnar_conflict_raises_when_column_in_both():
-    with pytest.raises(ValueError):
+    with raises_code("declaration_conflict"):
         cfg = ImputationConfig(
             numeric=NumericImputationConfig(
                 _per_column_strategy={"income": ImputationStrategy.Median}
@@ -726,7 +605,7 @@ def test_imputation_config_mnar_conflict_raises_when_column_in_both():
 
 
 def test_imputation_config_mnar_conflict_message_names_all_conflicting_columns():
-    with pytest.raises(ValueError, match="'income'") as exc_info:
+    with raises_code("declaration_conflict", match="'income'") as exc_info:
         cfg = ImputationConfig(
             numeric=NumericImputationConfig(
                 _per_column_strategy={
@@ -783,7 +662,8 @@ def test_column_imputation_record_from_dict_round_trips():
         "strategy": "Mean",
         "fill_value": 30.0,
         "indicator_added": False,
-        "signals": [],
+        "reason": "authored",
+        "evidence": [],
     })
     assert record.decision.column == "age"
     assert record.fill_value == 30.0
@@ -791,12 +671,12 @@ def test_column_imputation_record_from_dict_round_trips():
 
 def test_column_imputation_record_carries_no_diagnostic_field():
     """Diagnostics moved to the Evaluation reports; records dropped the field (ADR-0058)."""
-    record = ColumnImputationRecord(decision=ColumnRouting(column="age", semantic_type=SemanticType.Numeric, strategy=ImputationStrategy.Mean), fill_value=30.0)
+    record = ColumnImputationRecord(decision=ColumnRouting(column="age", semantic_type=SemanticType.Numeric, strategy=ImputationStrategy.Mean, reason=RoutingReason.authored), fill_value=30.0)
     assert not hasattr(record, "diagnostic")
 
 
 def test_column_imputation_record_to_dict_excludes_diagnostic_key():
-    record = ColumnImputationRecord(decision=ColumnRouting(column="age", semantic_type=SemanticType.Numeric, strategy=ImputationStrategy.Mean), fill_value=30.0)
+    record = ColumnImputationRecord(decision=ColumnRouting(column="age", semantic_type=SemanticType.Numeric, strategy=ImputationStrategy.Mean, reason=RoutingReason.authored), fill_value=30.0)
     assert "diagnostic" not in record.to_dict()
 
 
@@ -833,22 +713,22 @@ def test_numeric_config_mice_max_iter_absent_from_to_dict():
 
 
 def test_numeric_config_from_dict_raises_on_knn_n_neighbors():
-    with pytest.raises(ValueError, match="knn_n_neighbors"):
+    with raises_code("retired_dial", match="knn_n_neighbors"):
         NumericImputationConfig.from_dict({"knn_n_neighbors": 15})
 
 
 def test_numeric_config_from_dict_raises_on_mice_max_iter():
-    with pytest.raises(ValueError, match="mice_max_iter"):
+    with raises_code("retired_dial", match="mice_max_iter"):
         NumericImputationConfig.from_dict({"mice_max_iter": 100})
 
 
-def test_numeric_config_from_dict_raise_points_at_with_hyperparameters():
-    with pytest.raises(ValueError, match="with_hyperparameters"):
+def test_numeric_config_from_dict_raise_points_at_resolve_recipe_hyperparameters():
+    with raises_code("retired_dial", match="resolve_recipe Operation's hyperparameters"):
         NumericImputationConfig.from_dict({"mice_max_iter": 100})
 
 
 def test_numeric_config_from_dict_raises_on_retired_key_set_to_none():
-    with pytest.raises(ValueError, match="knn_n_neighbors"):
+    with raises_code("retired_dial", match="knn_n_neighbors"):
         NumericImputationConfig.from_dict({"knn_n_neighbors": None})
 
 
@@ -885,22 +765,24 @@ def test_numeric_config_direct_writes_raise_type_error():
 
 def test_numeric_config_setter_validation_strategy_blocked():
     cfg = NumericImputationConfig()
-    with pytest.raises(ValueError, match="'Dropped' cannot be used"):
+    with raises_code("strategy_not_declarable", match="'Dropped' cannot be used"):
         cfg.set_per_column_strategy("col", ImputationStrategy.Dropped)
         
-    with pytest.raises(ValueError, match="'MNAR' cannot be used"):
+    with raises_code("strategy_not_declarable", match="'MNAR' cannot be used"):
         cfg.set_per_column_strategy("col", ImputationStrategy.MNAR)
         
-    with pytest.raises(ValueError, match="internal-only"):
+    with raises_code("strategy_not_declarable", match="internal-only"):
         cfg.set_per_column_strategy("col", ImputationStrategy.Passthrough)
         
-    with pytest.raises(ValueError, match="internal-only"):
+    with raises_code("strategy_not_declarable", match="internal-only") as info:
         cfg.set_per_column_strategy("col", ImputationStrategy.Indicator)
+    assert info.value.columns == ["col"]
+    assert "median" in info.value.allowed
 
 
 def test_numeric_config_setter_validation_constant_without_fill():
     cfg = NumericImputationConfig()
-    with pytest.raises(ValueError, match="strategy is 'Constant' but no fill value was provided"):
+    with raises_code("constant_fill_missing", match="strategy is 'Constant' but no fill value was provided"):
         cfg.set_per_column_strategy("col", ImputationStrategy.Constant)
 
 
@@ -913,9 +795,10 @@ def test_numeric_config_setter_validation_constant_with_fill():
 
 def test_numeric_config_setter_validation_constant_fill_nan_inf():
     cfg = NumericImputationConfig()
-    with pytest.raises(ValueError, match="NaN or infinity"):
+    with raises_code("invalid_argument", match="finite") as info:
         cfg.set_per_column_constant_fill("col", float("nan"))
-    with pytest.raises(ValueError, match="NaN or infinity"):
+    assert info.value.param == "value"
+    with raises_code("invalid_argument", match="finite"):
         cfg.set_per_column_constant_fill("col", float("inf"))
 
 
@@ -927,20 +810,21 @@ def test_numeric_config_set_per_column_max_iter_removed():
 
 def test_numeric_config_setter_validation_grouping_variable():
     cfg = NumericImputationConfig()
-    with pytest.raises(ValueError, match="empty or purely whitespace"):
+    with raises_code("invalid_argument", match="non-blank") as info:
         cfg.set_bimodal_grouping_variable("col", "")
-    with pytest.raises(ValueError, match="empty or purely whitespace"):
+    assert info.value.param == "grouping_variable"
+    with raises_code("invalid_argument", match="non-blank"):
         cfg.set_bimodal_grouping_variable("col", "   ")
 
 
 def test_numeric_config_from_dict_raises_on_invalid_entry():
-    with pytest.raises(ValueError, match="NaN or infinity"):
+    with raises_code("invalid_argument", match="finite"):
         NumericImputationConfig.from_dict({"per_column_constant_fill": {"col": float("inf")}})
         
-    with pytest.raises(ValueError, match="'Dropped' cannot be used"):
+    with raises_code("strategy_not_declarable", match="'Dropped' cannot be used"):
         NumericImputationConfig.from_dict({"per_column_strategy": {"col": "dropped"}})
         
-    with pytest.raises(ValueError, match="empty or purely whitespace"):
+    with raises_code("invalid_argument", match="non-blank"):
         NumericImputationConfig.from_dict({"bimodal_grouping_variables": {"col": "  "}})
 
 
@@ -967,10 +851,10 @@ def test_grouping_variable_contradiction_raises_when_strategy_set_after():
     cfg = NumericImputationConfig()
     cfg.set_bimodal_grouping_variable("age", "group")
 
-    with pytest.raises(ValueError, match="contradicts any forced strategy other than ClusterConditional"):
+    with raises_code("declaration_conflict", match="contradicts any forced strategy other than ClusterConditional"):
         cfg.set_per_column_strategy("age", ImputationStrategy.Mean)
 
-    with pytest.raises(ValueError, match="contradicts any forced strategy other than ClusterConditional"):
+    with raises_code("declaration_conflict", match="contradicts any forced strategy other than ClusterConditional"):
         cfg.set_per_column_strategy("age", ImputationStrategy.GMMSampling)
 
     # ClusterConditional is permitted alongside grouping variable
@@ -981,12 +865,12 @@ def test_grouping_variable_contradiction_raises_when_strategy_set_after():
 def test_grouping_variable_contradiction_raises_when_grouping_set_after():
     cfg = NumericImputationConfig()
     cfg.set_per_column_strategy("age", ImputationStrategy.Mean)
-    with pytest.raises(ValueError, match="contradicts any forced strategy other than ClusterConditional"):
+    with raises_code("declaration_conflict", match="contradicts any forced strategy other than ClusterConditional"):
         cfg.set_bimodal_grouping_variable("age", "group")
 
     cfg2 = NumericImputationConfig()
     cfg2.set_per_column_strategy("age", ImputationStrategy.GMMSampling)
-    with pytest.raises(ValueError, match="contradicts any forced strategy other than ClusterConditional"):
+    with raises_code("declaration_conflict", match="contradicts any forced strategy other than ClusterConditional"):
         cfg2.set_bimodal_grouping_variable("age", "group")
 
     cfg3 = NumericImputationConfig()
@@ -999,23 +883,23 @@ def test_grouping_variable_contradiction_in_validate():
     cfg = NumericImputationConfig()
     cfg._bimodal_grouping_variables["age"] = "group"
     cfg._per_column_strategy["age"] = ImputationStrategy.Median
-    with pytest.raises(ValueError, match="contradicts any forced strategy other than ClusterConditional"):
+    with raises_code("declaration_conflict", match="contradicts any forced strategy other than ClusterConditional"):
         cfg.validate()
 
     from dataforge_ml.imputation import ImputationConfig
     imp_cfg = ImputationConfig(numeric=cfg)
-    with pytest.raises(ValueError, match="contradicts any forced strategy other than ClusterConditional"):
+    with raises_code("declaration_conflict", match="contradicts any forced strategy other than ClusterConditional"):
         imp_cfg.validate()
 
 
 def test_grouping_variable_contradiction_from_dict():
-    with pytest.raises(ValueError, match="contradicts any forced strategy other than ClusterConditional"):
+    with raises_code("declaration_conflict", match="contradicts any forced strategy other than ClusterConditional"):
         NumericImputationConfig.from_dict({
             "per_column_strategy": {"age": "mean"},
             "bimodal_grouping_variables": {"age": "grp"},
         })
 
-    with pytest.raises(ValueError, match="contradicts any forced strategy other than ClusterConditional"):
+    with raises_code("declaration_conflict", match="contradicts any forced strategy other than ClusterConditional"):
         NumericImputationConfig.from_dict({
             "bimodal_grouping_variables": {"age": "grp"},
             "per_column_strategy": {"age": "gmm_sampling"},
@@ -1033,21 +917,30 @@ def test_column_routing_excluded_round_trips():
     routing = ColumnRouting(
         column="age",
         semantic_type=SemanticType.Numeric,
-        strategy=ImputationStrategy.Passthrough,
+        strategy=ImputationStrategy.Passthrough, reason=RoutingReason.authored,
         excluded=True,
     )
     assert ColumnRouting.from_dict(routing.to_dict()) == routing
 
 
-def test_column_routing_saved_before_excluded_existed_infers_it_from_the_signal():
-    """A pre-flag payload recorded a soft exclusion only as its signal."""
-    from dataforge_ml.imputation._config import _EXCLUSION_SIGNAL
-
-    legacy = ColumnRouting(
+@pytest.mark.parametrize(
+    "corrupt",
+    [
+        lambda d: d.pop("reason"),
+        lambda d: d.pop("evidence"),
+        lambda d: d.update(reason="not_a_reason"),
+        lambda d: d.update(evidence=[{"kind": "tier", "tier": "sideways"}]),
+        lambda d: d.update(evidence=[{"kind": "entry", "cause": "mar_multi", "extra": 1}]),
+    ],
+    ids=["no-reason", "no-evidence", "unknown-reason", "bad-enum", "extra-field"],
+)
+def test_column_routing_strict_load_rejects_a_bad_reason_or_evidence(corrupt):
+    """Strict load (ADR-0105): reason and evidence must match this library's schema."""
+    data = ColumnRouting(
         column="age",
         semantic_type=SemanticType.Numeric,
-        strategy=ImputationStrategy.Passthrough,
-        signals=(_EXCLUSION_SIGNAL,),
+        strategy=ImputationStrategy.Passthrough, reason=RoutingReason.no_missing_values,
     ).to_dict()
-    del legacy["excluded"]
-    assert ColumnRouting.from_dict(legacy).excluded is True
+    corrupt(data)
+    with raises_code("incompatible_artifact"):
+        ColumnRouting.from_dict(data)

@@ -14,31 +14,40 @@ import numpy as np
 import polars as pl
 import pytest
 
-from dataforge_ml import PipelineConfig, StructuralProfiler, derive_units, fit_unit
-from dataforge_ml.imputation import ImputationStrategy, resolve_recipe, route
-from dataforge_ml.imputation._config import ModelChoice, NumericImputationConfig
+from dataforge_ml.imputation import ImputationStrategy, route
+from dataforge_ml.imputation._config import (
+    ImputationConfig,
+    ModelChoice,
+    NumericImputationConfig,
+)
 from dataforge_ml.imputation._escalation import (
     _bottom_tier_fill,
     _capability_pick,
     _escalation_seam,
     _feasibility_knn,
     _feasibility_mice,
-    _forced_model_signal,
+    _forced_feasibility,
     _signal_score,
     _signal_tier,
 )
-from dataforge_ml.imputation._regression_estimator_factory import (
-    RegressionEstimatorFactory,
+from dataforge_ml.imputation._evidence import (
+    EntryCause,
+    EntryFact,
+    FeasibilityFact,
+    RoutingReason,
+    SignalScoreFact,
+    SignalTier,
+    TierFact,
 )
 from dataforge_ml.profiling._config import ColumnProfile, NumericKind
 from dataforge_ml.profiling._correlation_config import CorrelationProfileResult
 from dataforge_ml.profiling._missingness_config import ColumnMissingnessProfile
 from dataforge_ml.profiling._numeric_config import (
-    BimodalStats,
     NumericFlag,
     NumericStats,
     SkewSeverity,
 )
+from dataforge_ml.profiling.orchestrator import StructuralProfiler
 
 # ---------------------------------------------------------------------------
 # Construction helpers
@@ -46,7 +55,7 @@ from dataforge_ml.profiling._numeric_config import (
 
 
 def _missingness(effective_null_ratio: float, total_rows: int) -> ColumnMissingnessProfile:
-    eff = int(round(effective_null_ratio * total_rows))
+    eff = round(effective_null_ratio * total_rows)
     return ColumnMissingnessProfile(
         column="x",
         total_rows=total_rows,
@@ -62,10 +71,10 @@ def _cp(
     null_ratio: float = 0.0,
     total_rows: int = 100,
     numeric_kind: NumericKind = NumericKind.Continuous,
-    r2_linear: "float | None" = None,
-    r2_rf: "float | None" = None,
-    max_mi: "float | None" = None,
-    skewness_severity: "SkewSeverity | None" = SkewSeverity.Normal,
+    r2_linear: float | None = None,
+    r2_rf: float | None = None,
+    max_mi: float | None = None,
+    skewness_severity: SkewSeverity | None = SkewSeverity.Normal,
 ) -> ColumnProfile:
     stats = NumericStats(
         r2_linear=r2_linear,
@@ -101,7 +110,8 @@ def test_mice_zero_predictors_is_infeasible():
     cp = _cp(null_ratio=0.0, total_rows=1000)
     check = _feasibility_mice(cp, n_rows=1000, n_features=1, config=_config())
     assert check.feasible is False
-    assert "0 predictors" in check.failed_terms[0]
+    (term,) = check.failed_terms
+    assert (term.term, term.value, term.limit, term.dial) == ("predictors", 0, 1, None)
 
 
 def test_mice_exactly_at_rows_per_predictor_bound_is_feasible():
@@ -121,7 +131,14 @@ def test_mice_just_below_rows_per_predictor_bound_is_infeasible():
     cp = _cp(null_ratio=0.97, total_rows=100)  # usable = 100*0.03 = 3
     check = _feasibility_mice(cp, n_rows=100, n_features=3, config=config)
     assert check.feasible is False
-    assert "rows_per_predictor" in check.failed_terms[0]
+    (term,) = check.failed_terms
+    assert term.term == "rows_per_predictor"
+    assert term.value == pytest.approx(1.5)
+    assert term.limit == 2
+    assert term.dial.operation == "route"
+    assert term.dial.dial == "thresholds.numeric.mice_min_rows_per_predictor"
+    assert term.dial.value == 2
+    assert term.dial.source == "default"
 
 
 def test_mice_predictor_count_capped_by_mice_max_nearest_features():
@@ -167,7 +184,11 @@ def test_knn_resource_ceiling_exact_boundary():
     over_bound = _feasibility_knn(cp, n_rows=1001, n_features=3, config=config)
     assert at_bound.feasible is True
     assert over_bound.feasible is False
-    assert "knn_max_rows" in over_bound.failed_terms[0]
+    (term,) = over_bound.failed_terms
+    assert (term.term, term.value, term.limit) == ("row_count", 1001, 1000)
+    assert term.dial.dial == "thresholds.numeric.knn_max_rows"
+    assert term.dial.value == 1000
+    assert term.dial.source == "argument"
 
 
 # ---------------------------------------------------------------------------
@@ -177,17 +198,19 @@ def test_knn_resource_ceiling_exact_boundary():
 
 def test_signal_score_none_when_no_predictor_correlation():
     cp = _cp()
-    score, note = _signal_score("x", cp, feature_correlation=None, config=_config())
+    score, fact = _signal_score("x", cp, feature_correlation=None, config=_config())
     assert score is None
-    assert "none" in note
+    assert fact is None
 
 
 def test_signal_score_degrades_to_squared_max_r_when_r2_pair_absent():
     cp = _cp(r2_linear=None, r2_rf=None)
     feature_correlation = _corr("x", {"a": 0.5, "b": 0.1})
-    score, note = _signal_score("x", cp, feature_correlation, _config())
+    score, fact = _signal_score("x", cp, feature_correlation, _config())
     assert score is not None
-    assert "degraded" in note
+    assert fact.degraded is True
+    assert fact.base == pytest.approx(0.25)
+    assert fact.score == pytest.approx(score)
     # base = max|r|^2 = 0.25 at minimum (breadth/latent can only add or floor it)
     assert score >= 0.25 - 1e-6
 
@@ -195,8 +218,9 @@ def test_signal_score_degrades_to_squared_max_r_when_r2_pair_absent():
 def test_signal_score_uses_r2_pair_when_available():
     cp = _cp(r2_linear=0.4, r2_rf=0.6)
     feature_correlation = _corr("x", {"a": 0.3})
-    score, note = _signal_score("x", cp, feature_correlation, _config())
-    assert "degraded" not in note
+    score, fact = _signal_score("x", cp, feature_correlation, _config())
+    assert fact.degraded is False
+    assert fact.base == pytest.approx(0.6)
     # base = max(max(0.4, 0.6), 0.3**2) = 0.6
     assert score >= 0.6 - 1e-6
 
@@ -303,139 +327,174 @@ def test_escalation_seam_picks_knn_at_middle_tier_when_both_feasible():
     config = _config(signal_score_middle_tier_min=0.1, signal_score_top_tier_min=0.9)
     cp = _cp(null_ratio=0.0, total_rows=1000, r2_linear=0.3, r2_rf=0.3)
     feature_correlation = _corr("x", {"a": 0.5, "b": 0.4})
-    strategy, signal = _escalation_seam(
+    strategy, reason, evidence = _escalation_seam(
         "x", cp, config, n_rows=1000, n_features=5, feature_correlation=feature_correlation,
-        context="test",
+        entries=(EntryCause.mcar_high_severity,),
     )
     assert strategy == ImputationStrategy.KNN
-    assert "signal_tier: middle" in signal
+    assert reason == RoutingReason.signal_tier_pick
+    assert [fact.kind for fact in evidence] == [
+        "entry", "signal_score", "tier", "feasibility", "feasibility",
+    ]
+    assert evidence[0] == EntryFact(cause=EntryCause.mcar_high_severity)
+    assert isinstance(evidence[1], SignalScoreFact)
+    assert evidence[2] == TierFact(tier=SignalTier.middle)
+    assert evidence[3] == FeasibilityFact(strategy="mice", passed=True, failed_terms=[])
+    assert evidence[4] == FeasibilityFact(strategy="knn", passed=True, failed_terms=[])
 
 
 def test_escalation_seam_picks_mice_at_top_tier_when_both_feasible():
     config = _config(signal_score_middle_tier_min=0.05, signal_score_top_tier_min=0.1)
     cp = _cp(null_ratio=0.0, total_rows=1000, r2_linear=0.9, r2_rf=0.9)
     feature_correlation = _corr("x", {"a": 0.9, "b": 0.9})
-    strategy, signal = _escalation_seam(
+    strategy, reason, evidence = _escalation_seam(
         "x", cp, config, n_rows=1000, n_features=5, feature_correlation=feature_correlation,
-        context="test",
+        entries=(EntryCause.mar_severe,),
     )
     assert strategy == ImputationStrategy.MICE
-    assert "signal_tier: top" in signal
+    assert reason == RoutingReason.signal_tier_pick
+    assert TierFact(tier=SignalTier.top) in evidence
 
 
 def test_escalation_seam_bottom_tier_regardless_of_feasibility():
     config = _config(signal_score_middle_tier_min=0.9, signal_score_top_tier_min=0.95)
     cp = _cp(null_ratio=0.0, total_rows=1000, r2_linear=0.3, r2_rf=0.3)
     feature_correlation = _corr("x", {"a": 0.3})
-    strategy, signal = _escalation_seam(
+    strategy, reason, evidence = _escalation_seam(
         "x", cp, config, n_rows=1000, n_features=5, feature_correlation=feature_correlation,
-        context="test",
+        entries=(EntryCause.mcar_high_severity,),
     )
     # _cp() defaults to SkewSeverity.Normal, so the bottom tier's central
     # tendency is Mean.
     assert strategy == ImputationStrategy.Mean
-    assert "signal_tier: bottom" in signal
+    assert reason == RoutingReason.bottom_tier_fill
+    assert TierFact(tier=SignalTier.bottom) in evidence
+
+
+def test_escalation_seam_no_feasible_model_when_tier_wants_one():
+    """A middle-tier column with neither candidate feasible falls to the scalar fill."""
+    config = _config(
+        signal_score_middle_tier_min=0.1, signal_score_top_tier_min=0.9, knn_max_rows=10
+    )
+    cp = _cp(null_ratio=0.99, total_rows=100, r2_linear=0.3, r2_rf=0.3)
+    feature_correlation = _corr("x", {"a": 0.5, "b": 0.4})
+    strategy, reason, evidence = _escalation_seam(
+        "x", cp, config, n_rows=100, n_features=5, feature_correlation=feature_correlation,
+        entries=(EntryCause.mar_multi,),
+    )
+    assert strategy == ImputationStrategy.Mean
+    assert reason == RoutingReason.no_feasible_model
+    mice, knn = (f for f in evidence if f.kind == "feasibility")
+    assert (mice.strategy, mice.passed) == ("mice", False)
+    assert [t.term for t in mice.failed_terms] == ["rows_per_predictor"]
+    assert (knn.strategy, knn.passed) == ("knn", False)
+    assert [t.term for t in knn.failed_terms] == ["row_count"]
 
 
 def test_escalation_seam_never_returns_a_strategy_with_no_candidate():
     """The skew-picked central tendency is always feasible — the set is never empty."""
     config = _config()
     cp = _cp(null_ratio=0.0, total_rows=2)  # tiny frame, no correlation given
-    strategy, _ = _escalation_seam(
-        "x", cp, config, n_rows=2, n_features=1, feature_correlation=None, context="test",
+    strategy, reason, evidence = _escalation_seam(
+        "x", cp, config, n_rows=2, n_features=1, feature_correlation=None, entries=(),
     )
     assert strategy in (ImputationStrategy.Mean, ImputationStrategy.Median)
+    assert reason == RoutingReason.no_predictor_correlation
+    assert not any(f.kind == "signal_score" for f in evidence)
 
 
 # ---------------------------------------------------------------------------
-# Forced-column signal (ADR-0091, informed consent — never blocks)
+# Forced-column feasibility fact (ADR-0091, informed consent — never blocks)
 # ---------------------------------------------------------------------------
 
 
-def test_forced_model_signal_none_when_feasible():
+def _terms(fact: FeasibilityFact) -> list[str]:
+    return [t.term for t in fact.failed_terms]
+
+
+def test_forced_feasibility_passes_when_feasible():
     config = _config(mice_min_rows_per_predictor=2)
     cp = _cp(null_ratio=0.0, total_rows=1000)
-    assert _forced_model_signal(
+    fact = _forced_feasibility(
         "x", cp, config, n_rows=1000, n_features=5, strategy=ImputationStrategy.MICE
-    ) is None
+    )
+    assert fact == FeasibilityFact(strategy="mice", passed=True, failed_terms=[])
 
 
-def test_forced_model_signal_names_failed_terms_when_infeasible():
+def test_forced_feasibility_names_failed_terms_when_infeasible():
     config = _config(mice_min_rows_per_predictor=2)
     cp = _cp(null_ratio=0.99, total_rows=100)
-    signal = _forced_model_signal(
+    fact = _forced_feasibility(
         "x", cp, config, n_rows=100, n_features=5, strategy=ImputationStrategy.MICE
     )
-    assert signal is not None
-    assert "forced_past_feasibility" in signal
+    assert fact.passed is False
+    (term,) = fact.failed_terms
+    assert term.term == "rows_per_predictor"
+    assert term.dial.dial == "thresholds.numeric.mice_min_rows_per_predictor"
 
 
-def test_forced_model_signal_none_for_non_model_strategy():
+def test_forced_feasibility_none_for_non_model_strategy():
     config = _config()
     cp = _cp()
-    assert _forced_model_signal(
+    assert _forced_feasibility(
         "x", cp, config, n_rows=100, n_features=5, strategy=ImputationStrategy.Median
     ) is None
 
 
-def test_forced_model_signal_gmm_sampling_not_flagged_bimodal():
+def test_forced_feasibility_gmm_sampling_not_flagged_bimodal():
     config = _config()
     cp = _cp()
-    signal = _forced_model_signal(
+    fact = _forced_feasibility(
         "x", cp, config, n_rows=100, n_features=5, strategy=ImputationStrategy.GMMSampling
     )
-    assert signal is not None
-    assert "not flagged Bimodal" in signal
+    assert fact.passed is False
+    assert _terms(fact) == ["bimodal_flag"]
 
 
-def test_forced_model_signal_gmm_sampling_bimodal_returns_none():
+def test_forced_feasibility_gmm_sampling_bimodal_passes():
     config = _config()
     cp = _cp()
     cp.stats.flags.append(NumericFlag.Bimodal)
-    assert _forced_model_signal(
+    fact = _forced_feasibility(
         "x", cp, config, n_rows=100, n_features=5, strategy=ImputationStrategy.GMMSampling
-    ) is None
+    )
+    assert fact.passed is True
 
 
-def test_forced_model_signal_cluster_conditional_unmet_conditions():
+def test_forced_feasibility_cluster_conditional_unmet_conditions():
     config = _config()
     cp = _cp()
     # Unimodal, no grouping var, no correlated features -> both unmet
-    signal = _forced_model_signal(
+    fact = _forced_feasibility(
         "x", cp, config, n_rows=100, n_features=5, strategy=ImputationStrategy.ClusterConditional
     )
-    assert signal is not None
-    assert "not flagged Bimodal" in signal
-    assert "no grouping variable and no correlated features" in signal
+    assert _terms(fact) == ["bimodal_flag", "correlated_features"]
+    assert fact.failed_terms[1].dial.dial == "thresholds.numeric.bimodal_correlation_threshold"
 
     # Bimodal, but no grouping var and no correlated features -> only grouping/corr unmet
     cp_bi = _cp()
     cp_bi.stats.flags.append(NumericFlag.Bimodal)
-    signal_bi = _forced_model_signal(
+    fact_bi = _forced_feasibility(
         "x", cp_bi, config, n_rows=100, n_features=5, strategy=ImputationStrategy.ClusterConditional
     )
-    assert signal_bi is not None
-    assert "not flagged Bimodal" not in signal_bi
-    assert "no grouping variable and no correlated features" in signal_bi
+    assert _terms(fact_bi) == ["correlated_features"]
 
     # Unimodal, but has grouping variable -> only bimodal unmet
     config_grouped = _config()
     config_grouped.set_bimodal_grouping_variable("x", "grp")
-    signal_grouped = _forced_model_signal(
+    fact_grouped = _forced_feasibility(
         "x", cp, config_grouped, n_rows=100, n_features=5, strategy=ImputationStrategy.ClusterConditional
     )
-    assert signal_grouped is not None
-    assert "not flagged Bimodal" in signal_grouped
-    assert "no grouping variable and no correlated features" not in signal_grouped
+    assert _terms(fact_grouped) == ["bimodal_flag"]
 
-    # Bimodal AND has grouping variable -> None
-    assert _forced_model_signal(
+    # Bimodal AND has grouping variable -> passes
+    assert _forced_feasibility(
         "x", cp_bi, config_grouped, n_rows=100, n_features=5, strategy=ImputationStrategy.ClusterConditional
-    ) is None
+    ).passed is True
 
-    # Bimodal AND has correlated features -> None
+    # Bimodal AND has correlated features -> passes
     corr = _corr("x", {"y": 0.8})
-    assert _forced_model_signal(
+    assert _forced_feasibility(
         "x",
         cp_bi,
         config,
@@ -443,30 +502,35 @@ def test_forced_model_signal_cluster_conditional_unmet_conditions():
         n_features=5,
         strategy=ImputationStrategy.ClusterConditional,
         feature_correlation=corr,
-    ) is None
+    ).passed is True
 
 
-def test_route_forcing_trainable_strategy_on_unsupported_column_records_signals_without_raising():
+def test_route_forcing_trainable_strategy_on_unsupported_column_records_evidence_without_raising():
     """Forcing ClusterConditional or GMMSampling on a column that can't support it
-    records signals rather than raising (ADR-0095).
+    records a failed feasibility fact rather than raising (ADR-0095).
     """
     df = pl.DataFrame({"x": [1.0, 2.0, None, 4.0, 5.0], "y": [10.0, 20.0, 30.0, 40.0, 50.0]})
-    config = PipelineConfig()
-    config.imputation.numeric.set_per_column_strategy("x", ImputationStrategy.GMMSampling)
-    config.imputation.numeric.set_per_column_strategy("y", ImputationStrategy.ClusterConditional)
+    config = ImputationConfig()
+    config.numeric.set_per_column_strategy("x", ImputationStrategy.GMMSampling)
+    config.numeric.set_per_column_strategy("y", ImputationStrategy.ClusterConditional)
 
-    profile = StructuralProfiler(config).profile(df)
+    profile = StructuralProfiler().profile(df)
     routing = route(profile, config)
 
     # Route succeeds without raising
     r_x = routing.column_routings["x"]
     assert r_x.strategy == ImputationStrategy.GMMSampling
-    assert any("not flagged Bimodal" in s for s in r_x.signals)
+    assert r_x.reason == RoutingReason.strategy_forced
+    (fact_x,) = r_x.evidence
+    assert (fact_x.strategy, fact_x.passed) == ("gmm_sampling", False)
+    assert _terms(fact_x) == ["bimodal_flag"]
 
     r_y = routing.column_routings["y"]
     assert r_y.strategy == ImputationStrategy.ClusterConditional
-    assert any("not flagged Bimodal" in s for s in r_y.signals)
-    assert any("no grouping variable and no correlated features" in s for s in r_y.signals)
+    assert r_y.reason == RoutingReason.strategy_forced
+    (fact_y,) = r_y.evidence
+    # y tracks x exactly, so only the bimodality term fails.
+    assert _terms(fact_y) == ["bimodal_flag"]
 
 
 # ---------------------------------------------------------------------------
@@ -496,10 +560,7 @@ def test_route_resolves_mice_model_choice_when_a_column_escalates_to_mice():
     target_missing[missing_idx] = np.nan
 
     df = pl.DataFrame({"a": a, "b": b, "target": target_missing})
-    cfg = PipelineConfig()
-    cfg.profiling.compute_correlation = True
-    cfg.profiling.compute_nonlinearity = True
-    profile = StructuralProfiler(config=cfg).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     target_cp = profile.columns["target"]
     target_cp.stats.r2_linear = 0.95
@@ -514,8 +575,9 @@ def test_route_resolves_mice_model_choice_when_a_column_escalates_to_mice():
         },
     )
 
-    cfg.imputation.numeric.mice_correlation_threshold = 0.1
-    cfg.imputation.numeric.signal_score_top_tier_min = 0.5
+    cfg = ImputationConfig()
+    cfg.numeric.mice_correlation_threshold = 0.1
+    cfg.numeric.signal_score_top_tier_min = 0.5
     routing = route(profile, cfg)
 
     r = routing.column_routings["target"]
@@ -538,11 +600,40 @@ def test_route_escalates_a_nan_encoded_column_like_a_null_encoded_one():
 
     strategies = []
     for t_series in (pl.Series(t), pl.Series(t).fill_nan(None)):
-        cfg = PipelineConfig()
-        cfg.profiling.compute_correlation = True
-        cfg.profiling.compute_nonlinearity = True
         frame = pl.DataFrame({"p": p, "q": q, "t": t_series})
-        profile = StructuralProfiler(config=cfg).profile(frame)
-        strategies.append(route(profile, cfg).column_routings["t"].strategy)
+        profile = StructuralProfiler().profile(frame)
+        strategies.append(route(profile).column_routings["t"].strategy)
 
     assert strategies == [ImputationStrategy.MICE, ImputationStrategy.MICE]
+
+
+# ---------------------------------------------------------------------------
+# Every routed column carries a Routing Reason (ADR-0105)
+# ---------------------------------------------------------------------------
+
+
+def test_route_gives_every_column_a_reason_including_every_passthrough():
+    df = pl.DataFrame(
+        {
+            "full": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+            "soft": [1.0, None, 3.0, 4.0, 5.0, 6.0],
+            "mnar": [1.0, None, 3.0, 4.0, 5.0, 6.0],
+            "dropme": [1.0, None, None, None, None, 6.0],
+            "label": ["a", None, "b", "a", "b", "a"],
+        }
+    )
+    config = ImputationConfig()
+    config.add_mnar_column("mnar")
+    profile = StructuralProfiler().profile(df)
+    routing = route(profile, config, skip_columns=["soft"])
+
+    reasons = {c: r.reason for c, r in routing.column_routings.items()}
+    assert all(isinstance(r, RoutingReason) for r in reasons.values())
+    assert reasons["full"] == RoutingReason.no_missing_values
+    assert reasons["soft"] == RoutingReason.soft_excluded
+    assert reasons["label"] == RoutingReason.not_imputed_type
+    assert reasons["mnar"] == RoutingReason.mnar_declared
+    assert reasons["mnar_missing"] == RoutingReason.mnar_declared
+    assert reasons["dropme"] == RoutingReason.drop_candidate
+    for col in ("full", "soft", "label", "mnar", "dropme"):
+        assert routing.column_routings[col].evidence == ()

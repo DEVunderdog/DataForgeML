@@ -7,6 +7,7 @@ and every dial survives ``to_dict`` -> ``from_dict``.
 
 from dataclasses import fields
 
+import pytest
 from sklearn.dummy import DummyClassifier
 
 from dataforge_ml.evaluation import (
@@ -24,8 +25,7 @@ def test_c2st_config_field_list_is_the_declared_dial_set():
         "low_power_below",
         "imbalance_warn_ratio",
         "fdr_alpha",
-        "random_state",
-        "classifier",
+        "seed",
     }
 
 
@@ -37,7 +37,6 @@ def test_c2st_config_defaults_are_the_measured_ones():
     assert config.low_power_below == 250
     assert config.imbalance_warn_ratio == 0.5
     assert config.fdr_alpha == 0.05
-    assert config.classifier is None
 
 
 def test_c2st_config_round_trips_every_dial():
@@ -49,7 +48,7 @@ def test_c2st_config_round_trips_every_dial():
         low_power_below=300,
         imbalance_warn_ratio=0.25,
         fdr_alpha=0.10,
-        random_state=11,
+        seed=11,
     )
 
     restored = C2STConfig.from_dict(config.to_dict())
@@ -61,11 +60,11 @@ def test_from_dict_falls_back_to_defaults_on_missing_keys():
     assert C2STConfig.from_dict({}) == C2STConfig()
 
 
-def test_the_live_classifier_is_not_carried_across_the_round_trip():
-    config = C2STConfig(classifier=DummyClassifier())
-
-    assert "classifier" not in config.to_dict()
-    assert C2STConfig.from_dict(config.to_dict()).classifier is None
+def test_c2st_config_takes_no_classifier():
+    # The classifier is always the library's own; no path takes one in.
+    with pytest.raises(TypeError):
+        C2STConfig(classifier=DummyClassifier())
+    assert "classifier" not in C2STConfig().to_dict()
 
 
 def test_c2st_config_carries_no_observer_field():

@@ -4,7 +4,6 @@ Unit tests for _resolve_effective_nulls() in isolation.
 No orchestrator, no profile, no sub-processors — just the function and DataFrames.
 """
 
-import math
 
 import polars as pl
 import pytest
@@ -143,7 +142,7 @@ def test_boolean_column_unchanged():
 
 def test_datetime_column_unchanged():
     import datetime
-    dt = datetime.datetime(2024, 1, 1)
+    dt = datetime.datetime(2024, 1, 1)  # noqa: DTZ001 - pl.Datetime here is naive on purpose
     df = pl.DataFrame({"d": pl.Series([dt, None], dtype=pl.Datetime)})
     out = _resolve_effective_nulls(df)
     assert out["d"][0] == dt

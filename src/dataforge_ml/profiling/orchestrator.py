@@ -6,43 +6,47 @@ Execution order inside profile(df):
   2. MissingnessProfiler   → ColumnProfile.missingness + dataset.missingness_matrix
   3. Row-missingness dist  → dataset.row_distribution
   4. TypeDetector          → ColumnProfile.semantic_type / type_flags / dtypes
-  5. column_overrides      → replace SemanticType on existing ColumnProfiles
-     numeric_kind_overrides→ replace NumericKind (validated; Numeric-only)
+  5. column_types          → replace SemanticType on existing ColumnProfiles
+     numeric_kinds         → replace NumericKind (validated; Numeric-only)
   6. ColumnTypeProfiler    → route each column to its profiler by SemanticType;
                             Identifier columns: skip, stats stays None
   7. target_columns        → TargetProfiler; mark ColumnProfile.is_target=True
-  8. Correlation           → if compute_correlation=True:
-       a. profile_features()  → dataset.feature_correlation  (computed once)
-       b. profile_target()    → dataset.target_correlations[target]
-                                (once per declared target column)
-  9. Nonlinearity          → if compute_nonlinearity=True:
-       NonlinearityProfiler  → NumericStats.nonlinearity_tag + seven signal fields
-       Reuses Pearson/Spearman matrices from step 8 when compute_correlation=True.
+  8. Correlation           → profile_features() → dataset.feature_correlation
+                             (always runs, computed once)
+  9. Nonlinearity          → NonlinearityProfiler (always runs)
+                             → NumericStats.nonlinearity_tag + seven signal fields
+                             Reuses the Pearson/Spearman matrices from step 8.
 """
 
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import numpy as np
 import polars as pl
 
-from ..config import Modality, PipelineConfig, PipelinePhase, SemanticType
-from ..observability import Observer, _ObservabilityMixin
+from .._observability import Observer, _ObservabilityMixin
+from .._seed import DEFAULT_SEED
+from ..config import Modality, SemanticType
+from ..records import DataForgeError
 from ..utils._dtype_floor import _apply_dtype_floor
 from ..utils._null_normalization import _resolve_effective_nulls
-from ._base import ColumnBatchProfiler, ModalityProfiler, OverrideCoercionError
+from ._base import ColumnBatchProfiler, ModalityProfiler
 from ._boolean_profiler import BooleanProfiler
 from ._categorical import CategoricalProfiler
 from ._config import (
     ColumnProfile,
+    NumericKind,
+    ProfileConfig,
     RowMissingnessDistribution,
     StructuralProfileResult,
     TypeFlag,
 )
 from ._correlation_profiler import CorrelationProfiler
 from ._datetime_profiler import DatetimeProfiler
+from ._fallbacks import record_fallback
 from ._missingness_profiler import MissingnessProfiler
 from ._nonlinearity_profiler import NonlinearityProfiler
 from ._numeric_profiler import NumericProfiler
@@ -74,30 +78,64 @@ class StructuralProfiler(_ObservabilityMixin):
 
     Parameters
     ----------
-    config : PipelineConfig, optional
-        Master pipeline configuration.  Defaults to ``PipelineConfig()`` which
-        applies all sub-processor defaults exactly as they were before Scope 15.
+    config : ProfileConfig, optional
+        Phase 1 configuration.  Defaults to ``ProfileConfig()``, which applies
+        every sub-processor default.
+    exclude_columns : Sequence[str], optional
+        The Hard Exclusions, absent from the result.
+    skip_columns : Sequence[str], optional
+        The Profiling-phase Soft Exclusions, kept in the result as empty
+        placeholders.
+    column_types : Mapping[str, SemanticType], optional
+        The Column Overrides.
+    numeric_kinds : Mapping[str, NumericKind], optional
+        Numeric kinds that replace the detected ones. Valid only for columns
+        whose final semantic type is ``Numeric``.
     observer : Callable[[PipelineEvent], None], optional
         Live Progress Observer invoked with each :class:`PipelineEvent` this
         orchestrator emits.  ``None`` (the default) disables Progress; Trace
         still flows to the ``dataforge_ml`` logger regardless (ADR-0054).
+    seed : int, optional
+        Seed for every stochastic step: the bimodality mixture fit, the
+        mutual-information estimates and the nonlinearity probes. ``None``
+        means the library's fixed default seed, so two runs agree (ADR-0106).
+
+    Raises
+    ------
+    UnknownName
+        ``unknown_enum_value`` if the configured modality is not ``Tabular``,
+        the only one implemented.
     """
 
     _PHASE = "profiling"
 
     def __init__(
         self,
-        config: PipelineConfig | None = None,
+        config: ProfileConfig | None = None,
+        *,
+        exclude_columns: Sequence[str] = (),
+        skip_columns: Sequence[str] = (),
+        column_types: Mapping[str, SemanticType] | None = None,
+        numeric_kinds: Mapping[str, NumericKind] | None = None,
         observer: Observer | None = None,
+        seed: int | None = None,
     ) -> None:
-        self.config: PipelineConfig = config or PipelineConfig()
+        self.config: ProfileConfig = config or ProfileConfig()
+        self._exclude_columns: tuple[str, ...] = tuple(exclude_columns)
+        self._skip_columns: tuple[str, ...] = tuple(skip_columns)
+        self._column_types: dict[str, SemanticType] = dict(column_types or {})
+        self._numeric_kinds: dict[str, NumericKind] = dict(numeric_kinds or {})
         self._observer: Observer | None = observer
+        self._seed: int = DEFAULT_SEED if seed is None else seed
 
-        if self.config.profiling.modality == Modality.Tabular:
+        if self.config.modality == Modality.Tabular:
             self.modality_profiler: ModalityProfiler = TabularProfiler()
         else:
-            raise NotImplementedError(
-                f"modality {self.config.profiling.modality} not supported yet"
+            raise DataForgeError.from_code(
+                "unknown_enum_value",
+                f"Modality {self.config.modality!r} is not supported yet.",
+                param="modality",
+                allowed=[Modality.Tabular.value],
             )
 
     # ------------------------------------------------------------------
@@ -109,9 +147,9 @@ class StructuralProfiler(_ObservabilityMixin):
         Profile a Polars DataFrame and return a full ``StructuralProfileResult``.
 
         Runs all Phase 1 sub-processors in sequence: modality stats, missingness,
-        type detection, per-column distribution profiling, target profiling, and
-        (optionally) correlation analysis.  Sub-processor thresholds are drawn
-        from the nested sub-configs on ``config.profiling``.
+        type detection, per-column distribution profiling, target profiling,
+        correlation and nonlinearity analysis.  Sub-processor thresholds are drawn
+        from the nested sub-configs on ``config``.
 
         Parameters
         ----------
@@ -125,31 +163,32 @@ class StructuralProfiler(_ObservabilityMixin):
 
         Raises
         ------
-        TypeError
-            When ``data`` is not a ``polars.DataFrame``.
-        OverrideCoercionError
-            When a column carrying ``TypeFlag.UserOverride`` completely fails
+        InvalidInput
+            ``invalid_argument`` when ``data`` is not a ``polars.DataFrame``.
+        Infeasible
+            ``override_coercion_failed`` when a column carrying ``TypeFlag.UserOverride`` completely fails
             coercion to its overridden ``SemanticType`` (zero usable values
             remain despite the original column having non-null data).
         """
         if not isinstance(data, pl.DataFrame):
-            raise TypeError(
+            raise DataForgeError.from_code(
+                "invalid_argument",
                 f"StructuralProfiler expects a Polars DataFrame, "
-                f"got {type(data).__name__}."
+                f"got {type(data).__name__}.",
+                param="data",
             )
 
         result = StructuralProfileResult()
 
-        active_cols = self.config.resolve_active_columns(
-            PipelinePhase.Profiling, list(data.columns)
-        )
+        hard_set = set(self._exclude_columns)
+        skip_set = set(self._skip_columns)
+        active_cols = [
+            c for c in data.columns if c not in hard_set and c not in skip_set
+        ]
 
-        # Columns soft-excluded for Profiling: skipped but retained in the result.
-        hard_set = set(self.config.exclude_columns)
+        # Skipped columns are not profiled but are retained in the result.
         soft_retained = [
-            c for c in data.columns
-            if c in set(self.config.phase_exclusions.get(PipelinePhase.Profiling, []))
-            and c not in hard_set
+            c for c in data.columns if c in skip_set and c not in hard_set
         ]
 
         # ── 1. Modality profiler ─────────────────────────────────────────
@@ -164,9 +203,9 @@ class StructuralProfiler(_ObservabilityMixin):
         # the same objects via the same setdefault pattern.
         self._emit_stage_start("missingness")
         missingness_result = MissingnessProfiler(
-            config=self.config.profiling.missingness,
-            numeric_sentinels=self.config.profiling.numeric_sentinels,
-            string_sentinels=self.config.profiling.string_sentinels,
+            config=self.config.missingness,
+            numeric_sentinels=self.config.numeric_sentinels,
+            string_sentinels=self.config.string_sentinels,
         ).profile(data, columns=active_cols)
         for col_name in missingness_result.analysed_columns:
             cp = result.columns.setdefault(col_name, ColumnProfile(name=col_name))
@@ -182,9 +221,9 @@ class StructuralProfiler(_ObservabilityMixin):
             df=data,
             cols=active_cols,
             n_rows=data.height,
-            row_drop_threshold=self.config.profiling.row_drop_threshold,
-            numeric_sentinels=self.config.profiling.numeric_sentinels,
-            string_sentinels=self.config.profiling.string_sentinels,
+            row_drop_threshold=self.config.row_drop_threshold,
+            numeric_sentinels=self.config.numeric_sentinels,
+            string_sentinels=self.config.string_sentinels,
         )
         self._emit_stage_end("row_distribution")
 
@@ -194,7 +233,7 @@ class StructuralProfiler(_ObservabilityMixin):
         self._emit_stage_start("type_detection")
         type_info = TypeDetector(
             columns=active_cols,
-            config=self.config.profiling.type_detection,
+            config=self.config.type_detection,
         ).detect(data)
         for col_name, info in type_info.items():
             cp = result.columns.setdefault(col_name, ColumnProfile(name=col_name))
@@ -204,27 +243,29 @@ class StructuralProfiler(_ObservabilityMixin):
             cp.original_dtype = info.original_dtype
             cp.inferred_dtype = info.inferred_dtype
 
-        # ── 5. Apply column_overrides then numeric_kind_overrides ────────
+        # ── 5. Apply column_types then numeric_kinds ─────────────────────
         # All active columns are in result.columns by now (steps 2 + 4).
         # Overrides for excluded / non-existent columns are silently ignored.
         # SemanticType overrides must be applied first so the NumericKind guard
         # checks the user's declared type, not the detector's raw type.
-        for col_name, override_type in self.config.column_overrides.items():
+        for col_name, override_type in self._column_types.items():
             if col_name in result.columns:
                 cp = result.columns[col_name]
                 cp.semantic_type = override_type
                 if TypeFlag.UserOverride not in cp.type_flags:
                     cp.type_flags.append(TypeFlag.UserOverride)
 
-        for col_name, override_kind in self.config.numeric_kind_overrides.items():
+        for col_name, override_kind in self._numeric_kinds.items():
             if col_name not in result.columns:
                 continue
             cp = result.columns[col_name]
             if cp.semantic_type != SemanticType.Numeric:
-                raise ValueError(
-                    f"NumericKind override for column {col_name!r} is invalid — "
-                    f"column has {cp.semantic_type!r}. "
-                    f"NumericKind only applies to SemanticType.Numeric columns."
+                raise DataForgeError.from_code(
+                    "declaration_conflict",
+                    f"Column {col_name!r} has a numeric kind declared but its "
+                    f"semantic type is {cp.semantic_type.value!r}; a numeric kind "
+                    f"applies only to Numeric columns.",
+                    columns=[col_name],
                 )
             cp.numeric_kind = override_kind
             if TypeFlag.NumericKindOverride not in cp.type_flags:
@@ -244,7 +285,7 @@ class StructuralProfiler(_ObservabilityMixin):
             sem_type = cp.semantic_type
             type_to_cols.setdefault(sem_type, []).append(col_name)
 
-        pc = self.config.profiling
+        pc = self.config
         # Phase entry: resolve effective nulls, then enforce the Dtype Floor
         # (ADR-0085). The order is fixed — the floor casts away the string
         # namespace the sentinel rules need.
@@ -273,7 +314,7 @@ class StructuralProfiler(_ObservabilityMixin):
         _profiling_index = 0
         for sem_type, cols in type_to_cols.items():
             if sem_type == SemanticType.Numeric:
-                profiler = NumericProfiler(config=pc.numeric)
+                profiler = NumericProfiler(config=pc.numeric, seed=self._seed)
             elif sem_type == SemanticType.Categorical:
                 profiler = CategoricalProfiler(config=pc.categorical)
             elif sem_type == SemanticType.Datetime:
@@ -306,23 +347,26 @@ class StructuralProfiler(_ObservabilityMixin):
                 for col_name in batch.analysed_columns:
                     if col_name in result.columns:
                         result.columns[col_name].stats = batch.columns.get(col_name)
-            except OverrideCoercionError:
+            except DataForgeError:
                 raise
-            except Exception:
-                pass
+            except Exception:  # noqa: BLE001 - one batch failing must not sink the profile; DataForgeError re-raised above
+                # The batch's columns keep no stats; the caller learns which.
+                for col_name in cols:
+                    record_fallback("column_profiling_failed", col_name)
         self._emit_stage_end("column_profiling")
 
         # ── 7. Target columns ────────────────────────────────────────────
         # TargetProfiler produces target-specific analysis stored in
         # result.targets.  cp.stats is NOT overwritten — step 6 already set it.
-        if self.config.profiling.target_columns:
+        if self.config.target_columns:
             self._emit_stage_start("target_profiling")
-            for target in self.config.profiling.target_columns:
+            for target in self.config.target_columns:
                 if target not in data.columns:
                     continue
                 target_result = TargetProfiler(
                     target_column=target,
-                    config=self.config.profiling,
+                    config=self.config,
+                    seed=self._seed,
                 ).profile(data)
                 result.targets[target] = target_result
 
@@ -332,138 +376,89 @@ class StructuralProfiler(_ObservabilityMixin):
             self._emit_stage_end("target_profiling")
 
         # ── 8. Correlation ───────────────────────────────────────────────
-        if self.config.profiling.compute_correlation:
-            self._emit_stage_start("correlation")
-            # Resolve column lists by detected SemanticType (post-override).
-            numeric_cols = [
-                c
-                for c in active_cols
-                if result.columns.get(c)
-                and result.columns[c].semantic_type == SemanticType.Numeric
-            ]
-            categorical_cols = [
-                c
-                for c in active_cols
-                if result.columns.get(c)
-                and result.columns[c].semantic_type == SemanticType.Categorical
-            ]
+        # Always on (ADR-0104): routing reads it, so no switch may weaken it.
+        self._emit_stage_start("correlation")
+        # Resolve column lists by detected SemanticType (post-override).
+        numeric_cols = [
+            c
+            for c in active_cols
+            if result.columns.get(c)
+            and result.columns[c].semantic_type == SemanticType.Numeric
+        ]
+        categorical_cols = [
+            c
+            for c in active_cols
+            if result.columns.get(c)
+            and result.columns[c].semantic_type == SemanticType.Categorical
+        ]
 
-            corr_profiler = CorrelationProfiler(
-                numeric_columns=numeric_cols,
-                categorical_columns=categorical_cols,
-                config=self.config.profiling.correlation,
-            )
-
-            # The correlation stage's units of work are the one-time
-            # feature-feature computation plus one per declared target present in
-            # the data; emit an ``item`` heartbeat for each so the expensive
-            # matrix build and each target pass report progress (ADR-0054).
-            present_targets = [
-                t for t in self.config.profiling.target_columns if t in data.columns
-            ]
-            _corr_total = 1 + len(present_targets)
-            self._emit_item(
-                "correlation",
-                None,
-                1,
-                _corr_total,
-                message=f"[{self._PHASE}] correlation: feature-feature matrices "
-                f"(1/{_corr_total})",
-            )
-
-            # 8a. Feature-feature matrices — computed ONCE, target-independent.
-            #     Read the phase-entry frame, not the raw input: an unresolved
-            #     NaN or sentinel poisons a pairwise correlation to 0.
-            feature_corr = corr_profiler.profile_features(
-                profiling_frame, numeric_cols, categorical_cols
-            )
-            result.dataset.feature_correlation = feature_corr
-
-            # 8b. Per-target analysis — matrices are NOT recomputed; each call
-            #     shallow-copies feature_corr and appends target-specific fields.
-            for _target_index, target in enumerate(present_targets, start=2):
-                self._emit_item(
-                    "correlation",
-                    target,
-                    _target_index,
-                    _corr_total,
-                    message=f"[{self._PHASE}] correlation: target {target} "
-                    f"({_target_index}/{_corr_total})",
-                )
-                result.dataset.target_correlations[target] = (
-                    corr_profiler.profile_target(
-                        profiling_frame,
-                        feature_corr,
-                        numeric_cols,
-                        categorical_cols,
-                        target,
-                    )
-                )
-            self._emit_stage_end("correlation")
+        # The feature-feature matrix build is the stage's one unit of work;
+        # emit an ``item`` heartbeat for it (ADR-0054).
+        self._emit_item(
+            "correlation",
+            None,
+            1,
+            1,
+            message=f"[{self._PHASE}] correlation: feature-feature matrices (1/1)",
+        )
+        # Read the phase-entry frame, not the raw input: an unresolved NaN or
+        # sentinel poisons a pairwise correlation to 0.
+        feature_corr = CorrelationProfiler(
+            numeric_columns=numeric_cols,
+            categorical_columns=categorical_cols,
+            config=self.config.correlation,
+        ).profile_features(profiling_frame, numeric_cols, categorical_cols)
+        result.dataset.feature_correlation = feature_corr
+        self._emit_stage_end("correlation")
 
         # ── 9. Nonlinearity ──────────────────────────────────────────────
-        if self.config.profiling.compute_nonlinearity:
-            self._emit_stage_start("nonlinearity")
-            numeric_cols_nl = [
-                c
-                for c in active_cols
-                if result.columns.get(c)
-                and result.columns[c].semantic_type == SemanticType.Numeric
-            ]
-            if len(numeric_cols_nl) >= 2:
-                # Each numeric column is a unit of work in the per-column
-                # nonlinearity fit; emit an ``item`` heartbeat per column so the
-                # multi-minute stage reports progress (ADR-0054).
-                _nl_total = len(numeric_cols_nl)
-                for _nl_index, _nl_col in enumerate(numeric_cols_nl, start=1):
-                    self._emit_item(
-                        "nonlinearity", _nl_col, _nl_index, _nl_total
+        # Always on (ADR-0104), reusing the matrices from step 8.
+        self._emit_stage_start("nonlinearity")
+        if len(numeric_cols) >= 2:
+            # Each numeric column is a unit of work in the per-column
+            # nonlinearity fit; emit an ``item`` heartbeat per column so the
+            # multi-minute stage reports progress (ADR-0054).
+            _nl_total = len(numeric_cols)
+            for _nl_index, _nl_col in enumerate(numeric_cols, start=1):
+                self._emit_item("nonlinearity", _nl_col, _nl_index, _nl_total)
+            nl_result = NonlinearityProfiler(
+                numeric_columns=numeric_cols,
+                config=self.config.nonlinearity,
+                seed=self._seed,
+            ).profile(
+                profiling_frame,
+                pearson_matrix=feature_corr.pearson_matrix,
+                spearman_matrix=feature_corr.spearman_matrix,
+            )
+
+            from ._numeric_config import NumericStats as _NumericStats
+
+            for col_name, signals in nl_result.columns.items():
+                cp = result.columns.get(col_name)
+                if cp is not None and isinstance(cp.stats, _NumericStats):
+                    cp.stats.nonlinearity_tag = signals.tag
+                    cp.stats.spearman_pearson_discrepancy = (
+                        signals.spearman_pearson_discrepancy
                     )
-                p_mat = (
-                    result.dataset.feature_correlation.pearson_matrix
-                    if result.dataset.feature_correlation is not None
-                    else None
-                )
-                s_mat = (
-                    result.dataset.feature_correlation.spearman_matrix
-                    if result.dataset.feature_correlation is not None
-                    else None
-                )
-                nl_result = NonlinearityProfiler(
-                    numeric_columns=numeric_cols_nl,
-                    config=self.config.profiling.nonlinearity,
-                ).profile(
-                    profiling_frame, pearson_matrix=p_mat, spearman_matrix=s_mat
-                )
+                    cp.stats.mean_mutual_information = signals.mean_mutual_information
+                    cp.stats.max_mutual_information = signals.max_mutual_information
+                    cp.stats.r2_gap = signals.r2_gap
+                    cp.stats.r2_linear = signals.r2_linear
+                    cp.stats.r2_rf = signals.r2_rf
+                    cp.stats.heteroscedasticity_p_value = (
+                        signals.heteroscedasticity_p_value
+                    )
+        self._emit_stage_end("nonlinearity")
 
-                from ._numeric_config import NumericStats as _NumericStats
-
-                for col_name, signals in nl_result.columns.items():
-                    cp = result.columns.get(col_name)
-                    if cp is not None and isinstance(cp.stats, _NumericStats):
-                        cp.stats.nonlinearity_tag = signals.tag
-                        cp.stats.spearman_pearson_discrepancy = (
-                            signals.spearman_pearson_discrepancy
-                        )
-                        cp.stats.mean_mutual_information = signals.mean_mutual_information
-                        cp.stats.max_mutual_information = signals.max_mutual_information
-                        cp.stats.r2_gap = signals.r2_gap
-                        cp.stats.r2_linear = signals.r2_linear
-                        cp.stats.r2_rf = signals.r2_rf
-                        cp.stats.heteroscedasticity_p_value = (
-                            signals.heteroscedasticity_p_value
-                        )
-            self._emit_stage_end("nonlinearity")
-
-        # ── Soft-excluded placeholders ───────────────────────────────────────
-        # Columns soft-excluded for Profiling are not profiled but must still
+        # ── Skipped-column placeholders ──────────────────────────────────────
+        # Skipped columns are not profiled but must still
         # appear in the result so downstream phases can reference them.
         for col in soft_retained:
             result.columns.setdefault(col, ColumnProfile(name=col))
 
-        result.numeric_sentinels = dict(self.config.profiling.numeric_sentinels)
+        result.numeric_sentinels = dict(self.config.numeric_sentinels)
         result.string_sentinels = {
-            k: list(v) for k, v in self.config.profiling.string_sentinels.items()
+            k: list(v) for k, v in self.config.string_sentinels.items()
         }
 
         return result

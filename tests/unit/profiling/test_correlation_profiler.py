@@ -1,9 +1,6 @@
 import polars as pl
 
-from dataforge_ml.profiling._correlation_config import (
-    CorrelationProfileConfig,
-    CorrelationProfileResult,
-)
+from dataforge_ml.profiling._correlation_config import CorrelationProfileConfig
 from dataforge_ml.profiling._correlation_profiler import CorrelationProfiler
 
 # ---------------------------------------------------------------------------
@@ -102,7 +99,7 @@ def test_suggested_drop_is_strict_subset_of_group_columns():
 
 
 # ---------------------------------------------------------------------------
-# Identical columns produce a near-redundant pair; profile_target also works
+# Identical columns produce a near-redundant pair
 # ---------------------------------------------------------------------------
 
 
@@ -111,19 +108,11 @@ def test_identical_columns_produce_near_redundant_pair():
     feature_cols = ["x", "x_copy", "y"]
     profiler = CorrelationProfiler(numeric_columns=feature_cols)
 
-    # profile_features: identical pair must be flagged near-redundant
     feature_result = profiler.profile_features(df, feature_cols)
     assert any(
         {p.col_a, p.col_b} == {"x", "x_copy"}
         for p in feature_result.near_redundant_pairs
     )
-
-    # profile_target: second entry point must run without error and attach target info
-    target_result = profiler.profile_target(
-        df, feature_result, feature_cols, [], "y"
-    )
-    assert isinstance(target_result, CorrelationProfileResult)
-    assert target_result.target_column == "y"
 
 
 # ---------------------------------------------------------------------------
@@ -300,10 +289,8 @@ def test_correlation_profile_config_round_trip():
         near_redundant_pearson_threshold=0.85,
         near_redundant_cramer_v_threshold=0.70,
         near_redundant_eta_squared_threshold=0.40,
-        mi_min_rows=20,
     )
     restored = CorrelationProfileConfig.from_dict(cfg.to_dict())
     assert restored.near_redundant_pearson_threshold == 0.85
     assert restored.near_redundant_cramer_v_threshold == 0.70
     assert restored.near_redundant_eta_squared_threshold == 0.40
-    assert restored.mi_min_rows == 20

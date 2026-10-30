@@ -1,64 +1,30 @@
 """
 CorrelationProfiler  –  Phase 1 extension: Correlation & Information Structure.
 
-Two public methods
-------------------
-profile_features(df, numeric_cols, categorical_cols)
-    Computes pairwise Pearson + Spearman matrices and near-redundancy
-    groups.  Target-independent — run once per dataset.
-    Returns a CorrelationProfileResult with all matrix fields populated
-    and all target-specific fields empty.
-
-profile_target(df, feature_result, numeric_cols, categorical_cols, target_col)
-    Takes the already-computed feature_result (so matrices are NOT
-    recomputed) and adds feature-target Pearson / ANOVA / MI for one
-    specific target column.
-    Returns a new CorrelationProfileResult that shares the same matrix
-    data plus the target-specific fields.
-
-StructuralProfiler calls them like this::
-
-    feature_corr = profiler.profile_features(df, numeric_cols, cat_cols)
-    result.dataset.feature_correlation = feature_corr
-
-    for target in config.target_columns:
-        target_corr = profiler.profile_target(
-            df, feature_corr, numeric_cols, cat_cols, target
-        )
-        result.dataset.target_correlations[target] = target_corr
-
-The legacy profile() method is preserved for backward compatibility —
-it calls profile_features() when no target is given, or profile_target()
-after an internal profile_features() call when a target is given.
+profile_features(df, numeric_cols, categorical_cols) computes the pairwise
+Pearson + Spearman matrices, Cramér's V and eta-squared pairs, and the
+near-redundancy groups. StructuralProfiler runs it once per dataset and stores
+the result on ``dataset.feature_correlation``. A target column is one of the
+columns in the matrices, so its strength with each feature is read from there.
 """
 
 from __future__ import annotations
 
-import copy
 import itertools
-import warnings
-from typing import Optional
 
 import polars as pl
 
-from ..models._data_types import _INT_DTYPES, _NUMERIC_DTYPES
+from ..models._data_types import _NUMERIC_DTYPES
 from ._base import DatasetLevelProfiler
 from ._correlation_config import (
-    CategoricalTargetCorrelation,
     CorrelationPair,
     CorrelationProfileConfig,
     CorrelationProfileResult,
     CramerVPair,
     EtaSquaredPair,
-    MutualInformationEntry,
     NearRedundancyGroup,
-    NumericTargetCorrelation,
-    TargetType,
 )
-
-_TOP_N_FEATURE_TARGET: int = 10
-_MI_N_NEIGHBORS: int = 3
-
+from ._fallbacks import record_fallback
 
 # ---------------------------------------------------------------------------
 # Union-Find (unchanged)
@@ -105,27 +71,22 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
     numeric_columns : list[str]
         Columns to include in pairwise matrices.
     categorical_columns : list[str], optional
-        Columns to include in Cramér's V, eta-squared, and MI target steps.
+        Columns to include in the Cramér's V and eta-squared steps.
     config : CorrelationProfileConfig, optional
         Threshold configuration. Defaults to ``CorrelationProfileConfig()``
         which reproduces the library's original hard-coded behaviour.
-    top_n_feature_target : int, optional
-        Maximum number of feature-target entries returned by
-        ``profile_target``.
     """
 
     def __init__(
         self,
         numeric_columns: list[str],
-        categorical_columns: Optional[list[str]] = None,
-        config: Optional[CorrelationProfileConfig] = None,
-        top_n_feature_target: int = _TOP_N_FEATURE_TARGET,
+        categorical_columns: list[str] | None = None,
+        config: CorrelationProfileConfig | None = None,
     ) -> None:
         super().__init__()
         self._numeric_columns = numeric_columns
         self._categorical_columns = categorical_columns or []
         self._config = config if config is not None else CorrelationProfileConfig()
-        self._top_n = top_n_feature_target
 
     # ------------------------------------------------------------------
     # Concrete implementation of the abstract base method
@@ -142,14 +103,13 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
         self,
         df: pl.DataFrame,
         numeric_cols: list[str],
-        categorical_cols: Optional[list[str]] = None,
+        categorical_cols: list[str] | None = None,
     ) -> CorrelationProfileResult:
         """
         Compute pairwise feature-feature correlation matrices.
 
         Pearson + Spearman for numeric pairs, Cramér's V for categorical pairs,
-        eta-squared for numeric-categorical pairs.  All target-specific fields
-        are left at their defaults.  Call profile_target() for target analysis.
+        eta-squared for numeric-categorical pairs.
         """
         result = CorrelationProfileResult()
 
@@ -185,66 +145,14 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
 
         if resolved_numeric and resolved_categorical:
             result.eta_squared_pairs = self._compute_eta_squared_pairs(
-                df, resolved_numeric, resolved_categorical,
+                df,
+                resolved_numeric,
+                resolved_categorical,
                 self._config.near_redundant_eta_squared_threshold,
             )
             result.near_redundant_eta_squared_pairs = [
                 p for p in result.eta_squared_pairs if p.near_redundant
             ]
-
-        return result
-
-    def profile_target(
-        self,
-        df: pl.DataFrame,
-        feature_result: CorrelationProfileResult,
-        numeric_cols: list[str],
-        categorical_cols: list[str],
-        target_col: str,
-    ) -> CorrelationProfileResult:
-        """
-        Extend an existing feature_result with target-specific analysis
-        for one target column.
-
-        The pairwise matrices are NOT recomputed — they are copied from
-        feature_result so the returned object is fully self-contained
-        (i.e. safe to store independently and serialise).
-
-        Feature columns for target analysis exclude the target itself,
-        so a target that also appears in numeric_cols / categorical_cols
-        is automatically excluded from its own feature-target stats.
-        """
-        if target_col not in df.columns:
-            raise ValueError(f"target_col {target_col!r} not found in DataFrame.")
-
-        # Shallow-copy the result so matrix dicts are shared (not duplicated
-        # in memory) but the top-level object is independent.
-        result = copy.copy(feature_result)
-        result.target_column = target_col
-        result.target_type = self._detect_target_type(df, target_col)
-
-        # Feature columns: exclude the target from both lists
-        feature_numeric = [
-            c
-            for c in numeric_cols
-            if c != target_col and c in df.columns and df[c].dtype in _NUMERIC_DTYPES
-        ]
-        feature_categorical = [
-            c for c in categorical_cols if c != target_col and c in df.columns
-        ]
-
-        if result.target_type == TargetType.Numeric:
-            result.feature_target_numeric = self._feature_target_pearson(
-                df, feature_numeric, target_col
-            )
-        else:
-            result.feature_target_categorical = self._feature_target_anova(
-                df, feature_numeric, target_col
-            )
-
-        result.mutual_information = self._mutual_information(
-            df, feature_numeric, feature_categorical, target_col, result.target_type
-        )
 
         return result
 
@@ -351,26 +259,17 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
         cat_cols: list[str],
         threshold: float,
     ) -> list[CramerVPair]:
-        try:
-            from scipy.stats import chi2_contingency
-        except ImportError:
-            warnings.warn(
-                "scipy is required for Cramér's V. Install: pip install scipy",
-                stacklevel=3,
-            )
-            return []
-
         import numpy as np
+        from scipy.stats import chi2_contingency
 
         pairs: list[CramerVPair] = []
         for col_a, col_b in itertools.combinations(cat_cols, 2):
-            pair_df = (
-                df.select([
+            pair_df = df.select(
+                [
                     pl.col(col_a).cast(pl.Utf8, strict=False),
                     pl.col(col_b).cast(pl.Utf8, strict=False),
-                ])
-                .drop_nulls()
-            )
+                ]
+            ).drop_nulls()
             n = pair_df.height
             if n < 5:
                 pairs.append(CramerVPair(col_a=col_a, col_b=col_b))
@@ -409,18 +308,20 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
                     continue
                 v = float(np.sqrt(phi2_corr / denom))
                 v = max(0.0, min(1.0, v))
-            except Exception as exc:
-                warnings.warn(
-                    f"Cramér's V failed for ({col_a}, {col_b}): {exc}", stacklevel=3
-                )
+            except Exception:  # noqa: BLE001 - any scipy failure on a pair is a recorded fallback, not a crash
+                record_fallback("association_failed", col_a)
+                record_fallback("association_failed", col_b)
                 pairs.append(CramerVPair(col_a=col_a, col_b=col_b))
                 continue
 
-            pairs.append(CramerVPair(
-                col_a=col_a, col_b=col_b,
-                cramer_v=v,
-                near_redundant=v > threshold,
-            ))
+            pairs.append(
+                CramerVPair(
+                    col_a=col_a,
+                    col_b=col_b,
+                    cramer_v=v,
+                    near_redundant=v > threshold,
+                )
+            )
 
         return pairs
 
@@ -435,14 +336,7 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
         cat_cols: list[str],
         threshold: float,
     ) -> list[EtaSquaredPair]:
-        try:
-            from scipy.stats import f_oneway
-        except ImportError:
-            warnings.warn(
-                "scipy is required for eta-squared. Install: pip install scipy",
-                stacklevel=3,
-            )
-            return []
+        from scipy.stats import f_oneway
 
         pairs: list[EtaSquaredPair] = []
         for num_col in numeric_cols:
@@ -462,255 +356,32 @@ class CorrelationProfiler(DatasetLevelProfiler[CorrelationProfileResult]):
                 ]
                 non_empty = [g for g in groups if len(g) > 0]
                 if len(non_empty) < 2:
-                    pairs.append(EtaSquaredPair(numeric_col=num_col, categorical_col=cat_col))
+                    pairs.append(
+                        EtaSquaredPair(numeric_col=num_col, categorical_col=cat_col)
+                    )
                     continue
                 try:
                     f_oneway(*non_empty)
                     ss_between = sum(
-                        len(g) * (float(g.mean()) - grand_mean) ** 2
-                        for g in non_empty
+                        len(g) * (float(g.mean()) - grand_mean) ** 2 for g in non_empty
                     )
                     eta_sq = ss_between / ss_total if ss_total > 0 else 0.0
                     eta_sq = max(0.0, min(1.0, eta_sq))
-                except Exception as exc:
-                    warnings.warn(
-                        f"Eta-squared failed for ({num_col}, {cat_col}): {exc}",
-                        stacklevel=3,
+                except Exception:  # noqa: BLE001 - any scipy failure on a pair is a recorded fallback, not a crash
+                    record_fallback("association_failed", num_col)
+                    record_fallback("association_failed", cat_col)
+                    pairs.append(
+                        EtaSquaredPair(numeric_col=num_col, categorical_col=cat_col)
                     )
-                    pairs.append(EtaSquaredPair(numeric_col=num_col, categorical_col=cat_col))
                     continue
 
-                pairs.append(EtaSquaredPair(
-                    numeric_col=num_col, categorical_col=cat_col,
-                    eta_squared=eta_sq,
-                    near_redundant=eta_sq > threshold,
-                ))
+                pairs.append(
+                    EtaSquaredPair(
+                        numeric_col=num_col,
+                        categorical_col=cat_col,
+                        eta_squared=eta_sq,
+                        near_redundant=eta_sq > threshold,
+                    )
+                )
 
         return pairs
-
-    # ------------------------------------------------------------------
-    # Step 5a: Feature–target Pearson (unchanged)
-    # ------------------------------------------------------------------
-
-    def _feature_target_pearson(
-        self,
-        df: pl.DataFrame,
-        feature_cols: list[str],
-        target_col: str,
-    ) -> list[NumericTargetCorrelation]:
-        if not feature_cols:
-            return []
-
-        target_series = df[target_col].cast(pl.Float64)
-        exprs = [
-            pl.corr(feat, target_col, method="pearson")
-            .fill_nan(0.0)
-            .fill_null(0.0)
-            .alias(feat)
-            for feat in feature_cols
-        ]
-        frame = df.select(
-            [pl.col(c).cast(pl.Float64) for c in feature_cols]
-            + [target_series.alias(target_col)]
-        ).select(exprs)
-
-        row = frame.row(0)
-        entries = [
-            NumericTargetCorrelation(feature=col, pearson_r=float(r))
-            for col, r in zip(feature_cols, row)
-        ]
-        entries.sort(key=lambda e: abs(e.pearson_r or 0.0), reverse=True)
-        return entries[: self._top_n]
-
-    # ------------------------------------------------------------------
-    # Step 5b: Feature–target ANOVA (unchanged)
-    # ------------------------------------------------------------------
-
-    def _feature_target_anova(
-        self,
-        df: pl.DataFrame,
-        feature_cols: list[str],
-        target_col: str,
-    ) -> list[CategoricalTargetCorrelation]:
-        try:
-            from scipy.stats import f_oneway  # type: ignore[import]
-        except ImportError:
-            warnings.warn(
-                "scipy is required for ANOVA feature-target analysis. "
-                "Install it with: pip install scipy",
-                stacklevel=3,
-            )
-            return []
-
-        if not feature_cols:
-            return []
-
-        target_series = df[target_col]
-        categories = target_series.drop_nulls().unique().to_list()
-        entries: list[CategoricalTargetCorrelation] = []
-
-        for feat in feature_cols:
-            feat_series = df[feat].cast(pl.Float64)
-            groups = [
-                feat_series.filter(target_series == cat).drop_nulls().to_numpy()
-                for cat in categories
-            ]
-            non_empty = [g for g in groups if len(g) > 0]
-            if len(non_empty) < 2:
-                entries.append(CategoricalTargetCorrelation(feature=feat))
-                continue
-            try:
-                f_stat, p_val = f_oneway(*non_empty)
-            except Exception:
-                entries.append(CategoricalTargetCorrelation(feature=feat))
-                continue
-
-            grand_mean = feat_series.drop_nulls().mean() or 0.0
-            ss_total = float(
-                ((feat_series.drop_nulls() - grand_mean) ** 2).sum() or 0.0
-            )
-            ss_between = sum(
-                len(g) * (float(g.mean()) - float(grand_mean)) ** 2 for g in non_empty
-            )
-            eta_sq = ss_between / ss_total if ss_total > 0 else 0.0
-            entries.append(
-                CategoricalTargetCorrelation(
-                    feature=feat,
-                    f_statistic=float(f_stat),
-                    p_value=float(p_val),
-                    eta_squared=eta_sq,
-                )
-            )
-
-        entries.sort(key=lambda e: e.eta_squared or 0.0, reverse=True)
-        return entries[: self._top_n]
-
-    # ------------------------------------------------------------------
-    # Step 6: Mutual Information (unchanged)
-    # ------------------------------------------------------------------
-
-    def _mutual_information(
-        self,
-        df: pl.DataFrame,
-        numeric_feature_cols: list[str],
-        categorical_feature_cols: list[str],
-        target_col: str,
-        target_type: TargetType,
-    ) -> list[MutualInformationEntry]:
-        try:
-            from sklearn.feature_selection import (  # type: ignore[import]
-                mutual_info_classif,
-                mutual_info_regression,
-            )
-        except ImportError:
-            warnings.warn(
-                "scikit-learn is required for mutual information analysis. "
-                "Install it with: pip install scikit-learn",
-                stacklevel=3,
-            )
-            return []
-
-        if not numeric_feature_cols and not categorical_feature_cols:
-            return []
-
-        fn = (
-            mutual_info_regression
-            if target_type == TargetType.Numeric
-            else mutual_info_classif
-        )
-
-        # Build the target array once; track its null positions separately so
-        # each feature can use its own complete-case mask (rows null in either
-        # the feature or the target are excluded for that feature only).
-        if target_type == TargetType.Numeric:
-            target_series = df[target_col].cast(pl.Float64)
-            y_full = target_series.to_numpy()
-            target_null = (target_series.is_null() | target_series.is_nan()).to_numpy()
-        else:
-            target_encoded = (
-                df[target_col]
-                .cast(pl.Utf8, strict=False)
-                .cast(pl.Categorical)
-                .to_physical()
-                .cast(pl.Int64)
-            )
-            y_full = target_encoded.to_numpy()
-            target_null = df[target_col].is_null().to_numpy()
-
-        entries: list[MutualInformationEntry] = []
-
-        for col in numeric_feature_cols:
-            series = df[col].cast(pl.Float64)
-            feat_null = (series.is_null() | series.is_nan()).to_numpy()
-            valid = ~(feat_null | target_null)
-            n_valid = int(valid.sum())
-            if n_valid < self._config.mi_min_rows:
-                continue
-            x = series.to_numpy()[valid].reshape(-1, 1)
-            y = y_full[valid]
-            try:
-                score = float(
-                    fn(
-                        x,
-                        y,
-                        discrete_features=[df[col].dtype in _INT_DTYPES],
-                        n_neighbors=_MI_N_NEIGHBORS,
-                        random_state=42,
-                    )[0]
-                )
-            except Exception as exc:
-                warnings.warn(f"MI failed for '{col}': {exc}", stacklevel=3)
-                continue
-            entries.append(MutualInformationEntry(feature=col, mi_score=score))
-
-        for col in categorical_feature_cols:
-            feat_encoded = (
-                df[col]
-                .cast(pl.Utf8, strict=False)
-                .cast(pl.Categorical)
-                .to_physical()
-                .cast(pl.Int64)
-            )
-            feat_null = df[col].is_null().to_numpy()
-            valid = ~(feat_null | target_null)
-            n_valid = int(valid.sum())
-            if n_valid < self._config.mi_min_rows:
-                warnings.warn(
-                    f"Skipping MI for '{col}': only {n_valid} complete rows "
-                    f"(need {self._config.mi_min_rows}).",
-                    stacklevel=3,
-                )
-                continue
-            x = feat_encoded.to_numpy()[valid].reshape(-1, 1).astype(float)
-            y = y_full[valid]
-            try:
-                score = float(
-                    fn(
-                        x,
-                        y,
-                        discrete_features=[True],
-                        n_neighbors=_MI_N_NEIGHBORS,
-                        random_state=42,
-                    )[0]
-                )
-            except Exception as exc:
-                warnings.warn(f"MI failed for '{col}': {exc}", stacklevel=3)
-                continue
-            entries.append(MutualInformationEntry(feature=col, mi_score=score))
-
-        entries.sort(key=lambda e: e.mi_score, reverse=True)
-        for rank, entry in enumerate(entries, start=1):
-            entry.rank = rank
-        return entries
-
-    # ------------------------------------------------------------------
-    # Helper
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _detect_target_type(df: pl.DataFrame, target_col: str) -> TargetType:
-        return (
-            TargetType.Numeric
-            if df[target_col].dtype in _NUMERIC_DTYPES
-            else TargetType.Categorical
-        )

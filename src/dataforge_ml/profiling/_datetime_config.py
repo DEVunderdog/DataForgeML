@@ -10,7 +10,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
-from typing import Optional
 
 
 class InferredGranularity(StrEnum):
@@ -40,13 +39,13 @@ class DatetimeStats:
     range, gap regularity, and inferred granularity.
     """
 
-    min_date: Optional[datetime] = None
-    max_date: Optional[datetime] = None
-    date_range_days: Optional[float] = None
+    min_date: datetime | None = None
+    max_date: datetime | None = None
+    date_range_days: float | None = None
     future_date_count: int = 0
-    inferred_granularity: Optional[InferredGranularity] = None
-    median_gap_seconds: Optional[float] = None
-    gap_cv: Optional[float] = None
+    inferred_granularity: InferredGranularity | None = None
+    median_gap_seconds: float | None = None
+    gap_cv: float | None = None
     flags: list[DatetimeFlag] = field(default_factory=list)
 
     def has_flag(self, flag: DatetimeFlag) -> bool:
@@ -87,7 +86,7 @@ class DatetimeStats:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "DatetimeStats":
+    def from_dict(cls, data: dict) -> DatetimeStats:
         """Reconstruct the datetime statistics from a plain dictionary.
 
         Parameters
@@ -117,29 +116,6 @@ class DatetimeStats:
         )
 
 
-# ---------------------------------------------------------------------------
-# Markdown rendering helpers (Rendering Contract, ADR-0086)
-# ---------------------------------------------------------------------------
-
-
-def _fmt(value: object) -> str:
-    if value is None:
-        return "not computed"
-    if isinstance(value, StrEnum):
-        return str(value)
-    if isinstance(value, datetime):
-        return value.isoformat()
-    if isinstance(value, float):
-        return f"{value:,.4f}"
-    if isinstance(value, int):
-        return f"{value:,}"
-    return str(value)
-
-
-def _fmt_seq(values: list) -> str:
-    return ", ".join(str(v) for v in values) if values else "none"
-
-
 @dataclass
 class DatetimeProfileResult:
     """
@@ -155,77 +131,6 @@ class DatetimeProfileResult:
 
     columns: dict[str, DatetimeStats] = field(default_factory=dict)
     analysed_columns: list[str] = field(default_factory=list)
-
-    def to_markdown(self) -> str:
-        """Render the datetime profile as a Markdown document.
-
-        A document per rule 5 of the Rendering Contract (ADR-0086): it owns the
-        ``#`` and ``##`` heading levels. Every field of every
-        :class:`DatetimeStats` is covered; absent values render a stated
-        absence rather than a bare ``None``.
-
-        Returns
-        -------
-        str
-            Markdown document with a summary table followed by one detail
-            section per profiled column.
-        """
-        analysed = ", ".join(self.analysed_columns) if self.analysed_columns else "none"
-        lines = ["# Datetime Profile\n"]
-
-        lines.append("## Summary\n")
-        lines.append("| Field | Value |")
-        lines.append("|---|---|")
-        lines.append(f"| analysed_columns | {analysed} |")
-        lines.append("")
-
-        lines.append("| Column | Min date | Max date | Granularity | Flags |")
-        lines.append("|---|---|---|---|---|")
-        if self.columns:
-            for name, stats in self.columns.items():
-                lines.append(
-                    f"| `{name}` | {_fmt(stats.min_date)} | {_fmt(stats.max_date)} "
-                    f"| {_fmt(stats.inferred_granularity)} "
-                    f"| {_fmt_seq(stats.flags)} |"
-                )
-        else:
-            lines.append("| none | | | | |")
-        lines.append("")
-
-        lines.append("## Column Details\n")
-        if self.columns:
-            for name, stats in self.columns.items():
-                lines.append(f"### `{name}`\n")
-                lines.append("| Field | Value |")
-                lines.append("|---|---|")
-                lines.append(f"| min_date | {_fmt(stats.min_date)} |")
-                lines.append(f"| max_date | {_fmt(stats.max_date)} |")
-                lines.append(f"| date_range_days | {_fmt(stats.date_range_days)} |")
-                lines.append(f"| future_date_count | {stats.future_date_count:,} |")
-                lines.append(
-                    f"| inferred_granularity | {_fmt(stats.inferred_granularity)} |"
-                )
-                lines.append(
-                    f"| median_gap_seconds | {_fmt(stats.median_gap_seconds)} |"
-                )
-                lines.append(f"| gap_cv | {_fmt(stats.gap_cv)} |")
-                lines.append(f"| flags | {_fmt_seq(stats.flags)} |")
-                lines.append("")
-        else:
-            lines.append("none")
-            lines.append("")
-
-        return "\n".join(lines).strip() + "\n"
-
-    def __str__(self) -> str:
-        """Return the Datetime Profile document, per rule 2 of the contract.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()
 
 
 # ---------------------------------------------------------------------------

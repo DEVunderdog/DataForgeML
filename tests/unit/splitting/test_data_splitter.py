@@ -1,6 +1,7 @@
 import polars as pl
 import pytest
 
+from dataforge_ml._seed import DEFAULT_SEED
 from dataforge_ml.splitting._config import (
     FoldResult,
     HoldoutCVResult,
@@ -8,6 +9,7 @@ from dataforge_ml.splitting._config import (
     SplitResult,
 )
 from dataforge_ml.splitting._splitter import DataSplitter
+from tests.conftest import raises_code
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -43,38 +45,46 @@ def df_no_target() -> pl.DataFrame:
 
 
 def test_valid_construction(df):
-    splitter = DataSplitter(df, target="label", random_seed=42)
+    splitter = DataSplitter(df, target="label", seed=42)
     assert splitter._df is df
     assert splitter._target == "label"
-    assert splitter._random_seed == 42
+    assert splitter._seed == 42
 
 
 def test_constructor_no_target(df_no_target):
     splitter = DataSplitter(df_no_target)
     assert splitter._target is None
-    assert splitter._random_seed is None
+    assert splitter._seed == DEFAULT_SEED, "no seed means the fixed default, never random"
+
+
+def test_no_seed_gives_the_same_split_twice(df):
+    first = DataSplitter(df).kfold(3, stratify=False)
+    second = DataSplitter(df).kfold(3, stratify=False)
+    assert [f.val.equals(s.val) for f, s in zip(first, second)] == [True] * 3
 
 
 def test_constructor_raises_type_error_for_non_polars():
-    with pytest.raises(TypeError):
+    with raises_code("invalid_argument"):
         DataSplitter([[1, 2], [3, 4]])
 
 
 def test_constructor_raises_type_error_for_numpy_array():
     import numpy as np
-    with pytest.raises(TypeError):
+    with raises_code("invalid_argument"):
         DataSplitter(np.zeros((10, 3)))
 
 
 def test_constructor_raises_value_error_for_empty_df():
     empty = pl.DataFrame({"x": pl.Series([], dtype=pl.Float64)})
-    with pytest.raises(ValueError, match="empty"):
+    with raises_code("invalid_argument", match="empty"):
         DataSplitter(empty)
 
 
 def test_constructor_raises_value_error_for_missing_target(df):
-    with pytest.raises(ValueError, match="not found"):
+    with raises_code("unknown_column") as info:
         DataSplitter(df, target="nonexistent_column")
+    assert info.value.param == "target"
+    assert info.value.columns == ["nonexistent_column"]
 
 
 # ---------------------------------------------------------------------------
@@ -83,20 +93,20 @@ def test_constructor_raises_value_error_for_missing_target(df):
 
 
 def test_random_split_sizes_sum_to_total(df):
-    splitter = DataSplitter(df, target="label", random_seed=0)
+    splitter = DataSplitter(df, target="label", seed=0)
     result = splitter.random_split(test_size=0.2)
     assert result.train_size + result.test_size == len(df)
 
 
 def test_random_split_dataframe_row_counts_match_sizes(df):
-    splitter = DataSplitter(df, target="label", random_seed=0)
+    splitter = DataSplitter(df, target="label", seed=0)
     result = splitter.random_split(test_size=0.2)
     assert len(result.train) == result.train_size
     assert len(result.test) == result.test_size
 
 
 def test_random_split_ratios_reflect_actual_proportions(df):
-    splitter = DataSplitter(df, target="label", random_seed=0)
+    splitter = DataSplitter(df, target="label", seed=0)
     result = splitter.random_split(test_size=0.2)
     total = len(df)
     assert result.train_ratio == pytest.approx(result.train_size / total)
@@ -104,7 +114,7 @@ def test_random_split_ratios_reflect_actual_proportions(df):
 
 
 def test_random_split_returns_split_result(df):
-    splitter = DataSplitter(df, target="label", random_seed=0)
+    splitter = DataSplitter(df, target="label", seed=0)
     result = splitter.random_split(test_size=0.2)
     assert isinstance(result, SplitResult)
 
@@ -115,9 +125,8 @@ def test_random_split_returns_split_result(df):
 
 
 def test_stratified_split_preserves_class_ratios(df):
-    splitter = DataSplitter(df, target="label", random_seed=42)
+    splitter = DataSplitter(df, target="label", seed=42)
     result = splitter.random_split(test_size=0.2, stratify=True)
-    original_ratio = df["label"].value_counts(sort=True)["count"].to_list()
     train_counts = result.train["label"].value_counts(sort=True)["count"].to_list()
     test_counts = result.test["label"].value_counts(sort=True)["count"].to_list()
     # both splits should have roughly equal class representation (50/50 here)
@@ -128,27 +137,93 @@ def test_stratified_split_preserves_class_ratios(df):
 
 
 def test_stratify_false_produces_valid_split(df_no_target):
-    splitter = DataSplitter(df_no_target, random_seed=7)
+    splitter = DataSplitter(df_no_target, seed=7)
     result = splitter.random_split(test_size=0.3, stratify=False)
     assert result.train_size + result.test_size == len(df_no_target)
 
 
 def test_stratify_defaults_true_when_target_set(df):
-    splitter = DataSplitter(df, target="label", random_seed=1)
+    splitter = DataSplitter(df, target="label", seed=1)
     result = splitter.random_split(test_size=0.2)
     assert result.train_size + result.test_size == len(df)
 
 
 def test_stratify_defaults_false_when_no_target(df_no_target):
-    splitter = DataSplitter(df_no_target, random_seed=1)
+    splitter = DataSplitter(df_no_target, seed=1)
     result = splitter.random_split(test_size=0.2)
     assert result.train_size + result.test_size == len(df_no_target)
 
 
 def test_stratify_true_without_target_raises_value_error(df_no_target):
     splitter = DataSplitter(df_no_target)
-    with pytest.raises(ValueError, match="target"):
+    with raises_code("stratify_without_target", match="target"):
         splitter.random_split(test_size=0.2, stratify=True)
+
+
+# ---------------------------------------------------------------------------
+# Stratifying on a continuous target (G1c)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def df_price() -> pl.DataFrame:
+    # Every price is distinct, as a continuous target is: each class is a singleton.
+    return pl.DataFrame(
+        {
+            "feature": list(range(200)),
+            "price": [100_000 + 137 * i for i in range(200)],
+        }
+    )
+
+
+def test_random_split_on_a_continuous_target_raises_its_code_with_counts(df_price):
+    with raises_code("stratify_on_continuous_target") as info:
+        DataSplitter(df_price, target="price").random_split(test_size=0.2)
+    err = info.value
+    assert err.columns == ["price"]
+    assert err.param == "stratify"
+    assert "200 of its 200 distinct value(s)" in err.message
+    # sklearn's own error listed every singleton class value; none may leak.
+    assert "100137" not in str(err.to_dict())
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda s: s.kfold(5),
+        lambda s: s.repeated_kfold(5, n_repeats=2),
+        lambda s: s.holdout_cv(test_size=0.2, k=5),
+        lambda s: s.group_kfold(5, group_column="feature"),
+    ],
+)
+def test_every_stratified_scheme_refuses_a_continuous_target(df_price, call):
+    with raises_code("stratify_on_continuous_target"):
+        call(DataSplitter(df_price, target="price"))
+
+
+def test_a_float_continuous_target_is_refused_by_kfold():
+    frame = pl.DataFrame({"x": list(range(40)), "y": [i / 7 for i in range(40)]})
+    with raises_code("stratify_on_continuous_target"):
+        DataSplitter(frame, target="y").kfold(5)
+
+
+def test_a_continuous_target_still_splits_unstratified(df_price):
+    result = DataSplitter(df_price, target="price").random_split(0.2, stratify=False)
+    assert result.test_size == 40
+
+
+@pytest.mark.filterwarnings("ignore:The least populated class")
+def test_kfold_tolerates_a_rare_class_beside_well_populated_ones():
+    # sklearn warns, not raises, when only some classes are below k.
+    frame = pl.DataFrame({"x": list(range(41)), "y": [0] * 20 + [1] * 20 + [2]})
+    folds = DataSplitter(frame, target="y", seed=0).kfold(5)
+    assert len(folds) == 5
+
+
+def test_an_unknown_column_offers_close_matches(df):
+    with raises_code("unknown_column") as info:
+        DataSplitter(df, target=df.columns[0] + "x")
+    assert info.value.candidates[0] == df.columns[0]
 
 
 # ---------------------------------------------------------------------------
@@ -157,8 +232,8 @@ def test_stratify_true_without_target_raises_value_error(df_no_target):
 
 
 def test_same_seed_produces_identical_splits(df):
-    s1 = DataSplitter(df, target="label", random_seed=99)
-    s2 = DataSplitter(df, target="label", random_seed=99)
+    s1 = DataSplitter(df, target="label", seed=99)
+    s2 = DataSplitter(df, target="label", seed=99)
     r1 = s1.random_split(test_size=0.2)
     r2 = s2.random_split(test_size=0.2)
     assert r1.train.equals(r2.train)
@@ -166,8 +241,8 @@ def test_same_seed_produces_identical_splits(df):
 
 
 def test_different_seeds_produce_different_splits(df):
-    s1 = DataSplitter(df, target="label", random_seed=1)
-    s2 = DataSplitter(df, target="label", random_seed=2)
+    s1 = DataSplitter(df, target="label", seed=1)
+    s2 = DataSplitter(df, target="label", seed=2)
     r1 = s1.random_split(test_size=0.2)
     r2 = s2.random_split(test_size=0.2)
     assert not r1.train.equals(r2.train)
@@ -179,10 +254,7 @@ def test_different_seeds_produce_different_splits(df):
 
 
 def test_no_profiling_import():
-    import sys
-
     import dataforge_ml.splitting._splitter as mod
-    profiling_modules = [k for k in sys.modules if k.startswith("profiling")]
     # DataSplitter module itself must not have caused profiling to be imported
     assert "profiling" not in mod.__dict__
 
@@ -219,12 +291,13 @@ def time_splitter(time_df) -> DataSplitter:
 
 
 def test_time_split_raises_for_missing_column(time_splitter):
-    with pytest.raises(ValueError, match="not found"):
+    with raises_code("unknown_column") as info:
         time_splitter.time_split("nonexistent")
+    assert info.value.param == "time_column"
 
 
 def test_time_split_raises_when_neither_arg_provided(time_splitter):
-    with pytest.raises(ValueError, match="Either"):
+    with raises_code("invalid_argument", match="either test_size or cutoff"):
         time_splitter.time_split("date")
 
 
@@ -321,12 +394,12 @@ def kfold_df() -> pl.DataFrame:
 
 @pytest.fixture(scope="module")
 def kfold_splitter(kfold_df) -> DataSplitter:
-    return DataSplitter(kfold_df, target="label", random_seed=42)
+    return DataSplitter(kfold_df, target="label", seed=42)
 
 
 @pytest.fixture(scope="module")
 def kfold_splitter_no_target(kfold_df) -> DataSplitter:
-    return DataSplitter(kfold_df, random_seed=42)
+    return DataSplitter(kfold_df, seed=42)
 
 
 # ---------------------------------------------------------------------------
@@ -418,7 +491,7 @@ def test_kfold_stratify_defaults_false_when_no_target(kfold_df, kfold_splitter_n
 
 
 def test_kfold_stratify_true_without_target_raises(kfold_splitter_no_target):
-    with pytest.raises(ValueError, match="target"):
+    with raises_code("stratify_without_target", match="target"):
         kfold_splitter_no_target.kfold(_K, stratify=True)
 
 
@@ -426,7 +499,6 @@ def test_kfold_stratify_true_without_target_raises(kfold_splitter_no_target):
 # profile_stratified_split and profile_stratified_kfold — fixtures
 # ---------------------------------------------------------------------------
 
-from dataforge_ml.config import PipelineConfig
 from dataforge_ml.profiling.orchestrator import StructuralProfiler
 
 _PS_N = 300
@@ -449,12 +521,12 @@ def ps_df() -> pl.DataFrame:
 
 @pytest.fixture(scope="module")
 def ps_profile(ps_df):
-    return StructuralProfiler(PipelineConfig()).profile(ps_df)
+    return StructuralProfiler().profile(ps_df)
 
 
 @pytest.fixture(scope="module")
 def ps_splitter(ps_df) -> DataSplitter:
-    return DataSplitter(ps_df, target="label", random_seed=42)
+    return DataSplitter(ps_df, target="label", seed=42)
 
 
 # ---------------------------------------------------------------------------
@@ -487,12 +559,15 @@ def test_profile_split_missingness_in_training(ps_profile, ps_splitter):
     """Every column with missingness has at least one null in the training split."""
     result = ps_splitter.profile_stratified_split(ps_profile, test_size=0.2)
     for col, cp in ps_profile.columns.items():
-        if cp.missingness and cp.missingness.effective_null_count > 0:
-            if col in result.train.columns:
-                assert result.train[col].null_count() > 0, (
-                    f"column '{col}' has missingness in the profile but zero nulls "
-                    f"in the training split"
-                )
+        if (
+            cp.missingness
+            and cp.missingness.effective_null_count > 0
+            and col in result.train.columns
+        ):
+            assert result.train[col].null_count() > 0, (
+                f"column '{col}' has missingness in the profile but zero nulls "
+                f"in the training split"
+            )
 
 
 def test_profile_split_preserves_target_proportions(ps_df, ps_profile, ps_splitter):
@@ -519,8 +594,8 @@ def test_profile_split_falls_back_when_no_signals():
         }
     )
     # Profile with no target, no missingness → no signals → graceful fallback
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
-    splitter = DataSplitter(df, random_seed=0)
+    profile = StructuralProfiler().profile(df)
+    splitter = DataSplitter(df, seed=0)
     result = splitter.profile_stratified_split(profile, test_size=0.2)
     assert result.train_size + result.test_size == len(df)
 
@@ -546,8 +621,8 @@ def test_profile_split_computes_shuffle_floor(monkeypatch):
             "label": pl.Series(["A" if i % 3 == 0 else "B" for i in range(200)], dtype=pl.Utf8),
         }
     )
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
-    splitter = DataSplitter(df, target="label", random_seed=0)
+    profile = StructuralProfiler().profile(df)
+    splitter = DataSplitter(df, target="label", seed=0)
     splitter.profile_stratified_split(profile, test_size=0.2)
 
     # ceil(2 / min(0.2, 0.8)) == ceil(2 / 0.2) == 10
@@ -575,8 +650,8 @@ def test_profile_kfold_computes_k_floor(monkeypatch):
             "label": pl.Series(["A" if i % 3 == 0 else "B" for i in range(200)], dtype=pl.Utf8),
         }
     )
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
-    splitter = DataSplitter(df, target="label", random_seed=0)
+    profile = StructuralProfiler().profile(df)
+    splitter = DataSplitter(df, target="label", seed=0)
     splitter.profile_stratified_kfold(profile, k=5)
 
     assert captured["min_positives"] == 5
@@ -621,11 +696,14 @@ def test_profile_kfold_missingness_in_training(ps_profile, ps_splitter):
     folds = ps_splitter.profile_stratified_kfold(ps_profile, k=_PS_K)
     for fold in folds:
         for col, cp in ps_profile.columns.items():
-            if cp.missingness and cp.missingness.effective_null_count > 0:
-                if col in fold.train.columns:
-                    assert fold.train[col].null_count() > 0, (
-                        f"fold {fold.fold_index}: column '{col}' has no nulls in training"
-                    )
+            if (
+                cp.missingness
+                and cp.missingness.effective_null_count > 0
+                and col in fold.train.columns
+            ):
+                assert fold.train[col].null_count() > 0, (
+                    f"fold {fold.fold_index}: column '{col}' has no nulls in training"
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -643,7 +721,7 @@ def test_signal_cap_at_default_50():
     cols = {f"c{i}": pl.Series([None if j == i else float(j) for j in range(n)], dtype=pl.Float64)
             for i in range(60)}
     df = pl.DataFrame(cols)
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
     mat = build_label_matrix(df, profile, target=None)
     assert mat.shape[1] <= SplitConfig().max_stratification_signals
 
@@ -669,7 +747,7 @@ def test_cap_keeps_target_and_drops_missingness_first():
             [None if j == i else float(j) for j in range(n)], dtype=pl.Float64
         )
     df = pl.DataFrame(cols)
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     # Cap of 2 → only the two surviving target class signals fit; every
     # missingness signal is evicted, but the target is never dropped.
@@ -698,7 +776,7 @@ def test_rows_per_signal_reduces_wide_but_short_input():
     cols = {f"c{i}": pl.Series([None if j == i else float(j) for j in range(n)], dtype=pl.Float64)
             for i in range(40)}
     df = pl.DataFrame(cols)
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     cfg = SplitConfig(max_stratification_signals=50, rows_per_signal=20)
     mat = build_label_matrix(df, profile, target=None)  # default budget 10 -> 10
@@ -709,14 +787,13 @@ def test_rows_per_signal_reduces_wide_but_short_input():
 
 def test_too_few_rows_to_support_target_degrades_to_empty():
     """When the budget cannot fit the full target set the matrix is empty."""
-    from dataforge_ml.splitting._config import SplitConfig
     from dataforge_ml.splitting._profile_signals import build_label_matrix
 
     # 3-class target → 2 signals after dummy-drop, but a row budget of
     # 12 / 10 = 1 cannot support both, so the whole matrix is emptied.
     target_vals = ["a"] * 4 + ["b"] * 4 + ["c"] * 4
     df = pl.DataFrame({"target": pl.Series(target_vals, dtype=pl.Utf8)})
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     mat = build_label_matrix(df, profile, target="target", min_positives=1)
     assert mat.shape[1] == 0
@@ -724,13 +801,12 @@ def test_too_few_rows_to_support_target_degrades_to_empty():
 
 def test_too_small_dataset_falls_back_to_random_split():
     """profile_stratified_split degrades to a random split on a tiny dataset."""
-    from dataforge_ml.splitting._config import SplitConfig
 
     target_vals = ["a"] * 4 + ["b"] * 4 + ["c"] * 4
     df = pl.DataFrame({"target": pl.Series(target_vals, dtype=pl.Utf8)})
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
 
-    splitter = DataSplitter(df, target="target", random_seed=0)
+    splitter = DataSplitter(df, target="target", seed=0)
     result = splitter.profile_stratified_split(profile, test_size=0.25)
     # A valid split is still produced (via the random fallback), covering all rows.
     assert result.train_size + result.test_size == len(df)
@@ -759,7 +835,7 @@ def test_redundancy_collapses_near_identical_signals():
         "y": _num_null({0, 1, 2, 3, 4}, n),
         "z": _num_null({10, 11, 12, 13, 14}, n),
     })
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     mat = build_label_matrix(
         df, profile, target=None, config=SplitConfig(rows_per_signal=1)
@@ -782,7 +858,7 @@ def test_redundancy_collapses_mirror_image_binary_target():
         "feat": pl.Series(list(range(n)), dtype=pl.Int64),
         "target": pl.Series(["a"] * 100 + ["b"] * 100, dtype=pl.Utf8),
     })
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     mat = build_label_matrix(df, profile, target="target")
     # The two class flags are perfect mirror images (correlation −1); the gate
@@ -802,7 +878,7 @@ def test_redundancy_keeps_higher_priority_family():
         "flag": pl.Series([True] * 4 + [False] * 96, dtype=pl.Boolean),
         "m": _num_null(set(range(4, 100)), n),
     })
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     mat = build_label_matrix(
         df, profile, target=None, config=SplitConfig(rows_per_signal=1)
@@ -828,7 +904,7 @@ def test_redundancy_runs_before_the_cap():
     cols = {f"a{i}": _num_null({0}, n) for i in range(5)}
     cols["dist"] = _num_null({0, 1, 2}, n)
     df = pl.DataFrame(cols)
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     mat = build_label_matrix(
         df,
@@ -850,10 +926,10 @@ def test_redundancy_threshold_is_configurable():
     # near-perfect duplicates. The conservative default (0.95) keeps both; a
     # lowered threshold collapses them.
     df = pl.DataFrame({
-        "p": _num_null(set(range(0, 10)), n),
-        "q": _num_null(set(range(0, 7)), n),
+        "p": _num_null(set(range(10)), n),
+        "q": _num_null(set(range(7)), n),
     })
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     default_mat = build_label_matrix(
         df, profile, target=None, config=SplitConfig(rows_per_signal=1)
@@ -883,7 +959,7 @@ def test_viability_gate_drops_single_positive_signal():
     n = 50
     data = [None if i == 0 else 5.0 for i in range(n)]
     df = pl.DataFrame({"val": pl.Series(data, dtype=pl.Float64)})
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     # min_positives=1 admits the single-positive missingness signal.
     mat_default = build_label_matrix(df, profile, target=None, min_positives=1)
@@ -903,7 +979,7 @@ def test_viability_gate_drops_all_ones_signal():
     n = 50
     data = [1.0 if i == 0 else None for i in range(n)]
     df = pl.DataFrame({"val": pl.Series(data, dtype=pl.Float64)})
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     # min_positives=2 excludes it (only one 0 present).
     mat_gated = build_label_matrix(df, profile, target=None, min_positives=2)
@@ -921,7 +997,7 @@ def test_signal_1_float_inf_rows_are_marked():
 
     data = [1.0, 2.0, float("inf"), 4.0, float("nan"), 6.0]
     df = pl.DataFrame({"val": pl.Series(data, dtype=pl.Float64)})
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     # rows_per_signal=1 keeps the tiny-fixture budget from evicting the signal.
     mat = build_label_matrix(df, profile, target=None, config=SplitConfig(rows_per_signal=1))
@@ -940,7 +1016,7 @@ def test_signal_1_utf8_sentinel_rows_are_marked():
 
     data = ["apple", "NA", "banana", "NULL", "", "cherry"]
     df = pl.DataFrame({"txt": pl.Series(data, dtype=pl.Utf8)})
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     mat = build_label_matrix(df, profile, target=None, config=SplitConfig(rows_per_signal=1))
 
@@ -959,7 +1035,7 @@ def test_signal_1_integer_column_uses_standard_null_only():
 
     data = [1, None, 3, None, 5]
     df = pl.DataFrame({"num": pl.Series(data, dtype=pl.Int64)})
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     mat = build_label_matrix(df, profile, target=None, config=SplitConfig(rows_per_signal=1))
 
@@ -991,7 +1067,7 @@ def test_signal_2_joint_mar_string_sentinel_receives_label_one():
             "col_b": pl.Series(col_b, dtype=pl.Utf8),
         }
     )
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     # Precondition: MAR correlation detected between the pair.
     mp_a = profile.columns["col_a"].missingness
@@ -1024,7 +1100,7 @@ def test_signal_5_rare_value_marked_from_profile():
     # 100 rows: "rare" at 2%, "dominant" at 98%
     data = ["dominant"] * 98 + ["rare"] * 2
     df = pl.DataFrame({"cat": pl.Series(data, dtype=pl.Utf8)})
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     mat = build_label_matrix(df, profile, target=None)
 
@@ -1041,7 +1117,7 @@ def test_signal_5_one_column_per_rare_value():
     # 100 rows: three distinct rare values (3 rows each) below the dominant.
     data = ["dominant"] * 91 + ["r1"] * 3 + ["r2"] * 3 + ["r3"] * 3
     df = pl.DataFrame({"cat": pl.Series(data, dtype=pl.Utf8)})
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     rare_vals = profile.columns["cat"].stats.rare_categories.rare_label_values
     assert len(rare_vals) >= 2, "test requires multiple rare values"
@@ -1081,7 +1157,7 @@ def test_signal_7_numeric_target_produces_five_signals():
         "feature": pl.Series(list(range(n)), dtype=pl.Int64),
         "target": pl.Series([float(i) for i in range(n)], dtype=pl.Float64),
     })
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     mat = build_label_matrix(df, profile, target="target")
 
@@ -1106,7 +1182,7 @@ def test_signal_7_categorical_target_produces_class_set_minus_dummy():
         "feature": pl.Series(list(range(n)), dtype=pl.Int64),
         "target": pl.Series(labels, dtype=pl.Utf8),
     })
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     mat = build_label_matrix(df, profile, target="target")
 
@@ -1123,7 +1199,7 @@ def test_signal_7_discrete_rating_target_produces_one_signal_per_class():
     # Ratings 1..5 land as SemanticType.Categorical → the class branch fires.
     ratings = [(i % 5) + 1 for i in range(n)]
     df = pl.DataFrame({"target": pl.Series(ratings, dtype=pl.Int64)})
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     mat = build_label_matrix(df, profile, target="target", min_positives=1)
 
@@ -1142,10 +1218,10 @@ def test_signal_7_bounded_discrete_target_produces_one_signal_per_class():
     df = pl.DataFrame({"target": pl.Series(ratings, dtype=pl.Int64)})
     # Force SemanticType.Numeric + NumericKind.BoundedDiscrete so the two-tier
     # signal reuses the Phase 1 classification rather than a local heuristic.
-    cfg = PipelineConfig()
-    cfg.set_column_type("target", SemanticType.Numeric)
-    cfg.set_numeric_kind("target", NumericKind.BoundedDiscrete)
-    profile = StructuralProfiler(cfg).profile(df)
+    profile = StructuralProfiler(
+        column_types={"target": SemanticType.Numeric},
+        numeric_kinds={"target": NumericKind.BoundedDiscrete},
+    ).profile(df)
 
     from dataforge_ml.profiling._numeric_config import NumericFlag
 
@@ -1170,7 +1246,7 @@ def test_signal_7_continuous_target_buckets_min_of_five_and_nunique():
     df = pl.DataFrame(
         {"target": pl.Series([base[i % 3] for i in range(n)], dtype=pl.Float64)}
     )
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     mat = build_label_matrix(df, profile, target="target", min_positives=1)
 
@@ -1193,7 +1269,7 @@ def test_signal_7_continuous_target_emits_target_missing_label():
             "target": pl.Series(tvals, dtype=pl.Float64),
         }
     )
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     mat = build_label_matrix(df, profile, target="target", min_positives=1)
 
@@ -1225,7 +1301,7 @@ def test_near_constant_column_produces_minority_signal():
                 11.5, 12.5, 13.5, 14.5, 15.5]
     vals = [5.0] * (n - len(off_mode)) + off_mode
     df = pl.DataFrame({"nc": pl.Series(vals, dtype=pl.Float64)})
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
     # Guard: the flag must actually be set, otherwise the signal branch is dead.
     assert profile.columns["nc"].stats.has_flag(NumericFlag.NearConstant)
 
@@ -1253,10 +1329,10 @@ def test_bounded_discrete_near_constant_uses_exact_equality():
     off_mode = [0, 1, 2, 4, 5, 0, 1, 2, 4, 5, 0, 1]
     vals = [3] * (n - len(off_mode)) + off_mode
     df = pl.DataFrame({"nc": pl.Series(vals, dtype=pl.Int64)})
-    cfg = PipelineConfig()
-    cfg.set_column_type("nc", SemanticType.Numeric)
-    cfg.set_numeric_kind("nc", NumericKind.BoundedDiscrete)
-    profile = StructuralProfiler(cfg).profile(df)
+    profile = StructuralProfiler(
+        column_types={"nc": SemanticType.Numeric},
+        numeric_kinds={"nc": NumericKind.BoundedDiscrete},
+    ).profile(df)
     assert profile.columns["nc"].stats.has_flag(NumericFlag.NearConstant)
     assert profile.columns["nc"].numeric_kind == NumericKind.BoundedDiscrete
 
@@ -1284,7 +1360,7 @@ def test_zero_negative_signal_absent_for_strictly_positive_skewed_column():
     for i in range(20):
         vals[i] = 200.0 + float(i)
     df = pl.DataFrame({"x": pl.Series(vals, dtype=pl.Float64)})
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
     stats = profile.columns["x"].stats
     # Guards: strictly positive, right-skewed, and severe enough that the
     # zero/negative branch would fire if the min<=0 gate were absent.
@@ -1319,7 +1395,7 @@ def _bimodal_frame(seed: int = 0):
     rng = np.random.default_rng(seed)
     vals = np.concatenate([rng.normal(0.0, 1.0, 240), rng.normal(8.0, 0.3, 60)])
     df = pl.DataFrame({"x": pl.Series(vals, dtype=pl.Float64)})
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
     bs = profile.columns["x"].stats.bimodal_stats
     d1 = np.abs(vals - bs.center1)
     d2 = np.abs(vals - bs.center2)
@@ -1408,7 +1484,7 @@ def test_bimodal_signal_collapses_against_correlated_higher_priority_signal():
     # and drops the cluster signal.
     tgt = np.where(minority == 1, "min", "maj")
     df2 = df.with_columns(pl.Series("target", tgt, dtype=pl.Utf8))
-    profile2 = StructuralProfiler(PipelineConfig()).profile(df2)
+    profile2 = StructuralProfiler().profile(df2)
     mat2 = build_label_matrix(df2, profile2, target="target", min_positives=1)
     # The two-class target collapses to one class signal (dummy-drop), which is
     # perfectly correlated (±1) with the cluster membership. Count columns in the
@@ -1464,14 +1540,14 @@ def test_split_config_exported_from_splitting_api():
 
 def test_data_splitter_no_config_uses_defaults(df):
     from dataforge_ml.splitting._config import SplitConfig
-    splitter = DataSplitter(df, target="label", random_seed=0)
+    splitter = DataSplitter(df, target="label", seed=0)
     assert splitter._config == SplitConfig()
 
 
 def test_data_splitter_accepts_custom_config(df):
     from dataforge_ml.splitting._config import SplitConfig
     cfg = SplitConfig(max_stratification_signals=10)
-    splitter = DataSplitter(df, target="label", random_seed=0, config=cfg)
+    splitter = DataSplitter(df, target="label", seed=0, config=cfg)
     assert splitter._config.max_stratification_signals == 10
 
 
@@ -1490,7 +1566,7 @@ def test_custom_max_signals_cap_is_respected():
     cols = {f"c{i}": pl.Series([None if j == i else float(j) for j in range(n)], dtype=pl.Float64)
             for i in range(60)}
     df = pl.DataFrame(cols)
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     cfg = SplitConfig(max_stratification_signals=5)
     mat = build_label_matrix(df, profile, target=None, config=cfg)
@@ -1507,11 +1583,10 @@ def test_boolean_minority_threshold_triggers_signal():
     from dataforge_ml.splitting._config import SplitConfig
     from dataforge_ml.splitting._profile_signals import build_label_matrix
 
-    n = 100
     # 8 True, 92 False → true_ratio = 0.08
     bool_vals = [True] * 8 + [False] * 92
     df = pl.DataFrame({"flag": pl.Series(bool_vals, dtype=pl.Boolean)})
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     # Default threshold (0.05): 8% > 5% → no signal
     mat_default = build_label_matrix(df, profile, target=None)
@@ -1530,11 +1605,10 @@ def test_boolean_minority_threshold_suppresses_signal():
     from dataforge_ml.splitting._config import SplitConfig
     from dataforge_ml.splitting._profile_signals import build_label_matrix
 
-    n = 100
     # 3 True, 97 False → true_ratio = 0.03
     bool_vals = [True] * 3 + [False] * 97
     df = pl.DataFrame({"flag": pl.Series(bool_vals, dtype=pl.Boolean)})
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     # Default (0.05): 3% < 5% → signal fires
     mat_default = build_label_matrix(df, profile, target=None)
@@ -1544,32 +1618,6 @@ def test_boolean_minority_threshold_suppresses_signal():
     cfg = SplitConfig(boolean_minority_threshold=0.02)
     mat_custom = build_label_matrix(df, profile, target=None, config=cfg)
     assert mat_custom.shape[1] == 0
-
-
-# ---------------------------------------------------------------------------
-# PipelineConfig — SplitConfig nested round-trip
-# ---------------------------------------------------------------------------
-
-
-def test_pipeline_config_has_split_field():
-    from dataforge_ml.splitting._config import SplitConfig
-    cfg = PipelineConfig()
-    assert isinstance(cfg.split, SplitConfig)
-
-
-def test_pipeline_config_round_trip_preserves_split():
-    from dataforge_ml.splitting._config import SplitConfig
-    original = PipelineConfig(split=SplitConfig(max_stratification_signals=15, boolean_minority_threshold=0.08))
-    restored = PipelineConfig.from_dict(original.to_dict())
-    assert restored.split.max_stratification_signals == 15
-    assert restored.split.boolean_minority_threshold == 0.08
-
-
-def test_pipeline_config_round_trip_default_split():
-    from dataforge_ml.splitting._config import SplitConfig
-    cfg = PipelineConfig()
-    restored = PipelineConfig.from_dict(cfg.to_dict())
-    assert restored.split == SplitConfig()
 
 
 # ---------------------------------------------------------------------------
@@ -1586,9 +1634,7 @@ def test_signal_1_declared_sentinels_replace_hardcoded_defaults():
     # With replace semantics, "NA" must NOT be marked; "MISSING" MUST.
     data = ["apple", "MISSING", "NA", "banana", ""]
     df = pl.DataFrame({"txt": pl.Series(data, dtype=pl.Utf8)})
-    pipeline_cfg = PipelineConfig(
-        profiling=ProfileConfig(string_sentinels={"txt": ["MISSING"]})
-    )
+    pipeline_cfg = ProfileConfig(string_sentinels={"txt": ["MISSING"]})
     profile = StructuralProfiler(pipeline_cfg).profile(df)
 
     mat = build_label_matrix(df, profile, target=None, config=SplitConfig(rows_per_signal=1))
@@ -1608,7 +1654,7 @@ def test_signal_1_no_sentinel_declaration_falls_back_to_hardcoded_defaults():
 
     data = ["apple", "NA", "banana", "NULL", "cherry"]
     df = pl.DataFrame({"txt": pl.Series(data, dtype=pl.Utf8)})
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     mat = build_label_matrix(df, profile, target=None, config=SplitConfig(rows_per_signal=1))
 
@@ -1628,9 +1674,7 @@ def test_signal_1_whitespace_always_marked_with_declared_sentinels():
 
     data = ["apple", "CUSTOM", "  ", "banana", "NA"]
     df = pl.DataFrame({"txt": pl.Series(data, dtype=pl.Utf8)})
-    pipeline_cfg = PipelineConfig(
-        profiling=ProfileConfig(string_sentinels={"txt": ["CUSTOM"]})
-    )
+    pipeline_cfg = ProfileConfig(string_sentinels={"txt": ["CUSTOM"]})
     profile = StructuralProfiler(pipeline_cfg).profile(df)
 
     mat = build_label_matrix(df, profile, target=None, config=SplitConfig(rows_per_signal=1))
@@ -1651,9 +1695,7 @@ def test_signal_1_declared_sentinels_matched_case_insensitively():
 
     data = ["apple", "missing", "MISSING", "Missing", "banana"]
     df = pl.DataFrame({"txt": pl.Series(data, dtype=pl.Utf8)})
-    pipeline_cfg = PipelineConfig(
-        profiling=ProfileConfig(string_sentinels={"txt": ["MISSING"]})
-    )
+    pipeline_cfg = ProfileConfig(string_sentinels={"txt": ["MISSING"]})
     profile = StructuralProfiler(pipeline_cfg).profile(df)
 
     mat = build_label_matrix(df, profile, target=None, config=SplitConfig(rows_per_signal=1))
@@ -1676,12 +1718,10 @@ def test_signal_1_declared_sentinels_do_not_affect_other_dtype_columns():
         "txt": pl.Series(["apple", "MISSING", "NA", "banana", ""], dtype=pl.Utf8),
         "num": pl.Series([1.0, 2.0, None, 4.0, 5.0], dtype=pl.Float64),
     })
-    pipeline_cfg = PipelineConfig(
-        profiling=ProfileConfig(string_sentinels={"txt": ["MISSING"]})
-    )
+    pipeline_cfg = ProfileConfig(string_sentinels={"txt": ["MISSING"]})
     profile = StructuralProfiler(pipeline_cfg).profile(df)
 
-    mat = build_label_matrix(df, profile, target=None)
+    build_label_matrix(df, profile, target=None)
 
     # Collect the num signal: standard null (row 2) should be the only null
     num_profile = profile.columns["num"]
@@ -1702,7 +1742,7 @@ def test_signal_8_absent_when_p90_is_zero():
         "a": pl.Series([1, 2, 3, 4, 5], dtype=pl.Int64),
         "b": pl.Series([10, 20, 30, 40, 50], dtype=pl.Int64),
     })
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     assert profile.dataset.row_distribution.row_missingness_p90 == 0
     mat = build_label_matrix(df, profile, target=None)
@@ -1733,7 +1773,7 @@ def test_signal_8_present_when_p90_is_positive():
     from dataforge_ml.splitting._profile_signals import build_label_matrix
 
     df = _make_compound_df()
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     p90 = profile.dataset.row_distribution.row_missingness_p90
     assert p90 > 0, f"precondition: p90 must be positive, got {p90}"
@@ -1760,7 +1800,7 @@ def test_signal_8_rows_above_p90_receive_label_one():
     # 12 rows, 5 columns. Per-row null counts: [0]*10 + [2, 2] (rows 10 and 11).
     # p90 = 1, so the compound signal flags rows with count > 1 → rows 10 and 11.
     df = _make_compound_df()
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     p90 = profile.dataset.row_distribution.row_missingness_p90
     assert p90 > 0, f"precondition: p90 must be positive, got {p90}"
@@ -1789,11 +1829,10 @@ def test_unsplittable_mask_flags_sub_floor_rare_categorical():
     """unsplittable_train_mask marks rows of a rare value below the floor."""
     from dataforge_ml.splitting._profile_signals import unsplittable_train_mask
 
-    n = 300
     # "Z" occurs once (0.33%) → rare and below any reasonable floor.
     cat = ["A"] * 150 + ["B"] * 149 + ["Z"]
     df = pl.DataFrame({"cat": pl.Series(cat, dtype=pl.Utf8)})
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
     assert "Z" in profile.columns["cat"].stats.rare_categories.rare_label_values
 
     mask = unsplittable_train_mask(df, profile, target=None, min_positives=10)
@@ -1809,7 +1848,7 @@ def test_unsplittable_mask_empty_when_no_sub_floor_rows():
     df = pl.DataFrame(
         {"label": pl.Series(["A" if i % 2 == 0 else "B" for i in range(n)], dtype=pl.Utf8)}
     )
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
     mask = unsplittable_train_mask(df, profile, target="label", min_positives=10)
     assert mask.sum() == 0
 
@@ -1825,8 +1864,8 @@ def test_profile_split_routes_sub_floor_rare_categorical_to_train():
             "label": pl.Series(label, dtype=pl.Utf8),
         }
     )
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
-    splitter = DataSplitter(df, target="label", random_seed=7)
+    profile = StructuralProfiler().profile(df)
+    splitter = DataSplitter(df, target="label", seed=7)
     result = splitter.profile_stratified_split(profile, test_size=0.2)
 
     assert (result.test["cat"] == "Z").sum() == 0
@@ -1845,8 +1884,8 @@ def test_profile_split_routes_sub_floor_target_class_to_train():
             "label": pl.Series(label, dtype=pl.Utf8),
         }
     )
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
-    splitter = DataSplitter(df, target="label", random_seed=7)
+    profile = StructuralProfiler().profile(df)
+    splitter = DataSplitter(df, target="label", seed=7)
     result = splitter.profile_stratified_split(profile, test_size=0.2)
 
     assert (result.test["label"] == "C").sum() == 0
@@ -1865,8 +1904,8 @@ def test_profile_kfold_routes_lone_rare_row_to_every_train():
             "label": pl.Series(label, dtype=pl.Utf8),
         }
     )
-    profile = StructuralProfiler(PipelineConfig()).profile(df)
-    splitter = DataSplitter(df, target="label", random_seed=7)
+    profile = StructuralProfiler().profile(df)
+    splitter = DataSplitter(df, target="label", seed=7)
     folds = splitter.profile_stratified_kfold(profile, k=5)
 
     for fold in folds:
@@ -1949,13 +1988,13 @@ def test_repeated_kfold_stratify_defaults_false_when_no_target(kfold_splitter_no
 
 
 def test_repeated_kfold_stratify_true_without_target_raises(kfold_splitter_no_target):
-    with pytest.raises(ValueError, match="target"):
+    with raises_code("stratify_without_target", match="target"):
         kfold_splitter_no_target.repeated_kfold(_K, _N_REPEATS, stratify=True)
 
 
 def test_repeated_kfold_same_seed_identical(kfold_df):
-    s1 = DataSplitter(kfold_df, target="label", random_seed=42)
-    s2 = DataSplitter(kfold_df, target="label", random_seed=42)
+    s1 = DataSplitter(kfold_df, target="label", seed=42)
+    s2 = DataSplitter(kfold_df, target="label", seed=42)
     f1 = s1.repeated_kfold(_K, _N_REPEATS)
     f2 = s2.repeated_kfold(_K, _N_REPEATS)
     for a, b in zip(f1, f2):
@@ -1965,8 +2004,8 @@ def test_repeated_kfold_same_seed_identical(kfold_df):
 
 
 def test_repeated_kfold_different_seeds_differ(kfold_df):
-    s1 = DataSplitter(kfold_df, target="label", random_seed=1)
-    s2 = DataSplitter(kfold_df, target="label", random_seed=2)
+    s1 = DataSplitter(kfold_df, target="label", seed=1)
+    s2 = DataSplitter(kfold_df, target="label", seed=2)
     f1 = s1.repeated_kfold(_K, _N_REPEATS)
     f2 = s2.repeated_kfold(_K, _N_REPEATS)
     assert any(not a.val.equals(b.val) for a, b in zip(f1, f2))
@@ -2002,7 +2041,7 @@ def group_df() -> pl.DataFrame:
 
 @pytest.fixture(scope="module")
 def group_splitter(group_df) -> DataSplitter:
-    return DataSplitter(group_df, target="label", random_seed=42)
+    return DataSplitter(group_df, target="label", seed=42)
 
 
 # ---------------------------------------------------------------------------
@@ -2038,13 +2077,13 @@ def test_group_split_ratios_reflect_actual_proportions(group_df, group_splitter)
 
 
 def test_group_split_missing_column_raises(group_splitter):
-    with pytest.raises(ValueError, match="group_column"):
+    with raises_code("unknown_column", match="group_column"):
         group_splitter.group_split(test_size=0.25, group_column="does_not_exist")
 
 
 def test_group_split_same_seed_identical(group_df):
-    s1 = DataSplitter(group_df, target="label", random_seed=7)
-    s2 = DataSplitter(group_df, target="label", random_seed=7)
+    s1 = DataSplitter(group_df, target="label", seed=7)
+    s2 = DataSplitter(group_df, target="label", seed=7)
     r1 = s1.group_split(test_size=0.25, group_column="entity")
     r2 = s2.group_split(test_size=0.25, group_column="entity")
     assert r1.train.equals(r2.train)
@@ -2052,8 +2091,8 @@ def test_group_split_same_seed_identical(group_df):
 
 
 def test_group_split_different_seeds_differ(group_df):
-    s1 = DataSplitter(group_df, target="label", random_seed=1)
-    s2 = DataSplitter(group_df, target="label", random_seed=2)
+    s1 = DataSplitter(group_df, target="label", seed=1)
+    s2 = DataSplitter(group_df, target="label", seed=2)
     r1 = s1.group_split(test_size=0.25, group_column="entity")
     r2 = s2.group_split(test_size=0.25, group_column="entity")
     assert not r1.test.equals(r2.test)
@@ -2066,7 +2105,7 @@ def test_group_split_different_seeds_differ(group_df):
 
 @pytest.fixture(scope="module")
 def group_splitter_no_target(group_df) -> DataSplitter:
-    return DataSplitter(group_df, random_seed=42)
+    return DataSplitter(group_df, seed=42)
 
 
 _GK = 5
@@ -2136,18 +2175,18 @@ def test_group_kfold_stratify_false_produces_disjoint_folds(group_splitter):
 
 
 def test_group_kfold_missing_column_raises(group_splitter):
-    with pytest.raises(ValueError, match="group_column"):
+    with raises_code("unknown_column", match="group_column"):
         group_splitter.group_kfold(_GK, group_column="does_not_exist")
 
 
 def test_group_kfold_stratify_true_without_target_raises(group_splitter_no_target):
-    with pytest.raises(ValueError, match="target"):
+    with raises_code("stratify_without_target", match="target"):
         group_splitter_no_target.group_kfold(_GK, group_column="entity", stratify=True)
 
 
 def test_group_kfold_same_seed_identical(group_df):
-    s1 = DataSplitter(group_df, target="label", random_seed=7)
-    s2 = DataSplitter(group_df, target="label", random_seed=7)
+    s1 = DataSplitter(group_df, target="label", seed=7)
+    s2 = DataSplitter(group_df, target="label", seed=7)
     f1 = s1.group_kfold(_GK, group_column="entity")
     f2 = s2.group_kfold(_GK, group_column="entity")
     for a, b in zip(f1, f2):
@@ -2155,8 +2194,8 @@ def test_group_kfold_same_seed_identical(group_df):
 
 
 def test_group_kfold_different_seeds_differ(group_df):
-    s1 = DataSplitter(group_df, target="label", random_seed=1)
-    s2 = DataSplitter(group_df, target="label", random_seed=2)
+    s1 = DataSplitter(group_df, target="label", seed=1)
+    s2 = DataSplitter(group_df, target="label", seed=2)
     f1 = s1.group_kfold(_GK, group_column="entity")
     f2 = s2.group_kfold(_GK, group_column="entity")
     assert any(not a.val.equals(b.val) for a, b in zip(f1, f2))
@@ -2230,15 +2269,15 @@ def test_holdout_cv_stratify_defaults_false_when_no_target(kfold_splitter_no_tar
 
 
 def test_holdout_cv_stratify_true_without_target_raises(kfold_splitter_no_target):
-    with pytest.raises(ValueError, match="target"):
+    with raises_code("stratify_without_target", match="target"):
         kfold_splitter_no_target.holdout_cv(
             test_size=_HCV_TEST_SIZE, k=_HCV_K, stratify=True
         )
 
 
 def test_holdout_cv_same_seed_identical(kfold_df):
-    s1 = DataSplitter(kfold_df, target="label", random_seed=7)
-    s2 = DataSplitter(kfold_df, target="label", random_seed=7)
+    s1 = DataSplitter(kfold_df, target="label", seed=7)
+    s2 = DataSplitter(kfold_df, target="label", seed=7)
     r1 = s1.holdout_cv(test_size=_HCV_TEST_SIZE, k=_HCV_K)
     r2 = s2.holdout_cv(test_size=_HCV_TEST_SIZE, k=_HCV_K)
     assert r1.test.equals(r2.test)
@@ -2247,14 +2286,8 @@ def test_holdout_cv_same_seed_identical(kfold_df):
 
 
 def test_holdout_cv_different_seeds_differ(kfold_df):
-    s1 = DataSplitter(kfold_df, target="label", random_seed=1)
-    s2 = DataSplitter(kfold_df, target="label", random_seed=2)
+    s1 = DataSplitter(kfold_df, target="label", seed=1)
+    s2 = DataSplitter(kfold_df, target="label", seed=2)
     r1 = s1.holdout_cv(test_size=_HCV_TEST_SIZE, k=_HCV_K)
     r2 = s2.holdout_cv(test_size=_HCV_TEST_SIZE, k=_HCV_K)
     assert not r1.test.equals(r2.test)
-
-
-def test_holdout_cv_exported_from_top_level():
-    import dataforge_ml
-
-    assert dataforge_ml.HoldoutCVResult is HoldoutCVResult

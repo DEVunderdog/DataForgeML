@@ -6,7 +6,7 @@ We adopt a single **Rendering Contract** binding every type the library *returns
 
 ## Status
 
-accepted — supersedes ADR-0040 outright.
+superseded by ADR-0102 (the library emits JSON only; `to_markdown()` and the Rendering Contract are deleted). Previously: accepted — supersedes ADR-0040 outright.
 
 ## The five rules
 

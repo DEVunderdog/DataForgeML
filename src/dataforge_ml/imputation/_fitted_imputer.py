@@ -4,7 +4,7 @@ FittedImputer — stateless object assembled by FittedImputer.compose().
 transform(df) applies train-time fill parameters and fitted models to any
 DataFrame. The imputer has no aggregate serialize format of its own (ADR-0072):
 a whole imputer is persisted as its recipe plus its fitted units — each a
-single ``dataforge_ml.serialize`` blob — and rehydrated through
+single ``dataforge_ml._serialization.serialize`` blob — and rehydrated through
 :meth:`FittedImputer.compose`, whose exact-coverage check guarantees the
 reconstructed imputer is structurally complete.
 """
@@ -18,8 +18,8 @@ from typing import Any
 import numpy as np
 import polars as pl
 
-from ..config import PipelineConfig, PipelinePhase
 from ..models._data_types import _FLOAT_DTYPES, _INT_DTYPES
+from ..records import DataForgeError
 from ..utils._dtype_floor import _apply_dtype_floor
 from ..utils._null_normalization import _resolve_effective_nulls
 from ._config import (
@@ -52,9 +52,11 @@ def _normalize_results(recipe: Any, results: Any) -> dict[str, Any]:
         key = frozenset(item.target_columns)
         matched = by_columns.get(key)
         if matched is None:
-            raise ValueError(
+            raise DataForgeError.from_code(
+                "unit_coverage_mismatch",
                 f"A supplied fitted unit owns columns {sorted(item.target_columns)}, "
-                f"which match no unit in the routing; it cannot be composed."
+                f"which match no unit in the routing; it cannot be composed.",
+                columns=sorted(item.target_columns),
             )
         return matched, item
 
@@ -83,33 +85,6 @@ class DroppedColumnAbsentWarning(UserWarning):
     """
 
 
-class UnseenColumnError(Exception):
-    """
-    Raised by FittedImputer.transform() when the input DataFrame contains
-    columns that were not present in the training DataFrame during fit().
-
-    Fires before any DataFrame mutations regardless of whether the unknown
-    columns contain missing values, so schema drift is caught at transform
-    entry rather than silently propagating downstream (ADR 0026).
-
-    All unknown column names are reported in a single raise so the caller
-    can resolve all schema mismatches at once.
-    """
-
-
-class FittedColumnAbsentError(Exception):
-    """
-    Raised by FittedImputer.transform() when a column that received an active
-    imputation strategy during fit() is absent from the input DataFrame.
-
-    Active strategies are any strategy other than ``Dropped`` or ``Indicator``.
-    Absence of such a column is always a pipeline bug — imputation was never
-    applied — so this is escalated to an error rather than a warning.
-
-    All absent column names are reported in a single raise.
-    """
-
-
 from typing import Protocol, runtime_checkable
 
 
@@ -121,7 +96,7 @@ class FittedUnit(Protocol):
     requirement (it carries only the 'my own columns absent' contract).
 
     A trained unit always executed the strategy the plan asked for: a unit that
-    cannot train raises :class:`~dataforge_ml.imputation.UnitNotTrainableError`
+    cannot train raises the ``unit_not_trainable`` Library Error
     rather than becoming a divergent artifact (single-track failure, ADR-0071).
     The strategy the unit executed is a route-time fact the routing holds under the
     same ``unit_id``, so a fitted unit carries only its fitted state (ADR-0074)
@@ -129,25 +104,20 @@ class FittedUnit(Protocol):
     :class:`~dataforge_ml.imputation.FitSignals` the fit returned.
 
     **Observed-Value Preservation (ADR-0078).** A unit fills holes and never
-    edits a value the user supplied: after ``transform``, every cell that was
+    edits a value the user supplied: after ``_transform``, every cell that was
     not missing in the input comes back bit-for-bit with its original dtype.
     "Missing" is the Effective Null predicate — null, NaN, or infinite for
     float columns; null alone otherwise. The guarantee is a property of the
-    unit itself, so it holds when a bare unit is transformed directly with no
-    ``FittedImputer`` involved (the stateless door, ADR-0071).
+    unit itself, so it holds with no ``FittedImputer`` involved.
 
-    **On the stateless door, the caller owns sentinel normalisation.** A bare
-    unit resolves float ``NaN``/``Inf`` as missing with no configuration, but
-    it cannot resolve sentinel-encoded Effective Nulls (e.g. ``-999``): the
-    declared sentinel maps live on the ``ImputationRecipe`` (ADR-0068), and
-    a bare unit does not hold them. Normalise sentinels before calling a bare
-    unit's ``transform``, or transform through the composed
-    :meth:`FittedImputer.transform`, which normalises off the plan's maps.
+    **``_transform`` is internal.** Only :meth:`FittedImputer.transform` calls
+    it, after normalising sentinel-encoded Effective Nulls (e.g. ``-999``) off
+    the recipe's declared maps (ADR-0068); a unit alone does not hold them.
     """
 
     @property
     def target_columns(self) -> list[str]:
-        """The columns this unit owns — the ones its ``transform`` may fill.
+        """The columns this unit owns — the ones its ``_transform`` may fill.
 
         A unit's *targets* are not its *inputs*: a regression unit reads every
         feature column but owns only the one column it predicts. Every column is
@@ -163,7 +133,7 @@ class FittedUnit(Protocol):
         """
         ...
 
-    def transform(self, df: pl.DataFrame) -> pl.DataFrame:
+    def _transform(self, df: pl.DataFrame) -> pl.DataFrame:
         """Apply this unit's imputation to the DataFrame.
 
         The unit reads whatever features it needs from ``df`` but only its
@@ -226,7 +196,7 @@ class FittedMICE:
 
     @property
     def target_columns(self) -> list[str]:
-        """The block's owned columns — the ones its ``transform`` may fill.
+        """The block's owned columns — the ones its ``_transform`` may fill.
 
         A strict subset of :attr:`all_cols`, the full set the block reads as
         predictors (ADR-0079): the block is the block-wide generalization of
@@ -239,7 +209,7 @@ class FittedMICE:
         """
         return list(self.columns)
 
-    def transform(self, df: pl.DataFrame) -> pl.DataFrame:
+    def _transform(self, df: pl.DataFrame) -> pl.DataFrame:
         """Fill the block's missing cells, preserving observed cells.
 
         Reads every column in :attr:`all_cols` present in ``df`` as a
@@ -346,7 +316,7 @@ class _FittedKNN:
 
     @property
     def target_columns(self) -> list[str]:
-        """The block's owned columns — the ones its ``transform`` may fill.
+        """The block's owned columns — the ones its ``_transform`` may fill.
 
         A strict subset of :attr:`all_cols`, the full set the block reads as
         the distance space (ADR-0093).
@@ -358,7 +328,7 @@ class _FittedKNN:
         """
         return list(self.columns)
 
-    def transform(self, df: pl.DataFrame) -> pl.DataFrame:
+    def _transform(self, df: pl.DataFrame) -> pl.DataFrame:
         """Fill the block's missing cells, preserving observed cells.
 
         Reads every column in :attr:`all_cols` present in ``df`` for the
@@ -461,7 +431,6 @@ class FittedImputer:
     units: list[Any] = field(default_factory=list)
     numeric_sentinels: dict[str, list[float]] = field(default_factory=dict)
     string_sentinels: dict[str, list[str]] = field(default_factory=dict)
-    random_seed: int | None = None
 
     @classmethod
     def compose(
@@ -504,9 +473,9 @@ class FittedImputer:
 
         Raises
         ------
-        ValueError
-            If the supplied units do not exactly cover the routing's units, or a
-            raw fitted unit matches no unit.
+        InvalidInput
+            ``unit_coverage_mismatch`` if the supplied units do not exactly
+            cover the routing's units, or a raw fitted unit matches no unit.
         """
         fitted_by_id = _normalize_results(recipe, results)
         units_derived = derive_units(recipe.routing)
@@ -521,10 +490,11 @@ class FittedImputer:
                 parts.append(f"missing units {sorted(missing)}")
             if extra:
                 parts.append(f"unexpected units {sorted(extra)}")
-            raise ValueError(
+            raise DataForgeError.from_code(
+                "unit_coverage_mismatch",
                 "compose() requires the supplied units to cover the routing's "
                 f"units exactly: {'; '.join(parts)}. Train every routed unit "
-                "(and only those) before composing."
+                "(and only those) before composing.",
             )
 
         # A scalar unit's learned fill lands on the structural manifest, which is
@@ -556,56 +526,6 @@ class FittedImputer:
             numeric_sentinels=dict(recipe.numeric_sentinels),
             string_sentinels=dict(recipe.string_sentinels),
         )
-
-    def apply_exclusions(self, config: PipelineConfig) -> None:
-        """Propagate dropped and indicator columns into the pipeline config.
-
-        Hard Exclusions (ADR 0023): columns recorded with
-        ``ImputationStrategy.Dropped`` are added to ``config.exclude_columns``
-        via ``add_exclusions``, removing them from every downstream phase.
-
-        Soft Exclusions: columns recorded with ``ImputationStrategy.Indicator``
-        are registered in ``config.phase_exclusions`` for Phases 3–6
-        (OutlierDetection, Normalization, Encoding, Scaling), so those phases
-        skip indicator columns without removing them from the dataset.
-
-        Safe to invoke unconditionally — it is a no-op when no dropped or
-        indicator columns exist, so callers need not branch.
-
-        Propagation is caller-initiated: fitting does not touch
-        ``PipelineConfig``, preserving re-fit idempotency. A fresh call is
-        required against any config that has not already received this
-        imputer's exclusions, including after rehydrating via :meth:`compose`.
-        Duplicate calls are safe — both hard and soft exclusion registrations
-        deduplicate automatically. Nothing verifies that this method was
-        called; enforcement is deferred to Phase 3 (ADR-0076).
-
-        Parameters
-        ----------
-        config : PipelineConfig
-            Pipeline config to update.
-        """
-        dropped = [
-            col for col, rec in self.records.items()
-            if rec.decision.strategy == ImputationStrategy.Dropped
-        ]
-        config.add_exclusion(dropped)
-
-        indicator_cols = [
-            col for col, rec in self.records.items()
-            if rec.decision.strategy == ImputationStrategy.Indicator
-        ]
-        _soft_phases = [
-            PipelinePhase.OutlierDetection,
-            PipelinePhase.Normalization,
-            PipelinePhase.Encoding,
-            PipelinePhase.Scaling,
-        ]
-        for phase in _soft_phases:
-            existing = set(config.phase_exclusions.get(phase, ()))
-            new_cols = [c for c in indicator_cols if c not in existing]
-            if new_cols:
-                config.add_phase_exclusion(phase, new_cols)
 
     def transform(self, df: pl.DataFrame) -> ImputationResult:
         """
@@ -640,14 +560,16 @@ class FittedImputer:
 
         Raises
         ------
-        UnseenColumnError
-            If df contains any column absent from ``self.records``. Fires before
-            any DataFrame mutations regardless of whether the unknown column has
-            missing values. All unknown column names are reported in one raise.
-        FittedColumnAbsentError
-            If a column with an active imputation strategy (any strategy other
-            than ``Dropped`` or ``Indicator``) is absent from df. All absent
-            column names are reported in one raise.
+        InvalidInput
+            ``unseen_column`` if df contains any column absent from
+            ``self.records``. Fires before any DataFrame mutations regardless
+            of whether the unknown column has missing values (ADR 0026). All
+            unknown column names are reported in one raise.
+            ``missing_fitted_columns`` if a column with an active imputation
+            strategy (any strategy other than ``Dropped`` or ``Indicator``) is
+            absent from df: imputation was never applied, so this is an error
+            rather than a warning. All absent column names are reported in one
+            raise.
 
         Warns
         -----
@@ -656,17 +578,19 @@ class FittedImputer:
             df. One warning is emitted per absent column. Transform continues
             normally.
         """
-        # --- UnseenColumnError check (before any mutations) ---
+        # --- unseen_column check (before any mutations) ---
         unseen = [col for col in df.columns if col not in self.records]
         if unseen:
             cols_str = ", ".join(f"'{c}'" for c in unseen)
-            raise UnseenColumnError(
+            raise DataForgeError.from_code(
+                "unseen_column",
                 f"Column(s) {cols_str} were not present in the training DataFrame "
                 f"during fit() and have no entry in the schema manifest. Schema "
-                f"drift between fit and transform is not permitted."
+                f"drift between fit and transform is not permitted.",
+                columns=unseen,
             )
 
-        # --- FittedColumnAbsentError check (before any mutations) ---
+        # --- missing_fitted_columns check (before any mutations) ---
         _absent_exempt = {ImputationStrategy.Dropped, ImputationStrategy.Indicator}
         absent = [
             col for col, rec in self.records.items()
@@ -674,10 +598,12 @@ class FittedImputer:
         ]
         if absent:
             cols_str = ", ".join(f"'{c}'" for c in absent)
-            raise FittedColumnAbsentError(
+            raise DataForgeError.from_code(
+                "missing_fitted_columns",
                 f"Column(s) {cols_str} were fitted with an active imputation "
                 f"strategy but are absent from the input DataFrame. Imputation "
-                f"cannot be applied to absent columns."
+                f"cannot be applied to absent columns.",
+                columns=absent,
             )
 
         # Phase entry: effective nulls first, then the Dtype Floor off the
@@ -762,7 +688,7 @@ class FittedImputer:
             dtype = result_df.schema[col]
             fill_val = rec.fill_value
             if dtype in _INT_DTYPES:
-                fill_val = int(round(float(fill_val)))
+                fill_val = round(float(fill_val))
                 fill_exprs.append(pl.col(col).fill_null(fill_val))
             elif dtype in _FLOAT_DTYPES:
                 fill_exprs.append(pl.col(col).fill_null(float(fill_val)))
@@ -779,7 +705,7 @@ class FittedImputer:
         if self.units:
             pre_model_df = result_df
             for unit in self.units:
-                produced = unit.transform(pre_model_df)
+                produced = unit._transform(pre_model_df)
                 result_df = result_df.with_columns(
                     [
                         produced[col]

@@ -12,6 +12,7 @@ import numpy as np
 import polars as pl
 import pytest
 
+from dataforge_ml.profiling._fallbacks import Fallback, collect_fallbacks
 from dataforge_ml.profiling._nonlinearity_profiler import NonlinearityProfiler
 from dataforge_ml.profiling._numeric_config import (
     NonlinearityProfileConfig,
@@ -210,7 +211,7 @@ def test_config_defaults():
     assert cfg.r2_rf_unpredictable_threshold == 0.05
     assert cfg.min_rows == 20
     assert cfg.bootstrap_sample_size == 500
-    assert cfg.random_state == 42
+    assert not hasattr(cfg, "random_state")  # the seed is an argument (ADR-0106)
 
 
 def test_config_to_dict_roundtrip():
@@ -232,16 +233,12 @@ def test_config_from_dict_uses_defaults_for_missing_keys():
 
 def test_structural_profiler_populates_numericstats(complex_nonlinear_df):
     """
-    After profiling with compute_nonlinearity=True, NumericStats for the
-    target column must have nonlinearity_tag and all four signal fields set.
+    Nonlinearity always runs, so NumericStats for the target column must have
+    nonlinearity_tag and all four signal fields set.
     """
-    from dataforge_ml import PipelineConfig, StructuralProfiler
-    from dataforge_ml.profiling._config import ProfileConfig
+    from dataforge_ml.profiling.orchestrator import StructuralProfiler
 
-    pc = ProfileConfig(compute_nonlinearity=True)
-    pipeline_cfg = PipelineConfig(profiling=pc)
-    profiler = StructuralProfiler(config=pipeline_cfg)
-    result = profiler.profile(complex_nonlinear_df)
+    result = StructuralProfiler().profile(complex_nonlinear_df)
 
     y_profile = result.columns.get("y")
     assert y_profile is not None
@@ -258,8 +255,7 @@ def test_structural_profiler_reads_nan_as_missing_for_signals():
     """NaN-encoded missing values are resolved at phase entry, so the
     correlation and nonlinearity signals match a null-encoded copy of the same
     frame instead of collapsing to r = 0 and an Unpredictable tag."""
-    from dataforge_ml import PipelineConfig, StructuralProfiler
-    from dataforge_ml.profiling._config import ProfileConfig
+    from dataforge_ml.profiling.orchestrator import StructuralProfiler
 
     rng = np.random.default_rng(0)
     n = 400
@@ -269,9 +265,8 @@ def test_structural_profiler_reads_nan_as_missing_for_signals():
     q = rng.normal(0, 1, n)
 
     def _profile(t_series):
-        pc = ProfileConfig(compute_correlation=True, compute_nonlinearity=True)
         frame = pl.DataFrame({"p": p, "q": q, "t": t_series})
-        return StructuralProfiler(config=PipelineConfig(profiling=pc)).profile(frame)
+        return StructuralProfiler().profile(frame)
 
     nan_result = _profile(pl.Series(t))
     null_result = _profile(pl.Series(t).fill_nan(None))
@@ -291,14 +286,15 @@ def test_r2_probe_that_throws_is_none_not_zero():
     """A failing fit is a refusal, never a 0.0 reading (ADR-0092)."""
     X = np.arange(40, dtype=float).reshape(-1, 1)
     y = np.array([np.nan, 1.0, 2.0, 3.0] * 10)
-    assert NonlinearityProfiler._r2_scores(X, y) == (None, None)
+    assert NonlinearityProfiler._r2_scores(X, y, 0) == (None, None)
 
 
 def test_mi_probe_that_throws_is_none_not_zero():
     X = np.array([[np.nan], [1.0], [2.0], [3.0]] * 10)
     y = np.arange(40, dtype=float)
-    with pytest.warns(UserWarning, match="MI computation failed"):
+    with collect_fallbacks() as fallbacks:
         signals = NonlinearityProfiler._mutual_information_signals(
-            X, y, ["x"], "y", {}
+            X, y, ["x"], "y", {}, 0
         )
     assert signals == (None, None, None)
+    assert fallbacks == [Fallback("nonlinearity_probe_failed", "y")]

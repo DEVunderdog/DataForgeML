@@ -555,8 +555,6 @@ def test_row_missingness_p90_reflects_actual_90th_percentile():
     # 10 rows, 3 columns. Rows 0-5: no nulls. Rows 6-9: all 3 columns null.
     # Per-row null count: [0, 0, 0, 0, 0, 0, 3, 3, 3, 3]
     # 90th percentile: position 9 * 0.9 = 8.1 → between sorted[8]=3, sorted[9]=3 → 3
-    vals = [None] * 4
-    ok = [1, 2, 3, 4]
     df = pl.DataFrame({
         "a": pl.Series([1, 2, 3, 4, 5, 6, None, None, None, None], dtype=pl.Int64),
         "b": pl.Series([1, 2, 3, 4, 5, 6, None, None, None, None], dtype=pl.Int64),

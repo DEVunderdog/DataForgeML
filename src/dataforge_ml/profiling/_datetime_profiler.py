@@ -24,7 +24,7 @@ Granularity inference bands (median gap in seconds):
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import polars as pl
 
@@ -103,8 +103,8 @@ class DatetimeProfiler(ColumnBatchProfiler[DatetimeProfileResult]):
 
         Raises
         ------
-        OverrideCoercionError
-            If a column in user_overrides completely fails coercion to Datetime.
+        Infeasible
+            ``override_coercion_failed`` if a column in user_overrides completely fails coercion to Datetime.
         """
         return self._run(data, columns, user_overrides)
 
@@ -142,7 +142,7 @@ class DatetimeProfiler(ColumnBatchProfiler[DatetimeProfileResult]):
 
     def _run(self, df: pl.DataFrame, columns: list[str], user_overrides: set[str] | None = None) -> DatetimeProfileResult:
         result = DatetimeProfileResult()
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         user_overrides = user_overrides or set()
 
         available = []
@@ -163,11 +163,14 @@ class DatetimeProfiler(ColumnBatchProfiler[DatetimeProfileResult]):
                 )
             elif col_name in user_overrides:
                 if original.drop_nulls().len() > 0:
-                    from ._base import OverrideCoercionError
-                    raise OverrideCoercionError(
-                        f"Column {col_name!r} with TypeFlag.UserOverride completely failed coercion to Datetime. "
-                        f"If Polars cannot infer the format, declare one explicitly via "
-                        f"ProfileConfig.set_datetime_format({col_name!r}, <format>) (e.g. '%Y' for bare years)."
+                    from ..records import DataForgeError
+                    failed = original.drop_nulls().len()
+                    raise DataForgeError.from_code(
+                        "override_coercion_failed",
+                        f"Column {col_name!r} was declared Datetime, but all {failed} "
+                        f"non-null value(s) failed to convert. Declare its format, "
+                        f"such as '%Y' for bare years.",
+                        columns=[col_name],
                     )
 
         result.analysed_columns = available
@@ -242,13 +245,13 @@ class DatetimeProfiler(ColumnBatchProfiler[DatetimeProfileResult]):
 
         if min_ts is not None:
             profile.min_date = (
-                min_ts.replace(tzinfo=timezone.utc)
+                min_ts.replace(tzinfo=UTC)
                 if isinstance(min_ts, datetime)
                 else min_ts
             )
         if max_ts is not None:
             profile.max_date = (
-                max_ts.replace(tzinfo=timezone.utc)
+                max_ts.replace(tzinfo=UTC)
                 if isinstance(max_ts, datetime)
                 else max_ts
             )

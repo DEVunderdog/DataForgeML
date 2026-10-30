@@ -1,0 +1,494 @@
+{
+  "input": {
+    "additionalProperties": false,
+    "properties": {
+      "profile": {
+        "description": "A profile Handle, such as ``profile_7f3a9c2e``.",
+        "type": "string"
+      },
+      "column": {
+        "description": "A column of the profile.",
+        "type": "string"
+      },
+      "k": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Most entries in each list, from 1 to 20. Null means 20. Constraints: at least 1; at most 20."
+      }
+    },
+    "required": [
+      "profile",
+      "column",
+      "k"
+    ],
+    "type": "object"
+  },
+  "output": {
+    "additionalProperties": false,
+    "description": "One column's top values, rare labels, bounds and percentiles.",
+    "properties": {
+      "warnings": {
+        "additionalProperties": false,
+        "description": "Caveats on this result, most actionable first. Empty when there are none.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `code`, `message`, `columns`, `param`, `hint`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "code",
+                "message",
+                "columns",
+                "param",
+                "hint"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "A caveat on a successful result: it worked, but read this first. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `code`: The warning's Error Code. Branch on this, not on ``message``.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `message`: What happened and what to do, in one or two sentences.",
+                    "type": "string"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 2, `columns`: Columns the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `param`: The argument the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 4, `hint`: Library-written advice, or null."
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "omitted": {
+        "additionalProperties": false,
+        "description": "One entry per list that was cut, naming the Operation that returns the rest. Empty when nothing was cut.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `field`, `shown`, `total`, `operation`, `reason`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "field",
+                "shown",
+                "total",
+                "operation",
+                "reason"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "Something left out of a result: a capped list was cut, or a Literal Field withheld. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `field`: Name of the list field that was cut, or the path of the Literal Field withheld, such as ``top_values[].value``.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `shown`: How many items the list holds; 0 for a withheld Literal Field or cut cells.",
+                    "type": "integer"
+                  },
+                  {
+                    "description": "Position 2, `total`: How many items exist; for a withheld Literal Field, how many values at that path are null; for cut cells, how many were cut.",
+                    "type": "integer"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `operation`: The Operation that returns the rest, or null when no Operation does."
+                  },
+                  {
+                    "description": "Position 4, `reason`: ``cap`` when a list was cut to its cap; ``literal_policy`` when the Operator's Literal Policy is ``deny``; ``truncated`` when long text cells were cut to their character cap.",
+                    "enum": [
+                      "cap",
+                      "literal_policy",
+                      "truncated"
+                    ],
+                    "type": "string"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "profile": {
+        "description": "The profile Handle read.",
+        "type": "string"
+      },
+      "column": {
+        "description": "The column summarised.",
+        "type": "string"
+      },
+      "semantic_type": {
+        "anyOf": [
+          {
+            "enum": [
+              "numeric",
+              "categorical",
+              "datetime",
+              "boolean",
+              "text",
+              "identifier"
+            ],
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The column's semantic type; null when it was skipped."
+      },
+      "cardinality": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Number of distinct non-missing values; null when skipped."
+      },
+      "top_values": {
+        "additionalProperties": false,
+        "description": "The most common values, most common first. The profile keeps up to 10 for a categorical, boolean or whole-number column and none for a continuous one; ``omitted`` counts the rest.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `value`, `count`, `share`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "value",
+                "count",
+                "share"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "One value and how often it occurs. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 0, `value`: The value, as the data holds it. A Literal Field.",
+                    "x-literal": true
+                  },
+                  {
+                    "description": "Position 1, `count`: Rows holding this value.",
+                    "type": "integer"
+                  },
+                  {
+                    "description": "Position 2, `share`: Share of all rows holding this value.",
+                    "type": "number"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "rare_labels": {
+        "anyOf": [
+          {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Labels of a categorical column rarer than ``thresholds.categorical.stratification_rare_threshold_pct`` of ``profile``, most common first. A Literal Field.",
+        "x-literal": true
+      },
+      "bounds": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "description": "The smallest and largest value of a column.",
+            "properties": {
+              "min": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The smallest value; for a datetime column, the first date as ISO text. A Literal Field.",
+                "x-literal": true
+              },
+              "max": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The largest value; for a datetime column, the last date as ISO text. A Literal Field.",
+                "x-literal": true
+              }
+            },
+            "required": [
+              "min",
+              "max"
+            ],
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The smallest and largest value of a numeric or datetime column; else null."
+      },
+      "median": {
+        "anyOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "integer"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The median of a numeric column; else null. A Literal Field.",
+        "x-literal": true
+      },
+      "mode": {
+        "anyOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "integer"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The most common value; null for a datetime or text column. A Literal Field.",
+        "x-literal": true
+      },
+      "percentiles": {
+        "additionalProperties": false,
+        "description": "Percentiles of a numeric column, lowest first; empty for any other type.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `percentile`, `value`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "percentile",
+                "value"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "One percentile of a numeric column. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `percentile`: Which percentile: 1, 5, 25, 50, 75, 95 or 99.",
+                    "type": "integer"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 1, `value`: The value at that percentile. A Literal Field.",
+                    "x-literal": true
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "warnings",
+      "omitted",
+      "profile",
+      "column",
+      "semantic_type",
+      "cardinality",
+      "top_values",
+      "rare_labels",
+      "bounds",
+      "median",
+      "mode",
+      "percentiles"
+    ],
+    "type": "object"
+  }
+}

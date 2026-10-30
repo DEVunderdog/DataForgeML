@@ -3,24 +3,22 @@ from __future__ import annotations
 import csv
 import io
 from pathlib import Path
-from typing import Union
 
 import chardet
 import polars as pl
 
+from ..records import DataForgeError
 
-class UnsupportedFormatError(Exception):
-    """Raised when a file extension has no registered loader"""
-
-
-PathOrBuffer = Union[str, Path, io.IOBase, io.RawIOBase, io.BufferedIOBase]
+PathOrBuffer = str | Path | io.IOBase | io.RawIOBase | io.BufferedIOBase
 
 
 def _read_raw(source: PathOrBuffer) -> tuple[bytes, str | None]:
     if isinstance(source, (str, Path)):
         path = Path(source)
         if not path.exists():
-            raise FileNotFoundError(f"no such file or directory: '{path}'")
+            raise DataForgeError.from_code(
+                "input_not_found", f"No file exists at '{path}'.", param="source"
+            )
 
         ext = path.suffix.lower()
         raw = path.read_bytes()
@@ -33,7 +31,8 @@ def _read_raw(source: PathOrBuffer) -> tuple[bytes, str | None]:
     if pos is not None:
         try:
             source.seek(pos)
-        except Exception:
+        except (OSError, ValueError):
+            # A stream that cannot seek back stays at its end; the bytes are already read.
             pass
 
     return raw, None
@@ -83,21 +82,39 @@ _EXT_LOADERS: dict[str, callable] = {
 
 
 class DataLoader:
+    """Read a tabular file into a polars DataFrame, picking the reader by extension."""
 
-    def load(
-        self,
-        source: PathOrBuffer,
-        fmt: str | None = None,
-    ) -> pl.DataFrame:
+    def load(self, source: PathOrBuffer) -> pl.DataFrame:
+        """Load ``source`` into a DataFrame.
+
+        Parameters
+        ----------
+        source : str, Path or file-like
+            A path, or an open binary buffer. The format comes from the path's
+            extension, so a buffer source always fails as ``unsupported_format``.
+
+        Returns
+        -------
+        polars.DataFrame
+            The loaded table.
+
+        Raises
+        ------
+        InvalidInput
+            ``input_not_found`` if a path source does not exist.
+            ``unsupported_format`` if the extension has no registered reader.
+        """
         raw, ext_from_path = _read_raw(source)
 
         resolved_fmt = (ext_from_path or "").lower()
 
         if resolved_fmt not in _EXT_LOADERS:
             label = resolved_fmt if resolved_fmt else "<unknown>"
-            raise UnsupportedFormatError(
-                f"Unsupported file format: '{label}'.  "
-                f"Supported extensions: {sorted(_EXT_LOADERS)}"
+            raise DataForgeError.from_code(
+                "unsupported_format",
+                f"Unsupported file format: '{label}'.",
+                param="source",
+                allowed=sorted(_EXT_LOADERS),
             )
 
         loader = _EXT_LOADERS[resolved_fmt]

@@ -3,8 +3,8 @@ from ._splitter import DataSplitter
 
 __all__ = [
     "DataSplitter",
-    "SplitConfig",
-    "SplitResult",
     "FoldResult",
     "HoldoutCVResult",
+    "SplitConfig",
+    "SplitResult",
 ]

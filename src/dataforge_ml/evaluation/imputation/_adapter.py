@@ -1,8 +1,7 @@
 """The imputation adapter — the first consumer of the generic C2ST seam.
 
-Everything phase-shaped lives here, exhaustively (ADR-0087): resolving
-``PipelinePhase.Imputation``'s active columns under the Phase Active-Columns
-Contract, deriving the mask through effective-null resolution, the
+Everything phase-shaped lives here, exhaustively (ADR-0087): resolving the
+active columns from the caller's exclusions, deriving the mask through effective-null resolution, the
 ``Text``/``Identifier`` gate, column choice and order, dropping 100%-null
 columns from the feature matrix, building the two piles, the ``m`` loop with
 its frame pooling, and the refusal floors and annotations. Benjamini-Hochberg
@@ -27,15 +26,15 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
-from typing import Any
 
 import numpy as np
 import polars as pl
 import sklearn
 
-from ...config import PipelineConfig, PipelinePhase, SemanticType
-from ...observability import Emitter, Observer
+from ..._observability import Emitter, Observer
+from ...config import SemanticType
 from ...profiling._config import StructuralProfileResult
+from ...records import DataForgeError
 from ...utils._dtype_floor import _apply_dtype_floor
 from ...utils._null_normalization import _resolve_effective_nulls
 from .._c2st import (
@@ -56,11 +55,8 @@ from ._records import (
 
 __all__ = ["imputation_score_c2st"]
 
-# The Pipeline Event ``phase`` this module stamps. A bare string with no
-# ``PipelinePhase`` member behind it: that enum's job is feeding
-# ``resolve_active_columns`` for the six sequential phases, and evaluation is
-# opt-in, out of band, and resolves its columns against *the imputation phase's*
-# set (ADR-0087).
+# The Pipeline Event ``phase`` this module stamps. Evaluation is opt-in and
+# out of band, so it is not one of the sequential phases (ADR-0087).
 _PHASE: str = "evaluation"
 
 # The stage, named after the function that owns the loop, so an observer can
@@ -100,29 +96,21 @@ def _phase_entry(
     )
 
 
-def _resolve_classifier(config: C2STConfig) -> tuple[Any, bool]:
-    """Return the classifier for the run and whether the user supplied it."""
-    if config.classifier is not None:
-        return config.classifier, True
-    return (
-        _default_c2st_classifier(
-            min_samples_leaf=config.min_samples_leaf,
-            random_state=config.random_state,
-        ),
-        False,
+def _provenance(config: C2STConfig) -> C2STProvenance:
+    """Record what ran, from ``get_params()`` rather than from ``repr``.
+
+    The classifier is rebuilt from the same factory and dials every column's
+    test builds, so its parameters are exactly the ones that ran.
+    """
+    classifier = _default_c2st_classifier(
+        min_samples_leaf=config.min_samples_leaf,
+        seed=config.seed,
     )
-
-
-def _provenance(classifier: Any, injected: bool, config: C2STConfig) -> C2STProvenance:
-    """Record what ran, from ``get_params()`` rather than from ``repr``."""
-    get_params = getattr(classifier, "get_params", None)
-    params = get_params() if callable(get_params) else {}
     return C2STProvenance(
         classifier_class=(
             f"{type(classifier).__module__}.{type(classifier).__qualname__}"
         ),
-        classifier_params={k: str(v) for k, v in params.items()},
-        classifier_injected=injected,
+        classifier_params={k: str(v) for k, v in classifier.get_params().items()},
         sklearn_version=sklearn.__version__,
         config=config,
     )
@@ -193,7 +181,7 @@ def imputation_score_c2st(
     imputed_frames: Sequence[pl.DataFrame],
     profile: StructuralProfileResult,
     *,
-    pipeline_config: PipelineConfig,
+    exclude_columns: Sequence[str] = (),
     config: C2STConfig | None = None,
     observer: Observer | None = None,
 ) -> C2STReport:
@@ -245,10 +233,8 @@ def imputation_score_c2st(
         its profile, cannot be evaluated. There is deliberately no row-count
         check against a val slice, because semantic types re-inferred on a small
         slice can flip and silently change the tested column set.
-    pipeline_config : PipelineConfig
-        The run's config, read only for the Phase Active-Columns Contract:
-        evaluation resolves its own column set against
-        ``PipelinePhase.Imputation``. Excluded columns are honoured on
+    exclude_columns : Sequence[str], optional
+        Columns left out of the evaluation. Excluded columns are honoured on
         governance grounds — an excluded column is absent from the census
         entirely, so ``report[col]`` raises ``KeyError``.
     config : C2STConfig, optional
@@ -269,22 +255,26 @@ def imputation_score_c2st(
 
     Raises
     ------
-    ValueError
-        When ``imputed_frames`` is empty, when a frame's row count differs from
+    InvalidInput
+        ``invalid_argument`` when ``imputed_frames`` is empty.
+        ``frames_not_aligned`` when a frame's row count differs from
         ``original``'s, or when an active column is missing from an imputed
         frame.
     """
     if not imputed_frames:
-        raise ValueError(
+        raise DataForgeError.from_code(
+            "invalid_argument",
             "imputation_score_c2st needs at least one imputed frame; "
-            "imputed_frames was empty."
+            "imputed_frames was empty.",
+            param="imputed_frames",
         )
     for index, frame in enumerate(imputed_frames):
         if frame.height != original.height:
-            raise ValueError(
+            raise DataForgeError.from_code(
+                "frames_not_aligned",
                 "Each imputed frame must be row-aligned with original: "
                 f"frame {index} has {frame.height} rows against "
-                f"{original.height}."
+                f"{original.height}.",
             )
 
     if config is None:
@@ -293,17 +283,18 @@ def imputation_score_c2st(
     orig = _phase_entry(original, profile)
     frames = [_phase_entry(frame, profile) for frame in imputed_frames]
 
-    active = pipeline_config.resolve_active_columns(
-        PipelinePhase.Imputation, list(orig.columns)
-    )
+    excluded = set(exclude_columns)
+    active = [c for c in orig.columns if c not in excluded]
     missing = sorted({c for c in active for frame in frames if c not in frame.columns})
     if missing:
         names = ", ".join(f"'{c}'" for c in missing)
-        raise ValueError(
+        raise DataForgeError.from_code(
+            "frames_not_aligned",
             "Every active column must be present in each imputed frame; "
             f"missing from at least one frame: {names}. Exclude a column the "
-            "imputation dropped via PipelineConfig rather than handing over a "
-            "frame that has lost it."
+            "imputation dropped rather than handing over a frame that has "
+            "lost it.",
+            columns=missing,
         )
 
     semantic_types = {name: cp.semantic_type for name, cp in profile.columns.items()}
@@ -318,7 +309,6 @@ def imputation_score_c2st(
         c for c in testable if orig.get_column(c).null_count() < orig.height
     ]
 
-    classifier, injected = _resolve_classifier(config)
     emitter = Emitter(_PHASE, _STAGE, observer, total=len(active))
     emitter.stage_start()
 
@@ -377,9 +367,9 @@ def imputation_score_c2st(
                 candidate,
                 repeats=config.repeats,
                 scheme=config.scheme,
-                classifier=classifier,
-                random_state=config.random_state,
+                seed=config.seed,
                 min_rows=config.min_filled_cells,
+                min_samples_leaf=config.min_samples_leaf,
                 emitter=emitter,
             )
             for reference, candidate in piles
@@ -390,7 +380,7 @@ def imputation_score_c2st(
         # test set and would report z = 0.000 — a constant fill returned as a
         # perfect pass. There is no honest number left, so the score object is
         # withheld and the refusal is structural like every other. It is a
-        # safety net for an injected classifier and explicitly *not* the floor.
+        # runtime safety net and explicitly *not* the floor.
         degenerate = bool(results) and all(result.degenerate for result in results)
         records[column] = ColumnC2STResult(
             column=column,
@@ -404,5 +394,5 @@ def imputation_score_c2st(
     emitter.stage_end()
     return C2STReport(
         columns=records,
-        provenance=_provenance(classifier, injected, config),
+        provenance=_provenance(config),
     )

@@ -22,6 +22,8 @@ dependencies = [
     "numpy>=2.4,<2.6",
     "scipy>=1.17,<1.19",
     "joblib>=1.5,<1.7",
+    "threadpoolctl>=3.1",
+    "pydantic>=2.13,<2.14",
     "polars>=1.0.0",
     "pandas>=2.0.0",
     "chardet>=5.0.0",
@@ -30,21 +32,21 @@ dependencies = [
     "ruff>=0.16.0",
 ]
 
+[project.scripts]
+dataforge = "dataforge_ml._cli:main"
+
 [dependency-groups]
 test = [
     "pytest>=8.0",
-]
-docs = [
-    "sphinx>=8.0",
-    "pydata-sphinx-theme>=0.16",
-    "myst-parser>=4.0",
-    "numpydoc>=1.8",
-    "sphinx-autobuild>=2024.0",
+    "pytest-xdist>=3.6",
+    "tiktoken>=0.14",
 ]
 
 [tool.uv]
 required-version = ">=0.11"
-default-groups = ["test", "docs"]
+default-groups = ["test"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Parallel by default (pytest-xdist); `-n 0` runs serially. See CONTRIBUTING.md.
+addopts = "-n auto"
