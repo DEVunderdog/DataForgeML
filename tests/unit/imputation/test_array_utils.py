@@ -7,6 +7,7 @@ import polars as pl
 import pytest
 
 from dataforge_ml.imputation._utils import _df_to_numpy, _numpy_to_df
+from tests.conftest import raises_code
 
 # ---------------------------------------------------------------------------
 # _df_to_numpy
@@ -127,12 +128,12 @@ def test_numpy_to_df_nan_in_int_column_raises_assertion():
 def test_numpy_to_df_utf8_dtype_raises_value_error():
     df = pl.DataFrame({"s": pl.Series(["a", "b"], dtype=pl.Utf8)})
     arr = np.array([[1.0], [2.0]], dtype=np.float64)
-    with pytest.raises(ValueError, match="s"):
+    with raises_code("unexpected", match="s"):
         _numpy_to_df(df, ["s"], arr)
 
 
 def test_numpy_to_df_boolean_dtype_raises_value_error():
     df = pl.DataFrame({"b": pl.Series([True, False], dtype=pl.Boolean)})
     arr = np.array([[1.0], [0.0]], dtype=np.float64)
-    with pytest.raises(ValueError, match="b"):
+    with raises_code("unexpected", match="b"):
         _numpy_to_df(df, ["b"], arr)

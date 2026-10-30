@@ -1,0 +1,353 @@
+{
+  "input": {
+    "additionalProperties": false,
+    "properties": {
+      "reference": {
+        "description": "A frame Handle, such as ``frame_7f3a9c2e``: the baseline, such as the training rows.",
+        "type": "string"
+      },
+      "candidate": {
+        "description": "A frame Handle to compare against ``reference``, such as the test rows.",
+        "type": "string"
+      },
+      "repeats": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Balanced subsampling repeats, from 1 to 100. More repeats steady ``mean_repeat_z``. Null means 5. Constraints: at least 1; at most 100."
+      },
+      "scheme": {
+        "anyOf": [
+          {
+            "enum": [
+              "split",
+              "cross_validation"
+            ],
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "``split`` fits once per repeat on a 70/30 carve; ``cross_validation`` fits five times per repeat and scores every drawn row, at five times the cost. Null means ``split``."
+      },
+      "seed": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Seed of the subsampling, the carve and the classifier. Null means a fixed default, so the same call gives the same result. Constraints: at least 0; at most 4294967295."
+      },
+      "thresholds": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "description": "Every ``c2st`` dial. Null keeps every default.",
+            "properties": {
+              "min_rows": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The size floor: the smaller frame needs at least this many rows, or the call fails with ``c2st_sample_floor``. Below 30 the test flags identical frames as different more often than it should. Null means 30. Constraints: at least 2."
+              },
+              "min_samples_leaf": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Fewest rows in a leaf of the classifier. Larger is smoother and harder to fool by memorising rows. Null means 5. Constraints: at least 1."
+              }
+            },
+            "type": "object",
+            "required": [
+              "min_rows",
+              "min_samples_leaf"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The size floor and the classifier's leaf size, each with its default and range. Null keeps every default."
+      }
+    },
+    "required": [
+      "reference",
+      "candidate",
+      "repeats",
+      "scheme",
+      "seed",
+      "thresholds"
+    ],
+    "type": "object"
+  },
+  "output": {
+    "additionalProperties": false,
+    "description": "The pooled result of one Classifier Two-Sample Test over two frames.",
+    "properties": {
+      "warnings": {
+        "additionalProperties": false,
+        "description": "Caveats on this result, most actionable first. Empty when there are none.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `code`, `message`, `columns`, `param`, `hint`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "code",
+                "message",
+                "columns",
+                "param",
+                "hint"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "A caveat on a successful result: it worked, but read this first. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `code`: The warning's Error Code. Branch on this, not on ``message``.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `message`: What happened and what to do, in one or two sentences.",
+                    "type": "string"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 2, `columns`: Columns the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `param`: The argument the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 4, `hint`: Library-written advice, or null."
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "omitted": {
+        "additionalProperties": false,
+        "description": "One entry per list that was cut, naming the Operation that returns the rest. Empty when nothing was cut.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `field`, `shown`, `total`, `operation`, `reason`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "field",
+                "shown",
+                "total",
+                "operation",
+                "reason"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "Something left out of a result: a capped list was cut, or a Literal Field withheld. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `field`: Name of the list field that was cut, or the path of the Literal Field withheld, such as ``top_values[].value``.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `shown`: How many items the list holds; 0 for a withheld Literal Field or cut cells.",
+                    "type": "integer"
+                  },
+                  {
+                    "description": "Position 2, `total`: How many items exist; for a withheld Literal Field, how many values at that path are null; for cut cells, how many were cut.",
+                    "type": "integer"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `operation`: The Operation that returns the rest, or null when no Operation does."
+                  },
+                  {
+                    "description": "Position 4, `reason`: ``cap`` when a list was cut to its cap; ``literal_policy`` when the Operator's Literal Policy is ``deny``; ``truncated`` when long text cells were cut to their character cap.",
+                    "enum": [
+                      "cap",
+                      "literal_policy",
+                      "truncated"
+                    ],
+                    "type": "string"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "reference": {
+        "description": "The reference frame Handle read.",
+        "type": "string"
+      },
+      "candidate": {
+        "description": "The candidate frame Handle read.",
+        "type": "string"
+      },
+      "reference_rows": {
+        "description": "Rows of ``reference``.",
+        "type": "integer"
+      },
+      "candidate_rows": {
+        "description": "Rows of ``candidate``. Each repeat draws the smaller frame's row count from each.",
+        "type": "integer"
+      },
+      "columns": {
+        "description": "Columns tested: those of ``reference`` that neither frame declares excluded or soft-excluded.",
+        "type": "integer"
+      },
+      "skipped": {
+        "description": "Columns of ``reference`` left out because a frame declares them excluded or soft-excluded.",
+        "type": "integer"
+      },
+      "scheme": {
+        "description": "The scheme used.",
+        "enum": [
+          "split",
+          "cross_validation"
+        ],
+        "type": "string"
+      },
+      "repeats": {
+        "description": "The repeats run.",
+        "type": "integer"
+      },
+      "seed": {
+        "description": "The seed used: yours, or the fixed default when you passed null.",
+        "type": "integer"
+      },
+      "mean_repeat_z": {
+        "description": "The headline: the mean of ``repeat_z``. Near 0 means the classifier could not tell the frames apart; about 2 or more means it could, so the frames differ.",
+        "type": "number"
+      },
+      "repeat_z": {
+        "description": "One ``z`` per repeat, in repeat order: ``(accuracy - 0.5) * 2 * sqrt(n_test)``.",
+        "items": {
+          "type": "number"
+        },
+        "type": "array"
+      },
+      "repeat_z_spread": {
+        "description": "Standard deviation of ``repeat_z``; 0 for one repeat. Large next to ``mean_repeat_z`` means the mean rests on lucky draws: raise ``repeats``.",
+        "type": "number"
+      },
+      "train_accuracy": {
+        "description": "Mean training accuracy over the repeats. Near 1 beside a ``test_accuracy`` near 0.5 means the classifier memorised rows, which hides a difference rather than inventing one.",
+        "type": "number"
+      },
+      "test_accuracy": {
+        "description": "Mean held-out accuracy over the repeats; 0.5 is chance.",
+        "type": "number"
+      },
+      "n_test": {
+        "description": "Held-out rows scored in each repeat, half from each frame.",
+        "type": "integer"
+      },
+      "degenerate": {
+        "description": "True when every repeat's classifier predicted one frame for every row, so ``z`` says nothing. Compare larger frames, or lower ``thresholds.min_samples_leaf``.",
+        "type": "boolean"
+      },
+      "unseen_category": {
+        "description": "True when a categorical or boolean value is in ``candidate`` and never in ``reference``.",
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "warnings",
+      "omitted",
+      "reference",
+      "candidate",
+      "reference_rows",
+      "candidate_rows",
+      "columns",
+      "skipped",
+      "scheme",
+      "repeats",
+      "seed",
+      "mean_repeat_z",
+      "repeat_z",
+      "repeat_z_spread",
+      "train_accuracy",
+      "test_accuracy",
+      "n_test",
+      "degenerate",
+      "unseen_category"
+    ],
+    "type": "object"
+  }
+}

@@ -1,0 +1,561 @@
+{
+  "input": {
+    "additionalProperties": false,
+    "properties": {
+      "report": {
+        "description": "A c2st Handle ``evaluate_imputation`` made, such as ``c2st_6a7b8c9d``.",
+        "type": "string"
+      },
+      "names": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Only these columns. Null means every evaluated column."
+      },
+      "offset": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "How many matching columns to skip, for the next page. Null means 0. Constraints: at least 0."
+      },
+      "limit": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Most columns to return, from 1 to 20. Null means 20. Constraints: at least 1; at most 20."
+      }
+    },
+    "required": [
+      "report",
+      "names",
+      "offset",
+      "limit"
+    ],
+    "type": "object"
+  },
+  "output": {
+    "additionalProperties": false,
+    "description": "One page of a C2ST report's columns in full, and the provenance. ``result.get(name)`` finds one column.",
+    "properties": {
+      "warnings": {
+        "additionalProperties": false,
+        "description": "Caveats on this result, most actionable first. Empty when there are none.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `code`, `message`, `columns`, `param`, `hint`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "code",
+                "message",
+                "columns",
+                "param",
+                "hint"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "A caveat on a successful result: it worked, but read this first. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `code`: The warning's Error Code. Branch on this, not on ``message``.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `message`: What happened and what to do, in one or two sentences.",
+                    "type": "string"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 2, `columns`: Columns the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `param`: The argument the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 4, `hint`: Library-written advice, or null."
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "omitted": {
+        "additionalProperties": false,
+        "description": "One entry per list that was cut, naming the Operation that returns the rest. Empty when nothing was cut.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `field`, `shown`, `total`, `operation`, `reason`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "field",
+                "shown",
+                "total",
+                "operation",
+                "reason"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "Something left out of a result: a capped list was cut, or a Literal Field withheld. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `field`: Name of the list field that was cut, or the path of the Literal Field withheld, such as ``top_values[].value``.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `shown`: How many items the list holds; 0 for a withheld Literal Field or cut cells.",
+                    "type": "integer"
+                  },
+                  {
+                    "description": "Position 2, `total`: How many items exist; for a withheld Literal Field, how many values at that path are null; for cut cells, how many were cut.",
+                    "type": "integer"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `operation`: The Operation that returns the rest, or null when no Operation does."
+                  },
+                  {
+                    "description": "Position 4, `reason`: ``cap`` when a list was cut to its cap; ``literal_policy`` when the Operator's Literal Policy is ``deny``; ``truncated`` when long text cells were cut to their character cap.",
+                    "enum": [
+                      "cap",
+                      "literal_policy",
+                      "truncated"
+                    ],
+                    "type": "string"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "report": {
+        "description": "The c2st Handle read.",
+        "type": "string"
+      },
+      "total": {
+        "description": "How many columns match ``names``.",
+        "type": "integer"
+      },
+      "offset": {
+        "description": "How many matching columns this page skipped.",
+        "type": "integer"
+      },
+      "columns": {
+        "additionalProperties": false,
+        "description": "Matching columns: ``flagged`` ones first, then dataset order. At most 20; when more remain, ``omitted`` counts them and names ``describe_c2st_columns``.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `column`, `outcome`, `verdict`, `annotations`, `n_observed`, `n_filled`, `score`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "column",
+                "outcome",
+                "verdict",
+                "annotations",
+                "n_observed",
+                "n_filled",
+                "score"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "One evaluated column's C2ST result in full. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `column`: Column name.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `outcome`: What happened: ``tested``, or why the test could not run, as in ``evaluate_imputation``.",
+                    "enum": [
+                      "tested",
+                      "no_filled_cells",
+                      "no_observed_cells",
+                      "unfilled",
+                      "type_not_testable",
+                      "below_sample_floor",
+                      "uninformative"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 2, `verdict`: ``flagged``, ``not_flagged``, or ``no_verdict`` when not tested.",
+                    "enum": [
+                      "flagged",
+                      "not_flagged",
+                      "no_verdict"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 3, `annotations`: Facts qualifying a tested column's score, as in ``evaluate_imputation``. Empty when not tested.",
+                    "items": {
+                      "enum": [
+                        "low_power",
+                        "imbalanced_piles",
+                        "degenerate",
+                        "unseen_category"
+                      ],
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "description": "Position 4, `n_observed`: Rows where the column was observed in the source frame.",
+                    "type": "integer"
+                  },
+                  {
+                    "description": "Position 5, `n_filled`: Rows where the column was missing in the source frame: the rows the imputation filled.",
+                    "type": "integer"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "description": "Every number of a tested column.",
+                        "properties": {
+                          "mean_frame_z": {
+                            "description": "The score: the mean of each frame's ``mean_repeat_z``. Near 0 means the filled rows could not be told from the observed ones; about 2 or more means they could.",
+                            "type": "number"
+                          },
+                          "frame_z_spread": {
+                            "description": "Standard deviation of the frames' ``mean_repeat_z``; 0 for one frame.",
+                            "type": "number"
+                          },
+                          "p_value": {
+                            "description": "The one-sided p-value of ``mean_frame_z``, before correction.",
+                            "type": "number"
+                          },
+                          "p_adjusted": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The Benjamini-Hochberg adjusted p-value across the report's tested columns. At or below ``thresholds.fdr_alpha`` of ``evaluate_imputation`` is ``flagged``."
+                          },
+                          "frames": {
+                            "additionalProperties": false,
+                            "description": "One result per imputed frame, in order.",
+                            "properties": {
+                              "fields": {
+                                "description": "Always exactly `frame`, `mean_repeat_z`, `repeat_z`, `repeat_z_spread`, `train_accuracy`, `test_accuracy`, `n_test`, `degenerate`, `unseen_category`, in this order. A row's value at position i is the field named here at i.",
+                                "items": {
+                                  "enum": [
+                                    "frame",
+                                    "mean_repeat_z",
+                                    "repeat_z",
+                                    "repeat_z_spread",
+                                    "train_accuracy",
+                                    "test_accuracy",
+                                    "n_test",
+                                    "degenerate",
+                                    "unseen_category"
+                                  ],
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "rows": {
+                                "description": "The test on one imputed frame, pooled over its repeats. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+                                "items": {
+                                  "items": {
+                                    "anyOf": [
+                                      {
+                                        "description": "Position 0, `frame`: The frame's position, from 0. ``evaluate_imputation`` scores one frame, so this is 0.",
+                                        "type": "integer"
+                                      },
+                                      {
+                                        "description": "Position 1, `mean_repeat_z`: The mean of ``repeat_z``: this frame's score.",
+                                        "type": "number"
+                                      },
+                                      {
+                                        "description": "Position 2, `repeat_z`: One ``z`` per balanced subsampling repeat, in repeat order: ``(accuracy - 0.5) * 2 * sqrt(n_test)``.",
+                                        "items": {
+                                          "type": "number"
+                                        },
+                                        "type": "array"
+                                      },
+                                      {
+                                        "description": "Position 3, `repeat_z_spread`: Standard deviation of ``repeat_z``; 0 for one repeat. Large next to ``mean_repeat_z`` means the mean rests on lucky draws.",
+                                        "type": "number"
+                                      },
+                                      {
+                                        "description": "Position 4, `train_accuracy`: Mean training accuracy over the repeats. Near 1 beside a ``test_accuracy`` near 0.5 means the classifier memorised rows.",
+                                        "type": "number"
+                                      },
+                                      {
+                                        "description": "Position 5, `test_accuracy`: Mean held-out accuracy over the repeats; 0.5 is chance.",
+                                        "type": "number"
+                                      },
+                                      {
+                                        "description": "Position 6, `n_test`: Held-out rows scored in each repeat, half observed and half filled.",
+                                        "type": "integer"
+                                      },
+                                      {
+                                        "description": "Position 7, `degenerate`: True when every repeat's classifier predicted one pile for every row.",
+                                        "type": "boolean"
+                                      },
+                                      {
+                                        "description": "Position 8, `unseen_category`: True when a filled row holds a category no observed row does.",
+                                        "type": "boolean"
+                                      }
+                                    ]
+                                  },
+                                  "type": "array"
+                                },
+                                "type": "array"
+                              }
+                            },
+                            "required": [
+                              "fields",
+                              "rows"
+                            ],
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "mean_frame_z",
+                          "frame_z_spread",
+                          "p_value",
+                          "p_adjusted",
+                          "frames"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 6, `score`: The numbers and per-frame results; null unless ``tested``."
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "provenance": {
+        "additionalProperties": false,
+        "description": "The classifier, its parameters, the scikit-learn version and the settings of the run.",
+        "properties": {
+          "classifier_class": {
+            "description": "The classifier's fully qualified class name.",
+            "type": "string"
+          },
+          "classifier_params": {
+            "additionalProperties": false,
+            "description": "Every classifier parameter, defaults included, by name.",
+            "properties": {
+              "fields": {
+                "description": "Always exactly `name`, `value`, in this order. A row's value at position i is the field named here at i.",
+                "items": {
+                  "enum": [
+                    "name",
+                    "value"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "rows": {
+                "description": "One parameter of the classifier that ran. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+                "items": {
+                  "items": {
+                    "anyOf": [
+                      {
+                        "description": "Position 0, `name`: Parameter name.",
+                        "type": "string"
+                      },
+                      {
+                        "description": "Position 1, `value`: Its value, as text.",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "fields",
+              "rows"
+            ],
+            "type": "object"
+          },
+          "sklearn_version": {
+            "description": "The scikit-learn version that produced the numbers.",
+            "type": "string"
+          },
+          "config": {
+            "additionalProperties": false,
+            "description": "The settings the run used.",
+            "properties": {
+              "repeats": {
+                "description": "Balanced subsampling repeats per frame.",
+                "type": "integer"
+              },
+              "scheme": {
+                "description": "``split``: one fit per repeat on a 70/30 carve; ``cross_validation``: five.",
+                "enum": [
+                  "split",
+                  "cross_validation"
+                ],
+                "type": "string"
+              },
+              "min_samples_leaf": {
+                "description": "Fewest rows in a leaf of the classifier.",
+                "type": "integer"
+              },
+              "min_filled_cells": {
+                "description": "The size floor under which a column is ``below_sample_floor``.",
+                "type": "integer"
+              },
+              "low_power_below": {
+                "description": "The pile size under which a tested column is ``low_power``.",
+                "type": "integer"
+              },
+              "imbalance_warn_ratio": {
+                "description": "The pile ratio under which a tested column is ``imbalanced_piles``.",
+                "type": "number"
+              },
+              "fdr_alpha": {
+                "description": "The false discovery rate deciding ``flagged``.",
+                "type": "number"
+              },
+              "seed": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The seed used."
+              }
+            },
+            "required": [
+              "repeats",
+              "scheme",
+              "min_samples_leaf",
+              "min_filled_cells",
+              "low_power_below",
+              "imbalance_warn_ratio",
+              "fdr_alpha",
+              "seed"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "classifier_class",
+          "classifier_params",
+          "sklearn_version",
+          "config"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "warnings",
+      "omitted",
+      "report",
+      "total",
+      "offset",
+      "columns",
+      "provenance"
+    ],
+    "type": "object"
+  }
+}

@@ -1,0 +1,432 @@
+{
+  "input": {
+    "additionalProperties": false,
+    "properties": {
+      "profile": {
+        "description": "A profile Handle, such as ``profile_7f3a9c2e``.",
+        "type": "string"
+      },
+      "column": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Only pairs that include this column, which is then always ``column_a``. Null means every pair."
+      },
+      "offset": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "How many matching pairs to skip, for the next page. Null means 0. Constraints: at least 0."
+      },
+      "limit": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Most pairs to return, from 1 to 100. Null means 100. Constraints: at least 1; at most 100."
+      }
+    },
+    "required": [
+      "profile",
+      "column",
+      "offset",
+      "limit"
+    ],
+    "type": "object"
+  },
+  "output": {
+    "additionalProperties": false,
+    "description": "The row-missingness distribution and one page of co-missing pairs.",
+    "properties": {
+      "warnings": {
+        "additionalProperties": false,
+        "description": "Caveats on this result, most actionable first. Empty when there are none.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `code`, `message`, `columns`, `param`, `hint`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "code",
+                "message",
+                "columns",
+                "param",
+                "hint"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "A caveat on a successful result: it worked, but read this first. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `code`: The warning's Error Code. Branch on this, not on ``message``.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `message`: What happened and what to do, in one or two sentences.",
+                    "type": "string"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 2, `columns`: Columns the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `param`: The argument the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 4, `hint`: Library-written advice, or null."
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "omitted": {
+        "additionalProperties": false,
+        "description": "One entry per list that was cut, naming the Operation that returns the rest. Empty when nothing was cut.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `field`, `shown`, `total`, `operation`, `reason`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "field",
+                "shown",
+                "total",
+                "operation",
+                "reason"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "Something left out of a result: a capped list was cut, or a Literal Field withheld. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `field`: Name of the list field that was cut, or the path of the Literal Field withheld, such as ``top_values[].value``.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `shown`: How many items the list holds; 0 for a withheld Literal Field or cut cells.",
+                    "type": "integer"
+                  },
+                  {
+                    "description": "Position 2, `total`: How many items exist; for a withheld Literal Field, how many values at that path are null; for cut cells, how many were cut.",
+                    "type": "integer"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `operation`: The Operation that returns the rest, or null when no Operation does."
+                  },
+                  {
+                    "description": "Position 4, `reason`: ``cap`` when a list was cut to its cap; ``literal_policy`` when the Operator's Literal Policy is ``deny``; ``truncated`` when long text cells were cut to their character cap.",
+                    "enum": [
+                      "cap",
+                      "literal_policy",
+                      "truncated"
+                    ],
+                    "type": "string"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "profile": {
+        "description": "The profile Handle read.",
+        "type": "string"
+      },
+      "sparsity": {
+        "description": "Share of all cells that are missing.",
+        "type": "number"
+      },
+      "columns_with_missing": {
+        "description": "Profiled columns missing at least one value.",
+        "type": "integer"
+      },
+      "rows": {
+        "additionalProperties": false,
+        "description": "How many values each row is missing.",
+        "properties": {
+          "complete_share": {
+            "description": "Share of rows missing nothing.",
+            "type": "number"
+          },
+          "one_to_two_share": {
+            "description": "Share of rows missing one or two values.",
+            "type": "number"
+          },
+          "three_to_five_share": {
+            "description": "Share of rows missing three to five values.",
+            "type": "number"
+          },
+          "over_five_share": {
+            "description": "Share of rows missing more than five values.",
+            "type": "number"
+          },
+          "p90_missing_per_row": {
+            "description": "Values missing per row at the 90th percentile of rows.",
+            "type": "integer"
+          },
+          "drop_candidate_rows": {
+            "description": "Rows missing at least ``drop_candidate_dial``'s share of the profiled columns.",
+            "type": "integer"
+          },
+          "drop_candidate_share": {
+            "description": "Share of rows that are drop candidates.",
+            "type": "number"
+          },
+          "drop_candidate_dial": {
+            "additionalProperties": false,
+            "description": "The ``profile`` dial that decides which rows are drop candidates.",
+            "properties": {
+              "operation": {
+                "description": "The Operation that takes the dial.",
+                "type": "string"
+              },
+              "dial": {
+                "description": "The dial's argument path, such as ``thresholds.missingness.high_null_ratio``.",
+                "type": "string"
+              },
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The dial's resolved value."
+              },
+              "source": {
+                "description": "``default`` when the library default decided, ``argument`` when the caller set it.",
+                "enum": [
+                  "default",
+                  "argument"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "operation",
+              "dial",
+              "value",
+              "source"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "complete_share",
+          "one_to_two_share",
+          "three_to_five_share",
+          "over_five_share",
+          "p90_missing_per_row",
+          "drop_candidate_rows",
+          "drop_candidate_share",
+          "drop_candidate_dial"
+        ],
+        "type": "object"
+      },
+      "total": {
+        "description": "How many pairs match the filter. Only columns missing at least one value form pairs.",
+        "type": "integer"
+      },
+      "offset": {
+        "description": "How many matching pairs this page skipped.",
+        "type": "integer"
+      },
+      "pairs": {
+        "additionalProperties": false,
+        "description": "Matching pairs, most co-missing (highest ``correlation``) first, ties in dataset order. At most 100; when more remain, ``omitted`` counts them and names ``missingness``.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `column_a`, `column_b`, `correlation`, `mar_suspect`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "column_a",
+                "column_b",
+                "correlation",
+                "mar_suspect"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "Two columns whose missing values fall on the same rows. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `column_a`: One column. When you filter by ``column``, always that column.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `column_b`: The other column.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 2, `correlation`: Correlation of the two columns' missing masks, from -1 to 1. Near 1 means they go missing on the same rows.",
+                    "type": "number"
+                  },
+                  {
+                    "description": "Position 3, `mar_suspect`: True when ``correlation`` is above ``mar_suspect_dial``: both columns are flagged ``missingness.mar_suspect``.",
+                    "type": "boolean"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "mar_suspect_dial": {
+        "additionalProperties": false,
+        "description": "The ``profile`` dial behind ``mar_suspect``.",
+        "properties": {
+          "operation": {
+            "description": "The Operation that takes the dial.",
+            "type": "string"
+          },
+          "dial": {
+            "description": "The dial's argument path, such as ``thresholds.missingness.high_null_ratio``.",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The dial's resolved value."
+          },
+          "source": {
+            "description": "``default`` when the library default decided, ``argument`` when the caller set it.",
+            "enum": [
+              "default",
+              "argument"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation",
+          "dial",
+          "value",
+          "source"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "warnings",
+      "omitted",
+      "profile",
+      "sparsity",
+      "columns_with_missing",
+      "rows",
+      "total",
+      "offset",
+      "pairs",
+      "mar_suspect_dial"
+    ],
+    "type": "object"
+  }
+}

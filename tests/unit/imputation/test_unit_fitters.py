@@ -14,9 +14,16 @@ function it called.
 import numpy as np
 import polars as pl
 
-from dataforge_ml import PipelineConfig, StructuralProfiler, derive_units, fit_unit
 from dataforge_ml.config import SemanticType
-from dataforge_ml.imputation import ImputationStrategy, resolve_recipe, route
+from dataforge_ml.imputation import (
+    ImputationConfig,
+    ImputationStrategy,
+    RoutingReason,
+    derive_units,
+    fit_unit,
+    resolve_recipe,
+    route,
+)
 from dataforge_ml.imputation._config import ColumnRouting, ImputationUnit
 from dataforge_ml.imputation._fitted_units import (
     FittedClusterConditional,
@@ -30,6 +37,7 @@ from dataforge_ml.imputation._fitters import (
     fit_scalar_unit,
 )
 from dataforge_ml.imputation._recipe import ColumnEstimates
+from dataforge_ml.profiling.orchestrator import StructuralProfiler
 from dataforge_ml.utils._null_normalization import _resolve_effective_nulls
 
 
@@ -57,10 +65,13 @@ def _frame(n=600, seed=0, bimodal=False, grouped=False):
     return pl.DataFrame(data)
 
 
+_SEED = 7
+
+
 def _drive(df, cfg):
     """Route, resolve a recipe, and train every unit; return everything as
     learned so the assertions read the learned state directly."""
-    profile = StructuralProfiler(config=cfg).profile(df)
+    profile = StructuralProfiler().profile(df)
     routing = route(profile, cfg)
     recipe = resolve_recipe(routing, profile, cfg)
     units = derive_units(routing)
@@ -70,23 +81,22 @@ def _drive(df, cfg):
         string_sentinels=profile.string_sentinels,
     )
     fitted = {
-        unit.unit_id: fit_unit(recipe, unit, train, random_seed=cfg.random_seed).fitted
+        unit.unit_id: fit_unit(recipe, unit, train, seed=_SEED).fitted
         for unit in units
     }
     return profile, routing, units, train, fitted
 
 
 def _config(**per_column_strategy):
-    cfg = PipelineConfig()
-    cfg.random_seed = 7
+    cfg = ImputationConfig()
     for col, strategy in per_column_strategy.items():
-        cfg.imputation.numeric.set_per_column_strategy(col, strategy)
+        cfg.numeric.set_per_column_strategy(col, strategy)
     return cfg
 
 
 def test_executor_trains_a_real_gmm_sampling_model():
     cfg = _config()
-    _, routing, units, train, results = _drive(_frame(bimodal=True), cfg)
+    _, _, units, train, results = _drive(_frame(bimodal=True), cfg)
     unit_id = "gmm_sampling:bi"
     assert any(u.unit_id == unit_id for u in units), "expected GMM routing"
 
@@ -95,7 +105,7 @@ def test_executor_trains_a_real_gmm_sampling_model():
 
     # The two components separate, and every sample lands near one of them.
     assert abs(fitted.center1 - fitted.center2) > 10
-    filled = fitted.transform(train)["bi"].to_numpy()[train["bi"].is_null().to_numpy()]
+    filled = fitted._transform(train)["bi"].to_numpy()[train["bi"].is_null().to_numpy()]
     assert not np.isnan(filled).any()
     near = np.minimum(
         np.abs(filled - fitted.center1), np.abs(filled - fitted.center2)
@@ -105,8 +115,8 @@ def test_executor_trains_a_real_gmm_sampling_model():
 
 def test_executor_trains_a_real_cluster_conditional_model():
     cfg = _config()
-    cfg.imputation.numeric.set_bimodal_grouping_variable("bi", "grp")
-    _, routing, units, train, results = _drive(_frame(bimodal=True, grouped=True), cfg)
+    cfg.numeric.set_bimodal_grouping_variable("bi", "grp")
+    _, _, units, train, results = _drive(_frame(bimodal=True, grouped=True), cfg)
     unit_id = "cluster_conditional:bi"
     assert any(u.unit_id == unit_id for u in units), "expected cluster routing"
 
@@ -115,7 +125,7 @@ def test_executor_trains_a_real_cluster_conditional_model():
     assert fitted.grouping_variable == "grp"
     assert set(fitted.group_fills) == {"lo", "hi"}
 
-    filled = fitted.transform(train)["bi"].to_numpy()[train["bi"].is_null().to_numpy()]
+    filled = fitted._transform(train)["bi"].to_numpy()[train["bi"].is_null().to_numpy()]
     assert not np.isnan(filled).any()
     assert not np.allclose(filled, 0.0)
 
@@ -148,7 +158,7 @@ def _fact_ctx(
             {routing.column: estimates} if estimates is not None else {}
         ),
         unit_hyperparameters=hyperparameters or {},
-        random_seed=7,
+        seed=7,
     )
 
 
@@ -156,7 +166,7 @@ def test_constant_fill_is_read_off_the_routing():
     routing = ColumnRouting(
         column="a",
         semantic_type=SemanticType.Numeric,
-        strategy=ImputationStrategy.Constant,
+        strategy=ImputationStrategy.Constant, reason=RoutingReason.authored,
         constant_fill=3.5,
     )
     unit = ImputationUnit(
@@ -174,7 +184,7 @@ def test_constant_fill_in_config_alone_no_longer_reaches_the_fitter():
     routing = ColumnRouting(
         column="a",
         semantic_type=SemanticType.Numeric,
-        strategy=ImputationStrategy.Constant,
+        strategy=ImputationStrategy.Constant, reason=RoutingReason.authored,
     )
     unit = ImputationUnit(
         unit_id="constant:a", strategy=ImputationStrategy.Constant, columns=("a",)
@@ -190,7 +200,7 @@ def test_gmm_centres_are_read_off_the_recipes_column_estimates():
     routing = ColumnRouting(
         column="bi",
         semantic_type=SemanticType.Numeric,
-        strategy=ImputationStrategy.GMMSampling,
+        strategy=ImputationStrategy.GMMSampling, reason=RoutingReason.authored,
     )
     estimates = ColumnEstimates(center1=5.0, center2=40.0)
     unit = ImputationUnit(
@@ -208,7 +218,7 @@ def test_gmm_without_centres_on_the_recipe_cannot_train():
     routing = ColumnRouting(
         column="bi",
         semantic_type=SemanticType.Numeric,
-        strategy=ImputationStrategy.GMMSampling,
+        strategy=ImputationStrategy.GMMSampling, reason=RoutingReason.authored,
     )
     estimates = ColumnEstimates()  # centres missing
     unit = ImputationUnit(
@@ -219,14 +229,14 @@ def test_gmm_without_centres_on_the_recipe_cannot_train():
     outcome = fit_gmm_unit(unit, _bimodal_frame(), _fact_ctx(routing, estimates))
     assert outcome.fitted is None
     assert "bimodal centres" in outcome.fallback_reason
-    assert "with_estimates" in outcome.fallback_reason
+    assert "estimates argument" in outcome.fallback_reason
 
 
 def test_cluster_grouping_variable_is_read_off_the_routing():
     routing = ColumnRouting(
         column="bi",
         semantic_type=SemanticType.Numeric,
-        strategy=ImputationStrategy.ClusterConditional,
+        strategy=ImputationStrategy.ClusterConditional, reason=RoutingReason.authored,
         grouping_variable="grp",
     )
     estimates = ColumnEstimates(center1=5.0, center2=40.0)
@@ -253,7 +263,7 @@ def test_cluster_feature_cols_are_read_off_the_recipes_column_estimates():
     routing = ColumnRouting(
         column="bi",
         semantic_type=SemanticType.Numeric,
-        strategy=ImputationStrategy.ClusterConditional,
+        strategy=ImputationStrategy.ClusterConditional, reason=RoutingReason.authored,
     )
     estimates = ColumnEstimates(center1=5.0, center2=40.0, feature_cols=("a", "d"))
     unit = ImputationUnit(

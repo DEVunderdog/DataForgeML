@@ -2,35 +2,26 @@
 
 Persisting routing or recipe uses bare-bytes serialization:
 - Four independent kinds: profile, routing, recipe, fitted unit.
-- Schema version 2 is strictly checked across every kind.
+- Schema version 3 is strictly checked across every kind.
 - Gap-fill is deleted: missing or unknown dial keys/rows or unit-id mismatches fail loudly at load.
-- Live custom estimators are dropped at save, reloading as ModelChoice.Custom with an empty slot.
 - Header inspection stays lightweight and header-only.
 """
 
 from __future__ import annotations
 
+import dataclasses
 import json
 
 import polars as pl
 import pytest
-from sklearn.tree import DecisionTreeRegressor
 
-from dataforge_ml import (
-    IncompatibleArtifactError,
-    PipelineConfig,
-    StructuralProfiler,
-    deserialize,
-    inspect,
-    serialize,
-)
+from dataforge_ml._serialization import deserialize, inspect, serialize
 from dataforge_ml.imputation import (
     FittedImputer,
+    ImputationConfig,
     ImputationRecipe,
     ImputationRouting,
     ImputationStrategy,
-    ModelChoice,
-    UnitNotTrainableError,
     author,
     derive_units,
     fit_unit,
@@ -38,6 +29,8 @@ from dataforge_ml.imputation import (
     route,
 )
 from dataforge_ml.profiling._config import StructuralProfileResult
+from dataforge_ml.profiling.orchestrator import StructuralProfiler
+from tests.conftest import raises_code
 
 # --------------------------------------------------------------------------- #
 # Fixtures and Helpers
@@ -82,7 +75,29 @@ def rich_recipe(rich_routing, rich_profile_and_df) -> ImputationRecipe:
     profile, _ = rich_profile_and_df
     recipe = resolve_recipe(rich_routing, profile)
     # Add an override delta as well to test override persistence
-    return recipe.with_hyperparameters("mice", {"max_iter": 25})
+    return dataclasses.replace(
+        recipe, hyperparameter_overrides={"mice": (("max_iter", 25),)}
+    )
+
+
+@pytest.fixture
+def evidenced_routing() -> tuple[ImputationRouting, StructuralProfileResult]:
+    """A routed (not authored) routing whose columns reach the escalation seam."""
+    import numpy as np
+
+    rng = np.random.default_rng(0)
+    n = 400
+    base = rng.normal(size=n)
+    cols = {
+        f"c{i}": (base * (i + 1) + rng.normal(scale=0.3, size=n)).tolist()
+        for i in range(4)
+    }
+    for i, name in enumerate(cols):
+        for row in range(i, n, 3):
+            cols[name][row] = None
+    cols["label"] = (["a", None, "b"] * n)[:n]
+    profile = StructuralProfiler().profile(pl.DataFrame(cols))
+    return route(profile), profile
 
 
 def _tamper_json_header(blob: bytes, mutator) -> bytes:
@@ -106,7 +121,6 @@ def test_serialize_routing_round_trips_correctly(rich_routing: ImputationRouting
     assert reloaded == rich_routing
     assert reloaded.column_routings == rich_routing.column_routings
     assert reloaded.mice_model_choice == rich_routing.mice_model_choice
-    assert reloaded.mice_estimator is None
 
 
 def test_serialize_recipe_round_trips_correctly(rich_recipe: ImputationRecipe) -> None:
@@ -131,7 +145,7 @@ def test_routing_and_recipe_envelopes_are_pure_json_native(
         # No joblib tail: json.loads succeeding on the full bytes verifies pure JSON
         doc = json.loads(blob.decode("utf-8"))
         assert doc["kind"] == expected_kind
-        assert doc["format_schema_version"] == 2
+        assert doc["format_schema_version"] == 3
         assert "library_version" in doc
         assert "data" in doc
 
@@ -142,13 +156,46 @@ def test_inspect_routing_and_recipe_is_header_only(
     for obj, expected_kind in [(rich_routing, "routing"), (rich_recipe, "recipe")]:
         header = inspect(serialize(obj))
         assert header["kind"] == expected_kind
-        assert header["format_schema_version"] == 2
+        assert header["format_schema_version"] == 3
         assert "library_version" in header
         assert "data" not in header
 
 
+def test_routed_evidence_survives_routing_and_recipe_round_trip(evidenced_routing) -> None:
+    """Routing Evidence persists on the routing and the recipe's routing copy (ADR-0105)."""
+    routing, profile = evidenced_routing
+    seam_facts = [
+        fact.kind
+        for r in routing.column_routings.values()
+        for fact in r.evidence
+    ]
+    assert {"entry", "tier", "feasibility"} <= set(seam_facts)
+
+    reloaded = deserialize(serialize(routing))
+    assert reloaded == routing
+    for col, r in routing.column_routings.items():
+        assert reloaded.column_routings[col].reason == r.reason
+        assert reloaded.column_routings[col].evidence == r.evidence
+
+    recipe = resolve_recipe(routing, profile)
+    reloaded_recipe = deserialize(serialize(recipe))
+    assert reloaded_recipe.routing == routing
+
+
+def test_routing_with_tampered_evidence_refuses_to_load(evidenced_routing) -> None:
+    routing, _ = evidenced_routing
+    blob = serialize(routing)
+
+    def corrupt(doc):
+        for r in doc["data"]["column_routings"].values():
+            r["evidence"] = [{"kind": "tier", "tier": "sideways"}]
+
+    with raises_code("incompatible_artifact"):
+        deserialize(_tamper_json_header(blob, corrupt))
+
+
 # --------------------------------------------------------------------------- #
-# Acceptance Criterion 2: v1-schema or kind="decision" raises IncompatibleArtifactError
+# Acceptance Criterion 2: v1-schema or kind="decision" raises incompatible_artifact
 # --------------------------------------------------------------------------- #
 
 
@@ -160,7 +207,7 @@ def test_v1_schema_payload_raises_incompatible_artifact_error(
         tampered = _tamper_json_header(
             blob, lambda h: h.update(format_schema_version=1)
         )
-        with pytest.raises(IncompatibleArtifactError) as exc_info:
+        with raises_code("incompatible_artifact") as exc_info:
             deserialize(tampered)
         msg = str(exc_info.value).lower()
         assert "1" in msg
@@ -174,7 +221,7 @@ def test_kind_decision_payload_raises_incompatible_artifact_error(
     tampered = _tamper_json_header(
         blob, lambda h: h.update(kind="decision", format_schema_version=1)
     )
-    with pytest.raises(IncompatibleArtifactError) as exc_info:
+    with raises_code("incompatible_artifact") as exc_info:
         deserialize(tampered)
     msg = str(exc_info.value).lower()
     assert "decision" in msg
@@ -187,7 +234,7 @@ def test_kind_decision_schema_v2_payload_also_raises(
 ) -> None:
     blob = serialize(rich_routing)
     tampered = _tamper_json_header(blob, lambda h: h.update(kind="decision"))
-    with pytest.raises(IncompatibleArtifactError) as exc_info:
+    with raises_code("incompatible_artifact") as exc_info:
         deserialize(tampered)
     assert "decision" in str(exc_info.value).lower()
 
@@ -204,7 +251,7 @@ def test_hand_edited_recipe_missing_dial_key_raises_naming_key(
     # Delete 'max_iter' from MICE's decided hyperparameters
     del data["decided_hyperparameters"]["mice"]["max_iter"]
 
-    with pytest.raises(ValueError) as exc_info:
+    with raises_code("incompatible_artifact") as exc_info:
         ImputationRecipe.from_dict(data)
 
     err = str(exc_info.value)
@@ -221,7 +268,7 @@ def test_hand_edited_recipe_missing_dial_key_via_deserialize(
         blob, lambda h: h["data"]["decided_hyperparameters"]["mice"].pop("tol")
     )
 
-    with pytest.raises(ValueError) as exc_info:
+    with raises_code("incompatible_artifact") as exc_info:
         deserialize(tampered)
 
     err = str(exc_info.value)
@@ -236,7 +283,7 @@ def test_hand_edited_recipe_unknown_dial_key_raises_naming_key(
     data = rich_recipe.to_dict()
     data["decided_hyperparameters"]["mice"]["bogus_dial"] = 999
 
-    with pytest.raises(ValueError) as exc_info:
+    with raises_code("incompatible_artifact") as exc_info:
         ImputationRecipe.from_dict(data)
 
     err = str(exc_info.value)
@@ -251,7 +298,7 @@ def test_hand_edited_recipe_unknown_override_dial_key_raises(
     data = rich_recipe.to_dict()
     data["hyperparameter_overrides"]["mice"] = {"non_existent": 1}
 
-    with pytest.raises(ValueError) as exc_info:
+    with raises_code("incompatible_artifact") as exc_info:
         ImputationRecipe.from_dict(data)
 
     err = str(exc_info.value)
@@ -271,7 +318,7 @@ def test_decided_base_unit_id_mismatch_missing_unit_raises(
     # Delete the entire 'knn' dial row
     del data["decided_hyperparameters"]["knn"]
 
-    with pytest.raises(ValueError) as exc_info:
+    with raises_code("incompatible_artifact") as exc_info:
         ImputationRecipe.from_dict(data)
 
     err = str(exc_info.value)
@@ -286,7 +333,7 @@ def test_decided_base_unit_id_mismatch_unexpected_unit_raises(
     data = rich_recipe.to_dict()
     data["decided_hyperparameters"]["unexpected_unit"] = {"max_iter": 10}
 
-    with pytest.raises(ValueError) as exc_info:
+    with raises_code("incompatible_artifact") as exc_info:
         ImputationRecipe.from_dict(data)
 
     err = str(exc_info.value)
@@ -304,7 +351,7 @@ def test_decided_base_unit_id_mismatch_when_routing_is_altered(
     data["routing"]["column_routings"]["m1"]["strategy"] = "Mean"
     data["routing"]["column_routings"]["m2"]["strategy"] = "Mean"
 
-    with pytest.raises(ValueError) as exc_info:
+    with raises_code("incompatible_artifact") as exc_info:
         ImputationRecipe.from_dict(data)
 
     err = str(exc_info.value)
@@ -318,63 +365,10 @@ def test_decided_base_missing_entire_hyperparameters_block_raises(
     data = rich_recipe.to_dict()
     del data["decided_hyperparameters"]
 
-    with pytest.raises(ValueError) as exc_info:
+    with raises_code("incompatible_artifact") as exc_info:
         ImputationRecipe.from_dict(data)
 
     assert "decided_hyperparameters" in str(exc_info.value)
-
-
-# --------------------------------------------------------------------------- #
-# Acceptance Criterion 5: Round-trip test for with_model_choice
-# --------------------------------------------------------------------------- #
-
-
-def test_with_model_choice_custom_estimator_round_trip(
-    rich_routing: ImputationRouting,
-    rich_profile_and_df: tuple[StructuralProfileResult, pl.DataFrame],
-) -> None:
-    profile, df = rich_profile_and_df
-
-    custom_estimator = DecisionTreeRegressor(max_depth=3, random_state=42)
-    routing_custom = rich_routing.with_model_choice(custom_estimator)
-
-    assert routing_custom.mice_model_choice == ModelChoice.Custom
-    assert routing_custom.mice_estimator is custom_estimator
-
-    # 1. Round-trip routing:
-    blob_routing = serialize(routing_custom)
-    reloaded_routing = deserialize(blob_routing)
-
-    assert reloaded_routing.mice_model_choice == ModelChoice.Custom
-    assert reloaded_routing.mice_estimator is None
-
-    # 2. Round-trip recipe:
-    recipe_custom = resolve_recipe(routing_custom, profile)
-    assert recipe_custom.routing.mice_model_choice == ModelChoice.Custom
-    assert recipe_custom.routing.mice_estimator is custom_estimator
-
-    blob_recipe = serialize(recipe_custom)
-    reloaded_recipe = deserialize(blob_recipe)
-
-    assert reloaded_recipe.routing.mice_model_choice == ModelChoice.Custom
-    assert reloaded_recipe.routing.mice_estimator is None
-
-    # 3. Fitting the reloaded recipe fails loudly with clear message:
-    (mice_unit,) = derive_units(reloaded_recipe.routing, strategy=ImputationStrategy.MICE)
-    with pytest.raises(UnitNotTrainableError) as exc_info:
-        fit_unit(reloaded_recipe, mice_unit, df)
-
-    reason = exc_info.value.reason
-    assert "ModelChoice.Custom" in reason
-    assert "no estimator is carried" in reason
-    assert "with_model_choice" in reason
-
-    # 4. Re-supplying the custom estimator on the routing allows fitting to succeed:
-    fixed_routing = reloaded_recipe.routing.with_model_choice(custom_estimator)
-    fixed_recipe = resolve_recipe(fixed_routing, profile)
-    (fixed_mice_unit,) = derive_units(fixed_recipe.routing, strategy=ImputationStrategy.MICE)
-    fit_result = fit_unit(fixed_recipe, fixed_mice_unit, df)
-    assert fit_result.fitted is not None
 
 
 # --------------------------------------------------------------------------- #
@@ -386,13 +380,13 @@ def test_whole_imputer_round_trips_via_recipe_plus_units(
     rich_profile_and_df: tuple[StructuralProfileResult, pl.DataFrame],
 ) -> None:
     profile, df = rich_profile_and_df
-    cfg = PipelineConfig()
+    cfg = ImputationConfig()
     routing = route(profile, cfg)
     recipe = resolve_recipe(routing, profile, cfg)
     units = derive_units(routing)
 
     results = {
-        unit.unit_id: fit_unit(recipe, unit, df, random_seed=7)
+        unit.unit_id: fit_unit(recipe, unit, df, seed=7)
         for unit in units
     }
 

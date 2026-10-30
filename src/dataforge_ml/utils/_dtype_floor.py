@@ -69,7 +69,7 @@ def _to_datetime(series: pl.Series) -> pl.Series:
     """
     try:
         return series.str.to_datetime(strict=False)
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 - any parse failure resolves the column to all-null
         return pl.Series(series.name, [None] * series.len(), dtype=pl.Datetime)
 
 

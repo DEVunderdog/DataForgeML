@@ -1,0 +1,657 @@
+"""The Literal Policy and the canary containment test (ADR-0107, ADR-0112).
+
+A fixture is seeded with canary values: every label carries ``cnry``, every
+date is in 2093, and every number is a value no aggregate lands on. Each
+Operation is called in both deliveries (Code Mode, and a ``dataforge``
+process with ``--progress``) under both policies, with calls that succeed and
+calls that fail. Then:
+
+- under ``allow``, no canary appears outside a Literal Field, found by the
+  ``x-literal`` keyword in the output schema, as a Harness would find it;
+- under ``deny``, no canary appears anywhere: stdout, warnings, errors or
+  stderr.
+
+Every Operation must have an entry in :data:`CALLS`; a new Operation fails
+:func:`test_every_operation_has_canary_calls` until it is added.
+"""
+
+from __future__ import annotations
+
+import json
+import random
+import re
+from collections.abc import Callable
+from dataclasses import dataclass
+from functools import cached_property
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from dataforge_ml._boundary._operation import canonical_json, operations
+from dataforge_ml._boundary._settings import LITERAL_POLICY_ENV, SETTING_NAMES
+from dataforge_ml.records import LITERAL_KEYWORD, literal_field_paths
+
+from .conftest import Harness, normalise_handles, run_dataforge, to_argv
+
+OPERATIONS = operations()
+NAMES = sorted(OPERATIONS)
+POLICIES = ("allow", "deny")
+
+#: The sentinel the Agent declares. It is the Agent's own value, so it may
+#: be echoed under ``deny``; it is deliberately not a canary.
+SENTINEL = -999.0
+_ROWS = 40
+_STRING_CANARIES = ("cnry", "2093-")
+_NUMBER = re.compile(r"(?<![\w.])-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?(?![\w.])")
+
+
+@dataclass(frozen=True)
+class Canaries:
+    """The canary fixture's path and every numeric cell value in it."""
+
+    path: Path
+    numbers: frozenset[float]
+
+    def found_in(self, text: str) -> list[str]:
+        """Every canary in ``text``: a canary string, or a cell's number as a whole token."""
+        found = [c for c in _STRING_CANARIES if c in text]
+        found += [n for n in _NUMBER.findall(text) if float(n) in self.numbers]
+        return found
+
+
+def write_canaries(directory: Path) -> Canaries:
+    """Write the canary CSV: column names are plain, every cell is a canary."""
+    rng = random.Random(595)
+    amounts = [round(rng.uniform(100, 900), 4) for _ in range(_ROWS)]
+    pool = rng.sample(range(860_000, 870_000), 12)
+    counts = [pool[i % 12] for i in range(_ROWS)]  # repeats, so not an identifier
+    cities = [f"cnry_city_{k}" for k in "aaaaaaaaaabbbbbbbbbbccccccccccddddddeeef"]
+    labels = [f"cnry_cls_{'ab'[i % 3 == 0]}" for i in range(_ROWS)]
+    lines = ["amount,visits,city,label,when,ident"]
+    for i in range(_ROWS):
+        amount = "" if i % 7 == 3 else str(SENTINEL) if i % 11 == 5 else repr(amounts[i])
+        city = "" if i % 9 == 4 else cities[i]
+        lines.append(
+            f"{amount},{counts[i]},{city},{labels[i]},2093-{1 + i % 12:02d}-{1 + i % 28:02d},"
+            f"cnry_id_{i:03d}"
+        )
+    path = directory / "canary.csv"
+    path.write_text("\n".join(lines) + "\n")
+    return Canaries(path=path, numbers=frozenset(map(float, [*amounts, *counts])))
+
+
+# --- Calls ------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Handles:
+    """The Handles every call can read, made once per test in Code Mode."""
+
+    path: str
+    frame: str
+    profile: str
+    routing: str
+    #: ``visits`` declared ``bounded_discrete`` and routed to ``knn``, so its
+    #: snap bounds are canaries; ``amount`` on ``cluster_conditional``.
+    estimates_routing: str
+    #: Resolved from ``estimates_routing``: ``knn`` trains, while
+    #: ``cluster_conditional:amount`` may lack the centres it needs.
+    recipe: str
+    #: Resolved from ``routing`` with every column on ``median``, and every
+    #: unit of it fitted, so the units compose.
+    median_recipe: str
+    median_units: tuple[str, ...]
+    #: Composed from ``median_units``.
+    median_imputer: str
+    #: Composed from a profile whose ``col_drop_threshold`` makes ``amount``
+    #: a Drop Candidate, routed with no declarations.
+    drop_imputer: str
+    #: A ``split`` of the frame into 20 training and 20 test rows, from a
+    #: profile that excludes every string column, so ``c2st`` can read them.
+    numeric_train: str
+    numeric_test: str
+    #: ``frame`` filled by ``median_imputer``, for ``evaluate_imputation``.
+    median_imputed: str
+    #: Makes ``median_c2st`` on first read.
+    harness: Harness
+
+    @cached_property
+    def median_c2st(self) -> str:
+        """``median_imputed`` scored by ``evaluate_imputation``, for ``describe_c2st_columns``.
+
+        Made on first read, so only the tests that need it run the C2ST.
+        """
+        return self.harness.code_mode(
+            "evaluate_imputation", profile=self.profile, imputed=self.median_imputed
+        ).json["c2st"]
+
+
+Call = tuple[str, dict[str, Any]]
+
+#: Per Operation, the calls to make: some succeed, some fail. Each call is
+#: ``(operation, arguments)``. A new Operation adds its entry here.
+CALLS: dict[str, Callable[[Handles], list[Call]]] = {
+    "load": lambda h: [
+        ("load", {"path": h.path}),
+        ("load", {"path": "undeclared.csv"}),
+    ],
+    "profile": lambda h: [
+        (
+            "profile",
+            {
+                "frame": h.frame,
+                "targets": ["label"],
+                "sentinels": [{"column": "amount", "values": [SENTINEL]}],
+            },
+        ),
+        ("profile", {"frame": h.frame, "targets": ["nope"]}),
+    ],
+    "describe_columns": lambda h: [
+        ("describe_columns", {"profile": h.profile}),
+        ("describe_columns", {"profile": h.profile, "names": ["citty"]}),
+    ],
+    "describe_target": lambda h: [
+        ("describe_target", {"profile": h.profile, "name": "label"}),
+        ("describe_target", {"profile": h.profile, "name": "city"}),
+    ],
+    "missingness": lambda h: [
+        ("missingness", {"profile": h.profile}),
+        ("missingness", {"profile": h.profile, "column": "amout"}),
+    ],
+    "top_associations": lambda h: [
+        ("top_associations", {"profile": h.profile}),
+        ("top_associations", {"profile": h.profile, "column": "lable"}),
+    ],
+    "value_summary": lambda h: [
+        *(
+            ("value_summary", {"profile": h.profile, "column": c})
+            for c in ("amount", "visits", "city", "label", "when", "ident")
+        ),
+        ("value_summary", {"profile": h.profile, "column": "citi"}),
+    ],
+    "route": lambda h: [
+        ("route", {"profile": h.profile}),
+        ("route", {"profile": h.profile, "strategies": [{"column": "amount", "strategy": "constant"}]}),
+    ],
+    "explain_routing": lambda h: [
+        ("explain_routing", {"routing": h.routing}),
+        ("explain_routing", {"routing": h.routing, "columns": ["citty"]}),
+    ],
+    "resolve_recipe": lambda h: [
+        ("resolve_recipe", {"routing": h.routing}),
+        ("resolve_recipe", {"routing": h.profile}),
+        (
+            "resolve_recipe",
+            {
+                "routing": h.routing,
+                "hyperparameters": [{"unit_id": "mcie", "hyperparameters": {"kind": "mice"}}],
+            },
+        ),
+        ("resolve_recipe", {"routing": h.estimates_routing}),
+        (
+            "resolve_recipe",
+            {
+                "routing": h.estimates_routing,
+                "estimates": [{"column": "amount", "center1": 1.5, "center2": 2.5}],
+            },
+        ),
+        (
+            "resolve_recipe",
+            {
+                "routing": h.estimates_routing,
+                "estimates": [
+                    {"column": "visits", "domain_snap_bounds": {"low": 9, "high": 1}},
+                    {"column": "visitz", "center1": 1.0},
+                ],
+            },
+        ),
+    ],
+    "fit_unit": lambda h: [
+        ("fit_unit", {"recipe": h.recipe, "unit_id": "knn"}),
+        ("fit_unit", {"recipe": h.recipe, "unit_id": "cluster_conditional:amount"}),
+        ("fit_unit", {"recipe": h.recipe, "unit_id": "knn:visits"}),
+        ("fit_unit", {"recipe": h.routing, "unit_id": "knn"}),
+    ],
+    "compose_imputer": lambda h: [
+        ("compose_imputer", {"recipe": h.median_recipe, "units": list(h.median_units)}),
+        ("compose_imputer", {"recipe": h.median_recipe, "units": list(h.median_units[1:])}),
+        ("compose_imputer", {"recipe": h.recipe, "units": list(h.median_units)}),
+    ],
+    "impute": lambda h: [
+        ("impute", {"imputer": h.median_imputer, "frame": h.frame}),
+        ("impute", {"imputer": h.drop_imputer, "frame": h.frame}),
+        ("impute", {"imputer": h.median_imputer, "frame": h.median_imputer}),
+    ],
+    "split": lambda h: [
+        ("split", {"profile": h.profile, "scheme": {"kind": "profile_stratified_kfold", "k": 3}}),
+        ("split", {"profile": h.profile, "scheme": {"kind": "time", "time_column": "when"}}),
+        ("split", {"profile": h.profile, "scheme": {"kind": "kfold", "k": 40}}),
+        ("split", {"profile": h.profile, "scheme": {"kind": "group", "group_column": "citty"}}),
+    ],
+    "c2st": lambda h: [
+        (
+            "c2st",
+            {
+                "reference": h.numeric_train,
+                "candidate": h.numeric_test,
+                "thresholds": {"min_rows": 20},
+            },
+        ),
+        ("c2st", {"reference": h.numeric_train, "candidate": h.numeric_test}),
+        ("c2st", {"reference": h.frame, "candidate": h.frame}),
+    ],
+    "evaluate_imputation": lambda h: [
+        ("evaluate_imputation", {"profile": h.profile, "imputed": h.median_imputed}),
+        (
+            "evaluate_imputation",
+            {
+                "profile": h.profile,
+                "imputed": h.median_imputed,
+                "thresholds": {"min_filled_cells": 2},
+            },
+        ),
+        ("evaluate_imputation", {"profile": h.profile, "imputed": h.frame}),
+    ],
+    "describe_c2st_columns": lambda h: [
+        ("describe_c2st_columns", {"report": h.median_c2st}),
+        ("describe_c2st_columns", {"report": h.median_c2st, "names": ["amout"]}),
+    ],
+    "export_frame": lambda h: [
+        ("export_frame", {"frame": h.frame}),
+        ("export_frame", {"frame": h.profile}),
+    ],
+    "query_frame": lambda h: [
+        ("query_frame", {"frame": h.frame, "mode": {"kind": "rows", "limit": 50}}),
+        ("query_frame", {"frame": h.median_imputed}),
+        ("query_frame", {"frame": h.numeric_train, "mode": {"kind": "rows", "columns": ["amount"]}}),
+        ("query_frame", {"frame": h.frame, "mode": {"kind": "rows", "columns": ["citty"]}}),
+        (
+            "query_frame",
+            {
+                "frame": h.frame,
+                "filter": [
+                    [{"column": "amount", "op": "eq", "value": SENTINEL}],
+                    [{"column": "city", "op": "is_null", "value": None}],
+                ],
+            },
+        ),
+        ("query_frame", {"frame": h.frame, "filter": [[{"column": "city", "op": "eq", "value": 3}]]}),
+        # Groups of 13 or more rows, so no measure lands on one cell's value.
+        (
+            "query_frame",
+            {
+                "frame": h.frame,
+                "mode": {
+                    "kind": "aggregate",
+                    "group_by": ["label"],
+                    "measures": [
+                        {"column": "amount", "fn": "median"},
+                        {"column": "amount", "fn": "mean"},
+                        {"column": "visits", "fn": "max"},
+                        {"column": "city", "fn": "nunique"},
+                        {"column": "visits", "fn": "std"},
+                    ],
+                },
+            },
+        ),
+        (
+            "query_frame",
+            {
+                "frame": h.median_imputed,
+                "filter": [[{"column": "amount", "op": "ne", "value": SENTINEL}]],
+                "mode": {
+                    "kind": "aggregate",
+                    "group_by": ["label", "when"],
+                    "measures": [{"column": "visits", "fn": "count"}],
+                },
+            },
+        ),
+        (
+            "query_frame",
+            {
+                "frame": h.frame,
+                "mode": {"kind": "aggregate", "measures": [{"column": "ident", "fn": "sum"}]},
+            },
+        ),
+    ],
+    "list_handles": lambda h: [
+        ("list_handles", {}),
+        ("list_handles", {"kind": "routing", "limit": 0}),
+    ],
+}
+
+
+def _handles(harness: Harness, canaries: Canaries) -> Handles:
+    harness.declare(canaries.path)
+    path = str(canaries.path)
+    frame = harness.code_mode("load", path=path).json["frame"]
+    profile = harness.code_mode(
+        "profile",
+        frame=frame,
+        targets=["label"],
+        sentinels=[{"column": "amount", "values": [SENTINEL]}],
+    ).json["profile"]
+    routing = harness.code_mode("route", profile=profile).json["routing"]
+    bounded = harness.code_mode(
+        "profile",
+        frame=frame,
+        numeric_kinds=[{"column": "visits", "numeric_kind": "bounded_discrete"}],
+        sentinels=[{"column": "amount", "values": [SENTINEL]}],
+    ).json["profile"]
+    estimates_routing = harness.code_mode(
+        "route",
+        profile=bounded,
+        strategies=[
+            {"column": "visits", "strategy": "knn"},
+            {"column": "amount", "strategy": "cluster_conditional"},
+        ],
+    ).json["routing"]
+    recipe = harness.code_mode("resolve_recipe", routing=estimates_routing).json["recipe"]
+    median_routing = harness.code_mode(
+        "route", profile=profile, default_strategy="median"
+    ).json["routing"]
+    median_recipe, median_units, median_imputer = _compose(harness, median_routing)
+    drop_profile = harness.code_mode(
+        "profile",
+        frame=frame,
+        targets=["label"],
+        sentinels=[{"column": "amount", "values": [SENTINEL]}],
+        thresholds={"missingness": {"col_drop_threshold": 0.2}},
+    ).json["profile"]
+    drop_routing = harness.code_mode("route", profile=drop_profile).json["routing"]
+    _, _, drop_imputer = _compose(harness, drop_routing)
+    numeric_profile = harness.code_mode(
+        "profile",
+        frame=frame,
+        sentinels=[{"column": "amount", "values": [SENTINEL]}],
+        exclude_columns=["city", "label", "when", "ident"],
+    ).json["profile"]
+    numeric_split = harness.code_mode(
+        "split", profile=numeric_profile, scheme={"kind": "random", "test_size": 0.5}
+    ).json
+    return Handles(
+        path=path, frame=frame, profile=profile, routing=routing,
+        estimates_routing=estimates_routing, recipe=recipe,
+        median_recipe=median_recipe, median_units=median_units,
+        median_imputer=median_imputer, drop_imputer=drop_imputer,
+        numeric_train=_from_table(numeric_split["folds"])[0]["train"],
+        numeric_test=numeric_split["test"],
+        median_imputed=harness.code_mode(
+            "impute", imputer=median_imputer, frame=frame
+        ).json["frame"],
+        harness=harness,
+    )
+
+
+def _compose(harness: Harness, routing: str) -> tuple[str, tuple[str, ...], str]:
+    # Resolve ``routing``, fit every unit and compose: the recipe, unit and imputer Handles.
+    resolved = harness.code_mode("resolve_recipe", routing=routing).json
+    recipe = resolved["recipe"]
+    units = tuple(
+        harness.code_mode("fit_unit", recipe=recipe, unit_id=unit["unit_id"]).json["unit"]
+        for unit in _from_table(resolved["units"])
+    )
+    imputer = harness.code_mode("compose_imputer", recipe=recipe, units=list(units)).json[
+        "imputer"
+    ]
+    return recipe, units, imputer
+
+
+# --- Reading Literal Fields by their schema mark ---------------------------------------
+
+
+def _is_table(node: dict[str, Any]) -> bool:
+    return node.get("type") == "object" and list(node.get("properties", {})) == ["fields", "rows"]
+
+
+def split_literals(value: Any, node: dict[str, Any]) -> tuple[Any, list[Any]]:
+    """Return ``value`` with every ``x-literal`` node nulled, and the values found there.
+
+    The walk follows the output schema, Table Layout included, so it finds
+    Literal Fields exactly as a Harness reading the schema would.
+    """
+    found: list[Any] = []
+
+    def walk(value: Any, node: dict[str, Any]) -> Any:
+        if node.get(LITERAL_KEYWORD):
+            found.append(value)
+            return None
+        branches = node.get("anyOf", [node])
+        if isinstance(value, dict):
+            table = next((b for b in branches if _is_table(b)), None)
+            if table is not None and list(value) == ["fields", "rows"]:
+                positions = table["properties"]["rows"]["items"]["items"]["anyOf"]
+                return {
+                    "fields": value["fields"],
+                    "rows": [[walk(c, p) for c, p in zip(row, positions)] for row in value["rows"]],
+                }
+            objects = [b for b in branches if b.get("type") == "object" and not _is_table(b)]
+            record = next(b for b in objects if set(b["properties"]) == set(value))
+            return {k: walk(v, record["properties"][k]) for k, v in value.items()}
+        if isinstance(value, list):
+            array = next(b for b in branches if b.get("type") == "array")
+            return [walk(v, array["items"]) for v in value]
+        return value
+
+    return walk(value, node), found
+
+
+def _from_table(table: dict[str, Any]) -> list[dict[str, Any]]:
+    return [dict(zip(table["fields"], row)) for row in table["rows"]]
+
+
+# --- The containment test --------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Delivered:
+    """One call as both deliveries returned it."""
+
+    operation: str
+    json: dict[str, Any]
+    is_error: bool
+    stdout: str
+    stderr: str
+
+
+def _call_both(harness: Harness, operation: str, arguments: dict[str, Any]) -> Delivered:
+    code = harness.code_mode(operation, **arguments)
+    cli = run_dataforge(["--progress", *to_argv(operation, arguments)])
+    assert code.is_error == cli.is_error, (operation, code.json, cli.json)
+    assert normalise_handles(canonical_json(code.json)) == normalise_handles(
+        canonical_json(cli.json)
+    )
+    return Delivered(operation, code.json, code.is_error, cli.stdout, cli.stderr)
+
+
+def test_every_operation_has_canary_calls() -> None:
+    assert sorted(CALLS) == NAMES, "add the Operation's calls to CALLS"
+
+
+@pytest.mark.parametrize("policy", POLICIES)
+@pytest.mark.parametrize("name", NAMES)
+def test_no_canary_escapes(
+    name: str, policy: str, harness: Harness, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(LITERAL_POLICY_ENV, policy)
+    canaries = write_canaries(tmp_path)
+    calls = CALLS[name](_handles(harness, canaries))
+    outcomes = [_call_both(harness, op, args) for op, args in calls]
+    assert any(o.is_error for o in outcomes) and not all(o.is_error for o in outcomes)
+
+    for out in outcomes:
+        where = f"{out.operation} {'error' if out.is_error else 'result'} under {policy}"
+        assert canaries.found_in(out.stderr) == [], f"{where}: stderr"
+        if policy == "deny" or out.is_error:
+            assert canaries.found_in(out.stdout) == [], where
+            continue
+        rest, _ = split_literals(out.json, OPERATIONS[out.operation].output_schema())
+        assert canaries.found_in(canonical_json(rest)) == [], f"{where}: outside a Literal Field"
+
+
+def test_allow_returns_the_canaries_in_literal_fields(
+    harness: Harness, tmp_path: Path
+) -> None:
+    # The containment test proves nothing unless the canaries reach the
+    # Literal Fields at all: under allow they must.
+    canaries = write_canaries(tmp_path)
+    handles = _handles(harness, canaries)
+    for column in ("amount", "visits", "city", "when"):
+        out = harness.call("value_summary", profile=handles.profile, column=column)
+        _, literals = split_literals(out.json, OPERATIONS["value_summary"].output_schema())
+        assert canaries.found_in(canonical_json(literals)), column
+        assert out.json["warnings"]["rows"] == []
+
+
+def test_snap_bounds_are_canaries_held_in_literal_fields(
+    harness: Harness, tmp_path: Path
+) -> None:
+    # The resolve_recipe calls prove containment only if a canary reaches a
+    # Literal Field: a bounded column's snap bounds are its observed range.
+    canaries = write_canaries(tmp_path)
+    handles = _handles(harness, canaries)
+
+    out = harness.call("resolve_recipe", routing=handles.estimates_routing)
+
+    _, literals = split_literals(out.json, OPERATIONS["resolve_recipe"].output_schema())
+    assert len(canaries.found_in(canonical_json(literals))) == 2
+
+
+def test_the_drop_candidate_impute_call_lists_one(harness: Harness, tmp_path: Path) -> None:
+    # Its containment call proves nothing about Drop Candidates unless it has one.
+    handles = _handles(harness, write_canaries(tmp_path))
+
+    out = harness.call("impute", imputer=handles.drop_imputer, frame=handles.frame)
+
+    assert out.json["drop_candidates"]["columns"] == ["amount"]
+
+
+def test_deny_withholds_literal_fields_and_keeps_the_rest(
+    harness: Harness, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    canaries = write_canaries(tmp_path)
+    handles = _handles(harness, canaries)
+    monkeypatch.setenv(LITERAL_POLICY_ENV, "deny")
+
+    out = harness.call("value_summary", profile=handles.profile, column="city")
+    _, literals = split_literals(out.json, OPERATIONS["value_summary"].output_schema())
+    assert literals and all(v is None for v in literals)
+    top = _from_table(out.json["top_values"])
+    assert top and all(r["value"] is None and r["count"] > 0 and r["share"] > 0 for r in top)
+    assert out.json["cardinality"] == 6
+
+    withheld = [o for o in _from_table(out.json["omitted"]) if o["reason"] == "literal_policy"]
+    assert {o["field"] for o in withheld} == {"top_values[].value", "rare_labels", "mode"}
+    assert all(o["shown"] == 0 and o["operation"] is None for o in withheld)
+    assert next(o for o in withheld if o["field"] == "top_values[].value")["total"] == len(top)
+    paths = literal_field_paths(OPERATIONS["value_summary"].result_model)
+    assert {o["field"] for o in withheld} <= set(paths)
+    warnings = _from_table(out.json["warnings"])
+    assert [w["code"] for w in warnings] == ["literal_policy"]
+
+    numeric = harness.call("value_summary", profile=handles.profile, column="amount").json
+    assert numeric["bounds"] == {"min": None, "max": None}
+    assert all(r["value"] is None and r["percentile"] for r in _from_table(numeric["percentiles"]))
+    assert [w["code"] for w in _from_table(numeric["warnings"])] == ["literal_policy"]
+
+    target = harness.call("describe_target", profile=handles.profile, name="label").json
+    classes = _from_table(target["classes"]["counts"])
+    assert all(c["label"] is None and c["count"] > 0 for c in classes)
+
+
+def test_deny_keeps_values_the_agent_supplied(
+    harness: Harness, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    canaries = write_canaries(tmp_path)
+    harness.declare(canaries.path)
+    monkeypatch.setenv(LITERAL_POLICY_ENV, "deny")
+    frame = harness.code_mode("load", path=str(canaries.path)).json["frame"]
+    out = harness.call(
+        "profile",
+        frame=frame,
+        targets=["label"],
+        sentinels=[{"column": "amount", "values": [SENTINEL]}],
+        semantic_types=[{"column": "ident", "semantic_type": "identifier"}],
+    ).json
+    declarations = out["declarations"]
+    assert _from_table(declarations["sentinels"]) == [{"column": "amount", "values": [SENTINEL]}]
+    assert _from_table(declarations["semantic_types"]) == [
+        {"column": "ident", "semantic_type": "identifier"}
+    ]
+    assert declarations["targets"] == ["label"]
+    assert _from_table(out["warnings"]) == [] or all(
+        w["code"] != "literal_policy" for w in _from_table(out["warnings"])
+    )
+
+
+# --- The policy is a Workspace Setting, never an argument -----------------------------
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_no_operation_argument_is_a_workspace_setting(name: str) -> None:
+    assert set(OPERATIONS[name].args_model.model_fields) & set(SETTING_NAMES) == set()
+
+
+def test_the_policy_cannot_be_passed_as_an_argument(harness: Harness) -> None:
+    # Code Mode only: on the CLI, `--literal-policy` is the setting's own
+    # flag, the first source in the Workspace Settings order.
+    out = harness.code_mode("list_handles", literal_policy="allow")
+    assert out.code == "invalid_argument"
+
+
+def test_the_policy_resolves_flag_then_env_then_config(
+    harness: Harness, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    canaries = write_canaries(tmp_path)
+    handles = _handles(harness, canaries)
+    argv = to_argv("value_summary", {"profile": handles.profile, "column": "city"})
+
+    def withheld(*flags: str) -> bool:
+        out = run_dataforge([*flags, *argv])
+        return any(o["reason"] == "literal_policy" for o in _from_table(out.json["omitted"]))
+
+    harness.workspace.mkdir(parents=True, exist_ok=True)
+    (harness.workspace / "config.toml").write_text('literal_policy = "deny"\n')
+    assert withheld()
+    monkeypatch.setenv(LITERAL_POLICY_ENV, "allow")
+    assert not withheld()
+    assert withheld("--literal-policy", "deny")
+    monkeypatch.delenv(LITERAL_POLICY_ENV)
+    assert not withheld("--literal-policy", "allow")
+
+
+# --- No literal value ever enters a schema --------------------------------------------
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_every_literal_field_is_marked_and_nullable(name: str) -> None:
+    spec = OPERATIONS[name]
+    marked: list[dict[str, Any]] = []
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            if node.get(LITERAL_KEYWORD):
+                marked.append(node)
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(spec.output_schema())
+    assert bool(marked) == bool(literal_field_paths(spec.result_model))
+    for node in marked:
+        types = [b.get("type") for b in node.get("anyOf", [node])]
+        assert "null" in types, f"{name}: a Literal Field must admit null for `deny`"
+    assert LITERAL_KEYWORD not in json.dumps(spec.input_schema())
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_no_canary_enters_a_schema(name: str, tmp_path: Path) -> None:
+    # Schemas are static per library version: building them after a dataset
+    # was profiled must not pull any of its values in.
+    canaries = write_canaries(tmp_path)
+    spec = OPERATIONS[name]
+    text = json.dumps([spec.input_schema(), spec.output_schema()])
+    assert canaries.found_in(text) == []

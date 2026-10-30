@@ -1,18 +1,18 @@
-"""Bare-bytes persistence: ``serialize`` / ``deserialize`` / ``inspect`` (ADR-0072, ADR-0096).
+"""The Workspace's internal artifact format: ``serialize`` / ``deserialize`` / ``inspect``.
 
-Persistence is the user's plain business — "give me bytes, take bytes back". A
-persistable object (a fitted unit, an imputation routing, an imputation recipe,
-or a structural profile) crosses the boundary as a single opaque ``bytes`` value
-the user stores wherever they like; there is no store framework, no
-content-addressed key, and no data-fingerprint validation (all retired with
-cross-process resume, ADR-0071 / ADR-0072).
+None of these is public. The Operations write each persistable object (a
+fitted unit, an imputation routing, an imputation recipe, or a structural
+profile) into the Workspace as one opaque ``bytes`` value under its Handle, and
+read it back by Handle (ADR-0103); an Agent never holds the bytes. There is no
+store framework, no content-addressed key, and no data-fingerprint validation
+(ADR-0071 / ADR-0072).
 
 Wire format
 -----------
 Every serialized object is a **JSON header line** — a compact, newline-free JSON
 object carrying a ``kind`` tag, the format-schema version, and the installed
 ``library_version`` — optionally followed by ``b"\\n"`` and an **opaque joblib
-payload**. Only the :class:`~dataforge_ml.FittedUnit` has a payload (its learned
+payload**. Only the :class:`~dataforge_ml.imputation.FittedUnit` has a payload (its learned
 state); a routing, a recipe, and a profile are pure data structures whose whole
 ``to_dict()`` rides inside the header under ``"data"``. Because ``json.dumps``
 escapes newlines inside strings, the first raw ``b"\\n"`` byte unambiguously ends
@@ -42,12 +42,14 @@ from typing import Any
 
 import joblib
 
+from ._version import library_version
 from .imputation import ImputationRecipe, ImputationRouting
 from .profiling import StructuralProfileResult
+from .records import DataForgeError
 
 # Bumped only when the JSON layout of a stamped document changes in a way
 # that breaks reading older documents.
-FORMAT_SCHEMA_VERSION = 2
+FORMAT_SCHEMA_VERSION = 3
 
 # The ``kind`` tags a serialized envelope carries so :func:`deserialize`
 # dispatches to the right object type without the caller declaring it.
@@ -64,39 +66,16 @@ class ArtifactPythonVersionWarning(UserWarning):
     was saved under a Python version other than the one running now. CPython's
     pickle protocol is stable across minor versions, so the load proceeds — this
     warning is the only signal. Unlike a scikit-learn / numpy / joblib mismatch
-    (which refuses with :class:`IncompatibleArtifactError`), a Python drift is
+    (which refuses with ``incompatible_artifact``), a Python drift is
     tolerated. Suppress with
     ``warnings.filterwarnings("ignore", category=ArtifactPythonVersionWarning)``.
     """
 
 
-class IncompatibleArtifactError(Exception):
-    """Raised when a stored artifact cannot be *reconstructed* safely.
-
-    Signals a reconstruction/correctness failure (ADR-0063): the saved bytes
-    cannot be rebuilt faithfully under the format schema and libraries
-    installed right now — a newer format-schema major, a mismatched
-    DataForgeML / scikit-learn / numpy / joblib version, or a payload whose
-    SHA-256 checksum does not match its header. With content-addressed identity
-    and load-for-reuse validation retired (ADR-0072), this is the only load-time
-    failure the library raises; relevance is no longer checked at deserialize.
-    """
-
-
-def library_version() -> str:
-    """Return the installed DataForgeML version, or a dev placeholder.
-
-    Returns
-    -------
-    str
-        The ``dataforge-ml`` distribution version, or ``"0.0.0-dev"`` when
-        the package metadata is unavailable (e.g. running from a source
-        checkout with no installed distribution).
-    """
-    try:
-        return version("dataforge-ml")
-    except PackageNotFoundError:
-        return "0.0.0-dev"
+def _incompatible(message: str) -> DataForgeError:
+    # A reconstruction/correctness failure (ADR-0063): the saved bytes cannot
+    # be rebuilt faithfully under the format schema and libraries installed now.
+    return DataForgeError.from_code("incompatible_artifact", message)
 
 
 def _distribution_version(name: str) -> str:
@@ -154,20 +133,20 @@ def check_reconstructable(stamp_block: dict) -> None:
 
     Raises
     ------
-    IncompatibleArtifactError
-        If the format-schema major exceeds this code's, or any
+    IncompatibleArtifact
+        ``incompatible_artifact`` if the format-schema major exceeds this code's, or any
         reconstruction-critical dependency version differs from the installed
         one.
     """
     saved_schema = stamp_block.get("format_schema_version", 0)
     if saved_schema < FORMAT_SCHEMA_VERSION:
-        raise IncompatibleArtifactError(
+        raise _incompatible(
             f"Artifact format-schema version {saved_schema} is obsolete "
             f"(version {FORMAT_SCHEMA_VERSION} is required); profile, route, "
             f"resolve, or fit again."
         )
     if saved_schema > FORMAT_SCHEMA_VERSION:
-        raise IncompatibleArtifactError(
+        raise _incompatible(
             f"Artifact format-schema version {saved_schema} is newer than the "
             f"maximum this library supports ({FORMAT_SCHEMA_VERSION}); it cannot "
             f"be read. Regenerate the artifact with this DataForgeML version."
@@ -179,7 +158,7 @@ def check_reconstructable(stamp_block: dict) -> None:
         saved = stamp_block.get(key, "unknown")
         if saved in ("unknown", current[key]):
             continue
-        raise IncompatibleArtifactError(
+        raise _incompatible(
             f"Artifact was produced with {key}=={saved} but {current[key]} is "
             f"installed. A cross-version load risks silent numerical drift and "
             f"is refused; retrain the unit under the current environment."
@@ -208,9 +187,16 @@ def _encode_envelope(header: dict, payload: bytes | None = None) -> bytes:
 def _decode_envelope(data: bytes) -> tuple[dict, bytes]:
     """Split wire bytes into their JSON header and trailing opaque payload."""
     newline = data.find(b"\n")
-    if newline == -1:
-        return json.loads(data.decode("utf-8")), b""
-    return json.loads(data[:newline].decode("utf-8")), data[newline + 1 :]
+    head, payload = (data, b"") if newline == -1 else (data[:newline], data[newline + 1 :])
+    try:
+        header = json.loads(head.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        header = None
+    if not isinstance(header, dict):
+        raise _incompatible(
+            "These bytes are not an artifact this library's serialize() wrote."
+        )
+    return header, payload
 
 
 def _dumps(unit: Any) -> bytes:
@@ -251,7 +237,7 @@ def _decode_fitted_unit(header: dict, payload: bytes) -> Any:
     Runs the ADR-0063 reconstruction gates before trusting any bytes: the
     header's ``produced_with`` stamp is checked against the installed
     environment, and the payload's SHA-256 is verified against the checksum
-    recorded in the header. The reconstructed unit's ``transform`` is
+    recorded in the header. The reconstructed unit's ``_transform`` is
     bit-identical to the original's on equal input.
 
     Reconstruction unpickles the payload, which executes **arbitrary code** —
@@ -264,7 +250,7 @@ def _decode_fitted_unit(header: dict, payload: bytes) -> Any:
     actual = hashlib.sha256(payload).hexdigest()
     expected = header.get("payload_sha256")
     if actual != expected:
-        raise IncompatibleArtifactError(
+        raise _incompatible(
             f"Payload checksum mismatch for unit "
             f"'{header.get('unit_type', 'unknown')}': header recorded {expected} "
             f"but the payload hashes to {actual}. The artifact is corrupt or was "
@@ -276,10 +262,10 @@ def _decode_fitted_unit(header: dict, payload: bytes) -> Any:
 def serialize(obj: Any) -> bytes:
     """Serialize a fitted unit, an imputation routing, a recipe, or a profile to bytes.
 
-    The single write door of the persistence boundary (ADR-0072, ADR-0096). It dispatches
-    on the object's type and produces a self-describing JSON-header envelope the
-    user stores anywhere; a fitted unit additionally carries an opaque joblib
-    payload holding its learned state.
+    The single write door of the Workspace's artifact format (ADR-0096). It
+    dispatches on the object's type and produces a self-describing JSON-header
+    envelope the Workspace stores under a Handle; a fitted unit additionally
+    carries an opaque joblib payload holding its learned state.
 
     Parameters
     ----------
@@ -292,6 +278,12 @@ def serialize(obj: Any) -> bytes:
     bytes
         The serialized envelope, consumed by :func:`deserialize` and
         :func:`inspect`.
+
+    Raises
+    ------
+    InvalidInput
+        ``unsupported_artifact_object`` if ``obj`` is none of the persistable
+        kinds, such as a composed ``FittedImputer``.
     """
     if isinstance(obj, ImputationRouting):
         return _encode_envelope(
@@ -321,6 +313,17 @@ def serialize(obj: Any) -> bytes:
             }
         )
 
+    if not hasattr(obj, "target_columns"):
+        raise DataForgeError.from_code(
+            "unsupported_artifact_object",
+            f"serialize() cannot persist a {type(obj).__name__}.",
+            allowed=[
+                "FittedUnit",
+                "ImputationRouting",
+                "ImputationRecipe",
+                "StructuralProfileResult",
+            ],
+        )
     return _encode_fitted_unit(obj)
 
 
@@ -343,20 +346,19 @@ def deserialize(obj: bytes) -> Any:
     Returns
     -------
     FittedUnit or ImputationRouting or ImputationRecipe or StructuralProfileResult
-        The reconstructed object; a fitted unit's ``transform`` is bit-identical
+        The reconstructed object; a fitted unit's ``_transform`` is bit-identical
         to the original's on equal input.
 
     Raises
     ------
-    IncompatibleArtifactError
-        If the envelope's ``kind`` is unrecognised, or a v1-schema / obsolete
+    IncompatibleArtifact
+        ``incompatible_artifact`` if the bytes are not an envelope at all, the
+        envelope's ``kind`` is unrecognised, or a v1-schema / obsolete
         decision payload is encountered, or a fitted unit's format schema or
         reconstruction-critical dependency version is incompatible, or its
-        payload checksum does not match.
-    ValueError
-        If a recipe payload fails the strict load: a missing or unknown dial
-        row or key, or decided-base unit ids that mismatch
-        ``derive_units(routing)``.
+        payload checksum does not match. Also if a recipe payload fails the
+        strict load: a missing or unknown dial row or key, or decided-base
+        unit ids that mismatch ``derive_units(routing)``.
 
     Warnings
     --------
@@ -368,7 +370,7 @@ def deserialize(obj: bytes) -> Any:
     kind = header.get("kind")
 
     if kind == "decision":
-        raise IncompatibleArtifactError(
+        raise _incompatible(
             "Artifact kind 'decision' is obsolete (schema v1); profile, route, "
             "resolve, or fit again."
         )
@@ -384,7 +386,7 @@ def deserialize(obj: bytes) -> Any:
     if kind == KIND_FITTED_UNIT:
         return _decode_fitted_unit(header, payload)
 
-    raise IncompatibleArtifactError(
+    raise _incompatible(
         f"Unrecognised artifact kind {kind!r}; the bytes were not produced by "
         f"this library's serialize() or use an unsupported format."
     )
@@ -411,6 +413,12 @@ def inspect(obj: bytes) -> dict:
         The envelope header: always ``kind``, ``format_schema_version``, and
         ``library_version``; for a fitted unit also ``produced_with``,
         ``payload_sha256``, ``unit_type``, and ``columns``.
+
+    Raises
+    ------
+    IncompatibleArtifact
+        ``incompatible_artifact`` if the bytes are not an envelope this
+        library wrote.
     """
     header, _ = _decode_envelope(obj)
     return {k: v for k, v in header.items() if k != "data"}

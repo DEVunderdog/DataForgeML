@@ -1,8 +1,8 @@
 import polars as pl
-import pytest
 
 from dataforge_ml.profiling._target_config import TargetProblemType
 from dataforge_ml.profiling._target_profiler import TargetProfiler
+from tests.conftest import raises_code
 
 # ---------------------------------------------------------------------------
 # Regression: continuous float target
@@ -39,5 +39,5 @@ def test_classification_for_low_cardinality_string_target():
 
 def test_missing_target_column_raises_value_error():
     df = pl.DataFrame({"feature": pl.Series([1, 2, 3], dtype=pl.Int64)})
-    with pytest.raises(ValueError):
+    with raises_code("unknown_column"):
         TargetProfiler(target_column="nonexistent").profile(df)

@@ -12,18 +12,18 @@ import polars as pl
 import pytest
 
 from dataforge_ml.config import SemanticType
+from dataforge_ml.imputation import RoutingReason
 from dataforge_ml.imputation._config import (
-    ColumnRouting,
     ColumnImputationRecord,
+    ColumnRouting,
     ImputationResult,
     ImputationStrategy,
 )
 from dataforge_ml.imputation._fitted_imputer import (
     DroppedColumnAbsentWarning,
-    FittedColumnAbsentError,
     FittedImputer,
-    UnseenColumnError,
 )
+from tests.conftest import raises_code
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -31,14 +31,14 @@ from dataforge_ml.imputation._fitted_imputer import (
 
 
 def _record(col: str, strategy: ImputationStrategy, fill_value=None,
-            indicator_added: bool = False, signals: list | None = None,
+            indicator_added: bool = False, evidence: tuple = (),
             semantic_type: SemanticType = SemanticType.Numeric) -> ColumnImputationRecord:
     return ColumnImputationRecord(
         decision=ColumnRouting(
             column=col,
             semantic_type=semantic_type,
-            strategy=strategy,
-            signals=tuple(signals or ()),
+            strategy=strategy, reason=RoutingReason.authored,
+            evidence=evidence,
             indicator_flag=indicator_added,
         ),
         fill_value=fill_value,
@@ -134,7 +134,6 @@ def test_dropped_column_absent_from_output():
         "drop_me": _record("drop_me", ImputationStrategy.Dropped),
         "keep_me": _record("keep_me", ImputationStrategy.Mean, fill_value=1.0),
     })
-    n = 10
     df = pl.DataFrame({
         "drop_me": pl.Series([None] * 7 + [1.0] * 3, dtype=pl.Float64),
         "keep_me": pl.Series([1.0, None, 3.0] + [1.0] * 7, dtype=pl.Float64),
@@ -241,7 +240,7 @@ def test_passthrough_with_nulls_passes_nulls_through():
 def test_passthrough_categorical_with_blanks_passes_through():
     """A categorical column with ordinary blanks is normal data, not an error."""
     imputer = FittedImputer(records={
-        "cat": ColumnImputationRecord(decision=ColumnRouting(column="cat", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Passthrough, signals=tuple([])), fill_value=None, indicator_added=False),
+        "cat": ColumnImputationRecord(decision=ColumnRouting(column="cat", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Passthrough, reason=RoutingReason.authored), fill_value=None, indicator_added=False),
     })
     df = pl.DataFrame({"cat": pl.Series(["a", None, "b"], dtype=pl.String)})
     result = imputer.transform(df)
@@ -264,18 +263,18 @@ def test_passthrough_nulls_pass_through_for_every_column():
 
 
 def test_absent_passthrough_column_raises_fitted_column_absent_error():
-    """FittedColumnAbsentError fires when a Passthrough column is absent."""
+    """missing_fitted_columns fires when a Passthrough column is absent."""
     imputer = FittedImputer(records={
         "clean": _record("clean", ImputationStrategy.Passthrough),
         "other": _record("other", ImputationStrategy.Mean, fill_value=1.0),
     })
     df = pl.DataFrame({"other": pl.Series([1.0, 2.0], dtype=pl.Float64)})
-    with pytest.raises(FittedColumnAbsentError):
+    with raises_code("missing_fitted_columns"):
         imputer.transform(df)
 
 
 # ---------------------------------------------------------------------------
-# transform() — UnseenColumnError schema enforcement
+# transform() — unseen_column schema enforcement
 # ---------------------------------------------------------------------------
 
 
@@ -287,7 +286,7 @@ def test_unseen_column_error_fires_for_column_not_in_records():
         "a": pl.Series([1.0, None], dtype=pl.Float64),
         "unknown": pl.Series(["x", "y"], dtype=pl.Utf8),
     })
-    with pytest.raises(UnseenColumnError, match="unknown"):
+    with raises_code("unseen_column", match="unknown"):
         imputer.transform(df)
 
 
@@ -299,7 +298,7 @@ def test_unseen_column_error_fires_even_when_unknown_column_has_no_nulls():
         "a": pl.Series([1.0, 2.0], dtype=pl.Float64),
         "extra": pl.Series(["x", "y"], dtype=pl.Utf8),
     })
-    with pytest.raises(UnseenColumnError):
+    with raises_code("unseen_column"):
         imputer.transform(df)
 
 
@@ -312,15 +311,13 @@ def test_unseen_column_error_names_all_unknown_columns_in_single_raise():
         "ghost1": pl.Series(["x", "y"], dtype=pl.Utf8),
         "ghost2": pl.Series([1, 2], dtype=pl.Int64),
     })
-    with pytest.raises(UnseenColumnError) as exc_info:
+    with raises_code("unseen_column") as exc_info:
         imputer.transform(df)
-    msg = str(exc_info.value)
-    assert "ghost1" in msg
-    assert "ghost2" in msg
+    assert exc_info.value.columns == ["ghost1", "ghost2"]
 
 
 def test_unseen_column_error_fires_before_resolve_effective_nulls():
-    """UnseenColumnError must fire before any DataFrame mutation (incl. null normalisation)."""
+    """unseen_column must fire before any DataFrame mutation (incl. null normalisation)."""
     imputer = FittedImputer(records={
         "a": _record("a", ImputationStrategy.Mean, fill_value=5.0),
     })
@@ -328,12 +325,12 @@ def test_unseen_column_error_fires_before_resolve_effective_nulls():
         "a": pl.Series([float("inf"), None], dtype=pl.Float64),
         "unseen": pl.Series([1.0, 2.0], dtype=pl.Float64),
     })
-    with pytest.raises(UnseenColumnError):
+    with raises_code("unseen_column"):
         imputer.transform(df)
 
 
 # ---------------------------------------------------------------------------
-# transform() — FittedColumnAbsentError schema enforcement
+# transform() — missing_fitted_columns schema enforcement
 # ---------------------------------------------------------------------------
 
 
@@ -343,7 +340,7 @@ def test_fitted_column_absent_error_fires_for_active_strategy_column_absent():
         "b": _record("b", ImputationStrategy.Median, fill_value=3.0),
     })
     df = pl.DataFrame({"a": pl.Series([1.0, None], dtype=pl.Float64)})
-    with pytest.raises(FittedColumnAbsentError, match="b"):
+    with raises_code("missing_fitted_columns", match="b"):
         imputer.transform(df)
 
 
@@ -354,11 +351,9 @@ def test_fitted_column_absent_error_names_all_absent_columns():
         "c": _record("c", ImputationStrategy.Mode, fill_value=1.0),
     })
     df = pl.DataFrame({"a": pl.Series([1.0, None], dtype=pl.Float64)})
-    with pytest.raises(FittedColumnAbsentError) as exc_info:
+    with raises_code("missing_fitted_columns") as exc_info:
         imputer.transform(df)
-    msg = str(exc_info.value)
-    assert "b" in msg
-    assert "c" in msg
+    assert exc_info.value.columns == ["b", "c"]
 
 
 def test_fitted_column_absent_error_does_not_fire_for_dropped_column_absent():
@@ -375,7 +370,7 @@ def test_fitted_column_absent_error_does_not_fire_for_dropped_column_absent():
 def test_fitted_column_absent_error_does_not_fire_for_indicator_column_absent():
     imputer = FittedImputer(records={
         "a": _record("a", ImputationStrategy.Mean, fill_value=5.0),
-        "a_missing": ColumnImputationRecord(decision=ColumnRouting(column="a_missing", semantic_type=SemanticType.Boolean, strategy=ImputationStrategy.Indicator, signals=tuple([])), fill_value=None, indicator_added=False),
+        "a_missing": ColumnImputationRecord(decision=ColumnRouting(column="a_missing", semantic_type=SemanticType.Boolean, strategy=ImputationStrategy.Indicator, reason=RoutingReason.authored), fill_value=None, indicator_added=False),
     })
     df = pl.DataFrame({"a": pl.Series([1.0, None], dtype=pl.Float64)})
     result = imputer.transform(df)
@@ -383,7 +378,7 @@ def test_fitted_column_absent_error_does_not_fire_for_indicator_column_absent():
 
 
 def test_unseen_column_error_fires_before_fitted_column_absent_error():
-    """When both conditions apply, UnseenColumnError must be the one raised."""
+    """When both conditions apply, unseen_column must be the one raised."""
     imputer = FittedImputer(records={
         "a": _record("a", ImputationStrategy.Mean, fill_value=5.0),
         "b": _record("b", ImputationStrategy.Median, fill_value=3.0),
@@ -393,7 +388,7 @@ def test_unseen_column_error_fires_before_fitted_column_absent_error():
         "a": pl.Series([1.0, None], dtype=pl.Float64),
         "extra": pl.Series(["x", "y"], dtype=pl.Utf8),
     })
-    with pytest.raises(UnseenColumnError):
+    with raises_code("unseen_column"):
         imputer.transform(df)
 
 
@@ -437,7 +432,7 @@ def test_nan_in_float_column_filled_by_mean_record():
 
 def test_string_sentinel_na_filled_by_constant_record():
     imputer = FittedImputer(records={
-        "cat": ColumnImputationRecord(decision=ColumnRouting(column="cat", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Constant, signals=tuple([])), fill_value="unknown", indicator_added=False),
+        "cat": ColumnImputationRecord(decision=ColumnRouting(column="cat", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Constant, reason=RoutingReason.authored), fill_value="unknown", indicator_added=False),
     })
     df = pl.DataFrame({"cat": pl.Series(["NA", "hello", "world"], dtype=pl.String)})
     result = imputer.transform(df)
@@ -447,7 +442,7 @@ def test_string_sentinel_na_filled_by_constant_record():
 
 def test_string_sentinel_question_mark_filled_by_constant_record():
     imputer = FittedImputer(records={
-        "cat": ColumnImputationRecord(decision=ColumnRouting(column="cat", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Constant, signals=tuple([])), fill_value="missing", indicator_added=False),
+        "cat": ColumnImputationRecord(decision=ColumnRouting(column="cat", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Constant, reason=RoutingReason.authored), fill_value="missing", indicator_added=False),
     })
     df = pl.DataFrame({"cat": pl.Series(["?", "hello", "?"], dtype=pl.String)})
     result = imputer.transform(df)
@@ -469,7 +464,7 @@ def test_indicator_set_to_one_for_inf_rows():
 
 def test_indicator_set_to_one_for_string_sentinel_rows():
     imputer = FittedImputer(records={
-        "cat": ColumnImputationRecord(decision=ColumnRouting(column="cat", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Constant, signals=tuple([])), fill_value="unknown", indicator_added=True),
+        "cat": ColumnImputationRecord(decision=ColumnRouting(column="cat", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Constant, reason=RoutingReason.authored), fill_value="unknown", indicator_added=True),
     })
     df = pl.DataFrame({"cat": pl.Series(["?", "hello", "world"], dtype=pl.String)})
     result = imputer.transform(df)
@@ -490,7 +485,7 @@ def test_inf_in_passthrough_float_column_normalises_to_null_and_passes_through()
 
 def test_string_sentinel_in_passthrough_column_normalises_to_null_and_passes_through():
     imputer = FittedImputer(records={
-        "cat": ColumnImputationRecord(decision=ColumnRouting(column="cat", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Passthrough, signals=tuple([])), fill_value=None, indicator_added=False),
+        "cat": ColumnImputationRecord(decision=ColumnRouting(column="cat", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Passthrough, reason=RoutingReason.authored), fill_value=None, indicator_added=False),
     })
     df = pl.DataFrame({"cat": pl.Series(["NA", "hello"], dtype=pl.String)})
     result = imputer.transform(df)
@@ -516,7 +511,7 @@ def test_round_trip_preserves_strategy(round_trip):
 
 def test_records_carry_no_diagnostic_attribute():
     """Fit-quality metrics moved to the Evaluation report; records drop the field (ADR-0057)."""
-    record = ColumnImputationRecord(decision=ColumnRouting(column="score", semantic_type=SemanticType.Numeric, strategy=ImputationStrategy.MICE))
+    record = ColumnImputationRecord(decision=ColumnRouting(column="score", semantic_type=SemanticType.Numeric, strategy=ImputationStrategy.MICE, reason=RoutingReason.authored))
     assert not hasattr(record, "diagnostic")
 
 
@@ -532,7 +527,8 @@ def test_record_without_diagnostic_key_loads():
         "strategy": "KNN",
         "fill_value": None,
         "indicator_added": False,
-        "signals": [],
+        "reason": "authored",
+        "evidence": [],
         "domain_snap_bounds": None,
         # no "diagnostic" key — the current, post-ADR-0057 shape
     })
@@ -548,7 +544,8 @@ def test_record_ignores_legacy_diagnostic_key():
         "strategy": "KNN",
         "fill_value": None,
         "indicator_added": False,
-        "signals": [],
+        "reason": "authored",
+        "evidence": [],
         "domain_snap_bounds": None,
         "diagnostic": {
             "r2_train": 0.65, "rmse": 1.5, "mae": 1.0,
@@ -579,13 +576,33 @@ def test_round_trip_preserves_indicator_added(round_trip):
     assert restored.records["mnar_col"].indicator_added is True
 
 
-def test_round_trip_preserves_signals(round_trip):
+def test_round_trip_preserves_reason_and_evidence(round_trip):
+    from dataforge_ml.imputation._evidence import (
+        EntryCause,
+        EntryFact,
+        FailedTerm,
+        FeasibilityFact,
+        SignalTier,
+        TierFact,
+    )
+    from dataforge_ml.records import DialPointer
+
+    evidence = (
+        EntryFact(cause=EntryCause.bounded_discrete),
+        TierFact(tier=SignalTier.bottom),
+        FeasibilityFact(strategy="mice", passed=False, failed_terms=[
+            FailedTerm(term="rows_per_predictor", value=1.5, limit=2, dial=DialPointer(
+                operation="route", dial="thresholds.numeric.mice_min_rows_per_predictor",
+                value=2, source="default",
+            )),
+        ]),
+    )
     imputer = FittedImputer(records={
-        "z": _record("z", ImputationStrategy.Mode, fill_value=3.0,
-                     signals=["discrete numeric"]),
+        "z": _record("z", ImputationStrategy.Mode, fill_value=3.0, evidence=evidence),
     })
     restored = round_trip(imputer)
-    assert restored.records["z"].decision.signals == ("discrete numeric",)
+    assert restored.records["z"].decision.reason == RoutingReason.authored
+    assert restored.records["z"].decision.evidence == evidence
 
 
 def test_mnar_round_trip_preserves_strategy_and_fill_value(round_trip):
@@ -620,7 +637,8 @@ def _record_payload(column, strategy, **overrides):
         "strategy": strategy,
         "fill_value": None,
         "indicator_added": False,
-        "signals": [],
+        "reason": "authored",
+        "evidence": [],
         "domain_snap_bounds": None,
     }
     payload.update(overrides)
@@ -688,167 +706,6 @@ def test_deserialised_imputer_produces_identical_output(round_trip):
     r2 = restored.transform(df)
     assert r1.dataframe.equals(r2.dataframe)
     assert r1.dropped_columns == r2.dropped_columns
-
-
-# ---------------------------------------------------------------------------
-# apply_exclusions — config mutation
-# ---------------------------------------------------------------------------
-
-
-def test_apply_exclusions_adds_dropped_columns_to_config():
-    from dataforge_ml.config import PipelineConfig
-    imputer = FittedImputer(records={
-        "drop_me": _record("drop_me", ImputationStrategy.Dropped),
-        "keep_me": _record("keep_me", ImputationStrategy.Mean, fill_value=1.0),
-    })
-    config = PipelineConfig()
-    imputer.apply_exclusions(config)
-    assert "drop_me" in config.exclude_columns
-    assert "keep_me" not in config.exclude_columns
-
-
-def test_apply_exclusions_with_no_dropped_columns_is_no_op_on_config():
-    from dataforge_ml.config import PipelineConfig
-    imputer = FittedImputer(records={
-        "a": _record("a", ImputationStrategy.Mean, fill_value=1.0),
-    })
-    config = PipelineConfig()
-    imputer.apply_exclusions(config)
-    assert config.exclude_columns == ()
-
-
-def test_apply_exclusions_twice_is_idempotent():
-    from dataforge_ml.config import PipelineConfig
-    imputer = FittedImputer(records={
-        "drop_me": _record("drop_me", ImputationStrategy.Dropped),
-    })
-    config = PipelineConfig()
-    imputer.apply_exclusions(config)
-    imputer.apply_exclusions(config)
-    assert config.exclude_columns.count("drop_me") == 1
-
-
-# ---------------------------------------------------------------------------
-# apply_exclusions — Soft Exclusion registration for Indicator columns
-# ---------------------------------------------------------------------------
-
-
-def _indicator_record(col: str) -> ColumnImputationRecord:
-    return ColumnImputationRecord(decision=ColumnRouting(column=col, semantic_type=SemanticType.Boolean, strategy=ImputationStrategy.Indicator, signals=tuple([])), fill_value=None, indicator_added=False)
-
-
-def test_apply_exclusions_registers_indicator_column_in_phase_exclusions():
-    from dataforge_ml.config import PipelineConfig, PipelinePhase
-    imputer = FittedImputer(records={
-        "a": _record("a", ImputationStrategy.Mean, fill_value=1.0),
-        "a_missing": _indicator_record("a_missing"),
-    })
-    config = PipelineConfig()
-    imputer.apply_exclusions(config)
-    assert "a_missing" in config.phase_exclusions.get(PipelinePhase.Normalization, [])
-
-
-def test_apply_exclusions_registers_indicator_for_all_four_soft_phases():
-    from dataforge_ml.config import PipelineConfig, PipelinePhase
-    imputer = FittedImputer(records={
-        "x": _record("x", ImputationStrategy.Constant, fill_value=-1.0),
-        "x_missing": _indicator_record("x_missing"),
-    })
-    config = PipelineConfig()
-    imputer.apply_exclusions(config)
-    for phase in [
-        PipelinePhase.OutlierDetection,
-        PipelinePhase.Normalization,
-        PipelinePhase.Encoding,
-        PipelinePhase.Scaling,
-    ]:
-        assert "x_missing" in config.phase_exclusions.get(phase, []), phase
-
-
-def test_apply_exclusions_registers_multiple_indicator_columns():
-    from dataforge_ml.config import PipelineConfig, PipelinePhase
-    imputer = FittedImputer(records={
-        "a": _record("a", ImputationStrategy.Constant, fill_value=-1.0),
-        "a_missing": _indicator_record("a_missing"),
-        "b": _record("b", ImputationStrategy.Constant, fill_value=-1.0),
-        "b_missing": _indicator_record("b_missing"),
-    })
-    config = PipelineConfig()
-    imputer.apply_exclusions(config)
-    norm = config.phase_exclusions.get(PipelinePhase.Normalization, [])
-    assert "a_missing" in norm
-    assert "b_missing" in norm
-
-
-def test_apply_exclusions_indicator_not_added_to_hard_exclusions():
-    from dataforge_ml.config import PipelineConfig
-    imputer = FittedImputer(records={
-        "a": _record("a", ImputationStrategy.Mean, fill_value=1.0),
-        "a_missing": _indicator_record("a_missing"),
-    })
-    config = PipelineConfig()
-    imputer.apply_exclusions(config)
-    assert "a_missing" not in config.exclude_columns
-
-
-def test_apply_exclusions_dropped_still_hard_excluded_alongside_indicator():
-    from dataforge_ml.config import PipelineConfig, PipelinePhase
-    imputer = FittedImputer(records={
-        "drop_me": _record("drop_me", ImputationStrategy.Dropped),
-        "b": _record("b", ImputationStrategy.Constant, fill_value=-1.0),
-        "b_missing": _indicator_record("b_missing"),
-    })
-    config = PipelineConfig()
-    imputer.apply_exclusions(config)
-    assert "drop_me" in config.exclude_columns
-    assert "b_missing" in config.phase_exclusions.get(PipelinePhase.Normalization, [])
-
-
-def test_apply_exclusions_soft_exclusion_twice_is_idempotent():
-    from dataforge_ml.config import PipelineConfig, PipelinePhase
-    imputer = FittedImputer(records={
-        "a": _record("a", ImputationStrategy.Mean, fill_value=1.0),
-        "a_missing": _indicator_record("a_missing"),
-    })
-    config = PipelineConfig()
-    imputer.apply_exclusions(config)
-    imputer.apply_exclusions(config)
-    norm = config.phase_exclusions.get(PipelinePhase.Normalization, [])
-    assert norm.count("a_missing") == 1
-
-
-def test_apply_exclusions_no_indicator_columns_leaves_phase_exclusions_empty():
-    from dataforge_ml.config import PipelineConfig
-    imputer = FittedImputer(records={
-        "a": _record("a", ImputationStrategy.Mean, fill_value=1.0),
-    })
-    config = PipelineConfig()
-    imputer.apply_exclusions(config)
-    assert config.phase_exclusions == {}
-
-
-# ---------------------------------------------------------------------------
-# apply_exclusions — full pipeline path
-# ---------------------------------------------------------------------------
-
-
-def test_fit_path_apply_exclusions_transform_propagates_to_config():
-    """Demonstrates the fit → apply_exclusions → transform pipeline path."""
-    from dataforge_ml.config import PipelineConfig
-    imputer = FittedImputer(records={
-        "drop_me": _record("drop_me", ImputationStrategy.Dropped),
-        "score": _record("score", ImputationStrategy.Mean, fill_value=5.0),
-    })
-    config = PipelineConfig()
-    # caller invokes apply_exclusions on the FittedImputer returned by fit()
-    imputer.apply_exclusions(config)
-    df = pl.DataFrame({
-        "drop_me": pl.Series([None, 1.0], dtype=pl.Float64),
-        "score": pl.Series([1.0, None], dtype=pl.Float64),
-    })
-    result = imputer.transform(df)
-    assert "drop_me" in config.exclude_columns
-    assert "drop_me" in result.dropped_columns
 
 
 # ---------------------------------------------------------------------------
@@ -924,27 +781,22 @@ def test_indicator_enum_value_is_indicator_string():
 
 def test_indicator_round_trips_via_to_dict_from_dict(round_trip):
     imputer = FittedImputer(records={
-        "col_missing": ColumnImputationRecord(decision=ColumnRouting(column="col_missing", semantic_type=SemanticType.Boolean, strategy=ImputationStrategy.Indicator, signals=tuple([])), fill_value=None, indicator_added=False),
+        "col_missing": ColumnImputationRecord(decision=ColumnRouting(column="col_missing", semantic_type=SemanticType.Boolean, strategy=ImputationStrategy.Indicator, reason=RoutingReason.authored), fill_value=None, indicator_added=False),
     })
     restored = round_trip(imputer)
     assert restored.records["col_missing"].decision.strategy == ImputationStrategy.Indicator
 
 
 # ---------------------------------------------------------------------------
-# UnseenColumnError and FittedColumnAbsentError — class identity
+# unseen_column and missing_fitted_columns — codes, not classes
 # ---------------------------------------------------------------------------
 
 
-def test_unseen_column_error_is_exception():
-    assert issubclass(UnseenColumnError, Exception)
+def test_schema_errors_are_codes_in_the_invalid_input_category():
+    from dataforge_ml._boundary._error_codes import REGISTRY
 
-
-def test_fitted_column_absent_error_is_exception():
-    assert issubclass(FittedColumnAbsentError, Exception)
-
-
-def test_unseen_column_error_is_distinct_from_fitted_column_absent_error():
-    assert UnseenColumnError is not FittedColumnAbsentError
+    assert REGISTRY["unseen_column"].category == "InvalidInput"
+    assert REGISTRY["missing_fitted_columns"].category == "InvalidInput"
 
 
 def test_unfitted_column_error_is_absent_from_the_public_api():
@@ -960,21 +812,11 @@ def test_unfitted_column_error_is_absent_from_the_public_api():
     assert not hasattr(dataforge_ml, "UnfittedColumnError")
 
 
-def test_unseen_column_error_is_instantiable():
-    err = UnseenColumnError("unknown: 'foo', 'bar'")
-    assert "foo" in str(err)
+def test_the_old_schema_error_classes_are_deleted():
+    import dataforge_ml.imputation as imputation_pkg
 
-
-def test_fitted_column_absent_error_is_instantiable():
-    err = FittedColumnAbsentError("absent: 'score'")
-    assert "score" in str(err)
-
-
-def test_new_error_classes_exported_from_package():
-    from dataforge_ml.imputation import FittedColumnAbsentError as FCE
-    from dataforge_ml.imputation import UnseenColumnError as UCE
-    assert UCE is UnseenColumnError
-    assert FCE is FittedColumnAbsentError
+    for name in ("UnseenColumnError", "FittedColumnAbsentError"):
+        assert not hasattr(imputation_pkg, name)
 
 
 # ---------------------------------------------------------------------------
@@ -986,7 +828,7 @@ def test_fitted_knn_transform_produces_no_nulls():
     import numpy as np
     from sklearn.impute import KNNImputer
 
-    from dataforge_ml.imputation._fitted_imputer import FittedMICE, _FittedKNN
+    from dataforge_ml.imputation._fitted_imputer import _FittedKNN
 
     # Training matrix: 4 complete rows, 2 KNN columns.
     train = np.array([
@@ -1029,7 +871,7 @@ def test_fitted_knn_scale_sensitive_imputed_value_not_dominated_by_large_column(
     import numpy as np
     from sklearn.impute import KNNImputer
 
-    from dataforge_ml.imputation._fitted_imputer import FittedMICE, _FittedKNN
+    from dataforge_ml.imputation._fitted_imputer import _FittedKNN
 
     # `small` in [0, 1]; `large` in [0, 1000]; perfect positive correlation.
     # Query: small=None, large=1000 → nearest scaled neighbour is row3 →
@@ -1072,8 +914,8 @@ def test_fitted_knn_serialize_deserialize_round_trip():
     import numpy as np
     from sklearn.impute import KNNImputer
 
-    from dataforge_ml import deserialize, serialize
-    from dataforge_ml.imputation._fitted_imputer import FittedMICE, _FittedKNN
+    from dataforge_ml._serialization import deserialize, serialize
+    from dataforge_ml.imputation._fitted_imputer import _FittedKNN
 
     train = np.array([[0.0, 1.0], [1.0, 0.0], [0.5, 0.5]], dtype=np.float64)
     col_means = np.nanmean(train, axis=0)
@@ -1261,7 +1103,7 @@ def test_mice_all_cols_write_back_restricted_to_owned_columns():
         "y": pl.Series([1.0, None, 3.0], dtype=pl.Float64),
         "outside": pl.Series([999.0, 999.0, 999.0], dtype=pl.Float64),
     })
-    out = fitted_mice.transform(df)
+    out = fitted_mice._transform(df)
     imputed_val = out["y"][1]
     assert imputed_val is not None
     assert abs(imputed_val - 2.0) < 0.5
@@ -1434,7 +1276,7 @@ def test_round_trip_with_sentinels_produces_identical_transform_output(round_tri
 
 def test_string_sentinels_field_defaults_to_empty_dict():
     imputer = FittedImputer(records={
-        "cat": ColumnImputationRecord(decision=ColumnRouting(column="cat", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Constant, signals=tuple([])), fill_value="unknown", indicator_added=False),
+        "cat": ColumnImputationRecord(decision=ColumnRouting(column="cat", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Constant, reason=RoutingReason.authored), fill_value="unknown", indicator_added=False),
     })
     assert imputer.string_sentinels == {}
 
@@ -1442,7 +1284,7 @@ def test_string_sentinels_field_defaults_to_empty_dict():
 def test_string_sentinels_field_accepts_declared_mapping():
     imputer = FittedImputer(
         records={
-            "status": ColumnImputationRecord(decision=ColumnRouting(column="status", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Constant, signals=tuple([])), fill_value="unknown", indicator_added=False),
+            "status": ColumnImputationRecord(decision=ColumnRouting(column="status", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Constant, reason=RoutingReason.authored), fill_value="unknown", indicator_added=False),
         },
         string_sentinels={"status": ["N/A", "missing"]},
     )
@@ -1453,7 +1295,7 @@ def test_transform_normalises_declared_string_sentinel_before_fill():
     """Declared string sentinels are converted to null and then filled by the record strategy."""
     imputer = FittedImputer(
         records={
-            "status": ColumnImputationRecord(decision=ColumnRouting(column="status", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Constant, signals=tuple([])), fill_value="unknown", indicator_added=False),
+            "status": ColumnImputationRecord(decision=ColumnRouting(column="status", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Constant, reason=RoutingReason.authored), fill_value="unknown", indicator_added=False),
         },
         string_sentinels={"status": ["N/A", "missing"]},
     )
@@ -1469,7 +1311,7 @@ def test_transform_declared_sentinels_suppress_hardcoded_defaults():
     """When a column has a string_sentinels declaration, hardcoded defaults like 'NA' are NOT treated as null."""
     imputer = FittedImputer(
         records={
-            "status": ColumnImputationRecord(decision=ColumnRouting(column="status", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Constant, signals=tuple([])), fill_value="unknown", indicator_added=False),
+            "status": ColumnImputationRecord(decision=ColumnRouting(column="status", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Constant, reason=RoutingReason.authored), fill_value="unknown", indicator_added=False),
         },
         string_sentinels={"status": ["MISSING"]},
     )
@@ -1485,7 +1327,7 @@ def test_transform_declared_sentinels_matched_case_insensitively():
     """Declared string sentinels match data case-insensitively."""
     imputer = FittedImputer(
         records={
-            "cat": ColumnImputationRecord(decision=ColumnRouting(column="cat", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Constant, signals=tuple([])), fill_value="filled", indicator_added=False),
+            "cat": ColumnImputationRecord(decision=ColumnRouting(column="cat", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Constant, reason=RoutingReason.authored), fill_value="filled", indicator_added=False),
         },
         string_sentinels={"cat": ["MISSING"]},
     )
@@ -1501,7 +1343,7 @@ def test_transform_empty_string_sentinel_behaviour_unchanged():
     """When string_sentinels is empty, hardcoded default behaviour is unchanged."""
     imputer = FittedImputer(
         records={
-            "cat": ColumnImputationRecord(decision=ColumnRouting(column="cat", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Constant, signals=tuple([])), fill_value="unknown", indicator_added=False),
+            "cat": ColumnImputationRecord(decision=ColumnRouting(column="cat", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Constant, reason=RoutingReason.authored), fill_value="unknown", indicator_added=False),
         },
         string_sentinels={},
     )
@@ -1518,8 +1360,8 @@ def test_transform_string_sentinel_only_affects_declared_column():
     """string_sentinels declarations for one column do not affect sibling columns."""
     imputer = FittedImputer(
         records={
-            "a": ColumnImputationRecord(decision=ColumnRouting(column="a", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Constant, signals=tuple([])), fill_value="filled", indicator_added=False),
-            "b": ColumnImputationRecord(decision=ColumnRouting(column="b", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Constant, signals=tuple([])), fill_value="filled", indicator_added=False),
+            "a": ColumnImputationRecord(decision=ColumnRouting(column="a", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Constant, reason=RoutingReason.authored), fill_value="filled", indicator_added=False),
+            "b": ColumnImputationRecord(decision=ColumnRouting(column="b", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Constant, reason=RoutingReason.authored), fill_value="filled", indicator_added=False),
         },
         string_sentinels={"a": ["CUSTOM"]},
     )
@@ -1547,7 +1389,7 @@ def test_round_trip_string_sentinels_empty_when_not_set(round_trip):
 def test_from_dict_restores_string_sentinels(round_trip):
     imputer = FittedImputer(
         records={
-            "status": ColumnImputationRecord(decision=ColumnRouting(column="status", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Constant, signals=tuple([])), fill_value="unknown", indicator_added=False),
+            "status": ColumnImputationRecord(decision=ColumnRouting(column="status", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Constant, reason=RoutingReason.authored), fill_value="unknown", indicator_added=False),
         },
         string_sentinels={"status": ["N/A", "missing"]},
     )
@@ -1559,7 +1401,7 @@ def test_round_trip_with_string_sentinels_produces_identical_transform_output(ro
     """Serialized and deserialized FittedImputer with string_sentinels produces identical output."""
     imputer = FittedImputer(
         records={
-            "status": ColumnImputationRecord(decision=ColumnRouting(column="status", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Constant, signals=tuple([])), fill_value="unknown", indicator_added=False),
+            "status": ColumnImputationRecord(decision=ColumnRouting(column="status", semantic_type=SemanticType.Categorical, strategy=ImputationStrategy.Constant, reason=RoutingReason.authored), fill_value="unknown", indicator_added=False),
         },
         string_sentinels={"status": ["N/A", "missing"]},
     )

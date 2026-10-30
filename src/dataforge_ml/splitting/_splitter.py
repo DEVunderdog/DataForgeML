@@ -7,7 +7,7 @@ profile_stratified_kfold implementations.
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Any, List, Optional
+from typing import TYPE_CHECKING, Any
 
 import polars as pl
 from sklearn.model_selection import (
@@ -22,10 +22,14 @@ from sklearn.model_selection import (
     StratifiedShuffleSplit,
 )
 
+from .._boundary._error_codes import close_matches
+from .._seed import DEFAULT_SEED
+from ..records import DataForgeError
 from ._config import FoldResult, HoldoutCVResult, SplitConfig, SplitResult
 
 if TYPE_CHECKING:
     from ..profiling._config import StructuralProfileResult
+    from ._profile_signals import SignalReport
 
 _UNSET = object()
 
@@ -52,6 +56,78 @@ def _route_unsplittable_indices(train_idx, test_idx, mask):
     return np.concatenate([train_idx, moved]), kept
 
 
+def _unknown_column(param: str, column: str, df: pl.DataFrame) -> DataForgeError:
+    return DataForgeError.from_code(
+        "unknown_column",
+        f"{param} {column!r} is not a column of the data.",
+        param=param,
+        columns=[column],
+        candidates=close_matches([column], df.columns),
+    )
+
+
+def _no_target() -> DataForgeError:
+    return DataForgeError.from_code(
+        "stratify_without_target",
+        "Stratifying needs a target column, and none was given.",
+        param="stratify",
+    )
+
+
+def _group_codes(series: pl.Series):
+    """Return one integer group code per row; every null row shares one code.
+
+    sklearn's group splitters sort the group labels, which fails on a column
+    whose nulls arrive as ``None``. Coding the groups first keeps every group
+    whole, nulls included, without reading any value into a message.
+    """
+    import numpy as np
+
+    text = series.cast(pl.String)
+    _, codes = np.unique(text.fill_null("").to_numpy(), return_inverse=True)
+    codes = codes.astype(np.int64)
+    codes[text.is_null().to_numpy()] = -1
+    return codes
+
+
+def _check_stratifiable(
+    series: pl.Series, target: str, min_members: int, *, every_class: bool
+) -> None:
+    """Raise ``stratify_on_continuous_target`` before sklearn would reject the target.
+
+    sklearn's own rejection of a continuous target lists every class value in
+    its message; this check reports counts instead, so no cell value reaches
+    the error. ``every_class`` mirrors the k-fold rule, which refuses only when
+    no class reaches ``min_members``; shuffle splits refuse on any class below
+    it. Missing target values are left out of the check.
+    """
+    import numpy as np
+    from sklearn.utils.multiclass import type_of_target
+
+    y = series.drop_nulls()
+    if y.dtype.is_float():
+        y = y.drop_nans()
+    y = y.to_numpy()
+    try:
+        kind = type_of_target(y)
+        _, counts = np.unique(y, return_counts=True)
+    except (TypeError, ValueError):
+        # Mixed or null-bearing labels: leave the verdict to sklearn.
+        return
+    short = int((counts < min_members).sum())
+    if kind.startswith("continuous") or (
+        short == len(counts) if every_class else short > 0
+    ):
+        raise DataForgeError.from_code(
+            "stratify_on_continuous_target",
+            f"Cannot stratify on target {target!r}: {short} of its "
+            f"{len(counts)} distinct value(s) occur in fewer than "
+            f"{min_members} row(s), as a continuous target does.",
+            param="stratify",
+            columns=[target],
+        )
+
+
 class DataSplitter:
     """
     Splits a Polars DataFrame into train/test or cross-validation folds.
@@ -62,29 +138,43 @@ class DataSplitter:
         Source data. Must be non-empty.
     target : str, optional
         Name of the target column. Required for stratified splits.
-    random_seed : int, optional
-        Seed forwarded to sklearn splitters for reproducibility.
+    seed : int, optional
+        Seed forwarded to sklearn splitters. None means the library's fixed
+        default seed, so two runs agree (ADR-0106).
     config : SplitConfig, optional
         Splitting thresholds.  Defaults to ``SplitConfig()`` (library defaults).
+
+    Raises
+    ------
+    InvalidInput
+        ``invalid_argument`` if ``df`` is not a non-empty polars DataFrame.
+    UnknownName
+        ``unknown_column`` if ``target`` is not a column of ``df``.
     """
 
     def __init__(
         self,
         df: pl.DataFrame,
-        target: Optional[str] = None,
-        random_seed: Optional[int] = None,
-        config: Optional[SplitConfig] = None,
+        target: str | None = None,
+        seed: int | None = None,
+        config: SplitConfig | None = None,
     ) -> None:
         if not isinstance(df, pl.DataFrame):
-            raise TypeError(f"df must be a polars DataFrame, got {type(df).__name__}")
+            raise DataForgeError.from_code(
+                "invalid_argument",
+                f"df must be a polars DataFrame, got {type(df).__name__}.",
+                param="df",
+            )
         if df.is_empty():
-            raise ValueError("df must not be empty")
+            raise DataForgeError.from_code(
+                "invalid_argument", "df must not be empty.", param="df"
+            )
         if target is not None and target not in df.columns:
-            raise ValueError(f"target column '{target}' not found in df")
+            raise _unknown_column("target", target, df)
 
         self._df = df
         self._target = target
-        self._random_seed = random_seed
+        self._seed: int = DEFAULT_SEED if seed is None else seed
         self._config = config if config is not None else SplitConfig()
 
     def random_split(self, test_size: float, stratify=_UNSET) -> SplitResult:
@@ -102,24 +192,31 @@ class DataSplitter:
         Returns
         -------
         SplitResult
+
+        Raises
+        ------
+        InvalidInput
+            ``stratify_without_target`` if ``stratify`` is True (explicitly or
+            by default) but no target column was provided.
+        Infeasible
+            ``stratify_on_continuous_target`` if the target has too few rows
+            per value to stratify on, as a continuous target does.
         """
         if stratify is _UNSET:
             stratify = self._target is not None
         if stratify and self._target is None:
-            raise ValueError(
-                "stratify=True requires a target column; "
-                "pass target= when constructing DataSplitter"
-            )
+            raise _no_target()
 
         if stratify:
             splitter = StratifiedShuffleSplit(
-                n_splits=1, test_size=test_size, random_state=self._random_seed
+                n_splits=1, test_size=test_size, random_state=self._seed
             )
             y = self._df[self._target].to_numpy()
+            _check_stratifiable(self._df[self._target], self._target, 2, every_class=False)
             train_idx, test_idx = next(splitter.split(self._df, y))
         else:
             splitter = ShuffleSplit(
-                n_splits=1, test_size=test_size, random_state=self._random_seed
+                n_splits=1, test_size=test_size, random_state=self._seed
             )
             train_idx, test_idx = next(splitter.split(self._df))
 
@@ -139,14 +236,17 @@ class DataSplitter:
     def time_split(
         self,
         time_column: str,
-        test_size: Optional[float] = None,
-        cutoff: Optional[Any] = None,
+        test_size: float | None = None,
+        cutoff: Any | None = None,
+        order: pl.Series | None = None,
     ) -> SplitResult:
         """
         Return a chronological train/test split with no temporal leakage.
 
         The DataFrame is sorted ascending by ``time_column`` before splitting.
         ``cutoff`` takes priority over ``test_size`` when both are supplied.
+        Rows with no time sort first, so they always land in train: a row of
+        unknown time is never held out as the future.
 
         Parameters
         ----------
@@ -158,22 +258,45 @@ class DataSplitter:
         cutoff : scalar, optional
             Threshold value.  Rows where ``time_column >= cutoff`` go to
             test; all earlier rows go to train.
+        order : pl.Series, optional
+            The values to sort and cut by, one per row, such as the column
+            with sentinels nulled and strings parsed to datetimes. Defaults
+            to ``time_column`` itself. The returned rows are always the
+            DataFrame's own.
 
         Returns
         -------
         SplitResult
+
+        Raises
+        ------
+        UnknownName
+            ``unknown_column`` if ``time_column`` is not a column of the
+            DataFrame.
+        InvalidInput
+            ``invalid_argument`` if neither ``test_size`` nor ``cutoff`` is
+            given.
         """
         if time_column not in self._df.columns:
-            raise ValueError(f"time_column '{time_column}' not found in df")
+            raise _unknown_column("time_column", time_column, self._df)
         if test_size is None and cutoff is None:
-            raise ValueError("Either test_size or cutoff must be provided")
+            raise DataForgeError.from_code(
+                "invalid_argument",
+                "Give either test_size or cutoff.",
+                params=["test_size", "cutoff"],
+            )
 
-        sorted_df = self._df.sort(time_column)
+        key = self._df[time_column] if order is None else order
+        positions = key.arg_sort(nulls_last=False)
+        sorted_df = self._df[positions]
+        sorted_key = key.gather(positions)
         total = len(sorted_df)
 
         if cutoff is not None:
-            train_df = sorted_df.filter(pl.col(time_column) < cutoff)
-            test_df = sorted_df.filter(pl.col(time_column) >= cutoff)
+            # A null key compares null, which is not ``>= cutoff``: train.
+            in_test = (sorted_key >= cutoff).fill_null(False)
+            train_df = sorted_df.filter(~in_test)
+            test_df = sorted_df.filter(in_test)
         else:
             n_test = math.floor(total * test_size)
             n_train = total - n_test
@@ -212,16 +335,17 @@ class DataSplitter:
 
         Raises
         ------
-        ValueError
-            If ``group_column`` is not a column of the DataFrame.
+        UnknownName
+            ``unknown_column`` if ``group_column`` is not a column of the
+            DataFrame.
         """
         if group_column not in self._df.columns:
-            raise ValueError(f"group_column '{group_column}' not found in df")
+            raise _unknown_column("group_column", group_column, self._df)
 
         splitter = GroupShuffleSplit(
-            n_splits=1, test_size=test_size, random_state=self._random_seed
+            n_splits=1, test_size=test_size, random_state=self._seed
         )
-        groups = self._df[group_column].to_numpy()
+        groups = _group_codes(self._df[group_column])
         train_idx, test_idx = next(splitter.split(self._df, groups=groups))
 
         train_df = self._df[train_idx]
@@ -237,7 +361,7 @@ class DataSplitter:
             test_ratio=len(test_df) / total,
         )
 
-    def kfold(self, k: int, stratify=_UNSET) -> List[FoldResult]:
+    def kfold(self, k: int, stratify=_UNSET) -> list[FoldResult]:
         """
         Return a list of ``k`` cross-validation folds.
 
@@ -253,28 +377,35 @@ class DataSplitter:
         -------
         list[FoldResult]
             Exactly ``k`` folds with zero-based ``fold_index``.
+
+        Raises
+        ------
+        InvalidInput
+            ``stratify_without_target`` if ``stratify`` is True (explicitly or
+            by default) but no target column was provided.
+        Infeasible
+            ``stratify_on_continuous_target`` if the target has too few rows
+            per value to stratify on, as a continuous target does.
         """
         if stratify is _UNSET:
             stratify = self._target is not None
         if stratify and self._target is None:
-            raise ValueError(
-                "stratify=True requires a target column; "
-                "pass target= when constructing DataSplitter"
-            )
+            raise _no_target()
 
         if stratify:
             folder = StratifiedKFold(
-                n_splits=k, shuffle=True, random_state=self._random_seed
+                n_splits=k, shuffle=True, random_state=self._seed
             )
             y = self._df[self._target].to_numpy()
+            _check_stratifiable(self._df[self._target], self._target, k, every_class=True)
             splits = folder.split(self._df, y)
         else:
             folder = KFold(
-                n_splits=k, shuffle=True, random_state=self._random_seed
+                n_splits=k, shuffle=True, random_state=self._seed
             )
             splits = folder.split(self._df)
 
-        folds: List[FoldResult] = []
+        folds: list[FoldResult] = []
         for fold_index, (train_idx, val_idx) in enumerate(splits):
             train_df = self._df[train_idx]
             val_df = self._df[val_idx]
@@ -292,7 +423,7 @@ class DataSplitter:
 
     def group_kfold(
         self, k: int, group_column: str, stratify=_UNSET
-    ) -> List[FoldResult]:
+    ) -> list[FoldResult]:
         """
         Return ``k`` group-disjoint cross-validation folds.
 
@@ -323,35 +454,38 @@ class DataSplitter:
 
         Raises
         ------
-        ValueError
-            If ``group_column`` is not a column of the DataFrame, or if
-            ``stratify`` is True (explicitly or by default) but no target
-            column was provided.
+        UnknownName
+            ``unknown_column`` if ``group_column`` is not a column of the
+            DataFrame.
+        InvalidInput
+            ``stratify_without_target`` if ``stratify`` is True (explicitly or
+            by default) but no target column was provided.
+        Infeasible
+            ``stratify_on_continuous_target`` if the target has too few rows
+            per value to stratify on, as a continuous target does.
         """
         if group_column not in self._df.columns:
-            raise ValueError(f"group_column '{group_column}' not found in df")
+            raise _unknown_column("group_column", group_column, self._df)
         if stratify is _UNSET:
             stratify = self._target is not None
         if stratify and self._target is None:
-            raise ValueError(
-                "stratify=True requires a target column; "
-                "pass target= when constructing DataSplitter"
-            )
+            raise _no_target()
 
-        groups = self._df[group_column].to_numpy()
+        groups = _group_codes(self._df[group_column])
         if stratify:
             folder: Any = StratifiedGroupKFold(
-                n_splits=k, shuffle=True, random_state=self._random_seed
+                n_splits=k, shuffle=True, random_state=self._seed
             )
             y = self._df[self._target].to_numpy()
+            _check_stratifiable(self._df[self._target], self._target, k, every_class=True)
             splits = folder.split(self._df, y, groups=groups)
         else:
             folder = GroupKFold(
-                n_splits=k, shuffle=True, random_state=self._random_seed
+                n_splits=k, shuffle=True, random_state=self._seed
             )
             splits = folder.split(self._df, groups=groups)
 
-        folds: List[FoldResult] = []
+        folds: list[FoldResult] = []
         for fold_index, (train_idx, val_idx) in enumerate(splits):
             train_df = self._df[train_idx]
             val_df = self._df[val_idx]
@@ -369,7 +503,7 @@ class DataSplitter:
 
     def repeated_kfold(
         self, k: int, n_repeats: int, stratify=_UNSET
-    ) -> List[FoldResult]:
+    ) -> list[FoldResult]:
         """
         Return ``k * n_repeats`` cross-validation folds from repeated k-fold.
 
@@ -397,31 +531,32 @@ class DataSplitter:
 
         Raises
         ------
-        ValueError
-            If ``stratify`` is True (explicitly or by default) but no target
-            column was provided.
+        InvalidInput
+            ``stratify_without_target`` if ``stratify`` is True (explicitly or
+            by default) but no target column was provided.
+        Infeasible
+            ``stratify_on_continuous_target`` if the target has too few rows
+            per value to stratify on, as a continuous target does.
         """
         if stratify is _UNSET:
             stratify = self._target is not None
         if stratify and self._target is None:
-            raise ValueError(
-                "stratify=True requires a target column; "
-                "pass target= when constructing DataSplitter"
-            )
+            raise _no_target()
 
         if stratify:
             folder: Any = RepeatedStratifiedKFold(
-                n_splits=k, n_repeats=n_repeats, random_state=self._random_seed
+                n_splits=k, n_repeats=n_repeats, random_state=self._seed
             )
             y = self._df[self._target].to_numpy()
+            _check_stratifiable(self._df[self._target], self._target, k, every_class=True)
             splits = folder.split(self._df, y)
         else:
             folder = RepeatedKFold(
-                n_splits=k, n_repeats=n_repeats, random_state=self._random_seed
+                n_splits=k, n_repeats=n_repeats, random_state=self._seed
             )
             splits = folder.split(self._df)
 
-        folds: List[FoldResult] = []
+        folds: list[FoldResult] = []
         for position, (train_idx, val_idx) in enumerate(splits):
             repeat_index = position // k
             fold_index = position % k
@@ -471,23 +606,23 @@ class DataSplitter:
 
         Raises
         ------
-        ValueError
-            If ``stratify`` is True (explicitly or by default) but no target
-            column was provided.
+        InvalidInput
+            ``stratify_without_target`` if ``stratify`` is True (explicitly or
+            by default) but no target column was provided.
+        Infeasible
+            ``stratify_on_continuous_target`` if the target has too few rows
+            per value to stratify on, as a continuous target does.
         """
         if stratify is _UNSET:
             stratify = self._target is not None
         if stratify and self._target is None:
-            raise ValueError(
-                "stratify=True requires a target column; "
-                "pass target= when constructing DataSplitter"
-            )
+            raise _no_target()
 
         holdout = self.random_split(test_size=test_size, stratify=stratify)
         remainder = DataSplitter(
             holdout.train,
             target=self._target,
-            random_seed=self._random_seed,
+            seed=self._seed,
             config=self._config,
         )
         folds = remainder.kfold(k, stratify=stratify)
@@ -498,6 +633,7 @@ class DataSplitter:
         self,
         profile: StructuralProfileResult,
         test_size: float,
+        report: SignalReport | None = None,
     ) -> SplitResult:
         """
         Return a train/test split stratified across all at-risk signals derived
@@ -521,6 +657,9 @@ class DataSplitter:
             Output of StructuralProfiler.profile() run on the same DataFrame.
         test_size : float
             Fraction of rows to reserve for the test set (0 < test_size < 1).
+        report : SignalReport, optional
+            Filled in with the count each stratification gate kept and the
+            rows routed to train.
 
         Returns
         -------
@@ -534,16 +673,21 @@ class DataSplitter:
 
         min_positives = math.ceil(2 / min(test_size, 1 - test_size))
         label_matrix = build_label_matrix(
-            self._df, profile, self._target, config=self._config, min_positives=min_positives
+            self._df,
+            profile,
+            self._target,
+            config=self._config,
+            min_positives=min_positives,
+            report=report,
         )
         unsplittable = unsplittable_train_mask(
-            self._df, profile, self._target, min_positives, config=self._config
+            self._df, profile, self._target, min_positives, config=self._config, report=report
         )
 
         import numpy as np
         if label_matrix.shape[1] == 0:
             splitter = ShuffleSplit(
-                n_splits=1, test_size=test_size, random_state=self._random_seed
+                n_splits=1, test_size=test_size, random_state=self._seed
             )
             train_idx, test_idx = next(splitter.split(self._df))
         else:
@@ -553,14 +697,14 @@ class DataSplitter:
                 # rejects a single column as 'binary'), so stratify on it directly
                 # with the single-label splitter rather than discarding it.
                 splitter = StratifiedShuffleSplit(
-                    n_splits=1, test_size=test_size, random_state=self._random_seed
+                    n_splits=1, test_size=test_size, random_state=self._seed
                 )
                 train_idx, test_idx = next(splitter.split(X_dummy, label_matrix[:, 0]))
             else:
                 splitter = MultilabelStratifiedShuffleSplit(
                     n_splits=1,
                     test_size=test_size,
-                    random_state=self._random_seed,
+                    random_state=self._seed,
                 )
                 train_idx, test_idx = next(splitter.split(X_dummy, label_matrix))
 
@@ -583,7 +727,8 @@ class DataSplitter:
         self,
         profile: StructuralProfileResult,
         k: int,
-    ) -> List[FoldResult]:
+        report: SignalReport | None = None,
+    ) -> list[FoldResult]:
         """
         Return k cross-validation folds stratified across all at-risk signals
         derived from the Phase 1 profile.
@@ -606,6 +751,9 @@ class DataSplitter:
             Output of StructuralProfiler.profile() run on the same DataFrame.
         k : int
             Number of folds.
+        report : SignalReport, optional
+            Filled in with the count each stratification gate kept and the
+            rows routed to train.
 
         Returns
         -------
@@ -617,16 +765,16 @@ class DataSplitter:
         from ._profile_signals import build_label_matrix, unsplittable_train_mask
 
         label_matrix = build_label_matrix(
-            self._df, profile, self._target, config=self._config, min_positives=k
+            self._df, profile, self._target, config=self._config, min_positives=k, report=report
         )
         unsplittable = unsplittable_train_mask(
-            self._df, profile, self._target, k, config=self._config
+            self._df, profile, self._target, k, config=self._config, report=report
         )
 
         import numpy as np
         if label_matrix.shape[1] == 0:
             folder: Any = KFold(
-                n_splits=k, shuffle=True, random_state=self._random_seed
+                n_splits=k, shuffle=True, random_state=self._seed
             )
             splits = folder.split(self._df)
         else:
@@ -636,18 +784,18 @@ class DataSplitter:
                 # rejects a single column as 'binary'), so stratify on it directly
                 # with the single-label folder rather than discarding it.
                 folder = StratifiedKFold(
-                    n_splits=k, shuffle=True, random_state=self._random_seed
+                    n_splits=k, shuffle=True, random_state=self._seed
                 )
                 splits = folder.split(X_dummy, label_matrix[:, 0])
             else:
                 folder = MultilabelStratifiedKFold(
                     n_splits=k,
                     shuffle=True,
-                    random_state=self._random_seed,
+                    random_state=self._seed,
                 )
                 splits = folder.split(X_dummy, label_matrix)
 
-        folds: List[FoldResult] = []
+        folds: list[FoldResult] = []
         for fold_index, (train_idx, val_idx) in enumerate(splits):
             train_idx, val_idx = _route_unsplittable_indices(train_idx, val_idx, unsplittable)
             train_df = self._df[train_idx]

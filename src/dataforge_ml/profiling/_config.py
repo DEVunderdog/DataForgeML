@@ -11,9 +11,10 @@ import json
 from dataclasses import InitVar, dataclass, field
 from enum import StrEnum
 from types import MappingProxyType
-from typing import Optional, Union
 
+from .._boundary._error_codes import close_matches
 from ..config import Modality, SemanticType
+from ..records import DataForgeError
 from ._boolean_config import BooleanStats
 from ._categorical_config import (
     CategoricalProfileConfig,
@@ -47,6 +48,11 @@ from ._type_detection_config import TypeDetectionConfig
 
 
 class NumericKind(StrEnum):
+    """The NumericKind of a Numeric column: ``Continuous`` or ``BoundedDiscrete``.
+
+    Set by detection, or by the caller via ``StructuralProfiler``'s ``numeric_kinds``.
+    """
+
     Continuous = "continuous"
     BoundedDiscrete = "bounded_discrete"
 
@@ -76,29 +82,7 @@ class EpochUnit(StrEnum):
 # Column and dataset result containers
 # ---------------------------------------------------------------------------
 
-AnyStats = Union[NumericStats, CategoricalStats, DatetimeStats, BooleanStats, TextStats]
-
-
-def _format_dict_lines(d: dict, indent: int = 0) -> list[str]:
-    out = []
-    prefix = "  " * indent
-    for k, v in d.items():
-        if isinstance(v, dict):
-            if not v:
-                out.append(f"{prefix}- **{k}**: (empty)")
-            else:
-                out.append(f"{prefix}- **{k}**:")
-                out.extend(_format_dict_lines(v, indent + 1))
-        elif isinstance(v, list):
-            if not v:
-                out.append(f"{prefix}- **{k}**: (empty)")
-            else:
-                out.append(f"{prefix}- **{k}**:")
-                for item in v:
-                    out.append(f"{prefix}  - {item}")
-        else:
-            out.append(f"{prefix}- **{k}**: {v}")
-    return out
+AnyStats = NumericStats | CategoricalStats | DatetimeStats | BooleanStats | TextStats
 
 
 @dataclass
@@ -111,14 +95,14 @@ class ColumnProfile:
     """
 
     name: str = ""
-    semantic_type: Optional[SemanticType] = None
-    numeric_kind: Optional[NumericKind] = None
+    semantic_type: SemanticType | None = None
+    numeric_kind: NumericKind | None = None
     type_flags: list[TypeFlag] = field(default_factory=list)
     original_dtype: str = ""
     inferred_dtype: str = ""
-    missingness: Optional[ColumnMissingnessProfile] = None
+    missingness: ColumnMissingnessProfile | None = None
     is_target: bool = False
-    stats: Optional[AnyStats] = None
+    stats: AnyStats | None = None
 
     def to_dict(self) -> dict:
         """
@@ -143,7 +127,7 @@ class ColumnProfile:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "ColumnProfile":
+    def from_dict(cls, data: dict) -> ColumnProfile:
         """
         Reconstruct a ``ColumnProfile`` from a plain dictionary.
 
@@ -168,7 +152,7 @@ class ColumnProfile:
         )
         raw_numeric_kind = data.get("numeric_kind")
         raw_stats = data.get("stats")
-        stats: Optional[AnyStats] = None
+        stats: AnyStats | None = None
         if raw_stats is not None:
             stats_by_type = {
                 SemanticType.Numeric: NumericStats,
@@ -214,7 +198,7 @@ class MemoryBreakdown:
         return {"column_bytes": dict(self.column_bytes)}
 
     @classmethod
-    def from_dict(cls, data: dict) -> "MemoryBreakdown":
+    def from_dict(cls, data: dict) -> MemoryBreakdown:
         return cls(column_bytes=dict(data.get("column_bytes", {})))
 
 
@@ -232,21 +216,17 @@ class DatasetStats:
     row_count: int = 0
     column_count: int = 0
     memory_bytes: int = 0
-    memory_breakdown: Optional[MemoryBreakdown] = None
+    memory_breakdown: MemoryBreakdown | None = None
     duplicate_count: int = 0
     duplicate_ratio: float = 0.0
     overall_sparsity: float = 0.0
     was_chunked: bool = False
-    missingness_matrix: Optional[dict[str, dict[str, float]]] = None
+    missingness_matrix: dict[str, dict[str, float]] | None = None
     row_distribution: RowMissingnessDistribution = field(
         default_factory=RowMissingnessDistribution
     )
 
-    feature_correlation: Optional[CorrelationProfileResult] = None
-
-    target_correlations: dict[str, CorrelationProfileResult] = field(
-        default_factory=dict,
-    )
+    feature_correlation: CorrelationProfileResult | None = None
 
     def to_dict(self) -> dict:
         """
@@ -271,11 +251,10 @@ class DatasetStats:
             "missingness_matrix": self.missingness_matrix,
             "row_distribution": self.row_distribution.to_dict(),
             "feature_correlation": self.feature_correlation.to_dict() if self.feature_correlation else None,
-            "target_correlations": {k: v.to_dict() for k, v in self.target_correlations.items()},
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "DatasetStats":
+    def from_dict(cls, data: dict) -> DatasetStats:
         """
         Reconstruct the dataset stats from a plain dictionary.
 
@@ -314,10 +293,6 @@ class DatasetStats:
                 if raw_feature_correlation
                 else None
             ),
-            target_correlations={
-                k: CorrelationProfileResult.from_dict(v)
-                for k, v in data.get("target_correlations", {}).items()
-            },
         )
 
 
@@ -357,7 +332,7 @@ class StructuralProfileResult:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "StructuralProfileResult":
+    def from_dict(cls, data: dict) -> StructuralProfileResult:
         """
         Reconstruct a ``StructuralProfileResult`` from a plain dictionary.
 
@@ -409,76 +384,6 @@ class StructuralProfileResult:
         """
         return json.dumps(self.to_dict(), indent=indent, default=str)
 
-    def to_markdown(self) -> str:
-        """
-        Produce the lossless Markdown Profile Report.
-
-        Every field present in ``to_dict()`` — including histogram bins, full
-        correlation matrices, memory breakdown, and all per-column fields —
-        is rendered as Markdown. For an 82-column dataset this produces
-        roughly 1 MB of text; that size is an accepted consequence of the
-        Rendering Contract (ADR-0086), and the bounded view of a profile is
-        ``to_dict()`` plus the caller's own selection.
-
-        Returns
-        -------
-        str
-            Markdown string containing a summary table followed by per-column detail
-            sections and dataset-level statistics.
-        """
-        data = self.to_dict()
-        lines = ["# Structural Profile Report\n"]
-
-        # 1. Summary navigation table
-        lines.append("## Summary\n")
-        lines.append("| Column | Semantic Type | Missing % | Severity | Key Flags |")
-        lines.append("|---|---|---|---|---|")
-        
-        for col_name, col_data in data.get("columns", {}).items():
-            sem_type = col_data.get("semantic_type") or "None"
-            missingness = col_data.get("missingness") or {}
-            missing_pct = missingness.get("effective_null_ratio", 0.0) * 100
-            missing_str = f"{missing_pct:.2f}%"
-            severity = missingness.get("severity") or "None"
-            flags = ", ".join(col_data.get("type_flags", [])) or "None"
-            lines.append(f"| {col_name} | {sem_type} | {missing_str} | {severity} | {flags} |")
-        
-        lines.append("\n## Column Details\n")
-
-        for col_name, col_data in data.get("columns", {}).items():
-            lines.append(f"### `{col_name}`\n")
-            lines.extend(_format_dict_lines(col_data))
-            lines.append("")
-
-        lines.append("## Dataset\n")
-        lines.extend(_format_dict_lines(data.get("dataset", {})))
-        lines.append("")
-
-        lines.append("## Targets\n")
-        lines.extend(_format_dict_lines(data.get("targets", {})))
-        lines.append("")
-
-        lines.append("## Numeric Sentinels\n")
-        lines.extend(_format_dict_lines(data.get("numeric_sentinels", {})))
-        lines.append("")
-
-        lines.append("## String Sentinels\n")
-        lines.extend(_format_dict_lines(data.get("string_sentinels", {})))
-        lines.append("")
-
-        return "\n".join(lines).strip() + "\n"
-
-    def __str__(self) -> str:
-        """
-        Return the Profile Report, per rule 2 of the Rendering Contract.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()
-
 
 # ---------------------------------------------------------------------------
 # ProfileConfig — clean break from per-profiler column lists
@@ -524,8 +429,6 @@ class ProfileConfig:
         Data modality. Currently only Tabular is implemented.
     target_columns : list[str]
         Names of label/target columns, if any.
-    compute_correlation : bool
-        Whether to compute the feature-feature correlation matrix.
     correlation_target_column : Optional[str]
         Column used for feature-target correlation metrics.
     memory_threshold_mb : float
@@ -547,20 +450,13 @@ class ProfileConfig:
         Threshold configuration for the correlation sub-processor.
     datetime_ : DatetimeProfileConfig
         Threshold configuration for the datetime sub-processor.
-    compute_nonlinearity : bool
-        Whether to run ``NonlinearityProfiler`` and populate the four
-        nonlinearity signal fields on ``NumericStats``.  When ``True`` and
-        ``compute_correlation`` is also ``True``, Pearson and Spearman matrices
-        are reused from the correlation step rather than recomputed.
-        Default ``False``.
     nonlinearity : NonlinearityProfileConfig
         Threshold configuration for the nonlinearity sub-processor.
     """
 
     modality: Modality = Modality.Tabular
     target_columns: list[str] = field(default_factory=list)
-    compute_correlation: bool = False
-    correlation_target_column: Optional[str] = None
+    correlation_target_column: str | None = None
     memory_threshold_mb: float = 500.0
     chunk_size: int = 100_000
     row_drop_threshold: float = 0.50
@@ -578,14 +474,13 @@ class ProfileConfig:
         default_factory=_default_correlation_config
     )
     datetime_: DatetimeProfileConfig = field(default_factory=_default_datetime_config)
-    compute_nonlinearity: bool = False
     nonlinearity: NonlinearityProfileConfig = field(
         default_factory=_default_nonlinearity_config
     )
-    numeric_sentinels: InitVar[Optional[dict[str, list[float]]]] = None
-    string_sentinels: InitVar[Optional[dict[str, list[str]]]] = None
-    datetime_epoch_units: InitVar[Optional[dict[str, Union[str, EpochUnit]]]] = None
-    datetime_formats: InitVar[Optional[dict[str, str]]] = None
+    numeric_sentinels: InitVar[dict[str, list[float]] | None] = None
+    string_sentinels: InitVar[dict[str, list[str]] | None] = None
+    datetime_epoch_units: InitVar[dict[str, str | EpochUnit] | None] = None
+    datetime_formats: InitVar[dict[str, str] | None] = None
     _numeric_sentinels: dict[str, list[float]] = field(default_factory=dict, init=False)
     _string_sentinels: dict[str, list[str]] = field(default_factory=dict, init=False)
     _datetime_epoch_units: dict[str, EpochUnit] = field(default_factory=dict, init=False)
@@ -593,10 +488,10 @@ class ProfileConfig:
 
     def __post_init__(
         self,
-        numeric_sentinels: Optional[dict[str, list[float]]],
-        string_sentinels: Optional[dict[str, list[str]]],
-        datetime_epoch_units: Optional[dict[str, Union[str, EpochUnit]]] = None,
-        datetime_formats: Optional[dict[str, str]] = None,
+        numeric_sentinels: dict[str, list[float]] | None,
+        string_sentinels: dict[str, list[str]] | None,
+        datetime_epoch_units: dict[str, str | EpochUnit] | None,
+        datetime_formats: dict[str, str] | None,
     ) -> None:
         if numeric_sentinels is not None and not isinstance(numeric_sentinels, property):
             for k, vals in numeric_sentinels.items():
@@ -612,7 +507,7 @@ class ProfileConfig:
                 self.set_datetime_format(k, fmt)
 
     @property
-    def numeric_sentinels(self) -> MappingProxyType[str, list[float]]:
+    def numeric_sentinels(self) -> MappingProxyType[str, list[float]]:  # noqa: F811 - read-only view over the same-named InitVar (ADR-0043)
         """
         Get the per-column numeric sentinel declarations.
 
@@ -631,7 +526,7 @@ class ProfileConfig:
         return MappingProxyType(self._numeric_sentinels)
 
     @property
-    def string_sentinels(self) -> MappingProxyType[str, list[str]]:
+    def string_sentinels(self) -> MappingProxyType[str, list[str]]:  # noqa: F811 - read-only view over the same-named InitVar (ADR-0043)
         """
         Get the per-column user-declared string sentinel declarations.
 
@@ -653,7 +548,7 @@ class ProfileConfig:
         return MappingProxyType(self._string_sentinels)
 
     @property
-    def datetime_epoch_units(self) -> MappingProxyType[str, EpochUnit]:
+    def datetime_epoch_units(self) -> MappingProxyType[str, EpochUnit]:  # noqa: F811 - read-only view over the same-named InitVar (ADR-0043)
         """
         Get the per-column datetime epoch units.
 
@@ -665,7 +560,7 @@ class ProfileConfig:
         return MappingProxyType(self._datetime_epoch_units)
 
     @property
-    def datetime_formats(self) -> MappingProxyType[str, str]:
+    def datetime_formats(self) -> MappingProxyType[str, str]:  # noqa: F811 - read-only view over the same-named InitVar (ADR-0043)
         """
         Get the per-column declared datetime format strings.
 
@@ -698,14 +593,21 @@ class ProfileConfig:
 
         Raises
         ------
-        ValueError
-            If the `values` list is empty, or if any element is not numeric.
+        InvalidInput
+            ``invalid_argument`` if the `values` list is empty, or if any
+            element is not numeric.
         """
         if not values:
-            raise ValueError("values list cannot be empty.")
-        for v in values:
-            if not isinstance(v, (int, float)) or isinstance(v, bool):
-                raise ValueError(f"Value {v!r} is not numeric.")
+            raise DataForgeError.from_code(
+                "invalid_argument", "values must hold at least one sentinel.", param="values"
+            )
+        bad = [i for i, v in enumerate(values) if not isinstance(v, (int, float)) or isinstance(v, bool)]
+        if bad:
+            raise DataForgeError.from_code(
+                "invalid_argument",
+                f"{len(bad)} numeric sentinel(s) are not numbers.",
+                params=[f"values[{i}]" for i in bad],
+            )
         
         columns = [column] if isinstance(column, str) else column
         for c in columns:
@@ -724,14 +626,21 @@ class ProfileConfig:
 
         Raises
         ------
-        ValueError
-            If the `values` list is empty, or if any element is not a string.
+        InvalidInput
+            ``invalid_argument`` if the `values` list is empty, or if any
+            element is not a string.
         """
         if not values:
-            raise ValueError("values list cannot be empty.")
-        for v in values:
-            if not isinstance(v, str):
-                raise ValueError(f"Value {v!r} is not a string.")
+            raise DataForgeError.from_code(
+                "invalid_argument", "values must hold at least one sentinel.", param="values"
+            )
+        bad = [i for i, v in enumerate(values) if not isinstance(v, str)]
+        if bad:
+            raise DataForgeError.from_code(
+                "invalid_argument",
+                f"{len(bad)} string sentinel(s) are not strings.",
+                params=[f"values[{i}]" for i in bad],
+            )
         
         columns = [column] if isinstance(column, str) else column
         for c in columns:
@@ -750,14 +659,20 @@ class ProfileConfig:
 
         Raises
         ------
-        ValueError
-            If the unit is not a valid EpochUnit.
+        UnknownName
+            ``unknown_enum_value`` if the unit is not a valid EpochUnit.
         """
         try:
             enum_unit = EpochUnit(unit)
         except ValueError:
-            valid_units = ", ".join([u.value for u in EpochUnit])
-            raise ValueError(f"Unknown epoch unit {unit!r}. Valid options are: {valid_units}")
+            valid_units = [u.value for u in EpochUnit]
+            raise DataForgeError.from_code(
+                "unknown_enum_value",
+                f"{unit!r} is not an epoch unit.",
+                param="unit",
+                allowed=valid_units,
+                candidates=close_matches([str(unit)], valid_units),
+            ) from None
         
         columns = [column] if isinstance(column, str) else column
         for c in columns:
@@ -770,7 +685,7 @@ class ProfileConfig:
         The format is applied by ``DatetimeProfiler`` with ``strict=False``
         when coercing the column to Datetime, and is not validated against
         strftime grammar or the data at declaration time — a bad format
-        surfaces at profiling time, consistent with ``set_column_type`` and
+        surfaces at profiling time, consistent with semantic-type declarations and
         ``set_datetime_epoch_unit``.
 
         Parameters
@@ -782,17 +697,23 @@ class ProfileConfig:
 
         Raises
         ------
-        ValueError
-            If any column name is empty, or if `format` is not a non-empty
-            string.
+        InvalidInput
+            ``invalid_argument`` if any column name is empty, or if `format`
+            is not a non-empty string.
         """
         if not isinstance(format, str) or not format:
-            raise ValueError("format must be a non-empty string.")
+            raise DataForgeError.from_code(
+                "invalid_argument", "format must be a non-empty string.", param="format"
+            )
 
         columns = [column] if isinstance(column, str) else column
         for c in columns:
             if not isinstance(c, str) or not c:
-                raise ValueError("column name must be a non-empty string.")
+                raise DataForgeError.from_code(
+                    "invalid_argument",
+                    "Every column name must be a non-empty string.",
+                    param="column",
+                )
             self._datetime_formats[c] = format
 
     def to_dict(self) -> dict:
@@ -807,7 +728,6 @@ class ProfileConfig:
         return {
             "modality": str(self.modality),
             "target_columns": list(self.target_columns),
-            "compute_correlation": self.compute_correlation,
             "correlation_target_column": self.correlation_target_column,
             "memory_threshold_mb": self.memory_threshold_mb,
             "chunk_size": self.chunk_size,
@@ -818,7 +738,6 @@ class ProfileConfig:
             "categorical": self.categorical.to_dict(),
             "correlation": self.correlation.to_dict(),
             "datetime_": self.datetime_.to_dict(),
-            "compute_nonlinearity": self.compute_nonlinearity,
             "nonlinearity": self.nonlinearity.to_dict(),
             "numeric_sentinels": {k: list(v) for k, v in self.numeric_sentinels.items()},
             "string_sentinels": {k: list(v) for k, v in self.string_sentinels.items()},
@@ -845,7 +764,6 @@ class ProfileConfig:
         config = cls(
             modality=Modality(data.get("modality", Modality.Tabular)),
             target_columns=list(data.get("target_columns", [])),
-            compute_correlation=bool(data.get("compute_correlation", False)),
             correlation_target_column=data.get("correlation_target_column"),
             memory_threshold_mb=float(data.get("memory_threshold_mb", 500.0)),
             chunk_size=int(data.get("chunk_size", 100_000)),
@@ -864,7 +782,6 @@ class ProfileConfig:
                 data.get("correlation", {})
             ),
             datetime_=DatetimeProfileConfig.from_dict(data.get("datetime_", {})),
-            compute_nonlinearity=bool(data.get("compute_nonlinearity", False)),
             nonlinearity=NonlinearityProfileConfig.from_dict(
                 data.get("nonlinearity", {})
             ),
@@ -910,9 +827,9 @@ class ColumnTypeInfo:
     column: str
     original_dtype: str
     inferred_dtype: str
-    numeric_kind: Optional[NumericKind] = None
+    numeric_kind: NumericKind | None = None
     flags: list[TypeFlag] = field(default_factory=list)
-    semantic_type: Optional[SemanticType] = None
+    semantic_type: SemanticType | None = None
 
     def has_flag(self, flag: TypeFlag) -> bool:
         return flag in self.flags

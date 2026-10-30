@@ -72,8 +72,8 @@ class BooleanProfiler(ColumnBatchProfiler[BooleanProfileResult]):
 
         Raises
         ------
-        OverrideCoercionError
-            If a column in user_overrides completely fails coercion to Boolean.
+        Infeasible
+            ``override_coercion_failed`` if a column in user_overrides completely fails coercion to Boolean.
         """
         return self._run(data, columns, user_overrides)
 
@@ -124,9 +124,13 @@ class BooleanProfiler(ColumnBatchProfiler[BooleanProfileResult]):
 
         if non_null_count == 0:
             if series.drop_nulls().len() > 0 and col_name in user_overrides:
-                from ._base import OverrideCoercionError
-                raise OverrideCoercionError(
-                    f"Column {col_name!r} with TypeFlag.UserOverride completely failed coercion to Boolean."
+                from ..records import DataForgeError
+                failed = series.drop_nulls().len()
+                raise DataForgeError.from_code(
+                    "override_coercion_failed",
+                    f"Column {col_name!r} was declared Boolean, but all {failed} "
+                    f"non-null value(s) failed to convert.",
+                    columns=[col_name],
                 )
             return profile
 
@@ -178,5 +182,5 @@ class BooleanProfiler(ColumnBatchProfiler[BooleanProfileResult]):
         # Fallback: attempt a cast and drop nulls (covers e.g. Categorical)
         try:
             return series.cast(pl.Boolean).drop_nulls()
-        except Exception:
+        except pl.exceptions.PolarsError:
             return pl.Series([], dtype=pl.Boolean)

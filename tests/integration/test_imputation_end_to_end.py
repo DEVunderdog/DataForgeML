@@ -10,9 +10,9 @@ escalation-point ticket's concern.
 import polars as pl
 import pytest
 
-from dataforge_ml.config import PipelineConfig, PipelinePhase
 from dataforge_ml.imputation import (
     FittedImputer,
+    ImputationConfig,
     ImputationStrategy,
     author,
     derive_units,
@@ -23,7 +23,7 @@ from dataforge_ml.imputation import (
 from dataforge_ml.profiling._config import ProfileConfig
 from dataforge_ml.profiling.orchestrator import StructuralProfiler
 from dataforge_ml.splitting import DataSplitter
-from tests.conftest import fit_imputer
+from tests.conftest import fit_imputer, raises_code
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -57,13 +57,12 @@ def imputation_df(rng):
 
 @pytest.fixture(scope="module")
 def imputation_profile(imputation_df):
-    config = PipelineConfig(profiling=ProfileConfig())
-    return StructuralProfiler(config).profile(imputation_df)
+    return StructuralProfiler().profile(imputation_df)
 
 
 @pytest.fixture(scope="module")
 def imputation_split(imputation_df, imputation_profile):
-    splitter = DataSplitter(imputation_df, random_seed=42)
+    splitter = DataSplitter(imputation_df, seed=42)
     return splitter.profile_stratified_split(imputation_profile, test_size=0.2)
 
 
@@ -100,8 +99,8 @@ def test_transform_test_has_no_nulls_in_numeric_cols(fitted_imputer, imputation_
 
 def test_transform_applies_train_time_fill_values(fitted_imputer, imputation_split):
     """Fill value on test split equals the value learned from train, not recomputed."""
-    train_result = fitted_imputer.transform(imputation_split.train)
-    test_result = fitted_imputer.transform(imputation_split.test)
+    fitted_imputer.transform(imputation_split.train)
+    fitted_imputer.transform(imputation_split.test)
 
     for col in ["score", "revenue", "rating"]:
         train_fill = fitted_imputer.records[col].fill_value
@@ -118,11 +117,13 @@ def test_transform_applies_train_time_fill_values(fitted_imputer, imputation_spl
     assert fill_before == fill_after
 
 
-def test_result_records_contain_strategy_and_signals(fitted_imputer):
+def test_result_records_contain_strategy_and_reason(fitted_imputer):
+    from dataforge_ml.imputation import RoutingReason
+
     for col in ["score", "revenue", "rating"]:
         rec = fitted_imputer.records[col]
         assert rec.decision.strategy is not None
-        assert len(rec.decision.signals) >= 1
+        assert isinstance(rec.decision.reason, RoutingReason)
 
 
 def test_label_column_passes_through_untouched(fitted_imputer, imputation_split):
@@ -142,7 +143,6 @@ def test_fitted_imputer_serialisation_round_trip(fitted_imputer, imputation_spli
 def test_mnar_column_keeps_its_nulls_and_exposes_its_fill():
     """An MNAR column gains its indicator, keeps its nulls, and carries the
     computed fill on its record rather than applying it (ADR-0098)."""
-    from dataforge_ml.imputation import ImputationConfig, NumericImputationConfig
 
     n = 200
     data = pl.DataFrame({
@@ -151,10 +151,9 @@ def test_mnar_column_keeps_its_nulls_and_exposes_its_fill():
             dtype=pl.Float64,
         ),
     })
-    imputation_config = ImputationConfig()
-    imputation_config.add_mnar_column("salary")
-    config = PipelineConfig(imputation=imputation_config)
-    profile = StructuralProfiler(PipelineConfig()).profile(data)
+    config = ImputationConfig()
+    config.add_mnar_column("salary")
+    profile = StructuralProfiler().profile(data)
     result = fit_imputer(data, profile, config).transform(data)
 
     assert result.dataframe["salary"].equals(data["salary"])
@@ -170,7 +169,7 @@ def test_repeated_fits_are_independent(imputation_df, imputation_profile):
     independence is structural on the layered path rather than a property of
     a reused orchestrator; this pins that it stays so.
     """
-    splitter = DataSplitter(imputation_df, random_seed=1)
+    splitter = DataSplitter(imputation_df, seed=1)
     split1 = splitter.random_split(test_size=0.5, stratify=False)
     split2 = splitter.random_split(test_size=0.5, stratify=False)
 
@@ -205,31 +204,13 @@ def drop_candidate_df():
 
 @pytest.fixture(scope="module")
 def drop_candidate_profile(drop_candidate_df):
-    return StructuralProfiler(PipelineConfig()).profile(drop_candidate_df)
+    return StructuralProfiler().profile(drop_candidate_df)
 
 
 def test_drop_candidate_column_in_dropped_columns(drop_candidate_df, drop_candidate_profile):
     fi = fit_imputer(drop_candidate_df, drop_candidate_profile)
     result = fi.transform(drop_candidate_df)
     assert "sparse" in result.dropped_columns
-
-
-def test_drop_candidate_apply_exclusions_adds_column_to_config(drop_candidate_df, drop_candidate_profile):
-    fi = fit_imputer(drop_candidate_df, drop_candidate_profile)
-    config = PipelineConfig()
-    fi.apply_exclusions(config)
-    assert "sparse" in config.exclude_columns
-
-
-def test_drop_candidate_resolve_active_columns_excludes_dropped(drop_candidate_df, drop_candidate_profile):
-    fi = fit_imputer(drop_candidate_df, drop_candidate_profile)
-    config = PipelineConfig()
-    fi.apply_exclusions(config)
-    active = config.resolve_active_columns(
-        PipelinePhase.Imputation, list(drop_candidate_df.columns)
-    )
-    assert "sparse" not in active
-    assert "dense" in active
 
 
 # ---------------------------------------------------------------------------
@@ -278,34 +259,30 @@ def exclusion_df(rng):
 def exclusion_profile(exclusion_df):
     # Profiled with no exclusions declared: both exclusions are added after
     # profiling, exercising the route()-time enforcement path on its own.
-    return StructuralProfiler(PipelineConfig()).profile(exclusion_df)
+    return StructuralProfiler().profile(exclusion_df)
+
+
+_EXCLUSIONS = {"exclude_columns": ["hard_out"], "skip_columns": ["soft_out"]}
 
 
 @pytest.fixture(scope="module")
-def exclusion_config():
-    config = PipelineConfig()
-    config.add_exclusion("hard_out")
-    config.add_phase_exclusion(PipelinePhase.Imputation, "soft_out")
-    return config
-
-
-@pytest.fixture(scope="module")
-def exclusion_fitted(exclusion_df, exclusion_profile, exclusion_config):
+def exclusion_fitted(exclusion_df, exclusion_profile):
     """Fit over the full door with the hard-excluded column dropped by the user."""
     train = exclusion_df.drop("hard_out")
-    return fit_imputer(train, exclusion_profile, exclusion_config)
+    return fit_imputer(train, exclusion_profile, **_EXCLUSIONS)
 
 
-def test_exclusion_plan_shape(exclusion_df, exclusion_profile, exclusion_config):
-    """Soft-excluded column is Passthrough with the exclusion signal; hard-excluded column is absent."""
+def test_exclusion_plan_shape(exclusion_df, exclusion_profile):
+    """Soft-excluded column is Passthrough with the soft_excluded reason; hard-excluded column is absent."""
     from dataforge_ml.imputation import ImputationStrategy
 
-    routing = route(exclusion_profile, exclusion_config)
+    routing = route(exclusion_profile, **_EXCLUSIONS)
     assert "hard_out" not in routing.column_routings
     soft = routing.column_routings["soft_out"]
     assert soft.strategy == ImputationStrategy.Passthrough
     assert soft.excluded is True
-    assert any("soft-excluded" in s for s in soft.signals)
+    assert soft.reason == "soft_excluded"
+    assert soft.evidence == ()
 
 
 def test_soft_excluded_column_rides_through_transform_untouched(
@@ -326,9 +303,8 @@ def test_hard_excluded_column_still_present_raises_before_mutation(
     exclusion_df, exclusion_fitted
 ):
     """A hard-excluded column the user forgot to drop hits the strict unknown-column raise."""
-    from dataforge_ml.imputation import UnseenColumnError
 
-    with pytest.raises(UnseenColumnError, match="hard_out"):
+    with raises_code("unseen_column", match="hard_out"):
         exclusion_fitted.transform(exclusion_df)
 
 
@@ -382,16 +358,14 @@ def test_numeric_sentinel_end_to_end_fit_transform(round_trip):
 
     df = pl.DataFrame({"age": pl.Series(age_vals, dtype=pl.Int64)})
 
-    config = PipelineConfig(
-        profiling=ProfileConfig(numeric_sentinels={"age": [-999.0]}),
-        random_seed=42,
-    )
-    profile = StructuralProfiler(config).profile(df)
+    profile = StructuralProfiler(
+        ProfileConfig(numeric_sentinels={"age": [-999.0]})
+    ).profile(df)
 
     # Profile must carry the declared sentinels.
     assert profile.numeric_sentinels == {"age": [-999.0]}
 
-    fi = fit_imputer(df, profile, config)
+    fi = fit_imputer(df, profile, seed=42)
 
     # FittedImputer must carry the sentinels.
     assert fi.numeric_sentinels == {"age": [-999.0]}
@@ -434,15 +408,14 @@ def test_hand_authored_plan_drives_column_names_to_an_imputed_frame():
     """
     import numpy as np
 
-    from dataforge_ml import (
+    from dataforge_ml._serialization import deserialize, serialize
+    from dataforge_ml.imputation import (
         AuthoredColumn,
         ImputationStrategy,
         author,
-        deserialize,
         derive_units,
         fit_unit,
         resolve_recipe,
-        serialize,
     )
 
     rng = np.random.default_rng(468)
@@ -469,8 +442,7 @@ def test_hand_authored_plan_drives_column_names_to_an_imputed_frame():
         pl.when(idx % 13 == 0).then(None).otherwise(pl.col("tenure")).alias("tenure"),
     )
 
-    config = PipelineConfig(profiling=ProfileConfig())
-    profile = StructuralProfiler(config).profile(df)
+    profile = StructuralProfiler().profile(df)
 
     routing = author(
         {
@@ -483,7 +455,7 @@ def test_hand_authored_plan_drives_column_names_to_an_imputed_frame():
         },
         profile=profile,
     )
-    recipe = resolve_recipe(routing, profile, config)
+    recipe = resolve_recipe(routing, profile)
     units = derive_units(routing)
     assert {u.unit_id for u in units} == {
         "median:score",
@@ -493,7 +465,7 @@ def test_hand_authored_plan_drives_column_names_to_an_imputed_frame():
     }
 
     results = {
-        unit.unit_id: fit_unit(recipe, unit, df, random_seed=42)
+        unit.unit_id: fit_unit(recipe, unit, df, seed=42)
         for unit in units
     }
     imputer = FittedImputer.compose(recipe, results)
@@ -535,8 +507,7 @@ def test_re_authored_routed_plan_drives_to_an_imputed_frame(
     null.
     """
     train = imputation_split.train
-    config = PipelineConfig()
-    routed = route(imputation_profile, config)
+    routed = route(imputation_profile)
 
     edited = author({"rating": ImputationStrategy.Median}, base=routed)
 
@@ -545,10 +516,10 @@ def test_re_authored_routed_plan_drives_to_an_imputed_frame(
     for col in ("score", "revenue", "label"):
         assert edited.column_routings[col] == routed.column_routings[col]
 
-    recipe = resolve_recipe(edited, imputation_profile, config)
+    recipe = resolve_recipe(edited, imputation_profile)
     units = derive_units(edited)
     results = {
-        unit.unit_id: fit_unit(recipe, unit, train, random_seed=42)
+        unit.unit_id: fit_unit(recipe, unit, train, seed=42)
         for unit in units
     }
     result = FittedImputer.compose(recipe, results).transform(imputation_split.test)
@@ -592,7 +563,7 @@ def purity_df(rng):
 
 @pytest.fixture(scope="module")
 def purity_profile(purity_df):
-    return StructuralProfiler(PipelineConfig(profiling=ProfileConfig())).profile(
+    return StructuralProfiler(ProfileConfig()).profile(
         purity_df
     )
 
@@ -608,7 +579,7 @@ def test_fit_records_carry_no_diagnostics(purity_df, purity_profile):
 
 def test_fit_event_stream_has_no_diagnostics_fold_substeps(purity_df, purity_profile):
     """Fitting only learns models — no cross-validated fold work happens."""
-    from dataforge_ml import EventType
+    from dataforge_ml._observability import EventType
 
     recorder = _Recorder()
     fit_imputer(purity_df, purity_profile, observer=recorder)
@@ -626,6 +597,7 @@ def test_forced_gmm_sampling_end_to_end_on_bounded_discrete_snaps_output():
     with snapped output (ADR-0095).
     """
     import numpy as np
+
     from dataforge_ml.profiling._config import NumericKind
 
     rng = np.random.default_rng(42)
@@ -643,10 +615,10 @@ def test_forced_gmm_sampling_end_to_end_on_bounded_discrete_snaps_output():
     ]
     df = pl.DataFrame({"age": pl.Series(vals_masked, dtype=pl.Float64)})
 
-    cfg = PipelineConfig()
-    cfg.imputation.numeric.set_per_column_strategy("age", ImputationStrategy.GMMSampling)
+    cfg = ImputationConfig()
+    cfg.numeric.set_per_column_strategy("age", ImputationStrategy.GMMSampling)
 
-    profile = StructuralProfiler(cfg).profile(df)
+    profile = StructuralProfiler().profile(df)
     assert profile.columns["age"].numeric_kind == NumericKind.BoundedDiscrete
 
     imputer = fit_imputer(df, profile, cfg)

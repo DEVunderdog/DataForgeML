@@ -1,0 +1,700 @@
+{
+  "input": {
+    "additionalProperties": false,
+    "properties": {
+      "profile": {
+        "description": "A profile Handle, such as ``profile_7f3a9c2e``.",
+        "type": "string"
+      },
+      "name": {
+        "description": "A target declared when the profile was made.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "profile",
+      "name"
+    ],
+    "type": "object"
+  },
+  "output": {
+    "additionalProperties": false,
+    "description": "One declared target: its problem type and statistics.",
+    "properties": {
+      "warnings": {
+        "additionalProperties": false,
+        "description": "Caveats on this result, most actionable first. Empty when there are none.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `code`, `message`, `columns`, `param`, `hint`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "code",
+                "message",
+                "columns",
+                "param",
+                "hint"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "A caveat on a successful result: it worked, but read this first. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `code`: The warning's Error Code. Branch on this, not on ``message``.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `message`: What happened and what to do, in one or two sentences.",
+                    "type": "string"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 2, `columns`: Columns the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `param`: The argument the warning concerns, or null."
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 4, `hint`: Library-written advice, or null."
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "omitted": {
+        "additionalProperties": false,
+        "description": "One entry per list that was cut, naming the Operation that returns the rest. Empty when nothing was cut.",
+        "properties": {
+          "fields": {
+            "description": "Always exactly `field`, `shown`, `total`, `operation`, `reason`, in this order. A row's value at position i is the field named here at i.",
+            "items": {
+              "enum": [
+                "field",
+                "shown",
+                "total",
+                "operation",
+                "reason"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "description": "Something left out of a result: a capped list was cut, or a Literal Field withheld. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "description": "Position 0, `field`: Name of the list field that was cut, or the path of the Literal Field withheld, such as ``top_values[].value``.",
+                    "type": "string"
+                  },
+                  {
+                    "description": "Position 1, `shown`: How many items the list holds; 0 for a withheld Literal Field or cut cells.",
+                    "type": "integer"
+                  },
+                  {
+                    "description": "Position 2, `total`: How many items exist; for a withheld Literal Field, how many values at that path are null; for cut cells, how many were cut.",
+                    "type": "integer"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Position 3, `operation`: The Operation that returns the rest, or null when no Operation does."
+                  },
+                  {
+                    "description": "Position 4, `reason`: ``cap`` when a list was cut to its cap; ``literal_policy`` when the Operator's Literal Policy is ``deny``; ``truncated`` when long text cells were cut to their character cap.",
+                    "enum": [
+                      "cap",
+                      "literal_policy",
+                      "truncated"
+                    ],
+                    "type": "string"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "profile": {
+        "description": "The profile Handle read.",
+        "type": "string"
+      },
+      "column": {
+        "description": "The target column.",
+        "type": "string"
+      },
+      "problem_type": {
+        "description": "The learning problem the target implies.",
+        "enum": [
+          "regression",
+          "binary_classification",
+          "multiclass_classification",
+          "unknown"
+        ],
+        "type": "string"
+      },
+      "missing_count": {
+        "description": "Rows whose target is missing.",
+        "type": "integer"
+      },
+      "missing_ratio": {
+        "description": "Share of rows whose target is missing.",
+        "type": "number"
+      },
+      "flags": {
+        "description": "Problems with the target: ``contains_missing``, ``high_imbalance`` (dominant class ratio above 5), ``severe_imbalance`` (above 20), ``highly_skewed`` or ``is_identifier``.",
+        "items": {
+          "enum": [
+            "contains_missing",
+            "high_imbalance",
+            "severe_imbalance",
+            "highly_skewed",
+            "is_identifier"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "distribution": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "description": "Statistics of a numeric column. No cell values: bounds and percentiles are in ``value_summary``.",
+            "properties": {
+              "kind": {
+                "description": "Always ``numeric``.",
+                "type": "string",
+                "enum": [
+                  "numeric"
+                ]
+              },
+              "mean": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Mean of the non-missing values."
+              },
+              "std": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Standard deviation."
+              },
+              "skew": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Skewness."
+              },
+              "kurtosis": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Excess kurtosis."
+              },
+              "skew_severity": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "normal",
+                      "moderate",
+                      "high",
+                      "severe"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Skew graded by the ``thresholds.numeric.skew_*`` dials of ``profile``."
+              },
+              "kurtosis_tag": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "platykurtic",
+                      "mesokurtic",
+                      "leptokurtic"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Kurtosis graded by the ``thresholds.numeric.kurt_*`` dials of ``profile``."
+              },
+              "mean_median_ratio": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Mean divided by median."
+              },
+              "mode_share": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Share of rows holding the most common value."
+              },
+              "outlier_density": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Share of values that are outliers, by ``thresholds.numeric.outlier_sigma_threshold``."
+              },
+              "tails": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "Which tail of a numeric column holds more of its spread.",
+                    "properties": {
+                      "tag": {
+                        "description": "``right_heavy``, ``left_heavy`` or ``symmetric``, graded by the ``thresholds.numeric.tail_asymmetry_*`` dials of ``profile``.",
+                        "enum": [
+                          "symmetric",
+                          "right_heavy",
+                          "left_heavy"
+                        ],
+                        "type": "string"
+                      },
+                      "right_share": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Share of the spread beyond the median that lies in the right tail."
+                      }
+                    },
+                    "required": [
+                      "tag",
+                      "right_share"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Tail asymmetry; null when not measured."
+              },
+              "bimodal": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "The bimodality test readings of a numeric column.",
+                    "properties": {
+                      "dip_statistic": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Hartigan's dip statistic."
+                      },
+                      "dip_p_value": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The dip test's p-value. Low means more than one mode."
+                      },
+                      "separation": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Separation between the two modes (Ashman's D)."
+                      },
+                      "minority_weight": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Share of rows in the smaller mode."
+                      }
+                    },
+                    "required": [
+                      "dip_statistic",
+                      "dip_p_value",
+                      "separation",
+                      "minority_weight"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Bimodality test readings; null when the column was not tested further."
+              },
+              "nonlinearity": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "How a numeric column relates to the other numeric columns. Routing reads these.",
+                    "properties": {
+                      "tag": {
+                        "description": "The relationship, graded by the ``thresholds.nonlinearity`` dials of ``profile``.",
+                        "enum": [
+                          "linear",
+                          "monotonic_nonlinear",
+                          "complex_nonlinear",
+                          "unpredictable"
+                        ],
+                        "type": "string"
+                      },
+                      "spearman_pearson_discrepancy": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Largest Spearman-minus-Pearson gap over the other numeric columns."
+                      },
+                      "mean_mutual_information": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Mean excess mutual information with the other numeric columns, in nats."
+                      },
+                      "max_mutual_information": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Largest mutual information with another numeric column, in nats."
+                      },
+                      "r2_linear": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "R² of a linear model predicting this column from the others."
+                      },
+                      "r2_rf": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "R² of a random forest predicting this column from the others."
+                      },
+                      "r2_gap": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "``r2_rf`` minus ``r2_linear``."
+                      },
+                      "heteroscedasticity_p_value": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Breusch-Pagan p-value of the linear model's residuals. Low means uneven spread."
+                      }
+                    },
+                    "required": [
+                      "tag",
+                      "spearman_pearson_discrepancy",
+                      "mean_mutual_information",
+                      "max_mutual_information",
+                      "r2_linear",
+                      "r2_rf",
+                      "r2_gap",
+                      "heteroscedasticity_p_value"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Nonlinearity probe readings; null when the column was not probed."
+              }
+            },
+            "required": [
+              "kind",
+              "mean",
+              "std",
+              "skew",
+              "kurtosis",
+              "skew_severity",
+              "kurtosis_tag",
+              "mean_median_ratio",
+              "mode_share",
+              "outlier_density",
+              "tails",
+              "bimodal",
+              "nonlinearity"
+            ],
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Statistics of a numeric target, as ``describe_columns`` gives them; null for a classification target."
+      },
+      "classes": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "description": "The classes of a classification target and how balanced they are.",
+            "properties": {
+              "class_count": {
+                "description": "Number of distinct classes.",
+                "type": "integer"
+              },
+              "dominant_class_ratio": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Count of the most common class divided by the second most common."
+              },
+              "normalized_entropy": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Shannon entropy of the classes, from 0 (one class) to 1 (all equally common)."
+              },
+              "counts": {
+                "additionalProperties": false,
+                "description": "The most common classes, most common first. At most 20, and no more than the profile keeps; ``omitted`` counts the rest.",
+                "properties": {
+                  "fields": {
+                    "description": "Always exactly `label`, `count`, `share`, in this order. A row's value at position i is the field named here at i.",
+                    "items": {
+                      "enum": [
+                        "label",
+                        "count",
+                        "share"
+                      ],
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "rows": {
+                    "description": "One class of a classification target. One row per record, its values in `fields` order. The i-th schema below describes position i.",
+                    "items": {
+                      "items": {
+                        "anyOf": [
+                          {
+                            "anyOf": [
+                              {
+                                "type": "boolean"
+                              },
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Position 0, `label`: The class label, as the data holds it. A Literal Field.",
+                            "x-literal": true
+                          },
+                          {
+                            "description": "Position 1, `count`: Rows holding this class.",
+                            "type": "integer"
+                          },
+                          {
+                            "description": "Position 2, `share`: Share of all rows holding this class.",
+                            "type": "number"
+                          }
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "fields",
+                  "rows"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "class_count",
+              "dominant_class_ratio",
+              "normalized_entropy",
+              "counts"
+            ],
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Classes of a classification target; null for a regression target."
+      }
+    },
+    "required": [
+      "warnings",
+      "omitted",
+      "profile",
+      "column",
+      "problem_type",
+      "missing_count",
+      "missing_ratio",
+      "flags",
+      "distribution",
+      "classes"
+    ],
+    "type": "object"
+  }
+}

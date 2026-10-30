@@ -24,14 +24,14 @@ import numpy as np
 import polars as pl
 import pytest
 
-from dataforge_ml import (
-    PipelineConfig,
-    StructuralProfiler,
+from dataforge_ml.imputation import (
+    ImputationConfig,
     derive_units,
     fit_unit,
     resolve_recipe,
     route,
 )
+from dataforge_ml.profiling.orchestrator import StructuralProfiler
 
 STRATEGY_CASES = [
     pytest.param("median", id="scalar-control"),
@@ -187,7 +187,7 @@ def _select_units(units, strategy_name, target_cols):
 
 
 def _fit_all(recipe, units, df):
-    return [(u, fit_unit(recipe, u, df, random_seed=7).fitted) for u in units]
+    return [(u, fit_unit(recipe, u, df, seed=7).fitted) for u in units]
 
 
 def _case(strategy_name):
@@ -195,11 +195,10 @@ def _case(strategy_name):
     (unit, fitted) pairs and the probe frame the assertions run against."""
     if strategy_name in _FORCED_STRATEGIES:
         df = _train_frame()
-        config = PipelineConfig()
-        config.random_seed = 7
+        config = ImputationConfig()
         for col in _TARGET_COLS:
-            config.imputation.numeric.set_per_column_strategy(col, strategy_name)
-        profile = StructuralProfiler(config=config).profile(df)
+            config.numeric.set_per_column_strategy(col, strategy_name)
+        profile = StructuralProfiler().profile(df)
         routing = route(profile, config)
         recipe = resolve_recipe(routing, profile, config)
         units = _select_units(derive_units(routing), strategy_name, _TARGET_COLS)
@@ -207,12 +206,11 @@ def _case(strategy_name):
 
     grouped = strategy_name == "cluster_conditional"
     df = _bimodal_train_frame(grouped=grouped)
-    config = PipelineConfig()
-    config.random_seed = 7
+    config = ImputationConfig()
     if grouped:
         for col in _BIMODAL_COLS:
-            config.imputation.numeric.set_bimodal_grouping_variable(col, "grp")
-    profile = StructuralProfiler(config=config).profile(df)
+            config.numeric.set_bimodal_grouping_variable(col, "grp")
+    profile = StructuralProfiler().profile(df)
     routing = route(profile, config)
     recipe = resolve_recipe(routing, profile, config)
     units = _select_units(derive_units(routing), strategy_name, _BIMODAL_COLS)
@@ -225,10 +223,10 @@ def _authored_case():
     The guarantee lives inside each unit's own ``transform``, below the
     routing, so it must hold identically for a hand-authored one.
     """
-    from dataforge_ml import AuthoredColumn, ImputationStrategy, author
+    from dataforge_ml.imputation import ImputationStrategy, author
 
     df = _train_frame()
-    profile = StructuralProfiler(config=PipelineConfig()).profile(df)
+    profile = StructuralProfiler().profile(df)
     routing = author(
         {
             "rating": ImputationStrategy.Median,
@@ -237,7 +235,7 @@ def _authored_case():
         },
         profile=profile,
     )
-    recipe = resolve_recipe(routing, profile, PipelineConfig())
+    recipe = resolve_recipe(routing, profile, ImputationConfig())
     units = _select_units(derive_units(routing), "median", _TARGET_COLS)
     return _fit_all(recipe, units, df), _probe_frame(raw_nan=False)
 
@@ -245,7 +243,7 @@ def _authored_case():
 def test_authored_routing_preserves_observed_cells_and_dtypes():
     pairs, probe = _authored_case()
     for unit, fitted in pairs:
-        out = fitted.transform(probe)
+        out = fitted._transform(probe)
         assert out.schema == probe.schema, f"{unit.unit_id}: schema changed"
         for col in unit.columns:
             mask = _observed_mask(probe[col])
@@ -263,7 +261,7 @@ def test_authored_routing_preserves_observed_cells_and_dtypes():
 def test_observed_cells_come_back_bit_for_bit(strategy_name):
     pairs, probe = _case(strategy_name)
     for unit, fitted in pairs:
-        out = fitted.transform(probe)
+        out = fitted._transform(probe)
         for col in unit.columns:
             mask = _observed_mask(probe[col])
             assert out[col].filter(mask).equals(probe[col].filter(mask)), (
@@ -275,7 +273,7 @@ def test_observed_cells_come_back_bit_for_bit(strategy_name):
 def test_dtypes_are_unchanged(strategy_name):
     pairs, probe = _case(strategy_name)
     for unit, fitted in pairs:
-        out = fitted.transform(probe)
+        out = fitted._transform(probe)
         assert out.schema == probe.schema, f"{unit.unit_id}: schema changed"
 
 
@@ -283,7 +281,7 @@ def test_dtypes_are_unchanged(strategy_name):
 def test_columns_outside_the_unit_targets_are_untouched(strategy_name):
     pairs, probe = _case(strategy_name)
     for unit, fitted in pairs:
-        out = fitted.transform(probe)
+        out = fitted._transform(probe)
         for col in probe.columns:
             if col in fitted.target_columns:
                 continue
@@ -298,7 +296,7 @@ def test_missing_cells_are_filled(strategy_name):
     # Effective Null in the input carries a real value on the way out.
     pairs, probe = _case(strategy_name)
     for unit, fitted in pairs:
-        out = fitted.transform(probe)
+        out = fitted._transform(probe)
         for col in unit.columns:
             filled = out[col].filter(~_observed_mask(probe[col]))
             assert len(filled) > 0, f"fixture rot: '{col}' has no missing cells"

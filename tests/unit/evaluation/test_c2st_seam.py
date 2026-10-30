@@ -2,7 +2,7 @@
 
 Two frames in, one result out, with no imputer anywhere: every property below
 is asserted against synthetic samples whose right answer is known in advance.
-Calibration and detection are statistical, so each fixes ``random_state`` and
+Calibration and detection are statistical, so each fixes ``seed`` and
 states a tolerance in the assertion rather than pinning an exact number. Pile
 contents, subsample indices and per-fit accuracies are deliberately never
 asserted — they are how the arithmetic got there, not what the seam promises.
@@ -14,28 +14,31 @@ chance.
 
 from __future__ import annotations
 
+import inspect
+
 import numpy as np
 import polars as pl
 import pytest
 from sklearn.dummy import DummyClassifier
 from sklearn.ensemble import HistGradientBoostingClassifier
 
+from dataforge_ml._observability import (
+    Emitter,
+    EventType,
+    PipelineEvent,
+    _ObservabilityMixin,
+)
+from dataforge_ml.evaluation import _c2st as c2st_module
 from dataforge_ml.evaluation._c2st import (
     MIN_SAMPLE_FLOOR,
-    C2STDtypeError,
-    C2STSampleFloorError,
     C2STScheme,
     _c2st,
     _default_c2st_classifier,
     _meets_sample_floor,
     c2st,
 )
-from dataforge_ml.observability import (
-    Emitter,
-    EventType,
-    PipelineEvent,
-    _ObservabilityMixin,
-)
+from dataforge_ml.records import Infeasible
+from tests.conftest import raises_code
 
 Z_CRIT = 1.645  # one-sided alpha = 0.05
 
@@ -84,6 +87,17 @@ def _counting() -> _CountingClassifier:
     )
 
 
+def _swap_factory(monkeypatch: pytest.MonkeyPatch, model) -> None:
+    """Make the library's classifier factory hand back ``model``.
+
+    No call takes a classifier in, so the factory is the only seam a test can
+    reach to watch or replace the model a repeat fits.
+    """
+    monkeypatch.setattr(
+        c2st_module, "_default_c2st_classifier", lambda **_: model
+    )
+
+
 # ---------------------------------------------------------------------------
 # Calibration and detection
 # ---------------------------------------------------------------------------
@@ -103,7 +117,7 @@ def test_null_calibration_is_standard_normal_at_the_nominal_level() -> None:
                 *_one_world(300, seed),
                 repeats=1,
                 scheme=C2STScheme.Split,
-                random_state=seed,
+                seed=seed,
             ).mean_repeat_z
             for seed in range(40)
         ]
@@ -124,7 +138,7 @@ def test_a_degenerate_candidate_sample_is_caught() -> None:
     )
 
     result = c2st(
-        observed, filled, repeats=3, scheme=C2STScheme.Split, random_state=7
+        observed, filled, repeats=3, scheme=C2STScheme.Split, seed=7
     )
 
     assert result.mean_repeat_z > Z_CRIT
@@ -145,7 +159,7 @@ def test_an_oracle_candidate_sample_scores_at_chance() -> None:
         oracle[n // 2 :],
         repeats=3,
         scheme=C2STScheme.Split,
-        random_state=7,
+        seed=7,
     )
 
     assert abs(result.mean_repeat_z) < 3.0
@@ -167,10 +181,10 @@ def test_balancing_sizes_the_test_off_the_smaller_sample() -> None:
     frame, _ = _table(1400, np.random.default_rng(13))
     small = frame[:60]
     narrow = c2st(
-        frame[60:260], small, repeats=3, scheme=C2STScheme.Split, random_state=5
+        frame[60:260], small, repeats=3, scheme=C2STScheme.Split, seed=5
     )
     wide = c2st(
-        frame[60:1400], small, repeats=3, scheme=C2STScheme.Split, random_state=5
+        frame[60:1400], small, repeats=3, scheme=C2STScheme.Split, seed=5
     )
 
     # 60 rows per pile, 30% held out on each side.
@@ -196,7 +210,7 @@ def test_pooling_is_the_mean_against_the_single_run_null() -> None:
         *_one_world(200, 3),
         repeats=repeats,
         scheme=C2STScheme.Split,
-        random_state=3,
+        seed=3,
     )
 
     assert len(result.repeat_z) == repeats
@@ -210,7 +224,7 @@ def test_pooling_is_the_mean_against_the_single_run_null() -> None:
 
 def test_a_single_repeat_has_no_spread() -> None:
     result = c2st(
-        *_one_world(200, 4), repeats=1, scheme=C2STScheme.Split, random_state=4
+        *_one_world(200, 4), repeats=1, scheme=C2STScheme.Split, seed=4
     )
 
     assert len(result.repeat_z) == 1
@@ -240,19 +254,21 @@ def test_the_floor_predicate_is_pure_and_needs_no_test_run() -> None:
 def test_the_floor_is_asserted_internally_so_it_cannot_be_bypassed() -> None:
     frame, _ = _table(400, np.random.default_rng(15))
 
-    with pytest.raises(C2STSampleFloorError, match="size floor"):
+    with raises_code("c2st_sample_floor", match="size floor"):
         c2st(
             frame[200:],
             frame[: MIN_SAMPLE_FLOOR - 1],
             repeats=1,
             scheme=C2STScheme.Split,
-            random_state=0,
+            seed=0,
         )
 
 
-def test_the_sample_floor_error_is_a_value_error_subclass() -> None:
-    """A caller can still catch it as a bare ``ValueError`` if it wants to."""
-    assert issubclass(C2STSampleFloorError, ValueError)
+def test_the_sample_floor_error_is_infeasible() -> None:
+    """A caller catches the category, then branches on the code."""
+    frame, _ = _table(400, np.random.default_rng(15))
+    with pytest.raises(Infeasible):
+        c2st(frame[200:], frame[:10], repeats=1, scheme=C2STScheme.Split, seed=0)
 
 
 # ---------------------------------------------------------------------------
@@ -266,36 +282,37 @@ def test_a_string_column_raises_a_named_error_identifying_the_column() -> None:
         pl.Series("note", ["a note"] * frame.height, dtype=pl.String)
     )
 
-    with pytest.raises(C2STDtypeError, match="'note'"):
+    with raises_code("c2st_string_column") as info:
         c2st(
             with_text[:100],
             with_text[100:],
             repeats=1,
             scheme=C2STScheme.Split,
-            random_state=0,
+            seed=0,
         )
+    assert info.value.columns == ["note"]
 
 
 def test_mismatched_columns_are_refused() -> None:
     frame, _ = _table(200, np.random.default_rng(17))
 
-    with pytest.raises(ValueError, match="same columns"):
+    with raises_code("frames_not_aligned", match="same columns"):
         c2st(
             frame[:100],
             frame[100:].drop("x3"),
             repeats=1,
             scheme=C2STScheme.Split,
-            random_state=0,
+            seed=0,
         )
 
 
 def test_repeats_below_one_are_refused() -> None:
-    with pytest.raises(ValueError, match="at least 1 repeat"):
+    with raises_code("invalid_dial_value", match="at least 1 repeat"):
         c2st(
             *_one_world(60, 18),
             repeats=0,
             scheme=C2STScheme.Split,
-            random_state=0,
+            seed=0,
         )
 
 
@@ -304,34 +321,38 @@ def test_repeats_below_one_are_refused() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_split_runs_one_fit_per_repeat_with_n_test_exactly_known() -> None:
+def test_split_runs_one_fit_per_repeat_with_n_test_exactly_known(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     reference, candidate = _one_world(100, 19)
     model = _counting()
+    _swap_factory(monkeypatch, model)
 
     result = c2st(
         reference,
         candidate,
         repeats=3,
         scheme=C2STScheme.Split,
-        classifier=model,
-        random_state=1,
+        seed=1,
     )
 
     assert model.fit_calls == 3
     assert result.n_test == 2 * round(100 * 0.3)
 
 
-def test_cross_validation_runs_five_fits_per_repeat_over_every_row() -> None:
+def test_cross_validation_runs_five_fits_per_repeat_over_every_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     reference, candidate = _one_world(100, 20)
     model = _counting()
+    _swap_factory(monkeypatch, model)
 
     result = c2st(
         reference,
         candidate,
         repeats=2,
         scheme=C2STScheme.CrossValidation,
-        classifier=model,
-        random_state=1,
+        seed=1,
     )
 
     assert model.fit_calls == 10
@@ -340,13 +361,13 @@ def test_cross_validation_runs_five_fits_per_repeat_over_every_row() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Determinism and injection
+# Determinism, and no injected classifier
 # ---------------------------------------------------------------------------
 
 
-def test_the_same_random_state_gives_the_same_result() -> None:
+def test_the_same_seed_gives_the_same_result() -> None:
     reference, candidate = _one_world(120, 21)
-    kwargs = {"repeats": 3, "scheme": C2STScheme.Split, "random_state": 99}
+    kwargs = {"repeats": 3, "scheme": C2STScheme.Split, "seed": 99}
 
     first = c2st(reference, candidate, **kwargs)
     second = c2st(reference, candidate, **kwargs)
@@ -354,42 +375,27 @@ def test_the_same_random_state_gives_the_same_result() -> None:
     assert first == second
 
 
-def test_an_injected_classifier_is_used_verbatim() -> None:
-    """Injection is total: no ``set_params`` reach-in, no clone."""
+def test_two_runs_with_no_seed_give_the_same_result() -> None:
+    """No seed means the fixed library default seed, never "random"."""
     reference, candidate = _one_world(120, 22)
-    injected = HistGradientBoostingClassifier(
-        max_iter=17, min_samples_leaf=9, early_stopping=False, random_state=3
-    )
-    before = injected.get_params()
+    kwargs = {"repeats": 3, "scheme": C2STScheme.Split}
 
-    c2st(
-        reference,
-        candidate,
-        repeats=2,
-        scheme=C2STScheme.Split,
-        classifier=injected,
-        random_state=0,
-    )
+    first = c2st(reference, candidate, **kwargs)
+    second = c2st(reference, candidate, **kwargs)
 
-    assert injected.get_params() == before
+    assert first == second
 
 
-def test_min_samples_leaf_with_an_injected_classifier_is_refused() -> None:
-    """``min_samples_leaf`` only tunes the *default* classifier; setting both is unrepresentable."""
-    reference, candidate = _one_world(120, 29)
-    injected = HistGradientBoostingClassifier(
-        min_samples_leaf=9, early_stopping=False, random_state=3
-    )
-
-    with pytest.raises(ValueError, match="min_samples_leaf"):
-        c2st(
-            reference,
-            candidate,
+@pytest.mark.parametrize("seam", [c2st, _c2st])
+def test_no_c2st_path_accepts_a_classifier(seam) -> None:
+    """The classifier is always the library's own; no call takes one in."""
+    assert "classifier" not in inspect.signature(seam).parameters
+    with pytest.raises(TypeError):
+        seam(
+            *_one_world(60, 29),
             repeats=1,
             scheme=C2STScheme.Split,
-            classifier=injected,
-            min_samples_leaf=7,
-            random_state=0,
+            classifier=DummyClassifier(),
         )
 
 
@@ -399,15 +405,15 @@ def test_min_samples_leaf_overrides_the_default_classifier_pin() -> None:
         repeats=1,
         scheme=C2STScheme.Split,
         min_samples_leaf=11,
-        random_state=0,
+        seed=0,
     )
 
     assert result.repeat_z
 
 
 def test_the_default_factory_carries_exactly_the_two_pins() -> None:
-    """``c2st(classifier=None)`` never builds a bare sklearn-default HGB."""
-    params = _default_c2st_classifier(random_state=5).get_params()
+    """No C2ST call ever builds a bare sklearn-default HGB."""
+    params = _default_c2st_classifier(seed=5).get_params()
     inherited = HistGradientBoostingClassifier().get_params()
 
     assert params["min_samples_leaf"] == 5
@@ -425,16 +431,18 @@ def test_the_default_factory_carries_exactly_the_two_pins() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_a_single_class_predictor_every_repeat_is_reported_degenerate() -> None:
+def test_a_single_class_predictor_every_repeat_is_reported_degenerate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     reference, candidate = _one_world(80, 23)
+    _swap_factory(monkeypatch, DummyClassifier(strategy="constant", constant=0))
 
     result = c2st(
         reference,
         candidate,
         repeats=2,
         scheme=C2STScheme.Split,
-        classifier=DummyClassifier(strategy="constant", constant=0),
-        random_state=0,
+        seed=0,
     )
 
     assert result.degenerate is True
@@ -448,7 +456,7 @@ def test_a_candidate_only_level_sets_the_unseen_category_flag() -> None:
     )
 
     result = c2st(
-        reference, candidate, repeats=1, scheme=C2STScheme.Split, random_state=0
+        reference, candidate, repeats=1, scheme=C2STScheme.Split, seed=0
     )
 
     assert result.unseen_category is True
@@ -458,7 +466,7 @@ def test_a_candidate_only_level_sets_the_unseen_category_flag() -> None:
 
 def test_matching_levels_leave_the_unseen_category_flag_clear() -> None:
     result = c2st(
-        *_one_world(120, 25), repeats=1, scheme=C2STScheme.Split, random_state=0
+        *_one_world(120, 25), repeats=1, scheme=C2STScheme.Split, seed=0
     )
 
     assert result.unseen_category is False
@@ -476,7 +484,7 @@ def test_a_train_test_drift_check_is_served_with_no_adapter() -> None:
     train, holdout = frame[:450], frame[450:]
 
     result = c2st(
-        train, holdout, repeats=3, scheme=C2STScheme.Split, random_state=2
+        train, holdout, repeats=3, scheme=C2STScheme.Split, seed=2
     )
 
     assert result.mean_repeat_z <= Z_CRIT
@@ -490,7 +498,7 @@ def test_an_outlier_clipping_check_is_served_with_no_adapter() -> None:
     clipped = clipped.with_columns(pl.col("c").clip(-0.5, 0.5))
 
     result = c2st(
-        untouched, clipped, repeats=3, scheme=C2STScheme.Split, random_state=2
+        untouched, clipped, repeats=3, scheme=C2STScheme.Split, seed=2
     )
 
     assert result.mean_repeat_z > Z_CRIT
@@ -509,7 +517,7 @@ def test_a_direct_call_reports_the_repeat_as_an_item() -> None:
         *_one_world(80, 28),
         repeats=4,
         scheme=C2STScheme.Split,
-        random_state=0,
+        seed=0,
         observer=seen.append,
     )
 
@@ -518,7 +526,6 @@ def test_a_direct_call_reports_the_repeat_as_an_item() -> None:
     assert [e.index for e in items] == [1, 2, 3, 4]
     assert {e.total for e in items} == {4}
     assert not [e for e in seen if e.event_type is EventType.substep]
-    assert not [e for e in seen if e.event_type is EventType.decision]
     assert {EventType.stage_start, EventType.stage_end} <= {
         e.event_type for e in seen
     }
@@ -536,7 +543,7 @@ def test_evaluation_c2st_public_direct_call_with_five_repeats_emits_items() -> N
         cand_df,
         repeats=5,
         scheme=dataforge_ml.evaluation.C2STScheme.Split,
-        random_state=0,
+        seed=0,
         observer=seen.append,
     )
 
@@ -547,7 +554,6 @@ def test_evaluation_c2st_public_direct_call_with_five_repeats_emits_items() -> N
     assert [e.index for e in items] == [1, 2, 3, 4, 5]
     assert {e.total for e in items} == {5}
     assert not [e for e in seen if e.event_type is EventType.substep]
-    assert not [e for e in seen if e.event_type is EventType.decision]
     assert {EventType.stage_start, EventType.stage_end} <= {
         e.event_type for e in seen
     }
@@ -562,7 +568,7 @@ def test_the_adapters_nested_call_still_reports_the_repeat_as_a_substep() -> Non
         *_one_world(80, 28),
         repeats=4,
         scheme=C2STScheme.Split,
-        random_state=0,
+        seed=0,
         emitter=emitter,
     )
 
@@ -572,7 +578,6 @@ def test_the_adapters_nested_call_still_reports_the_repeat_as_a_substep() -> Non
     assert {e.total for e in substeps} == {4}
     assert {(e.phase, e.stage) for e in substeps} == {("evaluation", "c2st")}
     assert not [e for e in seen if e.event_type is EventType.item]
-    assert not [e for e in seen if e.event_type is EventType.decision]
 
 
 def test_the_emitter_gains_stage_boundaries_additively() -> None:

@@ -3,8 +3,8 @@
 A fitted unit serializes as a readable JSON header (unit type, owned columns,
 the ``produced_with`` six-version stamp, and the payload's SHA-256 checksum)
 followed by a *separate* opaque joblib payload — never base64-inlined into the
-header. ``deserialize(serialize(unit)).transform(X)`` is bit-identical to
-``unit.transform(X)`` on equal input, and any reconstruction-critical version
+header. ``deserialize(serialize(unit))._transform(X)`` is bit-identical to
+``unit._transform(X)`` on equal input, and any reconstruction-critical version
 mismatch (or a corrupt payload) refuses loudly. ``inspect`` reads the header
 without unpickling.
 """
@@ -17,24 +17,24 @@ import json
 import numpy as np
 import polars as pl
 import pytest
-from sklearn.experimental import enable_iterative_imputer  # noqa: F401
+from sklearn.experimental import enable_iterative_imputer  # noqa: F401 - side effect
 from sklearn.impute import IterativeImputer, KNNImputer
 from sklearn.linear_model import BayesianRidge
 
-from dataforge_ml import (
+from dataforge_ml._serialization import (
     ArtifactPythonVersionWarning,
-    IncompatibleArtifactError,
     deserialize,
     inspect,
     serialize,
 )
-from dataforge_ml.imputation._config import ImputationStrategy
 from dataforge_ml.imputation._fitted_imputer import FittedMICE, _FittedKNN
 from dataforge_ml.imputation._fitted_units import (
     FittedClusterConditional,
     FittedGMMSampling,
     FittedScalar,
 )
+from dataforge_ml.records import DataForgeError
+from tests.conftest import raises_code
 
 # --------------------------------------------------------------------------- #
 # Byte-level tampering helpers: a serialized unit is a JSON header line, a
@@ -93,7 +93,7 @@ def _gmm_unit() -> tuple[FittedGMMSampling, pl.DataFrame]:
         weight1=0.4,
         weight2=0.6,
         target_col="g",
-        random_seed=7,
+        seed=7,
     )
     df = pl.DataFrame({"g": [1.2, None, 8.9, None, None]})
     return unit, df
@@ -223,7 +223,7 @@ def test_deserialize_reconstructs_bit_identical_transform(unit_and_df) -> None:
     unit, df = unit_and_df
     loaded = deserialize(serialize(unit))
     assert type(loaded) is type(unit)
-    assert loaded.transform(df).equals(unit.transform(df))
+    assert loaded._transform(df).equals(unit._transform(df))
 
 
 # --------------------------------------------------------------------------- #
@@ -234,7 +234,7 @@ def test_deserialize_reconstructs_bit_identical_transform(unit_and_df) -> None:
 def test_corrupt_payload_refuses_to_deserialize() -> None:
     unit, _ = _scalar_unit()
     blob = serialize(unit)
-    with pytest.raises(IncompatibleArtifactError, match="checksum"):
+    with raises_code("incompatible_artifact", match="checksum"):
         deserialize(blob + b"garbage")
 
 
@@ -243,7 +243,7 @@ def test_dependency_version_mismatch_refuses_to_deserialize() -> None:
     tampered = _tamper_header(
         serialize(unit), lambda h: h["produced_with"].update(numpy="0.0.0-fake")
     )
-    with pytest.raises(IncompatibleArtifactError, match="numpy"):
+    with raises_code("incompatible_artifact", match="numpy"):
         deserialize(tampered)
 
 
@@ -253,7 +253,7 @@ def test_newer_format_schema_refuses_to_deserialize() -> None:
         serialize(unit),
         lambda h: h["produced_with"].update(format_schema_version=999),
     )
-    with pytest.raises(IncompatibleArtifactError, match="format-schema"):
+    with raises_code("incompatible_artifact", match="format-schema"):
         deserialize(tampered)
 
 
@@ -266,14 +266,27 @@ def test_python_version_drift_warns_but_loads() -> None:
     )
     with pytest.warns(ArtifactPythonVersionWarning, match="1.2.3"):
         loaded = deserialize(tampered)
-    assert loaded.transform(df).equals(unit.transform(df))
+    assert loaded._transform(df).equals(unit._transform(df))
 
 
 def test_unrecognised_kind_refuses_to_deserialize() -> None:
     unit, _ = _scalar_unit()
     tampered = _tamper_header(serialize(unit), lambda h: h.update(kind="mystery"))
-    with pytest.raises(IncompatibleArtifactError, match="kind"):
+    with raises_code("incompatible_artifact", match="kind"):
         deserialize(tampered)
+
+
+def test_foreign_bytes_refuse_as_incompatible_artifact() -> None:
+    with raises_code("incompatible_artifact"):
+        deserialize(b"\x80\x04 not an envelope")
+    with raises_code("incompatible_artifact"):
+        inspect(b"[1, 2, 3]")
+
+
+def test_serializing_an_unsupported_object_names_the_supported_kinds() -> None:
+    with raises_code("unsupported_artifact_object") as info:
+        serialize({"not": "a unit"})
+    assert "ImputationRecipe" in info.value.allowed
 
 
 def test_genuine_joblib_load_failure_propagates() -> None:
@@ -282,14 +295,14 @@ def test_genuine_joblib_load_failure_propagates() -> None:
     # Replace the payload with bytes that pass the checksum gate (header updated
     # to match) but are not a valid joblib stream. The reconstruction gates let
     # it through; the raw joblib.load failure must propagate rather than be
-    # swallowed or masquerade as IncompatibleArtifactError.
+    # swallowed or masquerade as an incompatible_artifact Library Error.
     garbage = b"not a joblib payload"
     header["payload_sha256"] = hashlib.sha256(garbage).hexdigest()
     tampered = _rejoin(header, garbage)
 
     with pytest.raises(Exception) as excinfo:
         deserialize(tampered)
-    assert not isinstance(excinfo.value, IncompatibleArtifactError)
+    assert not isinstance(excinfo.value, DataForgeError)
 
 
 # --------------------------------------------------------------------------- #
@@ -302,14 +315,15 @@ def test_genuine_joblib_load_failure_propagates() -> None:
 
 
 def test_whole_imputer_round_trips_via_routing_plus_units() -> None:
-    from dataforge_ml import PipelineConfig, StructuralProfiler
     from dataforge_ml.imputation import (
         FittedImputer,
+        ImputationConfig,
         derive_units,
         fit_unit,
         resolve_recipe,
         route,
     )
+    from dataforge_ml.profiling.orchestrator import StructuralProfiler
 
     df = pl.DataFrame(
         {
@@ -317,13 +331,13 @@ def test_whole_imputer_round_trips_via_routing_plus_units() -> None:
             "b": [10.0, None, 30.0, 40.0, 50.0, 60.0, None, 80.0] * 8,
         }
     )
-    cfg = PipelineConfig()
-    profile = StructuralProfiler(cfg).profile(df)
+    cfg = ImputationConfig()
+    profile = StructuralProfiler().profile(df)
     routing = route(profile, cfg)
     recipe = resolve_recipe(routing, profile, cfg)
     units = derive_units(routing)
     results = {
-        unit.unit_id: fit_unit(recipe, unit, df, random_seed=7)
+        unit.unit_id: fit_unit(recipe, unit, df, seed=7)
         for unit in units
     }
 

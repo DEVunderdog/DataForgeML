@@ -11,15 +11,14 @@ user-facing configuration surface regardless of which strategy consumes it.
 
 from __future__ import annotations
 
-import pytest
-
 from dataforge_ml.imputation import NumericImputationConfig
+from tests.conftest import raises_code
 
 
 def test_max_workers_rejects_zero_and_negative():
-    with pytest.raises(ValueError):
+    with raises_code("invalid_dial_value"):
         NumericImputationConfig(max_workers=0)
-    with pytest.raises(ValueError):
+    with raises_code("invalid_dial_value"):
         NumericImputationConfig(max_workers=-2)
 
 

@@ -235,31 +235,3 @@ def test_the_census_order_survives_the_stamping():
     )
 
     assert list(report) == ["z", "a", "m"]
-
-
-# ---------------------------------------------------------------------------
-# Rendering
-# ---------------------------------------------------------------------------
-
-
-def test_the_verdict_and_annotations_reach_the_column_fragment():
-    record = ColumnC2STResult(
-        column="score",
-        outcome=C2STOutcome.Tested,
-        n_observed=300,
-        n_filled=40,
-        score=C2STScore(mean_frame_z=3.0, p_value=0.001),
-        annotations=(C2STAnnotation.LowPower, C2STAnnotation.ImbalancedPiles),
-    )
-
-    text = _report(record)["score"].to_markdown()
-
-    assert "| verdict | flagged |" in text
-    assert "low_power, imbalanced_piles" in text
-
-
-def test_the_summary_table_carries_the_verdict_and_adjusted_p():
-    text = _report(_tested("a", 0.001), _refused("b", C2STOutcome.Uninformative)).to_markdown()
-
-    assert "| Column | Outcome | Verdict |" in text
-    assert "no_verdict" in text

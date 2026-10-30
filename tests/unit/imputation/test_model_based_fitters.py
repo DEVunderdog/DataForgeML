@@ -4,27 +4,37 @@ half (#528): KNN widening (ADR-0093), the Estimator Ladder (ADR-0094), and
 domain-snapping a BoundedDiscrete column escalated to a model.
 
 Includes synthetic regression guards and a real-frame regression test
-reusing ``ames`` (asserting widened KNN beats block-only, the forest beats
-BayesianRidge at small sizes, and the booster loses to the forest, per
-ADR-0093, ADR-0097, #542, #543).
+reusing ``ames`` (asserting widened KNN beats block-only and the booster
+loses to the forest at small sizes, per ADR-0093, ADR-0097, #542, #543).
 """
 
 from __future__ import annotations
+
+import dataclasses
 
 import numpy as np
 import polars as pl
 import pytest
 from sklearn.impute import KNNImputer
 
-from dataforge_ml import PipelineConfig, StructuralProfiler, derive_units, fit_unit
-from dataforge_ml.imputation import ImputationStrategy, resolve_recipe, route
+from dataforge_ml.imputation import (
+    ImputationConfig,
+    ImputationStrategy,
+    derive_units,
+    fit_unit,
+    resolve_recipe,
+    route,
+)
 from dataforge_ml.imputation._config import ModelChoice
+from dataforge_ml.profiling.orchestrator import StructuralProfiler
 from dataforge_ml.utils._null_normalization import _resolve_effective_nulls
+
+_SEED = 7
 
 
 def _drive(df, cfg):
     """Route, resolve a recipe, and train every unit; return the fitted units."""
-    profile = StructuralProfiler(config=cfg).profile(df)
+    profile = StructuralProfiler().profile(df)
     routing = route(profile, cfg)
     recipe = resolve_recipe(routing, profile, cfg)
     units = derive_units(routing)
@@ -34,17 +44,16 @@ def _drive(df, cfg):
         string_sentinels=profile.string_sentinels,
     )
     fitted = {
-        unit.unit_id: fit_unit(recipe, unit, train, random_seed=cfg.random_seed).fitted
+        unit.unit_id: fit_unit(recipe, unit, train, seed=_SEED).fitted
         for unit in units
     }
     return profile, routing, units, train, fitted
 
 
 def _config(**per_column_strategy):
-    cfg = PipelineConfig()
-    cfg.random_seed = 7
+    cfg = ImputationConfig()
     for col, strategy in per_column_strategy.items():
-        cfg.imputation.numeric.set_per_column_strategy(col, strategy)
+        cfg.numeric.set_per_column_strategy(col, strategy)
     return cfg
 
 
@@ -73,13 +82,13 @@ def test_one_column_knn_block_does_not_collapse_to_the_training_mean():
     """
     df, t_true, missing_idx = _correlated_frame()
     cfg = _config(t=ImputationStrategy.KNN)
-    _, routing, units, train, fitted = _drive(df, cfg)
+    _, _, _, train, fitted = _drive(df, cfg)
 
     knn_unit = fitted["knn"]
     assert knn_unit.all_cols == ["t", "p"]  # widened past the block's own column
     assert knn_unit.columns == ["t"]
 
-    out = knn_unit.transform(train)
+    out = knn_unit._transform(train)
     imputed = out["t"].to_numpy()[missing_idx]
     true_vals = t_true[missing_idx]
 
@@ -119,7 +128,7 @@ def test_knn_widened_beats_block_only_on_rmse_with_noise_columns():
     _, _, _, train, fitted = _drive(df, cfg)
 
     knn_unit = fitted["knn"]
-    out = knn_unit.transform(train)
+    out = knn_unit._transform(train)
     imputed = out["t"].to_numpy()[missing_idx]
     true_vals = t_true[missing_idx]
     widened_rmse = float(np.sqrt(np.mean((imputed - true_vals) ** 2)))
@@ -139,7 +148,7 @@ def test_knn_block_writes_back_only_its_own_columns():
     cfg = _config(t=ImputationStrategy.KNN)
     _, _, _, train, fitted = _drive(df, cfg)
     knn_unit = fitted["knn"]
-    out = knn_unit.transform(train)
+    out = knn_unit._transform(train)
     # p had no missing values; it must come back bit-for-bit.
     assert out["p"].to_list() == train["p"].to_list()
 
@@ -164,14 +173,14 @@ def test_mice_end_to_end_fits_and_converges():
 
     df = pl.DataFrame({"a": a, "b": b_masked, "c": c_masked})
     cfg = _config(b=ImputationStrategy.MICE, c=ImputationStrategy.MICE)
-    _, routing, units, train, fitted = _drive(df, cfg)
+    _, routing, _, train, fitted = _drive(df, cfg)
 
     assert routing.mice_model_choice is not None
     mice_unit = fitted["mice"]
     assert set(mice_unit.columns) == {"b", "c"}
     assert "a" in mice_unit.all_cols
 
-    out = mice_unit.transform(train)
+    out = mice_unit._transform(train)
     assert out["b"].null_count() == 0
     assert out["c"].null_count() == 0
 
@@ -198,10 +207,10 @@ def test_mice_domain_snaps_a_bounded_discrete_column():
         }
     )
     cfg = _config(rating=ImputationStrategy.MICE)
-    _, routing, units, train, fitted = _drive(df, cfg)
+    _, _, _, train, fitted = _drive(df, cfg)
 
     mice_unit = fitted["mice"]
-    out = mice_unit.transform(train)
+    out = mice_unit._transform(train)
     filled = out["rating"].to_numpy()[missing_idx]
     assert np.all(filled >= 1.0) and np.all(filled <= 5.0)
     assert np.all(filled == np.round(filled))  # snapped to whole numbers
@@ -226,11 +235,11 @@ def _nonlinear_frame(n, seed=1):
 
 
 def _mice_rmse_with_estimator(df, target_true, missing_idx, model_choice):
-    """Fit MICE forced to ``model_choice`` via with_model_choice and measure RMSE."""
+    """Fit MICE forced to ``model_choice`` and measure RMSE."""
     cfg = _config(target=ImputationStrategy.MICE)
-    profile = StructuralProfiler(config=cfg).profile(df)
+    profile = StructuralProfiler().profile(df)
     routing = route(profile, cfg)
-    routing = routing.with_model_choice(model_choice)
+    routing = dataclasses.replace(routing, mice_model_choice=model_choice)
     recipe = resolve_recipe(routing, profile, cfg)
     units = derive_units(routing, strategy=ImputationStrategy.MICE)
     train = _resolve_effective_nulls(
@@ -238,8 +247,8 @@ def _mice_rmse_with_estimator(df, target_true, missing_idx, model_choice):
         numeric_sentinels=profile.numeric_sentinels,
         string_sentinels=profile.string_sentinels,
     )
-    result = fit_unit(recipe, units[0], train, random_seed=cfg.random_seed)
-    out = result.fitted.transform(train)
+    result = fit_unit(recipe, units[0], train, seed=_SEED)
+    out = result.fitted._transform(train)
     imputed = out["target"].to_numpy()[missing_idx]
     return float(np.sqrt(np.mean((imputed - target_true[missing_idx]) ** 2)))
 
@@ -276,8 +285,10 @@ def test_real_frame_ames_regression():
 
     Asserts:
     1. Widened KNN beats block-only fit on masked-cell RMSE.
-    2. The forest beats BayesianRidge at small sizes (n=100).
-    3. The booster loses to the forest at small sizes.
+    2. The booster loses to the forest at small sizes (n=100).
+
+    The forest no longer beats BayesianRidge here: with correlation always on
+    (ADR-0104) MICE reads the correlated predictors, and the ridge wins.
     """
     try:
         from sklearn.datasets import fetch_openml
@@ -286,7 +297,7 @@ def test_real_frame_ames_regression():
         df_raw = bunch.frame
         num_cols = df_raw.select_dtypes(include=np.number).columns.tolist()
         df_num = df_raw[num_cols].dropna().iloc[:300].copy()
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - any fetch or parse failure means the dataset is unavailable
         pytest.skip(f"Ames dataset unavailable: {exc}")
 
     rng = np.random.default_rng(42)
@@ -299,16 +310,15 @@ def test_real_frame_ames_regression():
     pl_df = pl.from_pandas(df_masked)
 
     # 1. Widened KNN beats block-only
-    cfg = PipelineConfig()
-    cfg.random_seed = 42
-    cfg.imputation.numeric.set_per_column_strategy(target, ImputationStrategy.KNN)
-    profile = StructuralProfiler(config=cfg).profile(pl_df)
+    cfg = ImputationConfig()
+    cfg.numeric.set_per_column_strategy(target, ImputationStrategy.KNN)
+    profile = StructuralProfiler().profile(pl_df)
     routing = route(profile, cfg)
     recipe = resolve_recipe(routing, profile, cfg)
     unit = derive_units(routing, strategy=ImputationStrategy.KNN)[0]
     train = _resolve_effective_nulls(pl_df)
-    res = fit_unit(recipe, unit, train, random_seed=42)
-    out_knn = res.fitted.transform(train)
+    res = fit_unit(recipe, unit, train, seed=42)
+    out_knn = res.fitted._transform(train)
     knn_imputed = out_knn[target].to_numpy()[missing_idx]
     widened_rmse = float(np.sqrt(np.mean((knn_imputed - true_vals[missing_idx]) ** 2)))
 
@@ -321,7 +331,7 @@ def test_real_frame_ames_regression():
     )
     assert widened_rmse < block_only_rmse
 
-    # 2 & 3. Small size (n=100): forest beats BayesianRidge, booster loses to forest
+    # 2. Small size (n=100): booster loses to forest
     df_small = df_num.iloc[:100].copy()
     true_small = df_small[target].to_numpy()
     miss_small = rng.choice(len(df_small), int(len(df_small) * 0.25), replace=False)
@@ -330,21 +340,18 @@ def test_real_frame_ames_regression():
     pl_small = pl.from_pandas(df_small_masked)
 
     def fit_mice(choice):
-        c = PipelineConfig()
-        c.random_seed = 42
-        c.imputation.numeric.set_per_column_strategy(target, ImputationStrategy.MICE)
-        prof = StructuralProfiler(config=c).profile(pl_small)
-        r = route(prof, c).with_model_choice(choice)
+        c = ImputationConfig()
+        c.numeric.set_per_column_strategy(target, ImputationStrategy.MICE)
+        prof = StructuralProfiler().profile(pl_small)
+        r = dataclasses.replace(route(prof, c), mice_model_choice=choice)
         rec = resolve_recipe(r, prof, c)
         u = derive_units(r, strategy=ImputationStrategy.MICE)[0]
         tr = _resolve_effective_nulls(pl_small)
-        out = fit_unit(rec, u, tr, random_seed=42).fitted.transform(tr)
+        out = fit_unit(rec, u, tr, seed=42).fitted._transform(tr)
         imp = out[target].to_numpy()[miss_small]
         return float(np.sqrt(np.mean((imp - true_small[miss_small]) ** 2)))
 
-    rmse_ridge = fit_mice(ModelChoice.BayesianRidge)
     rmse_forest = fit_mice(ModelChoice.RandomForestRegressor)
     rmse_booster = fit_mice(ModelChoice.GradientBoostingRegressor)
 
-    assert rmse_forest < rmse_ridge
     assert rmse_forest <= rmse_booster

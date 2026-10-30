@@ -19,9 +19,6 @@ after Benjamini-Hochberg runs across the tested set, because BH is a property
 of the *set* and no single record can compute it. The verdict is three-valued
 and never a bool: a refused column has ``NoVerdict``, where ``False`` would
 read as "checked, fine".
-
-Every type here is a Result Type under the Rendering Contract (ADR-0086): one
-``to_markdown()``, ``__str__`` delegating to it, fragments rooted at ``###``.
 """
 
 from __future__ import annotations
@@ -30,7 +27,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 
-from .._c2st import C2STResult, _md_cell
+from .._c2st import C2STResult
 from .._config import C2STConfig
 
 __all__ = [
@@ -43,35 +40,12 @@ __all__ = [
     "ColumnC2STResult",
 ]
 
-# The two fixed notes a report carrying a ``Flagged`` column prints. Both are
-# constants and neither has a dial: the full-configurability principle governs
-# thresholds and behaviour, not whether the library discloses a known limit of
-# its own number (ADR-0087).
-_BASELINE_FRAMING: str = (
-    "**Reading a flag.** A column filled by a scalar strategy "
-    "(Mean/Median/Mode/Constant) is *expected* to be flagged: the filled cells "
-    "sit on one exact value, the column is itself a feature, and C2ST catches "
-    "that at close to 100%. Forty flagged scalar columns are the baseline this "
-    "number is read against, not forty defects — judge a model-based column "
-    "against them."
-)
-
-_MAR_CAVEAT: str = (
-    "**Caveat — MAR.** A fired test cannot separate \"the imputation is bad\" "
-    "from \"the missingness is strongly MAR\": under a MAR mechanism the "
-    "observed and filled rows are *supposed* to differ, so the piles differ for "
-    "a reason that is not the imputation's fault. The `z` is true; the "
-    "attribution is not. Nothing suppresses this note."
-)
-
 
 class C2STOutcome(StrEnum):
     """What happened to one column — the closed seven-member vocabulary.
 
-    A further member is a breaking change. Exported despite classifying output
-    and never being supplied, a stated exception to ADR-0050: reading the
-    report *is* comparing against it (``rec.outcome is C2STOutcome.Tested``),
-    so the handling half of the export rule reaches it.
+    A further member is a breaking change: reading the report *is* comparing
+    against it (``rec.outcome is C2STOutcome.Tested``).
 
     ``Tested`` is the only member carrying a :class:`C2STScore`; the other six
     are refusals, each naming why the test could not produce an honest number.
@@ -202,58 +176,6 @@ class C2STScore:
     p_adjusted: float | None = None
     frames: tuple[C2STResult, ...] = ()
 
-    def to_markdown(self) -> str:
-        """Render the score as a ``###``-rooted Markdown fragment.
-
-        Returns
-        -------
-        str
-            Markdown subsection headed by ``### C2ST Score``, holding the
-            pooled figures and one row per frame.
-        """
-        lines = [
-            "### C2ST Score\n",
-            "| Field | Value |",
-            "|---|---|",
-            f"| mean_frame_z | {self.mean_frame_z:.4f} |",
-            f"| frame_z_spread | {self.frame_z_spread:.4f} |",
-            f"| p_value | {self.p_value:.6f} |",
-            "| p_adjusted | "
-            + (
-                f"{self.p_adjusted:.6f}"
-                if self.p_adjusted is not None
-                else _md_cell(None)
-            )
-            + " |",
-            f"| frames | {len(self.frames)} |",
-        ]
-        if self.frames:
-            lines += [
-                (
-                    "\n| Frame | mean_repeat_z | repeat_z_spread "
-                    "| train_accuracy | test_accuracy | n_test |"
-                ),
-                "|---|---|---|---|---|---|",
-            ]
-            for index, frame in enumerate(self.frames, start=1):
-                lines.append(
-                    f"| {index} | {frame.mean_repeat_z:.4f} | "
-                    f"{frame.repeat_z_spread:.4f} | "
-                    f"{frame.train_accuracy:.4f} | "
-                    f"{frame.test_accuracy:.4f} | {frame.n_test} |"
-                )
-        return "\n".join(lines)
-
-    def __str__(self) -> str:
-        """Return the fragment, per rule 2 of the Rendering Contract.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()
-
 
 @dataclass(frozen=True)
 class ColumnC2STResult:
@@ -297,40 +219,6 @@ class ColumnC2STResult:
     annotations: tuple[C2STAnnotation, ...] = ()
     verdict: C2STVerdict = C2STVerdict.NoVerdict
 
-    def to_markdown(self) -> str:
-        """Render the column's result as a ``###``-rooted Markdown fragment.
-
-        Returns
-        -------
-        str
-            Markdown subsection headed by ``### Column `<name>```, followed by
-            the score's own fragment when the column was tested.
-        """
-        lines = [
-            f"### Column `{self.column}`\n",
-            "| Field | Value |",
-            "|---|---|",
-            f"| outcome | {_md_cell(self.outcome)} |",
-            f"| verdict | {_md_cell(self.verdict)} |",
-            f"| annotations | {_md_cell(list(self.annotations))} |",
-            f"| n_observed | {self.n_observed} |",
-            f"| n_filled | {self.n_filled} |",
-        ]
-        if self.score is not None:
-            lines.append(f"| mean_frame_z | {self.score.mean_frame_z:.4f} |")
-            lines.append("\n" + self.score.to_markdown())
-        return "\n".join(lines)
-
-    def __str__(self) -> str:
-        """Return the fragment, per rule 2 of the Rendering Contract.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()
-
 
 @dataclass(frozen=True)
 class C2STProvenance:
@@ -349,11 +237,6 @@ class C2STProvenance:
         Deliberately not its ``repr``, which elides every parameter left at its
         default — exactly the fact most needed when arguing with a report.
         Stringified because ``get_params()`` can hold live nested estimators.
-    classifier_injected : bool
-        Whether the classifier was the user's. Its own field rather than
-        something inferred from the class name: "the library's default" and "a
-        user-supplied instance that happens to look identical" answer different
-        questions, and only the first carries the pins.
     sklearn_version : str
         The scikit-learn version that produced the numbers, so a figure that
         changes after an upgrade is explicable.
@@ -364,49 +247,8 @@ class C2STProvenance:
 
     classifier_class: str
     classifier_params: dict[str, str] = field(default_factory=dict)
-    classifier_injected: bool = False
     sklearn_version: str = ""
     config: C2STConfig = field(default_factory=C2STConfig)
-
-    def to_markdown(self) -> str:
-        """Render the provenance as a ``###``-rooted Markdown fragment.
-
-        Returns
-        -------
-        str
-            Markdown subsection headed by ``### C2ST Provenance``, holding the
-            classifier identity, its full parameter set, and the resolved
-            dials.
-        """
-        lines = [
-            "### C2ST Provenance\n",
-            "| Field | Value |",
-            "|---|---|",
-            f"| classifier_class | {_md_cell(self.classifier_class)} |",
-            f"| classifier_injected | {_md_cell(self.classifier_injected)} |",
-            f"| sklearn_version | {_md_cell(self.sklearn_version)} |",
-            "\n#### Classifier parameters\n",
-            "| Parameter | Value |",
-            "|---|---|",
-        ]
-        for key in sorted(self.classifier_params):
-            lines.append(
-                f"| {_md_cell(key)} | {_md_cell(self.classifier_params[key])} |"
-            )
-        lines += ["\n#### Resolved config\n", "| Dial | Value |", "|---|---|"]
-        for key, value in self.config.to_dict().items():
-            lines.append(f"| {_md_cell(key)} | {_md_cell(value)} |")
-        return "\n".join(lines)
-
-    def __str__(self) -> str:
-        """Return the fragment, per rule 2 of the Rendering Contract.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()
 
 
 def _benjamini_hochberg(p_values: list[float]) -> list[float]:
@@ -549,115 +391,3 @@ class C2STReport:
             The census size.
         """
         return len(self.columns)
-
-    def _census(self) -> list[str]:
-        """Render the outcome census — the lines a 200-column report opens with.
-
-        Counts before rows: 190 refusals are two table rows here and a wall of
-        190 records below, so the reader learns the shape of the run before
-        deciding whether to read it.
-        """
-        if not self.columns:
-            return ["**Outcome census** — no active columns."]
-        outcomes: dict[str, int] = {}
-        verdicts: dict[str, int] = {}
-        for record in self.columns.values():
-            outcomes[str(record.outcome)] = outcomes.get(str(record.outcome), 0) + 1
-            verdicts[str(record.verdict)] = verdicts.get(str(record.verdict), 0) + 1
-        lines = [
-            (
-                f"**Outcome census** — {len(self.columns)} active column"
-                f"{'' if len(self.columns) == 1 else 's'}.\n"
-            ),
-            "| Outcome | Columns | Verdict | Columns |",
-            "|---|---|---|---|",
-        ]
-        outcome_rows = [
-            (str(member), outcomes[str(member)])
-            for member in C2STOutcome
-            if str(member) in outcomes
-        ]
-        verdict_rows = [
-            (str(member), verdicts[str(member)])
-            for member in C2STVerdict
-            if str(member) in verdicts
-        ]
-        for index in range(max(len(outcome_rows), len(verdict_rows))):
-            outcome = (
-                outcome_rows[index] if index < len(outcome_rows) else ("", "")
-            )
-            verdict = (
-                verdict_rows[index] if index < len(verdict_rows) else ("", "")
-            )
-            lines.append(
-                f"| {_md_cell(outcome[0])} | {outcome[1]} | "
-                f"{_md_cell(verdict[0])} | {verdict[1]} |"
-            )
-        return lines
-
-    def to_markdown(self) -> str:
-        """Render the report as a ``###``-rooted Markdown fragment.
-
-        Leads with the outcome census, because a 200-column table emitting 190
-        refusals is otherwise a wall. When any column is ``Flagged`` two fixed
-        notes ride along: the baseline framing, which says that a scalar-filled
-        column is *supposed* to fire, and the MAR caveat, printed as a footer
-        and suppressible by nothing (ADR-0087).
-
-        Returns
-        -------
-        str
-            Markdown subsection headed by ``### C2ST``, holding the outcome
-            census, a per-column summary table, each column's own fragment,
-            the provenance, and — whenever anything is flagged — the baseline
-            framing and the MAR caveat.
-        """
-        flagged = [
-            record
-            for record in self.columns.values()
-            if record.verdict is C2STVerdict.Flagged
-        ]
-        lines = ["### C2ST\n", *self._census(), ""]
-        if flagged:
-            lines += [_BASELINE_FRAMING, ""]
-        lines += [
-            (
-                "| Column | Outcome | Verdict | mean_frame_z | p_adjusted "
-                "| Annotations | n_observed | n_filled |"
-            ),
-            "|---|---|---|---|---|---|---|---|",
-        ]
-        for name, record in self.columns.items():
-            z = (
-                f"{record.score.mean_frame_z:.4f}"
-                if record.score is not None
-                else _md_cell(None)
-            )
-            p_adjusted = (
-                f"{record.score.p_adjusted:.6f}"
-                if record.score is not None
-                and record.score.p_adjusted is not None
-                else _md_cell(None)
-            )
-            lines.append(
-                f"| `{name}` | {_md_cell(record.outcome)} | "
-                f"{_md_cell(record.verdict)} | {z} | {p_adjusted} | "
-                f"{_md_cell(list(record.annotations))} | "
-                f"{record.n_observed} | {record.n_filled} |"
-            )
-        for record in self.columns.values():
-            lines.append("\n" + record.to_markdown())
-        lines.append("\n" + self.provenance.to_markdown())
-        if flagged:
-            lines.append("\n" + _MAR_CAVEAT)
-        return "\n".join(lines)
-
-    def __str__(self) -> str:
-        """Return the fragment, per rule 2 of the Rendering Contract.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()

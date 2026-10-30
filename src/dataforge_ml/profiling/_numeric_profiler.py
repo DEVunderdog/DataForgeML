@@ -33,11 +33,11 @@ from __future__ import annotations
 
 import polars as pl
 
+from .._seed import DEFAULT_SEED
+from ..models._data_types import _INT_DTYPES
 from ._base import ColumnBatchProfiler
-from ._correlation_profiler import _INT_DTYPES
 from ._numeric_config import (
     BimodalStats,
-    HistogramBin,
     KurtosisTag,
     NumericFlag,
     NumericProfileConfig,
@@ -59,10 +59,21 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
 
     Profiles every column passed to profile(df, columns) — no internal
     eligibility gate.
+
+    Parameters
+    ----------
+    config : NumericProfileConfig, optional
+        Threshold configuration. Defaults to ``NumericProfileConfig()``.
+    seed : int, optional
+        Seed for the bimodality mixture fit. Defaults to the library's fixed
+        default seed.
     """
 
-    def __init__(self, config: NumericProfileConfig | None = None) -> None:
+    def __init__(
+        self, config: NumericProfileConfig | None = None, seed: int = DEFAULT_SEED
+    ) -> None:
         self._config = config if config is not None else NumericProfileConfig()
+        self._seed = seed
 
     # ------------------------------------------------------------------
     # Public API
@@ -94,8 +105,8 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
 
         Raises
         ------
-        OverrideCoercionError
-            If a column in user_overrides completely fails coercion to Numeric.
+        Infeasible
+            ``override_coercion_failed`` if a column in user_overrides completely fails coercion to Numeric.
         """
         return self._run(data, columns, user_overrides)
 
@@ -152,9 +163,13 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
 
             if clean.len() == 0:
                 if series.drop_nulls().len() > 0 and col in user_overrides:
-                    from ._base import OverrideCoercionError
-                    raise OverrideCoercionError(
-                        f"Column {col!r} with TypeFlag.UserOverride completely failed coercion to Numeric."
+                    from ..records import DataForgeError
+                    failed = series.drop_nulls().len()
+                    raise DataForgeError.from_code(
+                        "override_coercion_failed",
+                        f"Column {col!r} was declared Numeric, but all {failed} "
+                        f"non-null value(s) failed to convert.",
+                        columns=[col],
                     )
                 result.columns[col] = profile
                 continue
@@ -204,7 +219,7 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
 
             self._compute_outlier_density(clean, profile, self._config)
 
-            self._compute_bimodality(clean, profile, self._config)
+            self._compute_bimodality(clean, profile, self._config, self._seed)
 
             result.columns[col] = profile
 
@@ -224,8 +239,7 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
         config: NumericProfileConfig,
     ) -> None:
         """
-        Compute Mode, and depending on whether the feature is continuous or discrete,
-        calculate a 20-bin histogram OR Top-10 value counts.
+        Compute Mode, and for a discrete feature the Top-10 value counts.
         """
         if clean_f64.len() == 0:
             return
@@ -257,21 +271,6 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
                     percentage=int(vc["count"][i]) / n_rows if n_rows > 0 else 0.0,
                 )
                 for i in range(top_rows)
-            ]
-        else:
-            # --- Histogram Distribution (Continuous) ---
-            import numpy as np
-
-            counts, bin_edges = np.histogram(clean_f64.to_numpy(), bins="auto")
-            n_clean = clean_f64.len()
-            profile.histogram = [
-                HistogramBin(
-                    lower_bound=float(bin_edges[i]),
-                    upper_bound=float(bin_edges[i + 1]),
-                    count=int(counts[i]),
-                    percentage=int(counts[i]) / n_clean if n_clean > 0 else 0.0,
-                )
-                for i in range(len(counts))
             ]
 
     # ------------------------------------------------------------------
@@ -441,6 +440,7 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
         clean: pl.Series,
         profile: NumericStats,
         config: NumericProfileConfig,
+        seed: int = DEFAULT_SEED,
     ) -> None:
         if profile.has_flag(NumericFlag.NearConstant):
             return
@@ -459,7 +459,7 @@ class NumericProfiler(ColumnBatchProfiler[NumericProfileResult]):
 
         if dip_p_value < config.bimodal_dip_p_value_threshold:
             # Fit 2-component GMM
-            gmm = GaussianMixture(n_components=2, random_state=42)
+            gmm = GaussianMixture(n_components=2, random_state=seed)
             gmm.fit(arr.reshape(-1, 1))
             
             centers = gmm.means_.flatten()

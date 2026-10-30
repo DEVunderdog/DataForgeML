@@ -6,17 +6,9 @@ both proven end-to-end through ``StructuralProfiler``.
 
 import logging
 
-import pytest
-
-import dataforge_ml
-from dataforge_ml import (
-    EventType,
-    PipelineConfig,
-    PipelineEvent,
-    StructuralProfiler,
-    stderr_observer,
-)
+from dataforge_ml._observability import EventType, PipelineEvent, stderr_observer
 from dataforge_ml.profiling._config import ProfileConfig
+from dataforge_ml.profiling.orchestrator import StructuralProfiler
 
 
 class _Recorder:
@@ -30,19 +22,24 @@ class _Recorder:
 
 
 # ---------------------------------------------------------------------------
-# Public interface / exports
+# Event vocabulary
 # ---------------------------------------------------------------------------
-
-def test_exports_present():
-    for name in ("PipelineEvent", "EventType", "stderr_observer"):
-        assert name in dataforge_ml.__all__
-        assert hasattr(dataforge_ml, name)
-
 
 def test_event_type_is_enum_not_str():
     # event_type carries the enum, never a bare string.
     assert isinstance(EventType.item, EventType)
     assert EventType.stage_start.value == "stage_start"
+
+
+def test_only_progress_event_types_remain():
+    # Caveats are Result Warnings and choices are Routing Evidence, so the
+    # stream carries progress and nothing else (ADR-0102).
+    assert {e.value for e in EventType} == {
+        "stage_start",
+        "stage_end",
+        "item",
+        "substep",
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -51,8 +48,7 @@ def test_event_type_is_enum_not_str():
 
 def test_stage_events_reach_observer(mixed_df):
     recorder = _Recorder()
-    config = PipelineConfig(profiling=ProfileConfig(compute_correlation=True))
-    StructuralProfiler(config, observer=recorder).profile(mixed_df)
+    StructuralProfiler(observer=recorder).profile(mixed_df)
 
     stage_events = [
         e for e in recorder.events
@@ -76,12 +72,18 @@ def test_stage_events_reach_observer(mixed_df):
 
     # The always-run stages are present.
     started = {e.stage for e in stage_events if e.event_type == EventType.stage_start}
-    assert {"modality", "type_detection", "column_profiling"} <= started
+    assert {
+        "modality",
+        "type_detection",
+        "column_profiling",
+        "correlation",
+        "nonlinearity",
+    } <= started
 
 
 def test_no_observer_is_harmless(mixed_df):
     # observer defaults to None; profiling must still succeed and be silent.
-    result = StructuralProfiler(PipelineConfig()).profile(mixed_df)
+    result = StructuralProfiler().profile(mixed_df)
     assert set(result.columns.keys()) == set(mixed_df.columns)
 
 
@@ -91,7 +93,7 @@ def test_no_observer_is_harmless(mixed_df):
 
 def test_stage_events_log_at_debug(mixed_df, caplog):
     with caplog.at_level(logging.DEBUG, logger="dataforge_ml"):
-        StructuralProfiler(PipelineConfig()).profile(mixed_df)
+        StructuralProfiler().profile(mixed_df)
 
     stage_records = [
         r for r in caplog.records
@@ -105,7 +107,7 @@ def test_silent_by_default(mixed_df, caplog):
     # A NullHandler is attached at import; with no propagation capture at
     # WARNING (pytest's default), DEBUG stage/item events emit nothing.
     with caplog.at_level(logging.WARNING, logger="dataforge_ml"):
-        StructuralProfiler(PipelineConfig()).profile(mixed_df)
+        StructuralProfiler().profile(mixed_df)
     assert [r for r in caplog.records if r.name == "dataforge_ml"] == []
 
 
@@ -137,7 +139,7 @@ def test_stderr_observer_writes_stderr_only(capsys):
 
 def test_column_profiling_item_heartbeat(mixed_df):
     recorder = _Recorder()
-    StructuralProfiler(PipelineConfig(), observer=recorder).profile(mixed_df)
+    StructuralProfiler(observer=recorder).profile(mixed_df)
 
     # Slice out just the column_profiling stage's events, in order.
     stage_stream = [e for e in recorder.events if e.stage == "column_profiling"]
@@ -168,11 +170,11 @@ def test_column_profiling_item_heartbeat(mixed_df):
 
 def test_cheap_stages_emit_no_items(mixed_df):
     recorder = _Recorder()
-    StructuralProfiler(PipelineConfig(), observer=recorder).profile(mixed_df)
+    StructuralProfiler(observer=recorder).profile(mixed_df)
 
     item_stages = {e.stage for e in recorder.events if e.event_type == EventType.item}
-    # Only the expensive per-column loop emits item events.
-    assert item_stages == {"column_profiling"}
+    # Only the expensive stages emit item events.
+    assert item_stages == {"column_profiling", "correlation", "nonlinearity"}
 
 
 # ---------------------------------------------------------------------------
@@ -197,10 +199,7 @@ def _assert_monotonic_items(items):
 
 def test_correlation_and_nonlinearity_emit_items(mixed_df):
     recorder = _Recorder()
-    config = PipelineConfig(
-        profiling=ProfileConfig(compute_correlation=True, compute_nonlinearity=True)
-    )
-    StructuralProfiler(config, observer=recorder).profile(mixed_df)
+    StructuralProfiler(observer=recorder).profile(mixed_df)
 
     # Both expensive stages now report progress rather than running silently.
     item_stages = {e.stage for e in recorder.events if e.event_type == EventType.item}
@@ -212,8 +211,8 @@ def test_correlation_and_nonlinearity_emit_items(mixed_df):
     assert corr[-1].event_type == EventType.stage_end
     corr_items = [e for e in corr if e.event_type == EventType.item]
     _assert_monotonic_items(corr_items)
-    # With no declared target, the sole unit is the feature-feature matrices;
-    # it is not tied to a single column.
+    # The sole unit is the feature-feature matrices; it is not tied to a
+    # single column.
     assert corr_items[0].column is None
     assert corr_items[0].total == 1
 
@@ -231,13 +230,9 @@ def test_correlation_and_nonlinearity_emit_items(mixed_df):
     assert all(e.event_type == EventType.item for e in nl[1:-1])
 
 
-def test_correlation_items_cover_each_target(mixed_df):
+def test_a_declared_target_adds_no_correlation_item(mixed_df):
     recorder = _Recorder()
-    config = PipelineConfig(
-        profiling=ProfileConfig(
-            compute_correlation=True, target_columns=["income"]
-        )
-    )
+    config = ProfileConfig(target_columns=["income"])
     StructuralProfiler(config, observer=recorder).profile(mixed_df)
 
     corr_items = [
@@ -246,18 +241,14 @@ def test_correlation_items_cover_each_target(mixed_df):
         if e.stage == "correlation" and e.event_type == EventType.item
     ]
     _assert_monotonic_items(corr_items)
-    # One unit for the feature matrices plus one per declared target present.
-    assert corr_items[0].total == 2
+    # The target sits in the feature matrices; it has no pass of its own.
+    assert corr_items[0].total == 1
     assert corr_items[0].column is None
-    assert corr_items[1].column == "income"
 
 
 def test_correlation_nonlinearity_items_log_at_debug(mixed_df, caplog):
-    config = PipelineConfig(
-        profiling=ProfileConfig(compute_correlation=True, compute_nonlinearity=True)
-    )
     with caplog.at_level(logging.DEBUG, logger="dataforge_ml"):
-        StructuralProfiler(config).profile(mixed_df)
+        StructuralProfiler().profile(mixed_df)
 
     # Two-Sink Rule: item events from both stages also reach the Trace logger
     # at DEBUG.

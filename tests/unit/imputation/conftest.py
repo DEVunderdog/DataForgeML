@@ -26,7 +26,7 @@ def round_trip():
     """
 
     def _round_trip(imputer, key: str = "imputer"):
-        from dataforge_ml import deserialize, serialize
+        from dataforge_ml._serialization import deserialize, serialize
         from dataforge_ml.imputation._fitted_imputer import FittedImputer
 
         restored_units = [deserialize(serialize(unit)) for unit in imputer.units]
@@ -35,7 +35,6 @@ def round_trip():
             units=restored_units,
             numeric_sentinels={k: list(v) for k, v in imputer.numeric_sentinels.items()},
             string_sentinels={k: list(v) for k, v in imputer.string_sentinels.items()},
-            random_seed=imputer.random_seed,
         )
 
     return _round_trip

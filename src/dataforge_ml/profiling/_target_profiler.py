@@ -14,6 +14,7 @@ from typing import Any
 
 import polars as pl
 
+from .._seed import DEFAULT_SEED
 from ._base import DatasetLevelProfiler
 from ._categorical import CategoricalProfiler
 from ._config import ProfileConfig
@@ -36,14 +37,26 @@ class TargetProfiler(DatasetLevelProfiler[TargetProfileResult]):
     Analyzes the target variable to set up downstream ML behavior.
     """
 
-    def __init__(self, target_column: str, config: ProfileConfig | None = None) -> None:
+    def __init__(
+        self,
+        target_column: str,
+        config: ProfileConfig | None = None,
+        seed: int = DEFAULT_SEED,
+    ) -> None:
         super().__init__()
         self.target_column = target_column
+        self._seed = seed
 
     def profile(self, data: pl.DataFrame, **kwargs) -> TargetProfileResult:
         if self.target_column not in data.columns:
-            raise ValueError(
-                f"Target column '{self.target_column}' not found in the DataFrame."
+            from .._boundary._error_codes import close_matches
+            from ..records import DataForgeError
+
+            raise DataForgeError.from_code(
+                "unknown_column",
+                f"Target column '{self.target_column}' is not in the data.",
+                columns=[self.target_column],
+                candidates=close_matches([self.target_column], data.columns),
             )
 
         return self._run(data)
@@ -148,7 +161,7 @@ class TargetProfiler(DatasetLevelProfiler[TargetProfileResult]):
         self, series: pl.Series, n_rows: int, result: TargetProfileResult
     ) -> None:
         """Generates numeric metrics and checks for target skewness."""
-        num_profiler = NumericProfiler()
+        num_profiler = NumericProfiler(seed=self._seed)
 
         col_name = series.name
         num_result = num_profiler.profile(series.to_frame(), [col_name])

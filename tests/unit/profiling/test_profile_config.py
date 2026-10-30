@@ -1,0 +1,410 @@
+"""
+Unit tests for ProfileConfig: sub-config round-trip, defaults, sentinels and
+datetime declarations.
+
+All tests are pure — no DataFrames, no StructuralProfiler.
+"""
+
+import pytest
+
+from dataforge_ml.profiling._categorical_config import CategoricalProfileConfig
+from dataforge_ml.profiling._config import ProfileConfig
+from dataforge_ml.profiling._correlation_config import CorrelationProfileConfig
+from dataforge_ml.profiling._datetime_config import DatetimeProfileConfig
+from dataforge_ml.profiling._missingness_config import MissingnessProfileConfig
+from dataforge_ml.profiling._numeric_config import NumericProfileConfig
+from dataforge_ml.profiling._type_detection_config import TypeDetectionConfig
+from tests.conftest import raises_code
+
+# ---------------------------------------------------------------------------
+# ProfileConfig sub-config round-trip
+# ---------------------------------------------------------------------------
+
+
+def test_profile_config_sub_config_round_trip():
+    original = ProfileConfig(
+        row_drop_threshold=0.30,
+        missingness=MissingnessProfileConfig(
+            severity_minor=0.02,
+            severity_moderate=0.08,
+            severity_high=0.25,
+            mar_correlation_threshold=0.70,
+            col_drop_threshold=0.60,
+        ),
+        numeric=NumericProfileConfig(
+            skew_normal=0.3,
+            skew_moderate=0.8,
+            skew_high=1.5,
+            kurt_platykurtic_upper=-2.0,
+            kurt_leptokurtic_lower=4.0,
+            near_constant_threshold=0.85,
+            scale_orders_of_magnitude=4,
+        ),
+        type_detection=TypeDetectionConfig(
+            numeric_coerce_threshold=0.99,
+            datetime_coerce_threshold=0.90,
+            encoded_category_max_unique=20,
+            identifier_unique_ratio=0.995,
+        ),
+        categorical=CategoricalProfileConfig(
+            rare_threshold_pct=0.02,
+            stratification_rare_threshold_pct=0.10,
+            near_constant_threshold=0.85,
+        ),
+        correlation=CorrelationProfileConfig(
+            near_redundant_pearson_threshold=0.85,
+            near_redundant_cramer_v_threshold=0.70,
+            near_redundant_eta_squared_threshold=0.40,
+        ),
+        datetime_=DatetimeProfileConfig(
+            mnar_null_ratio_threshold=0.02,
+            high_gap_cv_threshold=0.8,
+            recent_window_fraction=0.15,
+        ),
+    )
+
+    restored = ProfileConfig.from_dict(original.to_dict())
+
+    assert restored.row_drop_threshold == original.row_drop_threshold
+
+    assert restored.missingness.severity_minor == original.missingness.severity_minor
+    assert restored.missingness.severity_moderate == original.missingness.severity_moderate
+    assert restored.missingness.severity_high == original.missingness.severity_high
+    assert restored.missingness.mar_correlation_threshold == original.missingness.mar_correlation_threshold
+    assert restored.missingness.col_drop_threshold == original.missingness.col_drop_threshold
+
+    assert restored.numeric.skew_normal == original.numeric.skew_normal
+    assert restored.numeric.skew_moderate == original.numeric.skew_moderate
+    assert restored.numeric.skew_high == original.numeric.skew_high
+    assert restored.numeric.kurt_platykurtic_upper == original.numeric.kurt_platykurtic_upper
+    assert restored.numeric.kurt_leptokurtic_lower == original.numeric.kurt_leptokurtic_lower
+    assert restored.numeric.near_constant_threshold == original.numeric.near_constant_threshold
+    assert restored.numeric.scale_orders_of_magnitude == original.numeric.scale_orders_of_magnitude
+
+    assert restored.type_detection.numeric_coerce_threshold == original.type_detection.numeric_coerce_threshold
+    assert restored.type_detection.datetime_coerce_threshold == original.type_detection.datetime_coerce_threshold
+    assert restored.type_detection.encoded_category_max_unique == original.type_detection.encoded_category_max_unique
+    assert restored.type_detection.identifier_unique_ratio == original.type_detection.identifier_unique_ratio
+
+    assert restored.categorical.rare_threshold_pct == original.categorical.rare_threshold_pct
+    assert restored.categorical.stratification_rare_threshold_pct == original.categorical.stratification_rare_threshold_pct
+    assert restored.categorical.near_constant_threshold == original.categorical.near_constant_threshold
+
+    assert restored.correlation.near_redundant_pearson_threshold == original.correlation.near_redundant_pearson_threshold
+    assert restored.correlation.near_redundant_cramer_v_threshold == original.correlation.near_redundant_cramer_v_threshold
+    assert restored.correlation.near_redundant_eta_squared_threshold == original.correlation.near_redundant_eta_squared_threshold
+
+    assert restored.datetime_.mnar_null_ratio_threshold == original.datetime_.mnar_null_ratio_threshold
+    assert restored.datetime_.high_gap_cv_threshold == original.datetime_.high_gap_cv_threshold
+    assert restored.datetime_.recent_window_fraction == original.datetime_.recent_window_fraction
+
+
+def test_profile_config_defaults_unchanged():
+    cfg = ProfileConfig()
+
+    assert cfg.row_drop_threshold == 0.50
+    assert cfg.missingness.severity_minor == 0.01
+    assert cfg.missingness.severity_moderate == 0.05
+    assert cfg.missingness.severity_high == 0.20
+    assert cfg.missingness.mar_correlation_threshold == 0.60
+    assert cfg.missingness.col_drop_threshold == 0.50
+    assert cfg.numeric.skew_normal == 0.5
+    assert cfg.numeric.skew_moderate == 1.0
+    assert cfg.numeric.skew_high == 2.0
+    assert cfg.numeric.near_constant_threshold == 0.90
+    assert cfg.type_detection.numeric_coerce_threshold == 0.95
+    assert cfg.type_detection.identifier_unique_ratio == 0.99
+    assert cfg.categorical.rare_threshold_pct == 0.01
+    assert cfg.categorical.near_constant_threshold == 0.90
+    assert cfg.correlation.near_redundant_pearson_threshold == 0.95
+    assert cfg.datetime_.mnar_null_ratio_threshold == 0.05
+
+
+# ---------------------------------------------------------------------------
+# ProfileConfig.numeric_sentinels — field, serialisation, round-trip
+# ---------------------------------------------------------------------------
+
+
+def test_profile_config_numeric_sentinels_defaults_to_empty_dict():
+    cfg = ProfileConfig()
+    assert cfg.numeric_sentinels == {}
+
+
+def test_profile_config_to_dict_includes_numeric_sentinels():
+    cfg = ProfileConfig()
+    cfg.set_numeric_sentinel("age", [-999.0])
+    cfg.set_numeric_sentinel("score", [-999.0, 9999.0])
+    d = cfg.to_dict()
+    assert "numeric_sentinels" in d
+    assert d["numeric_sentinels"] == {"age": [-999.0], "score": [-999.0, 9999.0]}
+
+
+def test_profile_config_to_dict_numeric_sentinels_empty_when_unset():
+    cfg = ProfileConfig()
+    d = cfg.to_dict()
+    assert d["numeric_sentinels"] == {}
+
+
+def test_profile_config_from_dict_restores_numeric_sentinels():
+    d = {"numeric_sentinels": {"age": [-999.0], "score": [-999.0, 9999.0]}}
+    cfg = ProfileConfig.from_dict(d)
+    assert cfg.numeric_sentinels == {"age": [-999.0], "score": [-999.0, 9999.0]}
+
+
+def test_profile_config_from_dict_missing_numeric_sentinels_defaults_to_empty_dict():
+    cfg = ProfileConfig.from_dict({})
+    assert cfg.numeric_sentinels == {}
+
+
+def test_profile_config_round_trip_with_sentinels():
+    original = ProfileConfig()
+    original.set_numeric_sentinel("income", [-1.0])
+    original.set_numeric_sentinel("age", [-999.0, 9999.0])
+    restored = ProfileConfig.from_dict(original.to_dict())
+    assert dict(restored.numeric_sentinels) == dict(original.numeric_sentinels)
+
+
+def test_profile_config_round_trip_no_sentinels_unchanged():
+    original = ProfileConfig()
+    restored = ProfileConfig.from_dict(original.to_dict())
+    assert restored.numeric_sentinels == {}
+
+
+# ---------------------------------------------------------------------------
+# ProfileConfig.string_sentinels — field, serialisation, round-trip
+# ---------------------------------------------------------------------------
+
+
+def test_profile_config_string_sentinels_defaults_to_empty_dict():
+    cfg = ProfileConfig()
+    assert cfg.string_sentinels == {}
+
+
+def test_profile_config_to_dict_includes_string_sentinels():
+    cfg = ProfileConfig()
+    cfg.set_string_sentinel("status", ["N/A", "missing"])
+    cfg.set_string_sentinel("grade", ["?"])
+    d = cfg.to_dict()
+    assert "string_sentinels" in d
+    assert d["string_sentinels"] == {"status": ["N/A", "missing"], "grade": ["?"]}
+
+
+def test_profile_config_to_dict_string_sentinels_empty_when_unset():
+    cfg = ProfileConfig()
+    d = cfg.to_dict()
+    assert d["string_sentinels"] == {}
+
+
+def test_profile_config_from_dict_restores_string_sentinels():
+    d = {"string_sentinels": {"status": ["N/A", "missing"], "grade": ["?"]}}
+    cfg = ProfileConfig.from_dict(d)
+    assert cfg.string_sentinels == {"status": ["N/A", "missing"], "grade": ["?"]}
+
+
+def test_profile_config_from_dict_missing_string_sentinels_defaults_to_empty_dict():
+    cfg = ProfileConfig.from_dict({})
+    assert cfg.string_sentinels == {}
+
+
+def test_profile_config_round_trip_with_string_sentinels():
+    original = ProfileConfig()
+    original.set_string_sentinel("status", ["N/A", "missing"])
+    original.set_string_sentinel("grade", ["?"])
+    restored = ProfileConfig.from_dict(original.to_dict())
+    assert dict(restored.string_sentinels) == dict(original.string_sentinels)
+
+
+def test_profile_config_round_trip_no_string_sentinels_unchanged():
+    original = ProfileConfig()
+    restored = ProfileConfig.from_dict(original.to_dict())
+    assert restored.string_sentinels == {}
+
+
+def test_profile_config_numeric_and_string_sentinels_coexist():
+    cfg = ProfileConfig()
+    cfg.set_numeric_sentinel("age", [-999.0])
+    cfg.set_string_sentinel("status", ["N/A"])
+    restored = ProfileConfig.from_dict(cfg.to_dict())
+    assert dict(restored.numeric_sentinels) == {"age": [-999.0]}
+    assert dict(restored.string_sentinels) == {"status": ["N/A"]}
+
+
+def test_profile_config_from_dict_raises_on_invalid_numeric_entry():
+    d = {"numeric_sentinels": {"age": ["not_a_number"]}}
+    with raises_code("invalid_argument", match="not numbers") as info:
+        ProfileConfig.from_dict(d)
+    # The offending entry is named by position; its value is never echoed.
+    assert info.value.params == ["values[0]"]
+    assert "not_a_number" not in str(info.value.to_dict())
+
+    d_empty = {"numeric_sentinels": {"age": []}}
+    with raises_code("invalid_argument", match="at least one sentinel"):
+        ProfileConfig.from_dict(d_empty)
+
+
+def test_profile_config_from_dict_raises_on_invalid_string_entry():
+    d = {"string_sentinels": {"status": [123]}}
+    with raises_code("invalid_argument", match="not strings"):
+        ProfileConfig.from_dict(d)
+
+    d_empty = {"string_sentinels": {"status": []}}
+    with raises_code("invalid_argument", match="at least one sentinel"):
+        ProfileConfig.from_dict(d_empty)
+
+
+# ---------------------------------------------------------------------------
+# ProfileConfig.datetime_epoch_units — field, serialisation, round-trip
+# ---------------------------------------------------------------------------
+
+
+def test_profile_config_datetime_epoch_units_defaults_to_empty_dict():
+    cfg = ProfileConfig()
+    assert cfg.datetime_epoch_units == {}
+
+
+def test_profile_config_to_dict_includes_datetime_epoch_units():
+    cfg = ProfileConfig()
+    cfg.set_datetime_epoch_unit("ts_s", "s")
+    cfg.set_datetime_epoch_unit("ts_ms", "ms")
+    d = cfg.to_dict()
+    assert "datetime_epoch_units" in d
+    assert d["datetime_epoch_units"] == {"ts_s": "s", "ts_ms": "ms"}
+
+
+def test_profile_config_to_dict_datetime_epoch_units_empty_when_unset():
+    cfg = ProfileConfig()
+    d = cfg.to_dict()
+    assert d.get("datetime_epoch_units") == {}
+
+
+def test_profile_config_from_dict_restores_datetime_epoch_units():
+    d = {"datetime_epoch_units": {"ts_s": "s", "ts_ms": "ms"}}
+    cfg = ProfileConfig.from_dict(d)
+    assert cfg.datetime_epoch_units["ts_s"].value == "s"
+    assert cfg.datetime_epoch_units["ts_ms"].value == "ms"
+
+
+def test_profile_config_from_dict_missing_datetime_epoch_units_defaults_to_empty_dict():
+    cfg = ProfileConfig.from_dict({})
+    assert cfg.datetime_epoch_units == {}
+
+
+def test_profile_config_round_trip_with_datetime_epoch_units():
+    from dataforge_ml.profiling._config import EpochUnit
+    original = ProfileConfig()
+    original.set_datetime_epoch_unit("ts_s", EpochUnit.s)
+    original.set_datetime_epoch_unit("ts_ms", "ms")
+    restored = ProfileConfig.from_dict(original.to_dict())
+    assert restored.datetime_epoch_units["ts_s"] == EpochUnit.s
+    assert restored.datetime_epoch_units["ts_ms"] == EpochUnit.ms
+
+
+def test_profile_config_round_trip_no_datetime_epoch_units_unchanged():
+    original = ProfileConfig()
+    restored = ProfileConfig.from_dict(original.to_dict())
+    assert restored.datetime_epoch_units == {}
+
+
+def test_profile_config_from_dict_raises_on_invalid_datetime_epoch_unit():
+    d = {"datetime_epoch_units": {"ts": "invalid_unit"}}
+    with raises_code("unknown_enum_value", match="'invalid_unit' is not an epoch unit") as info:
+        ProfileConfig.from_dict(d)
+    assert info.value.allowed == ["s", "ms", "us", "ns", "d"]
+
+
+# ---------------------------------------------------------------------------
+# ProfileConfig.datetime_formats — field, setter, read-only view, round-trip
+# ---------------------------------------------------------------------------
+
+
+def test_profile_config_datetime_formats_defaults_to_empty_dict():
+    cfg = ProfileConfig()
+    assert cfg.datetime_formats == {}
+
+
+def test_set_datetime_format_stores_value():
+    cfg = ProfileConfig()
+    cfg.set_datetime_format("Year", "%Y")
+    assert cfg.datetime_formats["Year"] == "%Y"
+
+
+def test_set_datetime_format_accepts_list_of_columns():
+    cfg = ProfileConfig()
+    cfg.set_datetime_format(["a", "b"], "%Y-%m")
+    assert cfg.datetime_formats["a"] == "%Y-%m"
+    assert cfg.datetime_formats["b"] == "%Y-%m"
+
+
+def test_set_datetime_format_overwrites_existing():
+    cfg = ProfileConfig()
+    cfg.set_datetime_format("Year", "%Y")
+    cfg.set_datetime_format("Year", "%y")
+    assert cfg.datetime_formats["Year"] == "%y"
+
+
+def test_set_datetime_format_does_not_validate_strftime_grammar():
+    # A garbage format is accepted at set time — validation is deferred to
+    # profiling time, consistent with set_column_type / set_datetime_epoch_unit.
+    cfg = ProfileConfig()
+    cfg.set_datetime_format("Year", "not-a-real-format")
+    assert cfg.datetime_formats["Year"] == "not-a-real-format"
+
+
+def test_set_datetime_format_rejects_empty_format():
+    cfg = ProfileConfig()
+    with raises_code("invalid_argument", match="format must be a non-empty string"):
+        cfg.set_datetime_format("Year", "")
+
+
+def test_set_datetime_format_rejects_non_string_format():
+    cfg = ProfileConfig()
+    with raises_code("invalid_argument", match="format must be a non-empty string"):
+        cfg.set_datetime_format("Year", 123)  # type: ignore[arg-type]
+
+
+def test_set_datetime_format_rejects_empty_column_name():
+    cfg = ProfileConfig()
+    with raises_code("invalid_argument", match="column name must be a non-empty string"):
+        cfg.set_datetime_format("", "%Y")
+
+
+def test_datetime_formats_view_is_read_only():
+    cfg = ProfileConfig()
+    cfg.set_datetime_format("Year", "%Y")
+    with pytest.raises(TypeError):
+        cfg.datetime_formats["Year"] = "%y"  # type: ignore[index]
+
+
+def test_profile_config_to_dict_includes_datetime_formats():
+    cfg = ProfileConfig()
+    cfg.set_datetime_format("Year", "%Y")
+    cfg.set_datetime_format("month", "%Y-%m")
+    d = cfg.to_dict()
+    assert d["datetime_formats"] == {"Year": "%Y", "month": "%Y-%m"}
+
+
+def test_profile_config_to_dict_datetime_formats_empty_when_unset():
+    cfg = ProfileConfig()
+    assert cfg.to_dict().get("datetime_formats") == {}
+
+
+def test_profile_config_from_dict_restores_datetime_formats():
+    d = {"datetime_formats": {"Year": "%Y"}}
+    cfg = ProfileConfig.from_dict(d)
+    assert cfg.datetime_formats["Year"] == "%Y"
+
+
+def test_profile_config_from_dict_missing_datetime_formats_defaults_empty():
+    cfg = ProfileConfig.from_dict({})
+    assert cfg.datetime_formats == {}
+
+
+def test_profile_config_round_trip_with_datetime_formats():
+    original = ProfileConfig()
+    original.set_datetime_format("Year", "%Y")
+    original.set_datetime_format(["a", "b"], "%Y-%m")
+    restored = ProfileConfig.from_dict(original.to_dict())
+    assert restored.datetime_formats["Year"] == "%Y"
+    assert restored.datetime_formats["a"] == "%Y-%m"
+    assert restored.datetime_formats["b"] == "%Y-%m"
+

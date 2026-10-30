@@ -11,13 +11,22 @@ per-column audit trail and the imputed DataFrame produced by
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum, StrEnum
+from enum import StrEnum
 from types import MappingProxyType
 from typing import Any
 
 import polars as pl
 
+from .._boundary._error_codes import close_matches
 from ..config import SemanticType
+from ..records import DataForgeError
+from ._evidence import (
+    RoutingEvidence,
+    RoutingReason,
+    _evidence_from_list,
+    _evidence_to_list,
+    _reason_from_value,
+)
 
 
 class ImputationStrategy(StrEnum):
@@ -31,7 +40,7 @@ class ImputationStrategy(StrEnum):
 
     **Output-only labels** — assigned by the engine after ``route()`` and
     recorded in ``ColumnRouting.strategy``; declaring them in
-    ``per_column_strategy`` raises ``ValueError`` at construction time:
+    ``per_column_strategy`` raises ``strategy_not_declarable`` at construction time:
     ``Constant``, ``MNAR``, ``Dropped``, ``Passthrough``, ``Indicator``.
     ``Constant`` is produced when a column appears in
     ``per_column_constant_fill``; use that field instead of declaring it in
@@ -76,7 +85,7 @@ The single definition of the resolve-time hyperparameter base, read by
 :func:`~dataforge_ml.imputation._recipe.resolve_recipe` for both a routed and a
 hand-authored :class:`ImputationRouting`. A strategy with no row has no dials at
 all — ``GMMSampling`` and ``Constant`` are driven entirely by profile facts and
-declared values, so ``ImputationRecipe.with_hyperparameters`` refuses every key
+declared values, so ``resolve_recipe`` refuses every hyperparameter override
 on them.
 """
 
@@ -90,21 +99,18 @@ class ModelChoice(StrEnum):
     """Concrete estimator family for a model-based imputation column.
 
     A value-free *name* for the sklearn estimator family a block trains with.
-    It is a label, never a live or fitted estimator object. ``Custom`` marks a
-    unit whose estimator the user supplied; the instance itself is held
-    elsewhere, by identity, so this enum stays a label.
+    It is a label, never a live or fitted estimator object. The enum is
+    closed: every estimator a block trains with is one the library builds.
 
     :func:`~dataforge_ml.imputation.route` resolves the ``MICE`` block's
     choice off the Estimator Ladder (ADR-0094) — the most complex
     ``NonlinearityTag`` across the block's columns — whenever the block has
-    any; :func:`~dataforge_ml.imputation.author` leaves it ``None`` unless the
-    door's ``with_model_choice`` sets one explicitly (ADR-0090).
+    any; :func:`~dataforge_ml.imputation.author` leaves it ``None`` (ADR-0090).
     """
 
     BayesianRidge = "bayesian_ridge"
     RandomForestRegressor = "random_forest_regressor"
     GradientBoostingRegressor = "gradient_boosting_regressor"
-    Custom = "custom"
 
 
 # ---------------------------------------------------------------------------
@@ -128,12 +134,6 @@ _OUTPUT_ONLY_STRATEGIES: frozenset[ImputationStrategy] = frozenset(
     }
 )
 
-# Human-readable signal recorded on the Passthrough routing of an
-# Imputation-soft-excluded column. Rationale only — code reads
-# ``ColumnRouting.excluded``; the one exception is ``ColumnRouting.from_dict``
-# inferring the flag for a payload saved before the flag existed.
-_EXCLUSION_SIGNAL = "soft-excluded for Imputation phase"
-
 # Shipped NumericImputationConfig keys the escalation point deleted outright,
 # mapped to what replaced each one. ``from_dict`` rejects them rather than
 # ignoring them: each was a user-set threshold, so dropping it silently would
@@ -148,7 +148,7 @@ _DELETED_NUMERIC_KEYS: dict[str, str] = {
     ),
     "gradient_boost_min_rows": (
         "The booster is off the Estimator Ladder (ADR-0097); choose it "
-        "explicitly with ImputationRouting.with_model_choice."
+        "explicitly with the route Operation's model_choice argument."
     ),
     "mcar_feature_predictability_threshold": (
         "The Signal Score replaced it; tune the signal_score_* dials instead "
@@ -156,29 +156,53 @@ _DELETED_NUMERIC_KEYS: dict[str, str] = {
 }
 
 
-def _output_only_redirect(column: str, strategy: ImputationStrategy) -> str:
-    """Build the redirect message for an output-only strategy declaration."""
+def _output_only_redirect(column: str, strategy: ImputationStrategy) -> DataForgeError:
+    """Build the error for an output-only strategy declaration."""
     if strategy == ImputationStrategy.Dropped:
-        return (
+        message = (
             f"Column '{column}': 'Dropped' cannot be used in per_column_strategy. "
-            f"To exclude a column, use PipelineConfig.exclude_columns."
+            f"To exclude a column, pass it in exclude_columns."
         )
-    if strategy == ImputationStrategy.MNAR:
-        return (
+    elif strategy == ImputationStrategy.MNAR:
+        message = (
             f"Column '{column}': 'MNAR' cannot be used in per_column_strategy. "
             f"To declare MNAR semantics, use mnar_columns."
         )
-    return (
-        f"Column '{column}': '{strategy}' is an internal-only strategy and cannot "
-        f"be used in per_column_strategy."
+    else:
+        message = (
+            f"Column '{column}': '{strategy}' is an internal-only strategy and cannot "
+            f"be used in per_column_strategy."
+        )
+    return DataForgeError.from_code(
+        "strategy_not_declarable",
+        message,
+        columns=[column],
+        allowed=[s.value for s in ImputationStrategy if s not in _OUTPUT_ONLY_STRATEGIES],
     )
 
 
-def _constant_without_fill_redirect(column: str) -> str:
-    """Build the redirect message for a ``Constant`` declaration with no fill."""
-    return (
+def _parse_strategy(value: str | ImputationStrategy) -> ImputationStrategy:
+    """Parse a strategy name, raising ``unknown_enum_value`` on a typo."""
+    try:
+        return ImputationStrategy(value)
+    except ValueError:
+        allowed = [s.value for s in ImputationStrategy]
+        raise DataForgeError.from_code(
+            "unknown_enum_value",
+            f"{value!r} is not an imputation strategy.",
+            param="strategy",
+            allowed=allowed,
+            candidates=close_matches([str(value)], allowed),
+        ) from None
+
+
+def _constant_without_fill_redirect(column: str) -> DataForgeError:
+    """Build the error for a ``Constant`` declaration with no fill."""
+    return DataForgeError.from_code(
+        "constant_fill_missing",
         f"Column '{column}': strategy is 'Constant' but no fill value was provided. "
-        f"Add an entry to per_column_constant_fill."
+        f"Add an entry to per_column_constant_fill.",
+        columns=[column],
     )
 
 
@@ -202,7 +226,7 @@ class NumericImputationConfig:
     base_max_iter : int
         Base number of ``IterativeImputer`` iterations before dynamic signal
         adjustments are applied.  Increase this value for columns that exhibit
-        convergence warnings in ``ColumnImputationRecord.signals``.
+        convergence warnings in ``FitSignals.warnings``.
     knn_min_neighbors : int
         Floor on the adaptively computed ``n_neighbors`` value passed to
         ``KNNImputer``. The computed k will never fall below this value.
@@ -282,20 +306,22 @@ class NumericImputationConfig:
         within a per-column strategy are fitted concurrently on threads,
         capped at this many workers. ``None`` (the default) auto-sizes to the
         available CPU count; ``1`` forces a fully sequential fit.  Concurrency
-        never changes a result: the same ``random_seed`` yields a
+        never changes a result: the same ``seed`` yields a
         byte-identical ``FittedImputer`` regardless of this value.
 
     Raises
     ------
-    ValueError
-        If any column in ``per_column_strategy`` is mapped to
-        ``Passthrough``, ``Indicator``, ``Dropped``, or ``MNAR``.  ``Constant``
-        columns should use ``per_column_constant_fill``; ``Dropped`` columns
-        should use ``PipelineConfig.exclude_columns``; ``MNAR`` columns should
-        use ``mnar_columns``; ``Passthrough`` and ``Indicator`` are
-        internal-only.
-        If a column in ``bimodal_grouping_variables`` is forced to a strategy
-        other than ``ClusterConditional``.
+    InvalidInput
+        ``strategy_not_declarable`` if any column in ``per_column_strategy`` is
+        mapped to ``Passthrough``, ``Indicator``, ``Dropped``, or ``MNAR``.
+        ``Dropped`` columns should be passed in ``exclude_columns``;
+        ``MNAR`` columns should use ``mnar_columns``; ``Passthrough`` and
+        ``Indicator`` are internal-only. ``constant_fill_missing`` if a
+        ``Constant`` column has no ``per_column_constant_fill`` entry.
+        ``invalid_dial_value`` if ``max_workers`` is below 1.
+    Conflict
+        ``declaration_conflict`` if a column in ``bimodal_grouping_variables``
+        is forced to a strategy other than ``ClusterConditional``.
     """
 
     knn_max_rows: int = 50_000
@@ -372,26 +398,32 @@ class NumericImputationConfig:
 
         Raises
         ------
-        ValueError
-            If the strategy is an output-only label (e.g. 'MNAR', 'Dropped').
-            If 'Constant' is set but no corresponding fill value exists in
+        UnknownName
+            ``unknown_enum_value`` if ``strategy`` is not an
+            ``ImputationStrategy``.
+        InvalidInput
+            ``strategy_not_declarable`` if the strategy is an output-only label
+            (e.g. 'MNAR', 'Dropped'). ``constant_fill_missing`` if 'Constant'
+            is set but no corresponding fill value exists in
             ``per_column_constant_fill``.
-            If a strategy other than 'ClusterConditional' is set for a column
-            that has an entry in ``bimodal_grouping_variables``.
+        Conflict
+            ``declaration_conflict`` if a strategy other than
+            'ClusterConditional' is set for a column that has an entry in
+            ``bimodal_grouping_variables``.
         """
         if isinstance(column, str):
             column = [column]
 
-        strategy = ImputationStrategy(strategy)
+        strategy = _parse_strategy(strategy)
 
         if strategy in _OUTPUT_ONLY_STRATEGIES:
             for col in column:
-                raise ValueError(_output_only_redirect(col, strategy))
+                raise _output_only_redirect(col, strategy)
 
         if strategy == ImputationStrategy.Constant:
             for col in column:
                 if col not in self._per_column_constant_fill:
-                    raise ValueError(_constant_without_fill_redirect(col))
+                    raise _constant_without_fill_redirect(col)
 
         if strategy != ImputationStrategy.ClusterConditional:
             conflicts = sorted(
@@ -399,10 +431,13 @@ class NumericImputationConfig:
             )
             if conflicts:
                 names = ", ".join(f"'{c}'" for c in conflicts)
-                raise ValueError(
+                raise DataForgeError.from_code(
+                    "declaration_conflict",
                     f"Columns have a bimodal grouping variable declared but are forced to "
                     f"strategy '{strategy}' (not 'ClusterConditional'): {names}. "
-                    f"A grouping variable contradicts any forced strategy other than ClusterConditional."
+                    f"A grouping variable contradicts any forced strategy other than ClusterConditional.",
+                    columns=conflicts,
+                    params=["per_column_strategy", "bimodal_grouping_variables"],
                 )
 
         for col in column:
@@ -423,13 +458,15 @@ class NumericImputationConfig:
 
         Raises
         ------
-        ValueError
-            If the value is NaN or infinity.
+        InvalidInput
+            ``invalid_argument`` if the value is NaN or infinity.
         """
         import math
 
         if math.isnan(value) or math.isinf(value):
-            raise ValueError(f"Fill value cannot be NaN or infinity, got {value}.")
+            raise DataForgeError.from_code(
+                "invalid_argument", "A fill value must be finite.", param="value"
+            )
 
         if isinstance(column, str):
             column = [column]
@@ -452,13 +489,20 @@ class NumericImputationConfig:
 
         Raises
         ------
-        ValueError
-            If the grouping variable is empty or purely whitespace.
-            If any column is already forced to a strategy other than
-            'ClusterConditional' in ``per_column_strategy``.
+        InvalidInput
+            ``invalid_argument`` if the grouping variable is empty or purely
+            whitespace.
+        Conflict
+            ``declaration_conflict`` if any column is already forced to a
+            strategy other than 'ClusterConditional' in
+            ``per_column_strategy``.
         """
         if not grouping_variable or not grouping_variable.strip():
-            raise ValueError("Grouping variable cannot be empty or purely whitespace.")
+            raise DataForgeError.from_code(
+                "invalid_argument",
+                "A grouping variable must be a non-blank column name.",
+                param="grouping_variable",
+            )
 
         if isinstance(column, str):
             column = [column]
@@ -473,9 +517,12 @@ class NumericImputationConfig:
             details = ", ".join(
                 f"'{c}' ({self._per_column_strategy[c]})" for c in conflicts
             )
-            raise ValueError(
+            raise DataForgeError.from_code(
+                "declaration_conflict",
                 f"Columns are forced to a strategy other than ClusterConditional: {details}. "
-                f"A grouping variable contradicts any forced strategy other than ClusterConditional."
+                f"A grouping variable contradicts any forced strategy other than ClusterConditional.",
+                columns=conflicts,
+                params=["per_column_strategy", "bimodal_grouping_variables"],
             )
 
         for col in column:
@@ -487,9 +534,10 @@ class NumericImputationConfig:
 
         Raises
         ------
-        ValueError
-            If any column has a bimodal grouping variable declared while being
-            forced to a strategy other than ``ClusterConditional``.
+        Conflict
+            ``declaration_conflict`` if any column has a bimodal grouping
+            variable declared while being forced to a strategy other than
+            ``ClusterConditional``.
         """
         conflicts = sorted(
             col
@@ -503,16 +551,21 @@ class NumericImputationConfig:
                 f"grouping_variable='{self._bimodal_grouping_variables[col]}')"
                 for col in conflicts
             )
-            raise ValueError(
+            raise DataForgeError.from_code(
+                "declaration_conflict",
                 f"Columns have both a bimodal grouping variable and a forced strategy "
                 f"other than ClusterConditional: {details}. "
-                f"A grouping variable contradicts any forced strategy other than ClusterConditional."
+                f"A grouping variable contradicts any forced strategy other than ClusterConditional.",
+                columns=conflicts,
+                params=["per_column_strategy", "bimodal_grouping_variables"],
             )
 
     def __post_init__(self) -> None:
         if self.max_workers is not None and self.max_workers < 1:
-            raise ValueError(
-                f"max_workers must be None or >= 1, got {self.max_workers}."
+            raise DataForgeError.from_code(
+                "invalid_dial_value",
+                f"max_workers must be None or >= 1, got {self.max_workers}.",
+                param="max_workers",
             )
         _BLOCKED = {
             ImputationStrategy.Passthrough,
@@ -522,28 +575,12 @@ class NumericImputationConfig:
         }
         for col, strategy in self._per_column_strategy.items():
             if strategy in _BLOCKED:
-                if strategy == ImputationStrategy.Dropped:
-                    raise ValueError(
-                        f"Column '{col}': 'Dropped' cannot be used in per_column_strategy. "
-                        f"To exclude a column, use PipelineConfig.exclude_columns."
-                    )
-                if strategy == ImputationStrategy.MNAR:
-                    raise ValueError(
-                        f"Column '{col}': 'MNAR' cannot be used in per_column_strategy. "
-                        f"To declare MNAR semantics, use mnar_columns."
-                    )
-                raise ValueError(
-                    f"Column '{col}': '{strategy}' is an internal-only strategy and cannot "
-                    f"be used in per_column_strategy."
-                )
+                raise _output_only_redirect(col, strategy)
             if (
                 strategy == ImputationStrategy.Constant
                 and col not in self._per_column_constant_fill
             ):
-                raise ValueError(
-                    f"Column '{col}': strategy is 'Constant' but no fill value was provided. "
-                    f"Add an entry to per_column_constant_fill."
-                )
+                raise _constant_without_fill_redirect(col)
         self.validate()
 
     def to_dict(self) -> dict:
@@ -598,8 +635,8 @@ class NumericImputationConfig:
 
         Raises
         ------
-        ValueError
-            If ``data`` carries a retired key. ``mice_max_iter`` and
+        InvalidInput
+            ``retired_dial`` if ``data`` carries a retired key. ``mice_max_iter`` and
             ``knn_n_neighbors`` moved to the recipe (ADR-0083).
             ``mice_min_rows``, ``knn_max_features``,
             ``gradient_boost_min_rows`` and
@@ -609,16 +646,20 @@ class NumericImputationConfig:
         """
         for retired in ("mice_max_iter", "knn_n_neighbors"):
             if retired in data:
-                raise ValueError(
+                raise DataForgeError.from_code(
+                    "retired_dial",
                     f"'{retired}' was removed from NumericImputationConfig. "
-                    "Set this dial on the recipe instead, via "
-                    "ImputationRecipe.with_hyperparameters(unit_id, hyperparameters)."
+                    "Set this dial on the recipe instead, via the "
+                    "resolve_recipe Operation's hyperparameters argument.",
+                    params=[retired],
                 )
         for retired, replacement in _DELETED_NUMERIC_KEYS.items():
             if retired in data:
-                raise ValueError(
+                raise DataForgeError.from_code(
+                    "retired_dial",
                     f"'{retired}' was removed from NumericImputationConfig. "
-                    f"{replacement}"
+                    f"{replacement}",
+                    params=[retired],
                 )
 
         config = cls(
@@ -673,7 +714,7 @@ class NumericImputationConfig:
         for col, val in data.get("per_column_constant_fill", {}).items():
             config.set_per_column_constant_fill(col, float(val))
         for col, val in data.get("per_column_strategy", {}).items():
-            config.set_per_column_strategy(col, ImputationStrategy(val))
+            config.set_per_column_strategy(col, _parse_strategy(val))
         for col, val in data.get("bimodal_grouping_variables", {}).items():
             config.set_bimodal_grouping_variable(col, str(val))
 
@@ -698,9 +739,9 @@ class ImputationConfig:
 
     Raises
     ------
-    ValueError
-        If any column appears in both ``mnar_columns`` and
-        ``numeric.per_column_strategy``.  These declarations are mutually
+    Conflict
+        ``declaration_conflict`` if any column appears in both
+        ``mnar_columns`` and ``numeric.per_column_strategy``.  These declarations are mutually
         exclusive: ``mnar_columns`` adds an indicator and exposes a
         data-derived fill without applying it; ``per_column_strategy`` directs the routing engine to a
         user-specified strategy.  Declaring the same column in both is
@@ -734,8 +775,9 @@ class ImputationConfig:
 
         Raises
         ------
-        ValueError
-            If any specified column already has a strategy in ``numeric.per_column_strategy``.
+        Conflict
+            ``declaration_conflict`` if any specified column already has a
+            strategy in ``numeric.per_column_strategy``.
         """
         if isinstance(column, str):
             column = [column]
@@ -743,11 +785,14 @@ class ImputationConfig:
         conflicts = sorted(set(column) & set(self.numeric.per_column_strategy.keys()))
         if conflicts:
             names = ", ".join(f"'{c}'" for c in conflicts)
-            raise ValueError(
+            raise DataForgeError.from_code(
+                "declaration_conflict",
                 f"Columns appear in both mnar_columns and numeric.per_column_strategy, "
                 f"which are mutually exclusive: {names}. "
                 f"Use mnar_columns for MNAR semantics (indicator + exposed fill) "
-                f"or per_column_strategy for a user-specified strategy, not both."
+                f"or per_column_strategy for a user-specified strategy, not both.",
+                columns=conflicts,
+                params=["mnar_columns", "per_column_strategy"],
             )
 
         for c in column:
@@ -760,11 +805,11 @@ class ImputationConfig:
 
         Raises
         ------
-        ValueError
-            If any column appears in both ``mnar_columns`` and
-            ``numeric.per_column_strategy``.
-            If any column in ``numeric.bimodal_grouping_variables`` is forced to
-            a strategy other than ``ClusterConditional``.
+        Conflict
+            ``declaration_conflict`` if any column appears in both
+            ``mnar_columns`` and ``numeric.per_column_strategy``, or if any
+            column in ``numeric.bimodal_grouping_variables`` is forced to a
+            strategy other than ``ClusterConditional``.
         """
         self.numeric.validate()
         conflicts = sorted(
@@ -772,11 +817,14 @@ class ImputationConfig:
         )
         if conflicts:
             names = ", ".join(f"'{c}'" for c in conflicts)
-            raise ValueError(
+            raise DataForgeError.from_code(
+                "declaration_conflict",
                 f"Columns appear in both mnar_columns and numeric.per_column_strategy, "
                 f"which are mutually exclusive: {names}. "
                 f"Use mnar_columns for MNAR semantics (indicator + exposed fill) "
-                f"or per_column_strategy for a user-specified strategy, not both."
+                f"or per_column_strategy for a user-specified strategy, not both.",
+                columns=conflicts,
+                params=["mnar_columns", "per_column_strategy"],
             )
 
     def to_dict(self) -> dict:
@@ -817,57 +865,6 @@ class ImputationConfig:
         return config
 
 
-def _md_cell(value: Any) -> str:
-    """Render one value as a Markdown table cell.
-
-    Absence is stated rather than left as a bare ``None``, enums render by
-    their string form (matching ``to_dict``), and any pipe or newline in the
-    value is neutralised so it cannot break the surrounding table.
-    """
-    if value is None:
-        return "none"
-    if isinstance(value, Enum):
-        text = str(value)
-    elif isinstance(value, (list, tuple)):
-        text = ", ".join(_md_cell(v) for v in value) if value else "none"
-    elif isinstance(value, dict):
-        text = (
-            ", ".join(f"{k}={_md_cell(v)}" for k, v in value.items())
-            if value
-            else "none"
-        )
-    else:
-        text = str(value)
-    return text.replace("|", "\\|").replace("\n", " ")
-
-
-def _frame_lines(frame: pl.DataFrame) -> list[str]:
-    """Render a Payload Frame's shape and dtypes, never its rows (ADR-0086)."""
-    lines = [
-        f"Shape: {frame.height:,} rows x {frame.width:,} columns\n",
-        "| Column | Dtype |",
-        "|---|---|",
-    ]
-    if frame.width:
-        for name, dtype in frame.schema.items():
-            lines.append(f"| `{name}` | {dtype} |")
-    else:
-        lines.append("| none | |")
-    return lines
-
-
-def _flatten_snapshot(value: Any, prefix: str = "") -> list[tuple[str, Any]]:
-    """Flatten a nested config snapshot into dotted-key / value rows."""
-    rows: list[tuple[str, Any]] = []
-    if isinstance(value, dict):
-        for key, sub in value.items():
-            path = f"{prefix}.{key}" if prefix else str(key)
-            rows.extend(_flatten_snapshot(sub, path))
-    else:
-        rows.append((prefix, value))
-    return rows
-
-
 @dataclass(frozen=True)
 class ColumnRouting:
     """One column's routed imputation strategy, and nothing computed from it.
@@ -891,8 +888,14 @@ class ColumnRouting:
         Detected semantic type of the column, carried from the profile.
     strategy : ImputationStrategy
         Strategy routed for this column.
-    signals : tuple[str, ...], optional
-        Human-readable routing rationale — the reasons that drove ``strategy``.
+    reason : RoutingReason
+        The terminal rule that fixed ``strategy`` (ADR-0105). ``authored``
+        for a column named in :func:`~dataforge_ml.imputation.author`.
+    evidence : tuple[RoutingEvidence, ...], optional
+        The typed facts of the routing walk, in order: ``entry``,
+        ``signal_score``, ``tier`` and ``feasibility`` facts. Empty for a
+        column decided by a declaration or a structural rule, and for an
+        authored column.
     constant_fill : float, optional
         The declared fill value for a ``Constant`` column. ``None`` for every
         other strategy. A declared value, never a learned one.
@@ -914,7 +917,8 @@ class ColumnRouting:
     column: str
     semantic_type: SemanticType
     strategy: ImputationStrategy
-    signals: tuple[str, ...] = ()
+    reason: RoutingReason
+    evidence: tuple[RoutingEvidence, ...] = ()
     constant_fill: float | None = None
     grouping_variable: str | None = None
     indicator_flag: bool = False
@@ -925,8 +929,10 @@ class ColumnRouting:
     def to_dict(self) -> dict:
         """Serialise the routing to a plain dictionary.
 
-        Enums are rendered by member *name* and tuples as lists, so the result
-        is JSON-friendly and structurally round-trippable.
+        Enums are rendered by member *name*, except ``reason``, which is
+        rendered by value like the evidence facts it travels with; the
+        evidence is a list of fact dictionaries. The result is JSON-friendly
+        and structurally round-trippable.
 
         Returns
         -------
@@ -937,7 +943,8 @@ class ColumnRouting:
             "column": self.column,
             "semantic_type": self.semantic_type.name,
             "strategy": self.strategy.name,
-            "signals": list(self.signals),
+            "reason": self.reason.value,
+            "evidence": _evidence_to_list(self.evidence),
             "constant_fill": self.constant_fill,
             "grouping_variable": self.grouping_variable,
             "indicator_flag": self.indicator_flag,
@@ -955,65 +962,37 @@ class ColumnRouting:
         data : dict
             Mapping produced by :meth:`to_dict`.
 
-        A payload saved before ``excluded`` existed recorded the exclusion only
-        as a signal, so the flag falls back to that signal when absent.
-
         Returns
         -------
         ColumnRouting
             Reconstructed routing instance.
+
+        Raises
+        ------
+        IncompatibleArtifact
+            ``incompatible_artifact`` if ``reason`` or ``evidence`` is missing,
+            or either does not match this library's schema.
         """
-        signals = tuple(data.get("signals", ()))
+        column = data["column"]
+        if "reason" not in data or "evidence" not in data:
+            raise DataForgeError.from_code(
+                "incompatible_artifact",
+                f"Column '{column}': saved routing has no Routing Reason or "
+                f"Routing Evidence. Route again.",
+            )
         return cls(
-            column=data["column"],
+            column=column,
             semantic_type=SemanticType[data["semantic_type"]],
             strategy=ImputationStrategy[data["strategy"]],
-            signals=signals,
+            reason=_reason_from_value(column, data["reason"]),
+            evidence=_evidence_from_list(column, data["evidence"]),
             constant_fill=data.get("constant_fill"),
             grouping_variable=data.get("grouping_variable"),
             indicator_flag=bool(data.get("indicator_flag", False)),
             mnar=bool(data.get("mnar", False)),
             drop=bool(data.get("drop", False)),
-            excluded=bool(data.get("excluded", _EXCLUSION_SIGNAL in signals)),
+            excluded=bool(data.get("excluded", False)),
         )
-
-    def to_markdown(self) -> str:
-        """Render the column routing as a ``###``-rooted Markdown fragment.
-
-        A fragment per rule 5 of the Rendering Contract (ADR-0086): it carries
-        no ``#`` or ``##`` heading, so the owning document composes it without
-        a heading collision.
-
-        Returns
-        -------
-        str
-            Markdown subsection headed by ``### `<column>``` and a field table.
-        """
-        lines = [
-            f"### `{self.column}`\n",
-            "| Field | Value |",
-            "|---|---|",
-            f"| semantic_type | {_md_cell(self.semantic_type)} |",
-            f"| strategy | {_md_cell(self.strategy)} |",
-            f"| signals | {_md_cell(self.signals)} |",
-            f"| constant_fill | {_md_cell(self.constant_fill)} |",
-            f"| grouping_variable | {_md_cell(self.grouping_variable)} |",
-            f"| indicator_flag | {_md_cell(self.indicator_flag)} |",
-            f"| mnar | {_md_cell(self.mnar)} |",
-            f"| drop | {_md_cell(self.drop)} |",
-            f"| excluded | {_md_cell(self.excluded)} |",
-        ]
-        return "\n".join(lines)
-
-    def __str__(self) -> str:
-        """Return the fragment, per rule 2 of the Rendering Contract.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()
 
 
 @dataclass(frozen=True)
@@ -1038,87 +1017,19 @@ class ImputationRouting:
         The estimator family the MICE block trains with. ``None`` when no
         column is routed to MICE. :func:`~dataforge_ml.imputation.route`
         resolves it off the Estimator Ladder (ADR-0094) whenever the block is
-        non-empty; :func:`~dataforge_ml.imputation.author` leaves it ``None``
-        unless ``with_model_choice`` sets one.
-    mice_estimator : Any, optional
-        A user-supplied estimator instance for the MICE block, held by
-        identity and never cloned. ``None`` unless the block trains with a
-        foreign estimator.
+        non-empty; :func:`~dataforge_ml.imputation.author` leaves it ``None``.
     """
 
     column_routings: dict[str, ColumnRouting]
     mice_model_choice: ModelChoice | None = None
-    mice_estimator: Any = None
 
     def __post_init__(self) -> None:
         object.__setattr__(
             self, "column_routings", dict(self.column_routings)
         )
 
-    def with_model_choice(self, choice: ModelChoice | Any) -> ImputationRouting:
-        """Return a new routing with the MICE block's estimator set (ADR-0090).
-
-        The one door for the MICE block's estimator, whether it is a library
-        family or a foreign one: pass a :class:`ModelChoice` member to pick a
-        family the factory builds, or a live sklearn-compatible estimator
-        instance to use as-is. An instance sets ``mice_model_choice`` to
-        :attr:`~dataforge_ml.ModelChoice.Custom` and holds the instance by
-        identity, never cloned — this is the only way
-        ``GradientBoostingRegressor`` is reachable, since it is off the
-        Estimator Ladder (ADR-0094).
-
-        Parameters
-        ----------
-        choice : ModelChoice or estimator instance
-            A :class:`ModelChoice` member naming a library estimator family
-            (every member except :attr:`~dataforge_ml.ModelChoice.Custom`),
-            or a live, unfitted sklearn-compatible estimator instance.
-
-        Returns
-        -------
-        ImputationRouting
-            A new routing with ``mice_model_choice`` (and, for an instance,
-            ``mice_estimator``) set. Every other field is carried over
-            unchanged.
-
-        Raises
-        ------
-        ValueError
-            If ``choice`` is the bare :attr:`~dataforge_ml.ModelChoice.Custom`
-            label with no estimator instance, or if this routing has no MICE
-            block to set an estimator on.
-        """
-        import dataclasses
-
-        mice_present = any(
-            r.strategy == ImputationStrategy.MICE
-            for r in self.column_routings.values()
-        )
-        if not mice_present:
-            raise ValueError(
-                "with_model_choice() requires a MICE block: this routing "
-                "carries no column routed to ImputationStrategy.MICE."
-            )
-        if isinstance(choice, ModelChoice):
-            if choice == ModelChoice.Custom:
-                raise ValueError(
-                    "ModelChoice.Custom is a label, not an estimator: pass "
-                    "the estimator instance itself to with_model_choice() "
-                    "instead of the bare Custom member."
-                )
-            return dataclasses.replace(
-                self, mice_model_choice=choice, mice_estimator=None
-            )
-        return dataclasses.replace(
-            self, mice_model_choice=ModelChoice.Custom, mice_estimator=choice
-        )
-
     def to_dict(self) -> dict:
         """Serialise the routing to a plain, JSON-friendly dictionary.
-
-        ``mice_estimator`` is **omitted**: a user-supplied estimator is a live
-        object, not data. The reloaded routing keeps ``mice_model_choice`` as
-        recorded and an empty ``mice_estimator`` slot.
 
         Returns
         -------
@@ -1148,8 +1059,7 @@ class ImputationRouting:
         Returns
         -------
         ImputationRouting
-            Reconstructed routing instance. ``mice_estimator`` is never
-            carried by the wire format and comes back ``None``.
+            Reconstructed routing instance.
         """
         raw_choice = data.get("mice_model_choice")
         return cls(
@@ -1161,62 +1071,6 @@ class ImputationRouting:
                 ModelChoice[raw_choice] if raw_choice is not None else None
             ),
         )
-
-    def to_markdown(self) -> str:
-        """Render the whole routing as a Markdown document.
-
-        A document per rule 5 of the Rendering Contract (ADR-0086): it owns
-        the ``#`` and ``##`` heading levels and delegates to the
-        :class:`ColumnRouting` fragments beneath them.
-
-        Returns
-        -------
-        str
-            Markdown document with a summary and the per-column routings.
-        """
-        lines = ["# Imputation Routing\n"]
-
-        lines.append("## Summary\n")
-        lines.append("| Field | Value |")
-        lines.append("|---|---|")
-        lines.append(f"| columns | {len(self.column_routings)} |")
-        lines.append(f"| mice_model_choice | {_md_cell(self.mice_model_choice)} |")
-        lines.append(
-            f"| mice_estimator | "
-            f"{_md_cell(type(self.mice_estimator).__name__ if self.mice_estimator is not None else None)} |"
-        )
-        lines.append("")
-
-        lines.append("## Column Routings\n")
-        lines.append("| Column | Semantic type | Strategy | Indicator | MNAR | Drop |")
-        lines.append("|---|---|---|---|---|---|")
-        if self.column_routings:
-            for routing in self.column_routings.values():
-                lines.append(
-                    f"| `{routing.column}` | {_md_cell(routing.semantic_type)} "
-                    f"| {_md_cell(routing.strategy)} "
-                    f"| {_md_cell(routing.indicator_flag)} "
-                    f"| {_md_cell(routing.mnar)} | {_md_cell(routing.drop)} |"
-                )
-        else:
-            lines.append("| none | | | | | |")
-        lines.append("")
-        if self.column_routings:
-            for routing in self.column_routings.values():
-                lines.append(routing.to_markdown())
-                lines.append("")
-
-        return "\n".join(lines).strip() + "\n"
-
-    def __str__(self) -> str:
-        """Return the Imputation Routing document, per rule 2 of the contract.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()
 
 
 # ---------------------------------------------------------------------------
@@ -1312,38 +1166,6 @@ class ImputationUnit:
             is_block=strategy in _JOINT_BLOCK_STRATEGIES,
         )
 
-    def to_markdown(self) -> str:
-        """Render the execution unit as a ``###``-rooted Markdown fragment.
-
-        A fragment per rule 5 of the Rendering Contract (ADR-0086): it carries
-        no ``#`` or ``##`` heading, so the owning document composes it without
-        a heading collision.
-
-        Returns
-        -------
-        str
-            Markdown subsection headed by ``### `<unit_id>``` and a field table.
-        """
-        lines = [
-            f"### `{self.unit_id}`\n",
-            "| Field | Value |",
-            "|---|---|",
-            f"| strategy | {_md_cell(self.strategy)} |",
-            f"| columns | {_md_cell(self.columns)} |",
-            f"| is_block | {_md_cell(self.is_block)} |",
-        ]
-        return "\n".join(lines)
-
-    def __str__(self) -> str:
-        """Return the fragment, per rule 2 of the Rendering Contract.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()
-
 
 @dataclass
 class ColumnImputationRecord:
@@ -1421,38 +1243,6 @@ class ColumnImputationRecord:
             indicator_added=bool(data.get("indicator_added", False)),
         )
 
-    def to_markdown(self) -> str:
-        """Render the audit record as a ``###``-rooted Markdown fragment.
-
-        A fragment per rule 5 of the Rendering Contract (ADR-0086): it carries
-        no ``#`` or ``##`` heading, so the owning result document composes it
-        without a heading collision. The composed :class:`ColumnRouting`
-        renders its own table — *what was routed* — and the learned
-        ``fill_value`` and ``indicator_added`` continue it.
-
-        Returns
-        -------
-        str
-            Markdown subsection headed by ``### `<column>``` and a field table
-            covering the routing's fields plus the learned ones.
-        """
-        lines = [
-            self.decision.to_markdown(),
-            f"| fill_value | {_md_cell(self.fill_value)} |",
-            f"| indicator_added | {_md_cell(self.indicator_added)} |",
-        ]
-        return "\n".join(lines)
-
-    def __str__(self) -> str:
-        """Return the fragment, per rule 2 of the Rendering Contract.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()
-
 
 @dataclass
 class ImputationResult:
@@ -1472,66 +1262,3 @@ class ImputationResult:
     dataframe: pl.DataFrame
     records: dict[str, ColumnImputationRecord] = field(default_factory=dict)
     dropped_columns: list[str] = field(default_factory=list)
-
-    def to_markdown(self) -> str:
-        """Render the transform result as a Markdown document.
-
-        A document per rule 5 of the Rendering Contract (ADR-0086): it owns the
-        ``#`` and ``##`` heading levels and delegates to the
-        :class:`ColumnImputationRecord` fragments beneath them. ``dataframe`` is
-        a Payload Frame — its shape and dtypes are reported and its rows never
-        are — so the output stays bounded in the number of rows imputed.
-
-        Returns
-        -------
-        str
-            Markdown document with a summary, the dropped columns, the imputed
-            frame's shape and dtypes, and the per-column audit records.
-        """
-        lines = ["# Imputation Result\n"]
-
-        lines.append("## Summary\n")
-        lines.append("| Field | Value |")
-        lines.append("|---|---|")
-        lines.append(f"| records | {len(self.records)} |")
-        lines.append(f"| dropped_columns | {_md_cell(self.dropped_columns)} |")
-        lines.append(
-            "| indicators_added | "
-            + _md_cell(sum(1 for r in self.records.values() if r.indicator_added))
-            + " |"
-        )
-        lines.append("")
-
-        lines.append("## Imputed Frame\n")
-        lines.extend(_frame_lines(self.dataframe))
-        lines.append("")
-
-        lines.append("## Column Records\n")
-        lines.append("| Column | Strategy | Fill value | Indicator added |")
-        lines.append("|---|---|---|---|")
-        if self.records:
-            for record in self.records.values():
-                lines.append(
-                    f"| `{record.decision.column}` "
-                    f"| {_md_cell(record.decision.strategy)} "
-                    f"| {_md_cell(record.fill_value)} "
-                    f"| {_md_cell(record.indicator_added)} |"
-                )
-        else:
-            lines.append("| none | | | |")
-        lines.append("")
-        for record in self.records.values():
-            lines.append(record.to_markdown())
-            lines.append("")
-
-        return "\n".join(lines).strip() + "\n"
-
-    def __str__(self) -> str:
-        """Return the Imputation Result document, per rule 2 of the contract.
-
-        Returns
-        -------
-        str
-            The output of :meth:`to_markdown`.
-        """
-        return self.to_markdown()

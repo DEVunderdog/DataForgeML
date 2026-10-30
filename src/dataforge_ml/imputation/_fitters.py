@@ -24,11 +24,14 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import polars as pl
-from sklearn.experimental import enable_iterative_imputer  # noqa: F401
+from sklearn.experimental import enable_iterative_imputer  # noqa: F401 - side effect
 from sklearn.impute import IterativeImputer, KNNImputer
 from sklearn.mixture import GaussianMixture
 from sklearn.pipeline import Pipeline
 
+from .._boundary._error_codes import entry_for
+from .._seed import DEFAULT_SEED
+from ..records import DataForgeError, ResultWarning
 from ._config import ColumnRouting, ImputationStrategy, ModelChoice
 from ._fit_signals import FitSignals
 from ._fitted_units import (
@@ -94,13 +97,10 @@ class UnitFitContext:
         The active numeric column population MICE and KNN both widen their
         predictor set into (ADR-0079, ADR-0093) — every active
         ``SemanticType.Numeric`` column, not just a block's own membership.
-    mice_estimator : Any, optional
-        The owning routing's user-supplied MICE estimator
-        (:attr:`~dataforge_ml.imputation.ImputationRouting.mice_estimator`),
-        held by identity and never cloned. Read only when the block's
-        ``model_choice`` is :attr:`~dataforge_ml.ModelChoice.Custom`.
-    random_seed : int, optional
-        Seed for the stochastic strategies (GMM sampling).
+    seed : int, default DEFAULT_SEED
+        Seed for every stochastic fit — the MICE imputer and its estimator,
+        and GMM sampling — taken from the Operation's ``seed`` argument
+        (ADR-0106).
     mice_model_choice : ModelChoice, optional
         The owning routing's
         :attr:`~dataforge_ml.imputation.ImputationRouting.mice_model_choice` —
@@ -112,8 +112,7 @@ class UnitFitContext:
     column_estimates: Mapping[str, ColumnEstimates] = field(default_factory=dict)
     unit_hyperparameters: Mapping[str, dict[str, Any]] = field(default_factory=dict)
     feature_columns: tuple[str, ...] = ()
-    mice_estimator: Any = None
-    random_seed: int | None = None
+    seed: int = DEFAULT_SEED
     mice_model_choice: ModelChoice | None = None
 
 
@@ -131,9 +130,8 @@ class UnitFitOutcome:
         The trained unit, or ``None`` when this unit cannot train.
     signals : FitSignals or None, optional
         The structured, ephemeral record of the fit (ADR-0074) — estimator,
-        convergence, notes, and any warnings. Its ``duration_s`` is left unset
-        here and stamped by the training surface, which owns the clock. ``None``
-        when ``fitted`` is ``None``: a failure produces no record.
+        convergence, notes, and any coded Result Warnings. ``None`` when
+        ``fitted`` is ``None``: a failure produces no record.
     fallback_reason : str or None, optional
         Why ``fitted`` is ``None``; always set when it is.
     """
@@ -261,8 +259,8 @@ def _dispatch_unit_fit(
 
     Raises
     ------
-    ValueError
-        If ``unit.strategy`` is one no fitter in this module handles — every
+    Unexpected
+        ``unexpected`` if ``unit.strategy`` is one no fitter in this module handles — every
         structural strategy (Dropped / Passthrough / Indicator), which trains
         nothing and must not be projected into a unit.
     """
@@ -277,10 +275,11 @@ def _dispatch_unit_fit(
         return fit_gmm_unit(unit, train_df, ctx)
     if strategy == ImputationStrategy.ClusterConditional:
         return fit_cluster_unit(unit, train_df, ctx)
-    raise ValueError(
+    raise DataForgeError.from_code(
+        "unexpected",
         f"Unit '{unit.unit_id}' carries strategy '{strategy}', which no fitter "
         f"in this module handles. Structural strategies (Dropped / Passthrough "
-        f"/ Indicator) train nothing and must not be projected into a unit."
+        f"/ Indicator) train nothing and must not be projected into a unit.",
     )
 
 
@@ -295,7 +294,7 @@ def fit_scalar_unit(
     ``MNAR`` computes the central tendency the recipe chose for it, rounded to a
     whole number when the column is integer-typed. The value is exposed, not
     applied: :meth:`FittedImputer.transform` leaves an MNAR column's nulls in
-    place, and the unit's own ``transform`` is how a user opts into the fill
+    place and exposes the fill on ``ColumnImputationRecord.fill_value``
     (ADR-0098). The signals say so, since nulls in the output are otherwise
     the only clue.
 
@@ -351,8 +350,7 @@ def fit_scalar_unit(
                     f"central_tendency: {tendency}",
                     "fill computed, not applied: FittedImputer.transform leaves ",
                     "this MNAR column's nulls in place; read ",
-                    "ColumnImputationRecord.fill_value or call this unit's ",
-                    "transform to apply it",
+                    "ColumnImputationRecord.fill_value to apply it",
                 )
             ),
         )
@@ -378,15 +376,7 @@ def fit_mice_unit(
 
     The block trains a single estimator, built from ``ctx.mice_model_choice``
     — the choice :func:`~dataforge_ml.imputation.route` resolved off the
-    Estimator Ladder (ADR-0094), or that ``with_model_choice`` set explicitly.
-    :attr:`~dataforge_ml.ModelChoice.Custom` is the one choice nothing is
-    built for: the user's own estimator is taken off ``ctx.mice_estimator``
-    and used as-is (ADR-0090). It is not cloned, its ``n_jobs`` is not set,
-    and a pre-fitted one is accepted without a raise or a warning —
-    ``IterativeImputer`` clones it per column and refits from scratch, so its
-    prior state is inert. A ``Custom`` block whose slot is empty — every
-    routing reloaded from bytes — reports a reason rather than falling back
-    to a library estimator.
+    Estimator Ladder (ADR-0094), or that its ``model_choice`` argument set.
 
     The predictor set is widened past the block's own membership to every
     column in ``ctx.feature_columns`` — every active
@@ -411,8 +401,7 @@ def fit_mice_unit(
         Training split.
     ctx : UnitFitContext
         Recipe-derived context. ``feature_columns`` supplies the widened
-        predictor set; ``mice_model_choice`` and ``mice_estimator`` the
-        estimator to build.
+        predictor set; ``mice_model_choice`` the estimator to build.
     n_jobs_inner : int, default 1
         Inner estimator ``n_jobs`` (ADR-0056).
 
@@ -422,8 +411,7 @@ def fit_mice_unit(
         A :class:`~dataforge_ml.imputation._fitted_imputer.FittedMICE` plus the
         estimator / initial-strategy / predictor / convergence signals, or no
         fit when the routing carries no ``mice_model_choice`` at all (a bare
-        ``author()`` declaration with no ``with_model_choice`` edit), or is
-        planned ``Custom`` with no estimator carried.
+        ``author()`` declaration).
     """
     from ._fitted_imputer import FittedMICE
 
@@ -435,7 +423,7 @@ def fit_mice_unit(
                 f"mice: unit '{unit.unit_id}' carries no mice_model_choice. "
                 f"route() resolves one off the Estimator Ladder whenever the "
                 f"block is non-empty; a hand-authored routing needs "
-                f"routing.with_model_choice(choice) before this block can train."
+                f"mice_model_choice set before this block can train."
             )
         )
 
@@ -465,31 +453,12 @@ def fit_mice_unit(
     # must be filled exactly as the serve-time pre-model snapshot fills them.
     fit_df, scalar_filled_cols = _fill_scalar_predictors(train_df, ctx, extra_cols)
 
-    if model_choice == ModelChoice.Custom:
-        # The label says "look elsewhere": the instance rides on the
-        # routing's mice_estimator slot and is used as-is, never cloned and
-        # never reconfigured (ADR-0090). An empty slot means this routing
-        # was reloaded from bytes, which never carries the estimator — that
-        # cannot train, and saying so is the whole point of the label being
-        # a value rather than None.
-        estimator = ctx.mice_estimator
-        if estimator is None:
-            return UnitFitOutcome(
-                fallback_reason=(
-                    f"mice: the block is routed with ModelChoice.Custom but no "
-                    f"estimator is carried for unit '{unit.unit_id}'. A "
-                    f"user-supplied estimator is never serialized, so a "
-                    f"reloaded routing must be re-supplied with "
-                    f"routing.with_model_choice(estimator)."
-                )
-            )
-    else:
-        estimator = RegressionEstimatorFactory.build_from_choice(
-            model_choice, n_jobs=n_jobs_inner
-        )
+    estimator = RegressionEstimatorFactory.build_from_choice(
+        model_choice, n_jobs=n_jobs_inner, seed=ctx.seed
+    )
     model = IterativeImputer(
         estimator=estimator,
-        random_state=0,
+        random_state=ctx.seed,
         max_iter=max_iter,
         tol=tol,
         initial_strategy=initial_strategy,
@@ -508,11 +477,18 @@ def fit_mice_unit(
         initial_strategy_note = "initial_strategy: mean (all columns normal-skew)"
 
     converged = bool(model.n_iter_ < max_iter)
-    warnings_: tuple[str, ...] = ()
+    fit_warnings: tuple[ResultWarning, ...] = ()
     if not converged:
-        warnings_ = (
-            f"MICE hit its iteration cap without converging: max_iter={max_iter} ",
-            "reached; consider increasing base_max_iter",
+        fit_warnings = (
+            ResultWarning(
+                code="mice_not_converged",
+                message=(
+                    f"MICE unit '{unit.unit_id}' hit its iteration cap "
+                    f"(max_iter={max_iter}) without converging."
+                ),
+                columns=list(cols),
+                hint=entry_for("mice_not_converged").hint,
+            ),
         )
 
     return UnitFitOutcome(
@@ -528,7 +504,7 @@ def fit_mice_unit(
             estimator=_estimator_name(estimator),
             converged=converged,
             n_iter=int(model.n_iter_),
-            warnings=warnings_,
+            warnings=fit_warnings,
             notes=(
                 initial_strategy_note,
                 n_nearest_note,
@@ -672,7 +648,7 @@ def fit_gmm_unit(
             fallback_reason=(
                 f"gmm_sampling: column '{col}' carries no bimodal centres on "
                 f"the recipe. Set them with "
-                f"ImputationRecipe.with_estimates('{col}', center1=..., center2=...)."
+                f"resolve_recipe's estimates argument (center1, center2)."
             )
         )
 
@@ -687,9 +663,24 @@ def fit_gmm_unit(
     gmm = GaussianMixture(
         n_components=2,
         means_init=np.array([[center1], [center2]]),
-        random_state=ctx.random_seed,
+        random_state=ctx.seed,
     )
     gmm.fit(series.to_numpy().reshape(-1, 1))
+
+    converged = bool(gmm.converged_)
+    fit_warnings: tuple[ResultWarning, ...] = ()
+    if not converged:
+        fit_warnings = (
+            ResultWarning(
+                code="gmm_not_converged",
+                message=(
+                    f"GMM unit '{unit.unit_id}' hit its iteration cap "
+                    f"(max_iter={gmm.max_iter}) without converging."
+                ),
+                columns=[col],
+                hint=entry_for("gmm_not_converged").hint,
+            ),
+        )
 
     return UnitFitOutcome(
         fitted=FittedGMMSampling(
@@ -703,12 +694,15 @@ def fit_gmm_unit(
             domain_snap_bounds=(
                 estimates.domain_snap_bounds if estimates is not None else None
             ),
-            random_seed=ctx.random_seed,
+            seed=ctx.seed,
         ),
         signals=FitSignals(
             unit_id=unit.unit_id,
             strategy=unit.strategy,
             estimator="GaussianMixture",
+            converged=converged,
+            n_iter=int(gmm.n_iter_),
+            warnings=fit_warnings,
             notes=("components: 2 (bimodal centres seeded from the recipe)",),
         ),
     )
@@ -754,7 +748,7 @@ def fit_cluster_unit(
             fallback_reason=(
                 f"cluster_conditional: column '{col}' carries no bimodal "
                 f"centres on the recipe. Set them with "
-                f"ImputationRecipe.with_estimates('{col}', center1=..., center2=...)."
+                f"resolve_recipe's estimates argument (center1, center2)."
             )
         )
 
